@@ -34,6 +34,7 @@ limitations under the License.
 #include <set>
 #include "trex_astf_dp_core.h"
 #include "trex_astf_messaging.h"
+#include "dyn_sts.h"
 
 using namespace std;
 
@@ -109,6 +110,9 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdateLatency, "update_latency");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfTotalCountersValues, "get_total_counter_values");
+TREX_RPC_CMD(TrexRpcCmdAstfDynamicCountersDesc, "get_dynamic_counter_desc");
+TREX_RPC_CMD(TrexRpcCmdAstfDynamicCountersValues, "get_dynamic_counter_values");
+TREX_RPC_CMD(TrexRpcCmdAstfTotalDynamicCountersValues, "get_total_dynamic_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGNames, "get_tg_names");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGStats, "get_tg_id_stats");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
@@ -579,6 +583,74 @@ TrexRpcCmdAstfTotalCountersValues::_run(const Json::Value &params, Json::Value &
 }
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfDynamicCountersDesc::_run(const Json::Value &params, Json::Value &result) {
+    CCpDynStsInfra *infra = get_astf_object()->get_cp_sts_infra();
+    bool is_sum = false;
+    if (params.isMember("is_sum")) {
+        is_sum = parse_bool(params, "is_sum", result);
+    }
+    CSTTCp *lpstt;
+    if (is_sum) {
+        lpstt = infra->m_total_sts;
+    } else {
+        string profile_id = parse_profile(params, result);
+        if (!infra->is_valid_profile(profile_id)) {
+            generate_execute_err(result, "Invalid profile : " + profile_id);
+        }
+        lpstt = infra->get_profile_sts(profile_id);
+    }
+    if (lpstt && lpstt->m_init) {
+        lpstt->m_dtbl.dump_meta("counter desc", result["result"]);
+    } else {
+        generate_execute_err(result, "Statistics are not initialized yet");
+    }
+    result["result"]["epoch"] = lpstt->m_epoch;
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfDynamicCountersValues::_run(const Json::Value &params, Json::Value &result) {
+    string profile_id = parse_profile(params, result);
+    CCpDynStsInfra *infra = get_astf_object()->get_cp_sts_infra();
+    if (!infra->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
+    CSTTCp *lpstt = infra->get_profile_sts(profile_id);
+    uint64_t epoch = parse_uint64(params, "epoch", result);
+    if (epoch != lpstt->m_epoch) {
+        result["result"]["epoch_err"] = 1;
+        return (TREX_RPC_CMD_OK);
+    }
+    if (lpstt && lpstt->m_init) {
+        lpstt->m_dtbl.dump_values("counter vals", false, result["result"]);
+    } else {
+        generate_execute_err(result, "Statistics are not initialized yet");
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTotalDynamicCountersValues::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *stx = get_astf_object();
+    CCpDynStsInfra *infra = stx->get_cp_sts_infra();
+    uint64_t epoch = parse_uint64(params, "epoch", result);
+    if (epoch != infra->m_total_sts->m_epoch) {
+        result["result"]["epoch_err"] = "Try again: Epoch is not updated";
+        return (TREX_RPC_CMD_OK);
+    }
+    vector<CSTTCp *> sttcp_total_list = infra->get_dyn_sts_list();
+    for (auto lpstt : sttcp_total_list) {
+        bool clear = false;
+        if(lpstt == sttcp_total_list.front()) {
+            clear = true;
+        }
+        infra->accumulate_total_dyn_sts(clear, lpstt);
+    }
+    infra->m_total_sts->m_dtbl.dump_values("counter vals", false, result["result"]);
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
     TrexAstf *stx = get_astf_object();
@@ -858,7 +930,12 @@ TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &resul
     if (!is_tunnel_enabled && !activate) {
         generate_execute_err(result, "The tunnel mode is already off");
     }
-
+    TrexAstf* stx = get_astf_object();
+    CCpDynStsInfra* cp_infra = stx->get_cp_sts_infra();
+    if (!activate) {
+        CTunnelHandler* tunnel_handler = stx->get_tunnel_handler();
+        cp_infra->remove_counters(tunnel_handler->get_meta_data());
+    }
     astf->activate_tunnel_handler(activate, tunnel_type);
     CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
     if (tunnel_handler == nullptr && activate) {
@@ -871,12 +948,16 @@ TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &resul
     CGlobalInfo::m_options.m_tunnel_enabled = activate;
 
     uint8_t dp_core_count = astf->get_dp_core_count();
+    DpsDynSts dp_sts;
     for (uint8_t core_id = 0; core_id < dp_core_count; core_id++) {
-        static MsgReply<bool> reply;
+        static MsgReply<dp_sts_t> reply;
         reply.reset();
         TrexCpToDpMsgBase *msg = new TrexAstfDpInitTunnelHandler(activate, tunnel_type, loopback, reply);
         astf->send_msg_to_dp(core_id, msg);
-        assert(reply.wait_for_reply());
+        dp_sts.add_dp_dyn_sts(reply.wait_for_reply());
+    }
+    if (activate) {
+        assert(cp_infra->add_counters(tunnel_handler->get_meta_data(), &dp_sts));
     }
 
     return (TREX_RPC_CMD_OK);
@@ -935,4 +1016,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdUpdateTunnelClient(this));
     m_cmds.push_back(new TrexRpcCmdActivateTunnelMode(this));
     m_cmds.push_back(new TrexRpcCmdIsTunnelSupported(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTotalDynamicCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfDynamicCountersDesc(this));
+    m_cmds.push_back(new TrexRpcCmdAstfDynamicCountersValues(this));
 }

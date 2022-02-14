@@ -40,7 +40,6 @@ class TrexCpToDpMsgBase;
 typedef std::unordered_map<uint8_t, TrexAstfPort*> astf_port_map_t;
 typedef std::string cp_profile_id_t;
 
-const std::string DEFAULT_ASTF_PROFILE_ID = "_";
 
 typedef enum trex_astf_hash {
     HASH_OK,
@@ -426,6 +425,8 @@ public:
     CTunnelHandler *get_tunnel_handler(){
         return m_tunnel_handler;
     }
+    CCpDynStsInfra* get_cp_sts_infra();
+    vector<CSTTCp *> get_dyn_sttcp_list();
 
 protected:
     void change_state(state_e new_state);
@@ -448,6 +449,7 @@ protected:
     bool            m_topo_parsed;
     uint64_t        m_epoch;
     CTunnelHandler *m_tunnel_handler;
+    CCpDynStsInfra *m_cp_sts_infra;
 
 public:
     bool                m_stopping_dp;

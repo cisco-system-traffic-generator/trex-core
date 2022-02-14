@@ -87,7 +87,7 @@ class ASTFClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 1}
+        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 2}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -150,6 +150,7 @@ class ASTFClient(TRexClient):
         self.latency_stats.reset()
         with self.ctx.logger.suppress(verbose = "warning"):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
+            self.clear_dynamic_traffic_stats()
         return RC_OK()
 
     def _on_astf_state_chg(self, ctx_state, error, epoch):
@@ -423,6 +424,7 @@ class ASTFClient(TRexClient):
                 self.clear_profile(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_IDLE])
                 self.clear_stats(ports)
+                self.clear_dynamic_traffic_stats()
                 self.set_port_attr(ports,
                                    promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
@@ -994,6 +996,23 @@ class ASTFClient(TRexClient):
         """
         return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input, is_sum = is_sum)
 
+    #get dynamic counters
+    @client_api('getter', True)
+    def get_dynamic_traffic_stats(self, skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        """
+            Gets the dynamic counters stats
+
+            ::parameters:
+                skip_zero: boolean
+
+                pid_input: string
+                    Input profile ID
+
+                is_sum: boolean
+                    Get total counter values
+        """
+        return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input, is_sum = is_sum, is_dynamic = True)
+
     @client_api('getter', True)
     def get_profiles_state(self):
         """
@@ -1018,6 +1037,41 @@ class ASTFClient(TRexClient):
 
         '''
         return self.traffic_stats.is_traffic_stats_error(stats)
+
+    @client_api('getter', True)
+    def is_dynamic_traffic_stats_error(self, stats, pid_input=DEFAULT_PROFILE_ID, is_sum=False):
+        '''
+        Return Tuple if there is an error and what is the error (Bool,Errors)
+
+        :parameters:
+            stats: dict from get_dynamic_traffic_stats output from the same profile id and is_sum parameters
+
+            pid_input: str
+                the profile id
+
+            is_sum: boolean
+                if the stats are sum of all the profiles.
+
+        '''
+        return self.traffic_stats.is_dynamic_stats_error(stats, pid_input = pid_input, is_sum = is_sum)
+
+    @client_api('getter', True)
+    def clear_dynamic_traffic_stats(self, pid_input = None, clear_all = False):
+        """
+            Clears dynamic traffic statistics.
+
+            :parameters:
+                pid_input: string
+                    Input profile ID
+
+                clear_all: boolean
+                    clear all the profiles sts
+        """
+        if clear_all:
+            self.traffic_stats.clear_dynamic_stats(clear_all)
+        if pid_input:
+            self.traffic_stats.clear_dynamic_stats(pid_input)
+        return self.traffic_stats.clear_dynamic_stats(is_sum = True)
 
     @client_api('getter', True)
     def clear_traffic_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
@@ -1653,6 +1707,7 @@ class ASTFClient(TRexClient):
 
         opts = parser.parse_args(line.split())
         self.clear_stats(opts.ports, pid_input = ALL_PROFILE_ID)
+        self.clear_dynamic_traffic_stats(clear_all=True)
 
         return RC_OK()
 
@@ -1779,8 +1834,8 @@ class ASTFClient(TRexClient):
     def _get_num_of_tgids(self, pid_input = DEFAULT_PROFILE_ID):
         return self.traffic_stats._get_num_of_tgids(pid_input)
 
-    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
-        table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input, is_sum = is_sum)
+    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False, is_dynamic = False):
+        table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input, is_sum = is_sum, is_dynamic=is_dynamic)
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
     def _show_latency_stats(self, buffer = sys.stdout):

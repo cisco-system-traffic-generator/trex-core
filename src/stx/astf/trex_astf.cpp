@@ -46,7 +46,7 @@ using namespace std;
 TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 2;
-    const int API_VER_MINOR = 1;
+    const int API_VER_MINOR = 2;
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
@@ -98,6 +98,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_profile_id_map[instance->get_dp_profile_id()] = DEFAULT_ASTF_PROFILE_ID;
     m_states_cnt[instance->get_profile_state()]++;
     m_tunnel_handler = nullptr;
+    m_cp_sts_infra = new CCpDynStsInfra(get_dp_core_count());;
 }
 
 
@@ -107,6 +108,7 @@ TrexAstf::~TrexAstf() {
     }
 
     delete m_rx;
+    delete m_cp_sts_infra;
     m_rx = nullptr;
     delete(m_tunnel_handler);
 }
@@ -353,6 +355,7 @@ bool TrexAstf::is_state_build() {
 }
 
 void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &args) {
+    m_cp_sts_infra->clear_dps_dyn_counters(profile_id);
     TrexAstfPerProfile* pid = get_profile(profile_id);
     pid->profile_check_whitelist_states({STATE_LOADED});
 
@@ -576,6 +579,15 @@ void TrexAstf::publish_astf_state() {
     get_publisher()->publish_event(TrexPublisher::EVENT_ASTF_STATE_CHG, data);
 }
 
+/*gets a cp-infra pointer*/
+CCpDynStsInfra * TrexAstf::get_cp_sts_infra() {
+    return m_cp_sts_infra;
+}
+
+vector<CSTTCp *> TrexAstf::get_dyn_sttcp_list() {
+    return m_cp_sts_infra->get_dyn_sts_list();
+}
+
 /***********************************************************
  * TrexAstfProfile
  ***********************************************************/
@@ -589,10 +601,12 @@ TrexAstfProfile::TrexAstfProfile() {
     m_stt_stopped_cp = new CSTTCp();
     m_stt_stopped_cp->Create();
     m_stt_stopped_cp->Init();
+    m_stt_stopped_cp->m_init=true;
 
     m_stt_total_cp = new CSTTCp();
     m_stt_total_cp->Create();
     m_stt_total_cp->Init();
+    m_stt_total_cp->m_init=true;
 }
 
 TrexAstfProfile::~TrexAstfProfile() {

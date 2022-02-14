@@ -43,13 +43,43 @@ private:
     ipv4_ipv6_t  m_dst;
 };
 
+/*************** gtpu_sts_t ****************/
+typedef struct{
+    uint64_t m_tunnel_encapsulated;
+    uint64_t m_tunnel_decapsulated;
+    uint64_t m_err_tunnel_drops;
+    uint64_t m_err_tunnel_no_context;
+    uint64_t m_err_tunnel_dir;
+    uint64_t m_err_pkt_null;
+    uint64_t m_err_buf_addr_null;
+    uint64_t m_err_l3_hdr;
+    uint64_t m_err_headroom;
+    uint64_t m_err_l4_hdr;
+    uint64_t m_err_buf_len;
+    uint64_t m_err_dst_port;
+    uint64_t m_err_gtpu_type;
+    uint64_t m_err_data_len;
+    uint64_t m_encapsulated_hdr;
+}gtpu_sts_t;
+
+
+/*************** CGtpuCounters ****************/
+class CGtpuCounters {
+public:
+    void clear() {
+        memset(&sts, 0, sizeof(gtpu_sts_t));
+    }
+
+public:
+    gtpu_sts_t sts;
+};
 
 /*************** CGtpuMan ****************/
 
 class CGtpuMan : public CTunnelHandler {
 
 public:
-    CGtpuMan(uint8_t mode) : CTunnelHandler(mode){}
+    CGtpuMan(uint8_t mode);
     int on_tx(uint8_t dir, rte_mbuf *pkt);
     int on_rx(uint8_t dir, rte_mbuf *pkt);
     void* get_tunnel_ctx(client_tunnel_data_t *data);
@@ -61,17 +91,20 @@ public:
     void* get_opposite_ctx();
     tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb();
     bool is_tunnel_supported(std::string &error_msg);
+    const meta_data_t* get_meta_data();
+    dp_sts_t get_counters();
 
 private:
-    int prepend(rte_mbuf *pkt);
-    int adjust(rte_mbuf *pkt);
-    int prepend_ipv4_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context);
-    int prepend_ipv6_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context);
-    int adjust_ipv4_tunnel(rte_mbuf *pkt, void *eth, uint8_t l3_offset);
-    int adjust_ipv6_tunnel(rte_mbuf *pkt, void *eth, uint8_t l3_offset);
-    int validate_gtpu_udp(void *udp);
+    int prepend(rte_mbuf *pkt, uint8_t dir);
+    int adjust(rte_mbuf *pkt, uint8_t dir);
+    int prepend_ipv4_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir);
+    int prepend_ipv6_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir);
+    int adjust_ipv4_tunnel(rte_mbuf *pkt, void *eth, uint8_t l3_offset, uint8_t dir);
+    int adjust_ipv6_tunnel(rte_mbuf *pkt, void *eth, uint8_t l3_offset, uint8_t dir);
+    int validate_gtpu_udp(void *udp, uint8_t dir);
 
 private:
     uint8_t m_tunnel_context[ENCAPSULATION6_LEN];
+    CGtpuCounters m_total_sts[TCP_CS_NUM];
 };
 #endif

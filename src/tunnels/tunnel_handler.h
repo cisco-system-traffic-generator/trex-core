@@ -7,6 +7,7 @@
 #include "stx/astf/trex_astf_topo.h"
 #include "trex_global.h"
 #include "tuple_gen.h"
+#include "dyn_sts.h"
 
 using namespace std;
 
@@ -56,6 +57,8 @@ public:
     virtual void* get_opposite_ctx() = 0;
     virtual bool is_tunnel_supported(std::string &error_msg) = 0;
     virtual tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb() = 0;
+    virtual const meta_data_t* get_meta_data() = 0;
+    virtual dp_sts_t get_counters() = 0;
     virtual uint8_t get_mode() {
         return m_mode;
     }

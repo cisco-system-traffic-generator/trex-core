@@ -4596,6 +4596,8 @@ COLD_FUNC void CGlobalTRex::update_stats(){
     if ( get_is_interactive() && get_is_tcp_mode() ) {
         stx = get_astf_object();
         sttcp_list = stx->get_sttcp_list();
+        vector<CSTTCp *> sttcp_dynamic_counters = stx->get_dyn_sttcp_list();
+        sttcp_list.insert(sttcp_list.end(), sttcp_dynamic_counters.begin(), sttcp_dynamic_counters.end());
     }
     else if ( m_fl.m_stt_cp ) {
         sttcp_list.push_back(m_fl.m_stt_cp);
