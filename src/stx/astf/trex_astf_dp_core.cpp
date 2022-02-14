@@ -749,26 +749,24 @@ void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<clie
 }
 
 
-void TrexAstfDpCore::activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback, MsgReply<bool> &reply) {
+dp_sts_t TrexAstfDpCore::activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback) {
     if (activate) {
         uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);
         if (loopback) {
             tunnel_mode = (uint8_t) tunnel_mode | TUNNEL_MODE_LOOPBACK;
         }
         m_tunnel_handler = create_tunnel_handler(tunnel_type, tunnel_mode);
-        if (!m_tunnel_handler) {
-            reply.set_reply(false);
-            return;
-        }
+        assert(m_tunnel_handler);
         m_flow_gen->m_node_gen.m_v_if->set_tunnel(m_tunnel_handler, loopback);
         if (loopback) {
             m_flow_gen->m_s_tcp->m_tunnel_handler = m_tunnel_handler;
         }
+        return m_tunnel_handler->get_counters();
     } else {
         delete m_tunnel_handler;
         m_tunnel_handler = nullptr;
         m_flow_gen->m_s_tcp->m_tunnel_handler = nullptr;
         m_flow_gen->m_node_gen.m_v_if->delete_tunnel();
+        return std::make_pair(nullptr,nullptr);
     }
-    reply.set_reply(true);
 }

@@ -32,31 +32,35 @@ limitations under the License.
 #include "44bsd/flow_table.h"
 #include "utl_counter.h"
 #include "utl_dbl_human.h"
+#include "dyn_sts.h"
+
+
 
 /* TCP Stateful CP object for counters and such */
 
-typedef enum {
-    TCP_CLIENT_SIDE = 0,
-    TCP_SERVER_SIDE = 1,
-    TCP_CS_NUM = 2,
-    TCP_CS_INVALID = 255
-} tcp_dir_enum_t;
 
 typedef uint8_t tcp_dir_t;
+typedef std::map<std::string, std::pair<CGSimpleBase*, CGSimpleBase*>> dyn_sts_range_map_t;
+typedef std::map<std::string, CDynStsCpGroup*> dyn_sts_map_t;
+typedef std::vector<CDynStsCpGroup*> dyn_sts_group_vec_t;
 
 class CSTTCp;
 
 class CSTTCpPerTGIDPerDir {
 public:
-    bool Create(uint32_t time_msec);
+    bool Create(uint32_t time_msec, bool is_dynamic=false);
     void Delete();
     void update_counters(bool is_sum, uint16_t tg_id=0);
     void accumulate_counters(CSTTCpPerTGIDPerDir* lpstt_sts);
     void calculate_ft_counters(CSTTCpPerTGIDPerDir* lpstt_sts);
     void calculate_avr_counters();
+    void accumulate_dyn_counters(CSTTCpPerTGIDPerDir* lpstt_sts);
     void clear_counters();
     void create_clm_counters();
     void clear_sum_counters();
+    bool add_dyn_stats(const meta_data_t* meta_data, cp_dyn_sts_group_args_t* dyn_sts_group_args);
+    bool delete_dyn_sts(std::string sts_group_name);
+    void clear_dps_dyn_counters();
 
 private:
     void clear_aggregated_counters();
@@ -65,6 +69,9 @@ public:
     CTcpStats           m_tcp;
     CUdpStats           m_udp;
     CSttFlowTableStats  m_ft;
+    dyn_sts_group_vec_t m_dyn_sts;
+    dyn_sts_range_map_t m_dyn_sts_range_map;
+    dyn_sts_map_t       m_dyn_sts_map;
 
     /* externation counters */
     uint64_t            m_active_flows;
@@ -102,7 +109,7 @@ public:
     void Delete(bool last_time=true);
     void Add(tcp_dir_t dir, CTcpPerThreadCtx* ctx);
     void AddProfileCtx(tcp_dir_t dir, CPerProfileCtx* pctx);
-    void Init(bool first_time=true);
+    void Init(bool first_time=true, bool is_dynamic=false);
     void Update();
     void Accumulate(bool clear, bool calculate, CSTTCp* lpstt);
     void DumpTable();
@@ -116,6 +123,9 @@ public:
     void clear_profile_ctx();
     void update_profile_ctx();
     bool need_profile_ctx_update() { return !m_profile_ctx_updated; }
+    bool Add_dyn_stats(const meta_data_t* meta_data, cp_dyn_sts_group_args_t dyn_sts_group_args[TCP_CS_NUM]);
+    bool Delete_dyn_sts(std::string group_sts_name);
+    void clear_dps_dyn_counters();
 
 public:
     uint64_t                            m_epoch;

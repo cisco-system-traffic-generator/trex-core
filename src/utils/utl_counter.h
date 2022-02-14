@@ -94,6 +94,10 @@ public:
         m_is_abs = is_abs;
     }
 
+    bool is_abs() const {
+        return m_is_abs;
+    }
+
     void set_id(uint32_t id){
         m_id=id;
     }
@@ -120,7 +124,7 @@ public:
         m_info=info;
     }
 
-    counter_info_t get_info_level(){
+    counter_info_t get_info_level() const{
         return (m_info);
     }
     std::string get_info_as_str(){
@@ -156,7 +160,7 @@ public:
     void set_name(std::string name){
         m_name=name;
     }
-    virtual std::string get_name(){
+    virtual std::string get_name() const{
         return(m_name);
     }
 
@@ -164,7 +168,7 @@ public:
         m_help=name;
     }
 
-    std::string get_help(){
+    std::string get_help() const{
         return(m_help);
     }
 
@@ -179,7 +183,7 @@ public:
         m_dump_zero=zero;
     }
 
-    bool get_dump_zero(){
+    bool get_dump_zero() const{
         return(m_dump_zero);
     }
 
@@ -339,6 +343,29 @@ public:
         m_index++;
         m_counters.push_back(cnt);
     }
+
+    void delete_range(CGSimpleBase* start, CGSimpleBase* end) {
+        bool to_delete = false;
+        int count = 0;
+        for (int i=0;i<m_counters.size();i++) {
+            if(m_counters[i] == start) {
+                to_delete = true;
+            }
+            while (to_delete) {
+                if (m_counters[i] == end) {
+                    to_delete = false;
+                }
+                delete m_counters[i];
+                m_counters.erase(m_counters.begin() + i);
+                count++;
+            }
+            if (count && (i < m_counters.size())) {
+                m_counters[i]->set_id(m_counters[i]->get_id() - count);
+            }
+        }
+        m_index-=count;
+    }
+
     void set_name(std::string  name){
         m_name=name;
     }

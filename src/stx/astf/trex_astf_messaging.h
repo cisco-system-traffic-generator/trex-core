@@ -219,7 +219,7 @@ private:
  */
 class TrexAstfDpInitTunnelHandler : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpInitTunnelHandler(bool activate, uint8_t tunnel_type, bool loopback_mode, MsgReply<bool> &reply) : m_reply(reply) {
+    TrexAstfDpInitTunnelHandler(bool activate, uint8_t tunnel_type, bool loopback_mode, MsgReply<std::pair<uint64_t*, uint64_t*>> &reply) : m_reply(reply) {
         m_activate = activate;
         m_tunnel_type = tunnel_type;
         m_loopback_mode = loopback_mode;
@@ -230,7 +230,7 @@ private:
     bool m_activate;
     uint8_t m_tunnel_type;
     bool m_loopback_mode;
-    MsgReply<bool> &m_reply;
+    MsgReply<std::pair<uint64_t*, uint64_t*>> &m_reply;
 };
 
 #endif /* __TREX_STL_MESSAGING_H__ */

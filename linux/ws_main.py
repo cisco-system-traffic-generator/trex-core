@@ -247,7 +247,8 @@ bp_sim_gtest = SrcGroup(dir='src',
              'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
              'gtest/trex_stateless_gtest.cpp',
-             'gtest/bp_tunnel_gtest.cpp'
+             'gtest/bp_tunnel_gtest.cpp',
+             'gtest/bp_dyn_sts_gtest.cpp'
              ])
 
 main_src = SrcGroup(dir='src',
@@ -273,6 +274,7 @@ main_src = SrcGroup(dir='src',
 
             'astf/astf_template_db.cpp',
             'stt_cp.cpp',
+            'dyn_sts.cpp',
             'bp_sim_tcp.cpp',
             'inet_pton.cpp',
             'trex_global.cpp',

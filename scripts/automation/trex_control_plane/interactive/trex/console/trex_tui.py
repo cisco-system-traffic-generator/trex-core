@@ -268,6 +268,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         self.num_lines = 0
         self.tgid = 0
         self.is_sum = True if self.client.is_dynamic else False
+        self.is_dynamic = False
 
         self.key_actions = OrderedDict()
 
@@ -276,6 +277,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         self.key_actions['Down'] = {'action': self.action_down, 'legend': 'scroll down', 'show': True}
         self.key_actions['Left'] = {'action': self.action_left, 'legend': 'previous TG', 'show': True}
         self.key_actions['Right'] = {'action': self.action_right, 'legend': 'next TG', 'show': True}
+        self.key_actions['m'] = {'action': self.action_dynamic_counters, 'legend': 'dynamic counters on/off', 'show': True}
 
 
     def show(self, buffer):
@@ -284,7 +286,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         buf = StringIO()
         have_into = False
         try:
-           self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum)
+           self.client._show_traffic_stats(False, buffer = buf, tgid = self.tgid, is_sum = self.is_sum, is_dynamic = self.is_dynamic)
            have_into = True
         except ASTFErrorBadTG:
            self.tgid = 0
@@ -303,6 +305,8 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
 
     def action_clear(self):
          self.client.clear_stats()
+         if (self.is_dynamic):
+            self.client.clear_dynamic_traffic_stats()
          return ""
 
     def action_up(self):
@@ -325,6 +329,8 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
         if self.tgid < self.client._get_num_of_tgids():
             self.tgid += 1
 
+    def action_dynamic_counters(self):
+        self.is_dynamic = (not self.is_dynamic)
 
 # ASTF latency stats
 class TrexTUIAstfLatencyStats(TrexTUIPanel):

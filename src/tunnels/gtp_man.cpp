@@ -14,6 +14,26 @@
 #define HOP_LIMIT 255
 
 
+static const meta_data_t gtp_meta_data ={"GTPU", 
+                                         {CMetaDataPerCounter("m_tunnel_encapsulated", "num of encapsulated pkts"),
+                                          CMetaDataPerCounter("m_tunnel_decapsulated", "num of decapsulated pkts"),
+                                          CMetaDataPerCounter("m_err_tunnel_drops", "num of pkts drop", "", scERROR),
+                                          CMetaDataPerCounter("m_err_tunnel_no_context", "num of pkts without ctx", "", scERROR),
+                                          CMetaDataPerCounter("m_err_tunnel_dir", "wrong pkt direction", "", scERROR),
+                                          CMetaDataPerCounter("m_err_pkt_null", "num of null pkts", "", scERROR),
+                                          CMetaDataPerCounter("m_err_buf_addr_null", "num of pkts with null buf addr", "", scERROR),
+                                          CMetaDataPerCounter("m_err_l3_hdr", "num of pkts with wrong l3 hdr", "", scERROR),
+                                          CMetaDataPerCounter("m_err_headroom", "num of pkts with small headroom", "", scERROR),
+                                          CMetaDataPerCounter("m_err_l4_hdr", "num of pkts with wrong l4 hdr", "", scERROR),
+                                          CMetaDataPerCounter("m_err_buf_len", "num of pkts with small buf len", "", scERROR),
+                                          CMetaDataPerCounter("m_err_dst_port", "num of pkts with wrong destination port", "", scERROR),
+                                          CMetaDataPerCounter("m_err_gtpu_type", "num of pkts with wrong gtpu type", "", scERROR),
+                                          CMetaDataPerCounter("m_err_data_len", "num of pkts with small data len", "", scERROR),
+                                          CMetaDataPerCounter("m_encapsulated_hdr", "num of pkts with wrong encapsulated hdr", "", scERROR)
+                                         }
+                                        };
+
+
 void del_gtpu_ctx(void *tunnel_handler, void *tunnel_ctx) {
     if (tunnel_handler!=nullptr && tunnel_ctx != nullptr) {
         ((CGtpuMan*)tunnel_handler)->delete_tunnel_ctx(tunnel_ctx);
@@ -21,25 +41,46 @@ void del_gtpu_ctx(void *tunnel_handler, void *tunnel_ctx) {
 }
 
 
+CGtpuMan::CGtpuMan(uint8_t mode) : CTunnelHandler(mode) {
+    for(int i=0; i<TCP_CS_NUM; i++) {
+        m_total_sts[i].clear();
+    }
+}
+
+
 int CGtpuMan::on_tx(uint8_t dir, rte_mbuf *pkt) {
     assert((m_mode & TUNNEL_MODE_TX) == TUNNEL_MODE_TX);
     if (dir != m_port_id && !(m_mode & TUNNEL_MODE_LOOPBACK)) {
+        m_total_sts[dir].sts.m_err_tunnel_dir++;
+        m_total_sts[dir].sts.m_err_tunnel_drops++;
         return -1;
     }
     tunnel_cntxt_t tunnel_context = pkt->dynfield_ptr;
     if (!tunnel_context){
+        m_total_sts[dir].sts.m_err_tunnel_no_context++;
+        m_total_sts[dir].sts.m_err_tunnel_drops++;
         return -1;
     }
-    return prepend(pkt);
+    int res = prepend(pkt, dir);
+    if (res) {
+        m_total_sts[dir].sts.m_err_tunnel_drops++;
+    }
+    return res;
 }
 
 
 int CGtpuMan::on_rx(uint8_t dir, rte_mbuf *pkt) {
     assert((m_mode & TUNNEL_MODE_RX) == TUNNEL_MODE_RX);
     if (dir != m_port_id && !(m_mode & TUNNEL_MODE_LOOPBACK)) {
+        m_total_sts[dir].sts.m_err_tunnel_dir++;
+        m_total_sts[dir].sts.m_err_tunnel_drops++;
         return -1;
     }
-    return adjust(pkt);
+    int res = adjust(pkt, dir);
+    if (res) {
+        m_total_sts[dir].sts.m_err_tunnel_drops++;
+    }
+    return res;
 }
 
 
@@ -58,6 +99,16 @@ void* CGtpuMan::get_tunnel_ctx(client_tunnel_data_t *data) {
                                     data->src_port);
     }
     return gtpu;
+}
+
+
+const meta_data_t* CGtpuMan::get_meta_data() {
+    return &gtp_meta_data;
+}
+
+
+dp_sts_t CGtpuMan::get_counters() {
+    return std::make_pair((uint64_t*)&m_total_sts[TCP_CLIENT_SIDE].sts, (uint64_t*)&m_total_sts[TCP_SERVER_SIDE].sts);
 }
 
 
@@ -186,11 +237,17 @@ bool CGtpuMan::is_tunnel_supported(std::string &error_msg) {
 * output: ipv4-encp/udp-encp/gtpu-encp/[ipv4/ipv6]-inner/[udp/tcp]-inner/py
 * return valuse: 0 in case of success otherwise -1.
 */
-int CGtpuMan::prepend(rte_mbuf *pkt) {
+int CGtpuMan::prepend(rte_mbuf *pkt, uint8_t dir) {
     if (pkt == NULL) {
+        m_total_sts[dir].sts.m_err_pkt_null++;
         return -1;
     }
-    if (pkt->buf_addr == NULL || pkt->buf_len == 0) {
+    if (pkt->buf_addr == NULL) {
+        m_total_sts[dir].sts.m_err_buf_addr_null++;
+        return -1;
+    }
+    if (pkt->buf_len == 0) {
+         m_total_sts[dir].sts.m_err_buf_len++;
         return -1;
     }
     CGtpuCtx *gtp_context = (CGtpuCtx *)pkt->dynfield_ptr;
@@ -205,6 +262,7 @@ int CGtpuMan::prepend(rte_mbuf *pkt) {
         l3_offset += VLAN_HDR_LEN;
     }
     if (l2_nxt_hdr != EthernetHeader::Protocol::IP && l2_nxt_hdr != EthernetHeader::Protocol::IPv6) {
+        m_total_sts[dir].sts.m_err_l3_hdr++;
         return -1;
     }
     IPHeader *iph = rte_pktmbuf_mtod_offset (pkt, IPHeader *, l3_offset);
@@ -222,13 +280,14 @@ int CGtpuMan::prepend(rte_mbuf *pkt) {
         l3_nxt_hdr = ((IPv6Header *)iph)->getNextHdr();
     }
     if (l3_nxt_hdr != IPHeader::Protocol::UDP && l3_nxt_hdr != IPHeader::Protocol::TCP){
+        m_total_sts[dir].sts.m_err_l4_hdr++;
         return -1;
     }
     int res = 0;
     if (gtp_context->is_ipv6() == 0) {
-        res = prepend_ipv4_tunnel(pkt, l4_offset, inner_cs, gtp_context);
+        res = prepend_ipv4_tunnel(pkt, l4_offset, inner_cs, gtp_context, dir);
     } else {
-        res = prepend_ipv6_tunnel(pkt, l4_offset, inner_cs, gtp_context);
+        res = prepend_ipv6_tunnel(pkt, l4_offset, inner_cs, gtp_context, dir);
     }
     return res;
 }
@@ -242,17 +301,20 @@ int CGtpuMan::prepend(rte_mbuf *pkt) {
 * output: [ipv4/ipv6]-inner/[udp/tcp]-inner/py
 * return valuse: 0 in case of success otherwise -1.
 */
-int CGtpuMan::adjust(rte_mbuf *pkt) {
+int CGtpuMan::adjust(rte_mbuf *pkt, uint8_t dir) {
     if (pkt == NULL) {
+        m_total_sts[dir].sts.m_err_pkt_null++;
         return -1;
     }
-    if (pkt->buf_addr == NULL || pkt->data_len < 36) {
+    if (pkt->buf_addr == NULL) {
+        m_total_sts[dir].sts.m_err_buf_addr_null++;
+        return -1;
+    }
+    if (pkt->data_len < ENCAPSULATION_LEN) {
+        m_total_sts[dir].sts.m_err_data_len++;
         return -1;
     }
     EthernetHeader *eth = rte_pktmbuf_mtod(pkt, EthernetHeader *);
-    if (eth->getNextProtocol() == EthernetHeader::Protocol::ARP) {
-        return -1;
-    }
     uint8_t l3_offset = ETH_HDR_LEN;
     uint16_t l2_nxt_hdr = eth->getNextProtocol();
     IPHeader *iph = (IPHeader *)((uint8_t *)eth + ETH_HDR_LEN);
@@ -264,13 +326,14 @@ int CGtpuMan::adjust(rte_mbuf *pkt) {
         l3_offset += VLAN_HDR_LEN;
     }
     if (l2_nxt_hdr != EthernetHeader::Protocol::IP && l2_nxt_hdr != EthernetHeader::Protocol::IPv6) {
+        m_total_sts[dir].sts.m_err_l3_hdr++;
         return -1;
     }
     int res = 0;
     if (iph->getVersion() == IPHeader::Protocol::IP) {
-        res = adjust_ipv4_tunnel(pkt, eth, l3_offset);
+        res = adjust_ipv4_tunnel(pkt, eth, l3_offset, dir);
     } else {
-        res = adjust_ipv6_tunnel(pkt,eth, l3_offset);
+        res = adjust_ipv6_tunnel(pkt,eth, l3_offset, dir);
     }
     if(res != 0) {
         m_context_ready = false;
@@ -306,8 +369,9 @@ int CGtpuMan::adjust(rte_mbuf *pkt) {
 }
 
 
-int CGtpuMan::prepend_ipv4_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context) {
+int CGtpuMan::prepend_ipv4_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir) {
     if (rte_pktmbuf_headroom(pkt) < ENCAPSULATION_LEN) {
+        m_total_sts[dir].sts.m_err_headroom++;
         return -1;
     }
     EthernetHeader *eth = rte_pktmbuf_mtod(pkt, EthernetHeader *);
@@ -346,12 +410,14 @@ int CGtpuMan::prepend_ipv4_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t in
     GTPUHeader *gtpu = (GTPUHeader *)(udp+1);
     gtpu->setLength(udp->getLength() - UDP_HEADER_LEN - GTPU_V1_HDR_LEN);
     udp->setChecksumRaw(udp->calcCheckSum(outer_ipv4, (uint8_t *)tch - (uint8_t*)udp, inner_cs));
+    m_total_sts[dir].sts.m_tunnel_encapsulated+=1;
     return 0;
 }
 
 
-int CGtpuMan::prepend_ipv6_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context) {
+int CGtpuMan::prepend_ipv6_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir) {
     if (rte_pktmbuf_headroom(pkt) < ENCAPSULATION6_LEN) {
+        m_total_sts[dir].sts.m_err_headroom++;
         return -1;
     }
     EthernetHeader * eth = rte_pktmbuf_mtod(pkt, EthernetHeader *);
@@ -390,21 +456,24 @@ int CGtpuMan::prepend_ipv6_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t in
     GTPUHeader *gtpu = (GTPUHeader *)(udp+1);
     gtpu->setLength(udp->getLength() - UDP_HEADER_LEN - GTPU_V1_HDR_LEN);
     udp->setChecksumRaw(udp->calcCheckSum(outer_ipv6, (uint8_t *)tch - (uint8_t*)udp, inner_cs));
+    m_total_sts[dir].sts.m_tunnel_encapsulated+=1;
     return 0;
 }
 
 
-int CGtpuMan::adjust_ipv6_tunnel(rte_mbuf * pkt, void *eth,  uint8_t l3_offset) {
+int CGtpuMan::adjust_ipv6_tunnel(rte_mbuf * pkt, void *eth,  uint8_t l3_offset, uint8_t dir) {
     if(pkt->data_len < ENCAPSULATION6_LEN) {
+        m_total_sts[dir].sts.m_err_data_len++;
         return -1;
     }
     IPv6Header *ipv6 = rte_pktmbuf_mtod_offset (pkt, IPv6Header *, l3_offset);
     if (ipv6->getNextHdr() != IPHeader::Protocol::UDP) {
+        m_total_sts[dir].sts.m_encapsulated_hdr++;
         return -1;
     }
     UDPHeader *udp ;
     udp = (UDPHeader *) ((uint8_t *)ipv6 + IPV6_HDR_LEN);
-    if (validate_gtpu_udp((void *)udp) == -1){
+    if (validate_gtpu_udp((void *)udp, dir) == -1){
         return -1;
     }
     if ((m_mode & TUNNEL_MODE_LOOPBACK) == TUNNEL_MODE_LOOPBACK) {
@@ -412,18 +481,20 @@ int CGtpuMan::adjust_ipv6_tunnel(rte_mbuf * pkt, void *eth,  uint8_t l3_offset) 
         m_context_ready = true;
     }
     rte_pktmbuf_adj(pkt, ENCAPSULATION6_LEN);
+    m_total_sts[dir].sts.m_tunnel_decapsulated+=1;
     return 0;
 }
 
 
-int CGtpuMan::adjust_ipv4_tunnel(rte_mbuf * pkt, void *eth, uint8_t l3_offset) {
+int CGtpuMan::adjust_ipv4_tunnel(rte_mbuf * pkt, void *eth, uint8_t l3_offset, uint8_t dir) {
     IPHeader *iph =  rte_pktmbuf_mtod_offset (pkt, IPHeader *,l3_offset);
     if (iph->getProtocol() != IPHeader::Protocol::UDP){
+        m_total_sts[dir].sts.m_encapsulated_hdr++;
         return -1;
     }
     UDPHeader* udp ;
     udp = (UDPHeader*) ((uint8_t *)iph + IPV4_HDR_LEN);
-    if (validate_gtpu_udp((void *)udp) == -1){
+    if (validate_gtpu_udp((void *)udp, dir) == -1){
         return -1;
     }
     if ((m_mode & TUNNEL_MODE_LOOPBACK) == TUNNEL_MODE_LOOPBACK) {
@@ -431,16 +502,19 @@ int CGtpuMan::adjust_ipv4_tunnel(rte_mbuf * pkt, void *eth, uint8_t l3_offset) {
         m_context_ready = true;
     }
     rte_pktmbuf_adj(pkt, ENCAPSULATION_LEN);
+    m_total_sts[dir].sts.m_tunnel_decapsulated+=1;
     return 0;
 }
 
 
-int CGtpuMan::validate_gtpu_udp(void *udp) {
+int CGtpuMan::validate_gtpu_udp(void *udp, uint8_t dir) {
     if (((UDPHeader *)udp)->getDestPort() != DEST_PORT) {
+        m_total_sts[dir].sts.m_err_dst_port++;
         return -1;
     }
     GTPUHeader *gtpu = (GTPUHeader*)((uint8_t *)udp + UDP_HEADER_LEN);
     if (gtpu->getType() != GTPU_TYPE_GTPU){
+        m_total_sts[dir].sts.m_err_gtpu_type++;
         return -1;
     }
     return 0;
