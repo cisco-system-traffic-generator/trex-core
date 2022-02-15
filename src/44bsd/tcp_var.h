@@ -178,6 +178,8 @@ public:
 struct  tcpstat_int_t: public tcpstat {
     uint64_t    tcps_testdrops;     /* connections dropped at the end of the test due to --nc  */
 
+    uint64_t    tcps_rcvoffloads;       /* receive offload packets by software */
+
     uint64_t    tcps_rcvoopackdrop;     /* OOO packet drop due to queue len */
     uint64_t    tcps_rcvoobytesdrop;     /* OOO bytes drop due to queue len */
 
@@ -635,6 +637,8 @@ public:
 
     CServerTemplateInfo*    m_template_info; /* to save the identified template */
     CServerIpPayloadInfo*   m_payload_info; /* to manage template during identifying */
+
+    CTcpRxOffloadBuf* m_lro_buf;
 };
 
 /* general timer object used by ASTF, 

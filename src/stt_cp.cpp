@@ -455,6 +455,7 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets");
     TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks ");
     TCP_S_ADD_CNT(tcps_rcvackbyte_of,"tx bytes acked by rcvd acks - overflow acked");
+    TCP_S_ADD_CNT(tcps_rcvoffloads,"receive offload packets by software");
 
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
@@ -468,7 +469,6 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");
     TCP_S_ADD_CNT_E(tcps_keepdrops,"connections dropped in keepalive");
     TCP_S_ADD_CNT(tcps_testdrops,"connections dropped by user at timeout (no-close flag --nc)"); // due to test timeout --nc 
-    
     
     TCP_S_ADD_CNT_E(tcps_sndrexmitpack,"data packets retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");
