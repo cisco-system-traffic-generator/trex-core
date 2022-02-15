@@ -7059,11 +7059,21 @@ COLD_FUNC void set_driver() {
         printf(" TSO ");
         lp->set_dev_tso_support(true);
     }
+
+    if ( (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_LRO) == DEV_RX_OFFLOAD_TCP_LRO ){
+        printf(" LRO ");
+        lp->set_dev_lro_support(true);
+    }
     printf("\n");
 
     if (lp->getTsoOffloadDisable() && lp->get_dev_tso_support()){
         printf("Warning TSO is supported and asked to be disabled by user \n");
         lp->set_dev_tso_support(false);
+    }
+
+    if (lp->getLroOffloadDisable() && lp->get_dev_lro_support()){
+        printf("Warning LRO is supported and asked to be disabled by user \n");
+        lp->set_dev_lro_support(false);
     }
 
 

@@ -371,6 +371,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
                 break;
             }
         }
+        ctx->m_ft.flush_software_lro(ctx);
         if (m_sched_accurate && sum){
             v_if->flush_tx_queue();
         }

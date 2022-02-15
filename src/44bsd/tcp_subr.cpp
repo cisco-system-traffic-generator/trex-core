@@ -121,6 +121,7 @@ void CTcpStats::Dump(FILE *fd){
     MYC(tcps_sndctrl);
 
     MYC(tcps_rcvtotal);    
+    MYC(tcps_rcvoffloads);
     MYC(tcps_rcvpack);     
     MYC(tcps_rcvbyte);     
     MYC(tcps_rcvbadsum);       
@@ -261,6 +262,8 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_timer.m_type = 0; 
 
     m_payload_info = nullptr;
+
+    m_lro_buf = nullptr;
 
     /* TCP_OPTIM  */
     CTcpCb *tp=&m_tcp;
@@ -503,6 +506,10 @@ void CTcpFlow::Delete(){
     if (m_payload_info) {
         m_payload_info->remove_template_flow(this);
         m_payload_info = nullptr;
+    }
+    if (m_lro_buf) {
+        m_lro_buf->do_clear();
+        m_lro_buf = nullptr;
     }
     CFlowBase::Delete();
     tcp_discardcb(tp);
