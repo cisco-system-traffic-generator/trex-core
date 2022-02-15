@@ -447,6 +447,14 @@ public:
         return (btGetMaskBit32(m_flags1, 24, 24) ? true : false);
     }
 
+    void set_dev_lro_support(bool enable) {
+        btSetMaskBit32(m_flags1, 25, 25, (enable ? 1 : 0) );
+    }
+
+    bool get_dev_lro_support() {
+        return (btGetMaskBit32(m_flags1, 25, 25) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 

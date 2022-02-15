@@ -28,6 +28,7 @@ limitations under the License.
 #include "trex_global.h"
 
 #include "tcpip.h"
+#include "os_time.h"
 
 struct flow_key_t {
   bool operator==(const flow_key_t &k) const {
@@ -215,6 +216,53 @@ typedef enum { tPROCESS=0x12,
                } tcp_rx_pkt_action_t;
 
 
+class CTcpRxOffloadBuf {
+    friend class CTcpRxOffload;
+
+    struct rte_mbuf*    m_mbuf;
+    TCPHeader*          m_lpTcp;
+    CFlowKeyFullTuple   m_ftuple;
+
+    CTcpFlow*           m_flow;
+
+public:
+    void set(CTcpFlow*, struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
+    void clear();
+    void reset();
+    bool is_active() const { return m_flow != nullptr; }
+    CTcpFlow* get_flow() const { return m_flow; }
+
+    void update_segsz();
+    void update_mbuf(struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
+    bool reassemble_mbuf(struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
+};
+
+
+#define NUM_RX_OFFLOAD  0x100
+
+typedef std::function<void(CTcpPerThreadCtx*, CTcpFlow*, struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&)> rx_offload_cb_t;
+
+class CTcpRxOffload {
+    uint32_t        m_size;
+    CTcpRxOffloadBuf* m_bufs;
+    uint32_t        m_head;
+    uint32_t        m_tail;
+
+    rx_offload_cb_t m_cb;
+
+public:
+    void Create(rx_offload_cb_t);
+    void Delete();
+
+    CTcpRxOffloadBuf* new_buf();
+
+    CTcpRxOffloadBuf* find_buf(CTcpFlow* flow);
+    bool append_buf(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple);
+    void flush_bufs(CTcpPerThreadCtx * ctx);
+    bool is_empty();
+};
+
+
 class CFlowTable {
 public:
     bool Create(uint32_t size,
@@ -294,6 +342,14 @@ public:
                               struct rte_mbuf * mbuf,
                               TCPHeader    * lpTcp,
                               CFlowKeyFullTuple &ftuple);
+
+      bool process_software_lro(CTcpPerThreadCtx * ctx,
+                              CTcpFlow *  flow,
+                              struct rte_mbuf * mbuf,
+                              TCPHeader    * lpTcp,
+                              CFlowKeyFullTuple &ftuple);
+
+      void flush_software_lro(CTcpPerThreadCtx * ctx);
 
       void dump(FILE *fd);
 
@@ -415,6 +471,8 @@ private:
 
     CEmulAppApi    *   m_tcp_api;
     CEmulAppApi    *   m_udp_api;
+
+    CTcpRxOffload*  m_tcp_lro;
 };
 
 

@@ -548,6 +548,15 @@ tcp_handle_wakeup(struct tcpcb *tp, struct socket *so)
     }
 }
 
+static inline uint16_t
+tcp_nsegs(int tlen, struct tcpcb *tp, struct tcphdr *th)
+{
+    int optlen = ((int)th->th_off << 2) - sizeof(struct tcphdr);
+    int segsz = tp->t_maxseg - optlen;
+    /* tcp segment size per packet should be tcp_mss - optlen. */
+    return (tlen + segsz - 1)/segsz;
+}
+
 void
 tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
     struct tcpcb *tp, int drop_hdrlen, int tlen, uint8_t iptos)
@@ -572,7 +581,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
     thflags = th->th_flags;
     tp->sackhint.last_sack_ack = 0;
     sack_changed = 0;
-    nsegs = 1;      /* TREX_FBSD: LRO not supported */
+    nsegs = tlen ? tcp_nsegs(tlen, tp, th): 1;
 
     KASSERT(tp->t_state > TCPS_LISTEN, ("%s: TCPS_LISTEN",
         __func__));
