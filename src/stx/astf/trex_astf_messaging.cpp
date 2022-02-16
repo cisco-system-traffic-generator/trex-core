@@ -266,7 +266,6 @@ TrexCpToDpMsgBase* TrexAstfDpUpdateTunnelClient::clone() {
 TrexAstfDpDeleteTunnelClient::TrexAstfDpDeleteTunnelClient(CAstfDB* astf_db, std::vector<client_tunnel_delete_data_t> msg_data) {
     m_astf_db = astf_db;
     m_msg_data =  msg_data;
-
 }
 
 bool TrexAstfDpDeleteTunnelClient::handle(TrexDpCore *dp_core) {

@@ -931,7 +931,7 @@ TrexRpcCmdDeleteTunnelClient::_run(const Json::Value &params, Json::Value &resul
         data[elem.thread_id].push_back(elem);
     }
 
-     for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
         if (data[thread_id].size() > 0) {
                 TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTunnelClient(astf_db, data[thread_id]);
                 get_astf_object()->send_message_to_dp(thread_id, msg, false);
