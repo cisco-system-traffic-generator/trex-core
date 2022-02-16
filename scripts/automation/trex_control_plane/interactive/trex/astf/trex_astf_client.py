@@ -1228,7 +1228,18 @@ class ASTFClient(TRexClient):
  
         return json_attr
 
-    # execute 'method' for inserting/updateing tunnel info for clients
+    # private function to form json data for GTP tunnel
+    def _delete_gtp_tunnel(self, client_list):
+
+        json_attr = []
+
+        for value in client_list:
+            # json_attr.append({'client_ip' : key, 'teid' : value.teid, "version" :value.version})
+            json_attr.append({'client_ip': value.get('client_ip'), 'thread_id': value.get('thread_id')})
+ 
+        return json_attr
+
+    # execute 'method' for inserting/updating tunnel info for clients
     @client_api('command', True)
     def update_tunnel_client_record (self, client_list, tunnel_type):
 
@@ -1244,6 +1255,26 @@ class ASTFClient(TRexClient):
 
         self.ctx.logger.pre_cmd("update_tunnel_client.\n")
         rc = self._transmit("update_tunnel_client", params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+    # execute 'method' for deleting tunnel info for clients
+    @client_api('command', True)
+    def delete_tunnel_client_record (self, client_list, tunnel_type):
+
+        json_attr = []
+        
+        if tunnel_type == parsing_opts.TunnelType.GTPU:
+           json_attr = self._delete_gtp_tunnel(client_list)
+        else:
+           raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
+        
+        params = {"tunnel_type": tunnel_type,
+                  "attr": json_attr }
+
+        self.ctx.logger.pre_cmd("delete_tunnel_client.\n")
+        rc = self._transmit("delete_tunnel_client", params)
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
@@ -1367,7 +1398,17 @@ class ASTFClient(TRexClient):
 
         return self._transmit("get_clients_info", params)
 
+    def get_clients_stats (self):
 
+        json_attr = []
+        params = {"type": 'all',
+                  "attr": json_attr }
+
+
+        rc = self._transmit("get_clients_stats", params)
+        records = rc.data()
+
+        return records 
 
 ############################   console   #############################
 ############################   commands  #############################

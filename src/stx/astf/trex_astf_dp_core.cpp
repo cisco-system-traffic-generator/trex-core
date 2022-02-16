@@ -749,6 +749,21 @@ void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<clie
 }
 
 
+
+void TrexAstfDpCore::delete_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_delete_data_t> msg_data) {
+    assert(m_tunnel_handler);
+    for (auto elem : msg_data) {
+        CIpInfoBase *ip_info = m_flow_gen->client_lookup(elem.client_ip);
+        if (ip_info) {
+           void *tunnel_ctx = ip_info->get_tunnel_ctx();
+           if (tunnel_ctx){
+              ip_info->del_tunnel();
+           }
+        }
+    }
+}
+
+
 void TrexAstfDpCore::activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback, MsgReply<bool> &reply) {
     if (activate) {
         uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);

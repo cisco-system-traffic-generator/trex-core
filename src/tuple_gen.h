@@ -276,6 +276,16 @@ class CIpInfoBase {
             m_del_tunnel_ctx_cb = del_cb;
         }
 
+       void del_tunnel() {
+            if (m_tunnel_ctx) {
+                assert(m_tunnel_handler);
+                assert(m_del_tunnel_ctx_cb);
+                (m_del_tunnel_ctx_cb)(m_tunnel_handler, m_tunnel_ctx);
+            }
+            m_tunnel_handler = nullptr;
+            m_tunnel_ctx = nullptr;
+        }
+
         uint32_t ref_cnt() { return m_ref_cnt; }
         void inc_ref() { m_ref_cnt++; }
         void dec_ref() {
@@ -315,13 +325,7 @@ class CIpInfoBase {
         }
 
         virtual ~CIpInfoBase() {
-            if (m_tunnel_ctx) {
-                assert(m_tunnel_handler);
-                assert(m_del_tunnel_ctx_cb);
-                (m_del_tunnel_ctx_cb)(m_tunnel_handler, m_tunnel_ctx);
-            }
-            m_tunnel_handler = nullptr;
-            m_tunnel_ctx = nullptr;
+            del_tunnel();
         }
     protected:
         uint32_t            m_ip;

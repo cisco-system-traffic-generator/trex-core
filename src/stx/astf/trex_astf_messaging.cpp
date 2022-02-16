@@ -261,6 +261,24 @@ TrexCpToDpMsgBase* TrexAstfDpUpdateTunnelClient::clone() {
 }
 
 /*************************
+*  Delete tunnel info to Client MSG
+*************************/
+TrexAstfDpDeleteTunnelClient::TrexAstfDpDeleteTunnelClient(CAstfDB* astf_db, std::vector<client_tunnel_delete_data_t> msg_data) {
+    m_astf_db = astf_db;
+    m_msg_data =  msg_data;
+
+}
+
+bool TrexAstfDpDeleteTunnelClient::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->delete_tunnel_for_client(m_astf_db, m_msg_data);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpDeleteTunnelClient::clone() {
+    return new TrexAstfDpDeleteTunnelClient(m_astf_db, m_msg_data);
+}
+
+/*************************
 *  Init dps tunnel handler
 *************************/
 bool TrexAstfDpInitTunnelHandler::handle(TrexDpCore *dp_core) {

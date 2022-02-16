@@ -78,6 +78,7 @@ public:
     bool get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply);
     Json::Value client_data_to_json(void *ip_info);
     void update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
+    void delete_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_delete_data_t> msg_data);
 
 protected:
     virtual bool rx_for_idle();

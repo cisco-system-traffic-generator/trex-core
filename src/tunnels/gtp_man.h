@@ -58,6 +58,7 @@ public:
     string get_tunnel_type_str();
     void update_tunnel_ctx(client_tunnel_data_t *data, void *tunnel_context);
     void parse_tunnel(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_data_t> &all_msg_data);
+    void parse_tunnel_delete(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_delete_data_t> &all_msg_data);
     void* get_opposite_ctx();
     tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb();
     bool is_tunnel_supported(std::string &error_msg);

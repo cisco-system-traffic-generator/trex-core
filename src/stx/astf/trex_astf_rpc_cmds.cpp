@@ -122,6 +122,8 @@ TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
 TREX_RPC_CMD(TrexRpcCmdIsTunnelSupported,  "is_tunnel_supported");
 TREX_RPC_CMD(TrexRpcCmdActivateTunnelMode,  "activate_tunnel_mode");
 TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
+TREX_RPC_CMD(TrexRpcCmdDeleteTunnelClient,  "delete_tunnel_client");
+TREX_RPC_CMD(TrexRpcCmdGetClientsStats,       "get_clients_stats");
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
@@ -836,6 +838,110 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
 
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetClientsStats::_run(const Json::Value &params, Json::Value &result) {
+
+    std::map<string, uint32_t> msg_data;
+
+    auto astf_db = CAstfDB::get_instance(0);
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    Json::Value res = Json::arrayValue;
+
+    uint32_t all_thread_active = 0;
+    uint32_t all_thread_inactive = 0;
+    uint32_t all_thread_gtpu = 0;
+
+    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+
+        CTupleGeneratorSmart* ctg = astf_db->get_smart_gen(thread_id);
+
+        uint32_t pool_sz = ctg->get_client_pool_num();
+        uint32_t active = 0;
+        uint32_t inactive = 0;
+        uint32_t gtpu_cnt = 0;
+        std:: string rec = "";
+
+        for (int i = 0; i <pool_sz; i++){
+            CClientPool *entry = ctg->get_client_pool(i);
+            if (entry) {
+               rec += "   Pool " + to_string(i) + " => " ;
+               std::vector<CIpInfoBase*> e = entry->m_ip_info;
+               if (!e.empty()){
+                  uint32_t st = e.front()->get_ip();
+                  uint32_t end = e.back()->get_ip();
+                  rec += " (IPs : " + to_string(st) + " IPe : " + to_string(end) + " ) \n";
+               }
+               for (auto client: e){
+                  if (client->is_active()) active++;
+                  else inactive++;
+
+                  if (client->get_tunnel_ctx())
+                      gtpu_cnt++;
+               }
+            }
+        }
+
+        all_thread_active += active;
+        all_thread_inactive+= inactive;
+        all_thread_gtpu += gtpu_cnt;
+        std:: string record = "Thread Id: " + to_string(thread_id) + " Total: " + to_string(active + inactive) + " Active: " + to_string(active) + " Inactive: " + to_string(inactive) + " GTPU " + to_string(gtpu_cnt);
+        res.append(record);
+        res.append(rec);
+    }
+
+    std::string tl = " Total: " + to_string(all_thread_active + all_thread_inactive) + " Active: " + to_string(all_thread_active) + " Inactive: " + to_string(all_thread_inactive) + " GTPU: " + to_string(all_thread_gtpu);
+    res.append(tl);
+
+    result["result"] = res;
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdDeleteTunnelClient::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t tunnel_type     = parse_uint16(params, "tunnel_type", result);
+    std::vector<client_tunnel_delete_data_t> all_msg_data;
+
+    auto astf_db = CAstfDB::get_instance(0);
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result, "The tunnel mode needs to be activated");
+    }
+    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
+    assert(tunnel_handler);
+    if (tunnel_type == tunnel_handler->get_tunnel_type()) {
+        tunnel_handler->parse_tunnel_delete(params, result, all_msg_data);
+    } else {
+        generate_execute_err(result, "tunnel type is not supported");
+    }
+
+    cpu_util_full_t cpu_util_full;
+
+    if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
+        return TREX_RPC_CMD_INTERNAL_ERR;
+    }
+
+    std::vector<client_tunnel_delete_data_t> data[cpu_util_full.size()];
+
+    for (auto elem : all_msg_data) {
+        data[elem.thread_id].push_back(elem);
+    }
+
+     for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
+        if (data[thread_id].size() > 0) {
+                TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTunnelClient(astf_db, data[thread_id]);
+                get_astf_object()->send_message_to_dp(thread_id, msg, false);
+        }
+    }
+
+    result["result"] = Json::objectValue;
+    return (TREX_RPC_CMD_OK);
+
+}
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &result) {
@@ -933,6 +1039,8 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
     m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
     m_cmds.push_back(new TrexRpcCmdUpdateTunnelClient(this));
+    m_cmds.push_back(new TrexRpcCmdDeleteTunnelClient(this));
     m_cmds.push_back(new TrexRpcCmdActivateTunnelMode(this));
     m_cmds.push_back(new TrexRpcCmdIsTunnelSupported(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsStats(this));
 }

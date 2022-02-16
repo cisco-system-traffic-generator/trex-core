@@ -36,6 +36,10 @@ typedef struct client_tunnel_data {
     void *ex_data;
 }client_tunnel_data_t;
 
+typedef struct client_tunnel_delete_data {
+    uint32_t client_ip;
+    uint8_t thread_id;
+}client_tunnel_delete_data_t;
 
 class CTunnelHandler {
 
@@ -53,6 +57,7 @@ public:
     virtual string get_tunnel_type_str() = 0;
     virtual void update_tunnel_ctx(client_tunnel_data_t *data, void *tunnel_context) = 0;
     virtual void parse_tunnel(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_data_t> &all_msg_data) = 0;
+    virtual void parse_tunnel_delete(const Json::Value &params, Json::Value &result, std::vector<client_tunnel_delete_data_t> &all_msg_data) = 0;
     virtual void* get_opposite_ctx() = 0;
     virtual bool is_tunnel_supported(std::string &error_msg) = 0;
     virtual tunnel_ctx_del_cb_t get_tunnel_ctx_del_cb() = 0;
