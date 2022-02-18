@@ -956,10 +956,10 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 }
 
 
-void CTcpRxOffloadBuf::set(CTcpFlow* flow, hr_time_t start_time) {
+void CTcpRxOffloadBuf::set(CTcpFlow* flow) {
     m_flow = flow;
     flow->m_lro_buf = this;
-    m_start_time = start_time;
+    update_segsz();
 }
 
 void CTcpRxOffloadBuf::do_clear() {
@@ -972,35 +972,44 @@ void CTcpRxOffloadBuf::do_clear() {
     }
 }
 
+void CTcpRxOffloadBuf::update_segsz() {
+    if (m_flow && m_mbuf && m_mbuf->tso_segsz == 0) {
+        auto optlen = m_lpTcp->getHeaderLength() - sizeof(*m_lpTcp);
+        m_mbuf->tso_segsz = m_flow->m_tcp.t_maxseg - optlen;
+    }
+}
+
 void CTcpRxOffloadBuf::update_mbuf(struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
     m_mbuf = mbuf;
     m_lpTcp = lpTcp;
     m_ftuple = ftuple;
+    update_segsz();
 }
 
 bool CTcpRxOffloadBuf::reassemble_mbuf(struct rte_mbuf * mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
 #ifndef TREX_SIM
     /* merge if the two packets are neighbors */
     if (m_ftuple.m_l7_total_len + ftuple.m_l7_total_len <= TCP_TSO_MAX_DEFAULT &&
-        /* check if TCP option fields are equal */
-        lpTcp->getHeaderLength() == m_lpTcp->getHeaderLength() &&
-        !memcmp(lpTcp+1, m_lpTcp+1, lpTcp->getHeaderLength() - sizeof(*lpTcp))) {
+        lpTcp->getHeaderLength() == m_lpTcp->getHeaderLength()) {
 
         if (lpTcp->getSeqNumber() == m_lpTcp->getSeqNumber() + m_ftuple.m_l7_total_len) {
             m_ftuple.m_l7_total_len += ftuple.m_l7_total_len;
-            rte_pktmbuf_adj(mbuf, ftuple.m_l7_offset);
-            rte_pktmbuf_chain(m_mbuf, mbuf);
-            INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
-            return true;
-        }
-        if (m_lpTcp->getSeqNumber() == lpTcp->getSeqNumber() + ftuple.m_l7_total_len) {
-            ftuple.m_l7_total_len += m_ftuple.m_l7_total_len;
-            rte_pktmbuf_adj(m_mbuf, m_ftuple.m_l7_offset);
-            rte_pktmbuf_chain(mbuf, m_mbuf);
+            if (rte_pktmbuf_adj(mbuf, ftuple.m_l7_offset)) {
+                rte_pktmbuf_chain(m_mbuf, mbuf);
 
-            update_mbuf(mbuf, lpTcp, ftuple);
-            INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
-            return true;
+                INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
+                return true;
+            }
+        }
+        else if (m_lpTcp->getSeqNumber() == lpTcp->getSeqNumber() + ftuple.m_l7_total_len) {
+            ftuple.m_l7_total_len += m_ftuple.m_l7_total_len;
+            if (rte_pktmbuf_adj(m_mbuf, m_ftuple.m_l7_offset)) {
+                rte_pktmbuf_chain(mbuf, m_mbuf);
+
+                update_mbuf(mbuf, lpTcp, ftuple);
+                INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
+                return true;
+            }
         }
     }
 #endif
@@ -1083,27 +1092,21 @@ bool CTcpRxOffload::append_buf(CTcpFlow* flow,
 
     buf = get_available_buf();
     if (buf) {
-        buf->set(flow, os_get_hr_tick_64());
+        buf->set(flow);
         buf->update_mbuf(mbuf, lpTcp, ftuple);
         return true;
     }
     return false;
 }
 
-void CTcpRxOffload::flush_bufs(CTcpPerThreadCtx * ctx, uint32_t timeout_msec) {
+void CTcpRxOffload::flush_bufs(CTcpPerThreadCtx * ctx) {
 
     assert(m_head >= m_tail);
-    hr_time_t current_time = os_get_hr_tick_64();
-    hr_time_t timeout_cycles = os_get_hr_freq()/1000 * timeout_msec;   // 1 msec
 
     for (; m_tail < m_head; ++m_tail) {
         CTcpRxOffloadBuf* buf = &m_bufs[m_tail % m_size];
 
         if (buf->is_active()) {
-            if ((current_time - buf->get_start_time()) < timeout_cycles) {
-                break;
-            }
-
             CTcpFlow* flow = buf->get_flow();
 
             buf->do_flush();
@@ -1126,7 +1129,7 @@ HOT_FUNC bool CFlowTable::process_software_lro(CTcpPerThreadCtx * ctx,
 
 HOT_FUNC void CFlowTable::flush_software_lro(CTcpPerThreadCtx * ctx) {
     if (m_tcp_lro) {
-        m_tcp_lro->flush_bufs(ctx, 1);
+        m_tcp_lro->flush_bufs(ctx);
     }
 }
 

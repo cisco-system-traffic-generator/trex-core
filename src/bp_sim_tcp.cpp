@@ -366,7 +366,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
                 }
             }
             sum+=cnt;
-            if (sum>256) {
+            if (sum>NUM_RX_OFFLOAD) {
                 ctx->m_ft.inc_rx_throttled_cnt();
                 break;
             }

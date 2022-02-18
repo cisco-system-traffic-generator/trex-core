@@ -572,7 +572,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
     thflags = th->th_flags;
     tp->sackhint.last_sack_ack = 0;
     sack_changed = 0;
-    nsegs = m_nsegs(m);
+    nsegs = m_lro_nsegs(m, tlen);
 
     KASSERT(tp->t_state > TCPS_LISTEN, ("%s: TCPS_LISTEN",
         __func__));

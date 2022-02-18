@@ -131,9 +131,10 @@ m_pktlen(struct mbuf *m)
 }
 
 int
-m_nsegs(struct mbuf *m)
+m_lro_nsegs(struct mbuf *m, int l7_len)
 {
-    return ((struct rte_mbuf *)m)->nb_segs;
+    int segsz = ((struct rte_mbuf *)m)->tso_segsz;
+    return segsz ? (l7_len+segsz-1)/segsz: 1;
 }
 
 

@@ -222,14 +222,13 @@ class CTcpRxOffloadBuf {
     CFlowKeyFullTuple   m_ftuple;
 
     CTcpFlow*           m_flow;
-    hr_time_t           m_start_time;
 
 public:
-    void set(CTcpFlow*, hr_time_t);
+    void set(CTcpFlow*);
     bool is_active() const { return m_flow != nullptr; }
-    hr_time_t get_start_time() const { return m_start_time; }
     CTcpFlow* get_flow() const { return m_flow; }
 
+    void update_segsz();
     void update_mbuf(struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
     bool reassemble_mbuf(struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
 
@@ -238,7 +237,7 @@ public:
 };
 
 
-#define NUM_RX_OFFLOAD  0x10000
+#define NUM_RX_OFFLOAD  0x100
 
 class CTcpRxOffload {
     uint32_t        m_size;
@@ -254,7 +253,7 @@ public:
 
     CTcpRxOffloadBuf* find_buf(CTcpFlow* flow);
     bool append_buf(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple);
-    void flush_bufs(CTcpPerThreadCtx * ctx, uint32_t timeout_msec);
+    void flush_bufs(CTcpPerThreadCtx * ctx);
 };
 
 class CFlowTable {
