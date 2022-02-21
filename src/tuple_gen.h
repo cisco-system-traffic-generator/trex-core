@@ -798,7 +798,10 @@ public:
 
     /* If node we are deleting is same as current iterator of the active list, move forward and then delete */
     void delete_client_from_active_list(ActiveClientListNode *cn){
-         if (((ActiveClientListNode *)m_cur_act_itr.node())->client == cn->client){
+        if (is_active_list_iterator_at_end()) {
+           set_active_list_ptr_to_start();
+        }
+        if (((ActiveClientListNode *)m_cur_act_itr.node())->client == cn->client){
              m_cur_act_itr++;
          }
          cn->m_node.detach();
