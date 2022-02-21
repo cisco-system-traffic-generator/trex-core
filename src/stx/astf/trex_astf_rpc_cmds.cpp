@@ -856,7 +856,7 @@ TrexRpcCmdDeleteTunnelClient::_run(const Json::Value &params, Json::Value &resul
     }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTunnelClient(astf_db, all_msg_data);
-    get_astf_object()->send_message_to_dp(thread_id, msg, false);
+    get_astf_object()->send_message_to_all_dp(msg, false);
 
     result["result"] = Json::objectValue;
     return (TREX_RPC_CMD_OK);
