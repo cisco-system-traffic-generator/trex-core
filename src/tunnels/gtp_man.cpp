@@ -128,7 +128,6 @@ void CGtpuMan::parse_tunnel_delete(const Json::Value &params, Json::Value &resul
     const Json::Value &attr = parser.parse_array(params, "attr", result);
     for (auto each_client : attr) {
         client_tunnel_delete_data_t msg_data;
-        msg_data.thread_id   = parser.parse_uint32(each_client, "thread_id", result);
         msg_data.client_ip   = parser.parse_uint32(each_client, "client_ip", result);
         all_msg_data.push_back(msg_data);
     }

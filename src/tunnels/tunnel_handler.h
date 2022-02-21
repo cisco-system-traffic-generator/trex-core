@@ -38,7 +38,6 @@ typedef struct client_tunnel_data {
 
 typedef struct client_tunnel_delete_data {
     uint32_t client_ip;
-    uint8_t thread_id;
 }client_tunnel_delete_data_t;
 
 class CTunnelHandler {
