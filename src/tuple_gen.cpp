@@ -249,6 +249,7 @@ void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
         set_client_active(m_ip_info[i], cn, true);
  
     }
+    set_active_list_ptr_to_start();
 
 }
 
