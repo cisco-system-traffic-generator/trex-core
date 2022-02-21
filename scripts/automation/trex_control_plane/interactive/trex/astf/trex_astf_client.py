@@ -1397,17 +1397,6 @@ class ASTFClient(TRexClient):
 
         return self._transmit("get_clients_info", params)
 
-    def get_clients_stats (self):
-
-        json_attr = []
-        params = {"type": 'all',
-                  "attr": json_attr }
-
-
-        rc = self._transmit("get_clients_stats", params)
-        records = rc.data()
-
-        return records 
 
 ############################   console   #############################
 ############################   commands  #############################
