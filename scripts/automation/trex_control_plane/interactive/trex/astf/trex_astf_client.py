@@ -1234,8 +1234,7 @@ class ASTFClient(TRexClient):
         json_attr = []
 
         for value in client_list:
-            # json_attr.append({'client_ip' : key, 'teid' : value.teid, "version" :value.version})
-            json_attr.append({'client_ip': value.get('client_ip'), 'thread_id': value.get('thread_id')})
+            json_attr.append({'client_ip': value.get('client_ip')})
  
         return json_attr
 
