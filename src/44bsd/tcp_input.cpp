@@ -130,13 +130,6 @@ m_pktlen(struct mbuf *m)
     return m->pkt_len;
 }
 
-int
-m_lro_nsegs(struct mbuf *m, int l7_len)
-{
-    int segsz = ((struct rte_mbuf *)m)->tso_segsz;
-    return segsz ? (l7_len+segsz-1)/segsz: 1;
-}
-
 
 bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
     int i; 

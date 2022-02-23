@@ -90,8 +90,12 @@ bool CFlowTable::Create(uint32_t size,
     m_tcp_lro = nullptr;
     if (!CGlobalInfo::m_options.preview.get_dev_lro_support() &&
         !CGlobalInfo::m_options.preview.getLroOffloadDisable()) {
+        using namespace std::placeholders;
+        auto cb = std::bind(&CFlowTable::process_tcp_packet_internal, this, _1, _2, _3, _4, _5);
+
         m_tcp_lro = new CTcpRxOffload;
-        m_tcp_lro->Create();
+        m_tcp_lro->Create(cb);
+        printf("TCP LRO is activated by software at %p\n", this);
     }
     return(true);
 }
@@ -413,6 +417,19 @@ static inline void tcp_flow_input(CTcpFlow *  flow,
     tcp_int_input(&flow->m_tcp, (struct mbuf*)mbuf, (struct tcphdr*)lpTcp, ftuple.m_l7_offset, ftuple.m_l7_total_len, 0);
 
     flow->check_defer_function();
+}
+
+void HOT_FUNC CFlowTable::process_tcp_packet_internal(CTcpPerThreadCtx * ctx,
+                                    CTcpFlow *  flow,
+                                    struct rte_mbuf * mbuf,
+                                    TCPHeader    * lpTcp,
+                                    CFlowKeyFullTuple &ftuple){
+
+    tcp_flow_input(flow, mbuf, lpTcp, ftuple);
+
+    if (flow->is_can_close() && ctx) {
+        handle_close(ctx,flow,true);
+    }
 }
 
 void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
@@ -956,34 +973,35 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 }
 
 
-void CTcpRxOffloadBuf::set(CTcpFlow* flow) {
-    m_flow = flow;
-    flow->m_lro_buf = this;
-    update_segsz();
+void CTcpRxOffloadBuf::update_mbuf(struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
+    m_mbuf = mbuf;
+    m_lpTcp = lpTcp;
+    m_ftuple = ftuple;
 }
 
-void CTcpRxOffloadBuf::do_clear() {
+void CTcpRxOffloadBuf::set(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
+    update_mbuf(mbuf, lpTcp, ftuple);
+    m_flow = flow;
+    flow->m_lro_buf = this;
+}
+
+void CTcpRxOffloadBuf::clear() {
     if (m_flow) {
-        if (m_mbuf) {
-            rte_pktmbuf_free(m_mbuf);
-            m_mbuf = nullptr;
+        if (m_flow->m_lro_buf == this) {
+            m_flow->m_lro_buf = nullptr;
         }
         m_flow = nullptr;
     }
 }
 
-void CTcpRxOffloadBuf::update_segsz() {
-    if (m_flow && m_mbuf && m_mbuf->tso_segsz == 0) {
-        auto optlen = m_lpTcp->getHeaderLength() - sizeof(*m_lpTcp);
-        m_mbuf->tso_segsz = m_flow->m_tcp.t_maxseg - optlen;
+void CTcpRxOffloadBuf::reset() {
+    if (m_flow) {
+        if (m_mbuf) {
+            rte_pktmbuf_free(m_mbuf);
+            m_mbuf = nullptr;
+        }
+        clear();
     }
-}
-
-void CTcpRxOffloadBuf::update_mbuf(struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
-    m_mbuf = mbuf;
-    m_lpTcp = lpTcp;
-    m_ftuple = ftuple;
-    update_segsz();
 }
 
 bool CTcpRxOffloadBuf::reassemble_mbuf(struct rte_mbuf * mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
@@ -1016,29 +1034,24 @@ bool CTcpRxOffloadBuf::reassemble_mbuf(struct rte_mbuf * mbuf, TCPHeader* lpTcp,
     return false;
 }
 
-void CTcpRxOffloadBuf::do_flush() {
-    m_flow->m_lro_buf = nullptr;
-    tcp_flow_input(m_flow, m_mbuf, m_lpTcp, m_ftuple);
-    m_mbuf = nullptr;
-    m_flow = nullptr;
-}
 
-
-void CTcpRxOffload::Create() {
+void CTcpRxOffload::Create(rx_offload_cb_t cb) {
     m_size = NUM_RX_OFFLOAD;
     m_bufs = new CTcpRxOffloadBuf[m_size];
     m_head = 0;
     m_tail = 0;
+
+    m_cb = cb;
 }
 
 void CTcpRxOffload::Delete() {
     for (; m_tail < m_head; ++m_tail) {
-        m_bufs[m_tail % m_size].do_clear();
+        m_bufs[m_tail % m_size].reset();
     }
     delete[] m_bufs;
 }
 
-CTcpRxOffloadBuf* CTcpRxOffload::get_available_buf() {
+HOT_FUNC CTcpRxOffloadBuf* CTcpRxOffload::new_buf() {
 
     assert(m_head >= m_tail);
     if (m_head > m_tail) {
@@ -1063,14 +1076,14 @@ CTcpRxOffloadBuf* CTcpRxOffload::get_available_buf() {
     return &m_bufs[index];
 }
 
-CTcpRxOffloadBuf* CTcpRxOffload::find_buf(CTcpFlow* flow) {
+HOT_FUNC CTcpRxOffloadBuf* CTcpRxOffload::find_buf(CTcpFlow* flow) {
     return flow->m_lro_buf;
 }
 
-bool CTcpRxOffload::append_buf(CTcpFlow* flow,
-                               struct rte_mbuf* mbuf,
-                               TCPHeader* lpTcp,
-                               CFlowKeyFullTuple& ftuple) {
+HOT_FUNC bool CTcpRxOffload::append_buf(CTcpFlow* flow,
+                                        struct rte_mbuf* mbuf,
+                                        TCPHeader* lpTcp,
+                                        CFlowKeyFullTuple& ftuple) {
 
     bool do_lro = (lpTcp->getFlags() == TCPHeader::Flag::ACK) && (ftuple.m_l7_total_len > 0);
     CTcpRxOffloadBuf* buf = find_buf(flow);
@@ -1080,22 +1093,21 @@ bool CTcpRxOffload::append_buf(CTcpFlow* flow,
             return true;
         }
 
-        buf->do_flush();
-        if (flow->is_can_close()) {
-            return false;
+        m_cb(nullptr, buf->m_flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
+        buf->clear();
+    }
+
+    if (do_lro) {
+        if (!buf) {
+            buf = new_buf();
+        }
+
+        if (likely(buf)) {
+            buf->set(flow, mbuf, lpTcp, ftuple);
+            return true;
         }
     }
 
-    if (!do_lro) {
-        return false;
-    }
-
-    buf = get_available_buf();
-    if (buf) {
-        buf->set(flow);
-        buf->update_mbuf(mbuf, lpTcp, ftuple);
-        return true;
-    }
     return false;
 }
 
@@ -1106,13 +1118,9 @@ void CTcpRxOffload::flush_bufs(CTcpPerThreadCtx * ctx) {
     for (; m_tail < m_head; ++m_tail) {
         CTcpRxOffloadBuf* buf = &m_bufs[m_tail % m_size];
 
-        if (buf->is_active()) {
-            CTcpFlow* flow = buf->get_flow();
-
-            buf->do_flush();
-            if (flow->is_can_close()) {
-                ctx->m_ft.handle_close(ctx,flow,true);
-            }
+        if (buf->m_flow) {
+            m_cb(ctx, buf->m_flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
+            buf->clear();
         }
     }
 }
@@ -1127,7 +1135,7 @@ HOT_FUNC bool CFlowTable::process_software_lro(CTcpPerThreadCtx * ctx,
     return m_tcp_lro && m_tcp_lro->append_buf(flow, mbuf, lpTcp, ftuple);
 }
 
-HOT_FUNC void CFlowTable::flush_software_lro(CTcpPerThreadCtx * ctx) {
+void CFlowTable::flush_software_lro(CTcpPerThreadCtx * ctx) {
     if (m_tcp_lro) {
         m_tcp_lro->flush_bufs(ctx);
     }

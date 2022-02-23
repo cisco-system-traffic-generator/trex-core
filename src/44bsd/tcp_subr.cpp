@@ -508,7 +508,7 @@ void CTcpFlow::Delete(){
         m_payload_info = nullptr;
     }
     if (m_lro_buf) {
-        m_lro_buf->do_clear();
+        m_lro_buf->reset();
         m_lro_buf = nullptr;
     }
     CFlowBase::Delete();

@@ -12,7 +12,6 @@ void m_adj_fix(struct mbuf *, int, int);
 void m_trim(struct mbuf *, int);
 void m_freem(struct mbuf *);
 uint32_t m_pktlen(struct mbuf *);
-int m_lro_nsegs(struct mbuf *, int);
 
 #ifdef __cplusplus
 } /* extern "C" */
