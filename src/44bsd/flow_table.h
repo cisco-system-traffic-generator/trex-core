@@ -259,6 +259,7 @@ public:
     CTcpRxOffloadBuf* find_buf(CTcpFlow* flow);
     bool append_buf(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple);
     void flush_bufs(CTcpPerThreadCtx * ctx);
+    bool is_empty();
 };
 
 
@@ -341,12 +342,6 @@ public:
                               struct rte_mbuf * mbuf,
                               TCPHeader    * lpTcp,
                               CFlowKeyFullTuple &ftuple);
-
-      void process_tcp_packet_internal(CTcpPerThreadCtx * ctx,
-                                       CTcpFlow *  flow,
-                                       struct rte_mbuf * mbuf,
-                                       TCPHeader    * lpTcp,
-                                       CFlowKeyFullTuple &ftuple);
 
       bool process_software_lro(CTcpPerThreadCtx * ctx,
                               CTcpFlow *  flow,
