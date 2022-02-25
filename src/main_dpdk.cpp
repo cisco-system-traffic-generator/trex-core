@@ -7063,6 +7063,8 @@ COLD_FUNC void set_driver() {
     if ( (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_LRO) == DEV_RX_OFFLOAD_TCP_LRO ){
         printf(" LRO ");
         lp->set_dev_lro_support(true);
+    } else {
+        printf(" SLRO ");
     }
     printf("\n");
 
@@ -7071,9 +7073,13 @@ COLD_FUNC void set_driver() {
         lp->set_dev_tso_support(false);
     }
 
-    if (lp->getLroOffloadDisable() && lp->get_dev_lro_support()){
-        printf("Warning LRO is supported and asked to be disabled by user \n");
-        lp->set_dev_lro_support(false);
+    if (lp->getLroOffloadDisable()) {
+        if (lp->get_dev_lro_support()) {
+            printf("Warning LRO is supported and asked to be disabled by user \n");
+            lp->set_dev_lro_support(false);
+        } else {
+            printf("Warning SLRO is supported and asked to be disabled by user \n");
+        }
     }
 
 

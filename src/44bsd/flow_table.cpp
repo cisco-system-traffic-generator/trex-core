@@ -95,7 +95,6 @@ bool CFlowTable::Create(uint32_t size,
 
         m_tcp_lro = new CTcpRxOffload;
         m_tcp_lro->Create(cb);
-        printf("TCP LRO is activated by software at %p\n", this);
     }
     return(true);
 }
