@@ -79,12 +79,26 @@ public:
     virtual ~BasePacketGroupTag() = 0; // Make the class pure abstract so no one can instantiate.
 
     /**
-     * get_tag returns the tag identifier.
+     * Dump Tag as a Json. Each base class must implement.
+     *
+     * @param tag
+     *   Tag Json object on which we dump.
+     **/
+    virtual void dump_json(Json::Value& tag) = 0;
+
+    /**
+     * Returns the tag identifier.
+     *
+     * @return
+     *   The tag_id for this tag object.
     **/
     inline uint16_t get_tag() {return m_tag;}
 
     /**
-     * set_tag sets the tag identifier.
+     * Sets the tag identifier.
+     *
+     * @param tag
+     *   Tag to set.
     **/
     inline void set_tag(uint16_t tag) {m_tag = tag;}
 
@@ -103,6 +117,18 @@ public:
         }
         m_vlan = vlan;
         set_tag(tag);
+    }
+
+    /**
+     * Dump Dot1Q tag as Json.
+     *
+     * @param tag
+     *   Tag Json object on which we dump.
+     **/
+    void dump_json(Json::Value& tag) override {
+        tag["type"] = "Dot1Q";
+        Json::Value& value = tag["value"];
+        value["vlan"] = m_vlan;
     }
 
     /**
@@ -128,6 +154,20 @@ public:
         m_inner_vlan = inner_vlan;
         m_outter_vlan = outter_vlan;
         set_tag(tag);
+    }
+
+    /**
+     * Dump QinQ tag as Json.
+     *
+     * @param tag
+     *   Tag Json object on which we dump.
+     **/
+    void dump_json(Json::Value& tag) override {
+        tag["type"] = "QinQ";
+        Json::Value& value = tag["value"];
+        value["vlans"] = Json::arrayValue;
+        value["vlans"][0] = m_inner_vlan;
+        value["vlans"][1] = m_outter_vlan;
     }
 
     /**
@@ -719,6 +759,17 @@ public:
     void update_cntr(uint64_t pkts, uint64_t bytes);
 
     /**
+     * Set counters.
+     *
+     * @param pkts
+     *   Number of pkts received for this tag.
+     *
+     * @param bytes
+     *   Number of bytes received for this tag.
+     **/
+    void set_cntrs(uint64_t pkts, uint64_t bytes);
+
+    /**
      * Dump the counters into a json.
      *
      * @param json
@@ -730,17 +781,6 @@ public:
     friend bool operator!=(const TPGTxGroupCounters& lhs, const TPGTxGroupCounters& rhs);
     friend std::ostream& operator<<(std::ostream& os, const TPGTxGroupCounters& tag);
 private:
-
-    /**
-     * Set counters, used for testing.
-     *
-     * @param pkts
-     *   Number of pkts received for this tag.
-     *
-     * @param bytes
-     *   Number of bytes received for this tag.
-     **/
-    void set_cntrs(uint64_t pkts, uint64_t bytes);
 
     uint64_t        m_pkts;                 // Number of packets transmitted.
     uint64_t        m_bytes;                // Number of bytes transmitted.
@@ -806,6 +846,15 @@ public:
      **/
 
     void update_tx_cntrs(uint32_t tpgid, uint64_t pkts, uint64_t bytes);
+
+    /**
+     * Clear TPG Tx counters.
+     *
+     * @param tpgid
+     *   Tagged Packet Group identifier
+     **/
+
+    void clear_tx_cntrs(uint32_t tpgid);
 
     /**
      * Get the Tx stats for some Tagged Packet Group.

@@ -356,6 +356,17 @@ public:
      **/
     inline TPGDpMgrPerSide* get_tpg_dp_mgr(uint8_t dir) { return m_tpg_mgr[dir]; }
 
+    /**
+     * Clear the Tagged Packet Group Tx stats for some tpgid.
+     *
+     * @param dir
+     *   Direction
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier to clear stats.
+     **/
+    void clear_tpg_tx_stats(uint8_t dir, uint32_t tpgid);
+
     void clear_fs_latency_stats(uint8_t dir);
     void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
     void rfc2544_stop_and_sample(int min, int max, bool reset, bool period_switch);

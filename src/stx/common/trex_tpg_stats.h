@@ -42,6 +42,7 @@ limitations under the License.
 
 */
 
+constexpr uint8_t NUM_EXTRA_TAGS_TPGID = 2;     // Number of extra tags per tpgid (unknown + untagged)
 
 /**************************************
  * CTPGTagCntr
@@ -80,20 +81,29 @@ public:
      *
      *
      * @param rcv_seq
-     *    Sequence number extracted from the payload of packet.
+     *   Sequence number extracted from the payload of packet.
      *
      * @param pkt_len
-     *    Length of packet in bytes
+     *   Length of packet in bytes
+     *
+     * @param unknown_tag
+     *   Is the tag unknown?
+     *
+     * @param mcast
+     *   Is packet a multicast packet?
      **/
-    void update_cntrs(uint32_t rcv_seq, uint32_t pkt_len);
+    void update_cntrs(uint32_t rcv_seq, uint32_t pkt_len, bool unknown_tag, bool mcast);
 
     /**
      * Dump stats as Json.
      *
      * @param stats
      *   Json to dump the stats at.
+     *
+     * @param unknown_tag
+     *   Are we dumping counters for the unknown tags?
      **/
-    void dump_json(Json::Value& stats);
+    void dump_json(Json::Value& stats, bool unknown_tag);
 
 private:
 
@@ -166,7 +176,7 @@ class RxTPGPerPort {
     */
 public:
     RxTPGPerPort(uint8_t port_id, uint32_t num_pgids, PacketGroupTagMgr* tag_mgr, CTPGTagCntr* cntrs);
-    ~RxTPGPerPort() {};
+    ~RxTPGPerPort();
 
     /**
      * Handle a packet received on Rx. If the packet contains a TPG header, parse it,
@@ -176,7 +186,6 @@ public:
      *   Mbuf of the packet received
      **/
     void handle_pkt(const rte_mbuf_t* m);
-
 
     /**
      * Provided a tpgid and a tag, gets the counter to that tag. In case of invalid params, it will return nullptr.
@@ -205,6 +214,18 @@ public:
     CTPGTagCntr* get_unknown_tag_cntr(uint32_t tpgid);
 
     /**
+     * Provided a tpgid get the untagged counters for it. In case of invalid params, it will return nullptr.
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier
+     *
+     *
+     * @return CTPGTagCntr*
+     *   Pointer to the unknown tag counters
+     **/
+    CTPGTagCntr* get_untagged_cntr(uint32_t tpgid);
+
+    /**
      * Updates counters when a packet is received with a new sequence number.
      *
      * @param tpgid
@@ -219,10 +240,17 @@ public:
      * @param tag_id
      *    Tag extracted from the Tag Manager and the Dot1Q or QinQ tag in the packet.
      *
-     * @param tag_exists
-     *    Boolean indicating if this tag exists in the Tag Manager.
+     * @param unknown_tag
+     *    Boolean indicating if this tag is known in the Tag Manager.
+     *
+     * @param untagged
+     *    Boolean indicating if this packet is untagged.
+     *
+     * @param mcast
+     *    Is packet a multicast packet?
      **/
-    void update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_len, uint16_t tag_id, bool tag_exists);
+    void update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_len, uint16_t tag_id,
+                      bool unknown_tag, bool untagged, bool mcast);
 
     /** 
      * Get Tagged Packet Group Statistics of a specific tpgid from [min_tag, max_tag) dumped as a Json.
@@ -241,17 +269,53 @@ public:
      *
      * @param unknown_tag
      *   Add the stats for unknown tags in the Json too.
+     *
+     * @param untagged
+     *   Add the stats for untagged packets in the Json too.
      **/
-    void get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
+    void get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+    /**
+     * Clear Tagged Packet Group Statistics of a specific tpgid from [min_tag, max_tag).
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier whose stats we want to clear.
+     *
+     * @param min_tag
+     *   Min Tag to clear. Inclusive.
+     *
+     * @param max_tag
+     *   Max Tag to clear.Not inclusive.
+     *
+     * @param unknown_tag
+     *   Clear the stats for unknown tags too.
+     *
+     * @param untagged
+     *   Clear the stats for untagged packets to..
+     **/
+    void clear_tpg_stats(uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+    /**
+     * Get the unknown tags collected on this port so far.
+     *
+     * @param tags
+     *   Json on which we dump the tags.
+     */
+    void get_tpg_unknown_tags(Json::Value& tags);
+
+    /**
+     * Clear the unknown tags collected so far.
+     **/
+    void clear_tpg_unknown_tags();
 
 private:
-
-    uint8_t             m_port_id;          // Port Id
-    uint32_t            m_num_tpgids;       // Number of Tagged Packet Groups
-    uint16_t            m_num_tags;         // Number of Tags
-    PacketGroupTagMgr*  m_tag_mgr;          // Pointer to cloned Rx Tagged Manager.
-    CTPGTagCntr*        m_cntrs;            // Counters per Group
-
+    static constexpr uint8_t                                 MAX_UNKNOWN_TAGS = 10;  // Max number of unknown tags to collect
+    uint8_t                                                  m_port_id;              // Port Id
+    uint32_t                                                 m_num_tpgids;           // Number of Tagged Packet Groups
+    uint16_t                                                 m_num_tags;             // Number of Tags
+    PacketGroupTagMgr*                                       m_tag_mgr;              // Pointer to cloned Rx Tagged Manager
+    CTPGTagCntr*                                             m_cntrs;                // Counters per Group
+    std::vector<std::pair<BasePacketGroupTag*, uint32_t>>    m_unknown_tags;         // Small vector of unknown tags
 };
 
 /**************************************

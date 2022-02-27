@@ -835,8 +835,27 @@ void CRxCore::_disable_tpg_ctx(TPGRxCtx* tpg_rx_ctx) {
     recalculate_next_state();
 }
 
-void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
+void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
     Json::Value& port_stats = stats[std::to_string(port_id)];
     RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
-    rx_tpg->get_tpg_stats(port_stats, tpgid, min_tag, max_tag, unknown_tag);
+    rx_tpg->get_tpg_stats(port_stats, tpgid, min_tag, max_tag, unknown_tag, untagged);
+}
+
+void CRxCore::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
+    RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
+    rx_tpg->clear_tpg_stats(tpgid, min_tag, max_tag, unknown_tag, untagged);
+}
+
+
+void CRxCore::get_tpg_unknown_tags(Json::Value& tags, uint8_t port_id) {
+    tags[std::to_string(port_id)] = Json::arrayValue;
+    Json::Value& port_tags = tags[std::to_string(port_id)];
+    RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
+    rx_tpg->get_tpg_unknown_tags(port_tags);
+}
+
+
+void CRxCore::clear_tpg_unknown_tags(uint8_t port_id) {
+    RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
+    rx_tpg->clear_tpg_unknown_tags();
 }

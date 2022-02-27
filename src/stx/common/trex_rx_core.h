@@ -225,8 +225,53 @@ protected:
      *
      * @param unknown_tag
      *   Dump the stats collected on unknown tags aswell.
+     *
+     * @param untagged
+     *   Dump the stats collected on untagged packets.
      **/
-    void get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag);
+    void get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+    /**
+     * Get Tagged Packet Group Statistics
+     *
+     * @param port_id
+     *   Port on which we clear the stats
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier for which we clear the stats
+     *
+     * @param min_tag
+     *   Minimal Tag to clear stats for. Inclusive.
+     *
+     * @param max_tag
+     *   Maximal Tag for which to clear stats for. Exclusive.
+     *
+     * @param unknown_tag
+     *   Clear the stats of the unknown tag too.
+     *
+     * @param untagged
+     *   Clear the stats of the untagged too.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+    /**
+     * Get Tagged Packet Group unknown tag on this port.
+     *
+     * @param tags
+     *   Json on which we dump the tags.
+     *
+     * @param port_id
+     *   Collecting port on which we collected the tags.
+     **/
+    void get_tpg_unknown_tags(Json::Value& tags, uint8_t port_id);
+
+    /**
+     * Clear Tagged Packet Group unknown tags on this port.
+     *
+     * @param port_id
+     *   Collecting port on which we want to clear the unknown tags.
+     **/
+    void clear_tpg_unknown_tags(uint8_t port_id);
 
  protected:
 

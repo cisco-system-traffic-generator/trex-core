@@ -1701,6 +1701,13 @@ class OPTIONS_DB_ARGS:
          'default': False,
          'action': "store_true"})
 
+    TPG_UNTAGGED = ArgumentPack(
+        ['--untagged'],
+        {'help': "Show Untagged Stats. Defaults to False.",
+         'dest': "untagged",
+         'default': False,
+         'action': "store_true"})
+
     TPG_NUM_TPGIDS = ArgumentPack(
         ["--num-tpgids"],
         {'help': "Number of Tagged Packet Groups",
@@ -1819,6 +1826,7 @@ class OPTIONS_DB_GROUPS:
             TPG_MIN_TAG,
             TPG_MAX_TAG,
             TPG_UNKNOWN_TAG,
+            TPG_UNTAGGED,
         ],
         {})
 

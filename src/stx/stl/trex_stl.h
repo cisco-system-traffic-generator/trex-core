@@ -239,6 +239,60 @@ public:
      **  True iff TPG was disabled successfully in Data Plane.
     **/
     bool disable_tpg(const std::string& username);
+
+    /**
+     * Clear Tagged Packet Group stats.
+     *
+     * @param port_id
+     *   Transmitting port on which we want to clear tags.
+     *
+     * @param tpgid
+     *   Tpgid on which we want to clear the ports.
+     *
+     * @param min_tag
+     *   Tag from which we start clearing. We clear range [min, max).
+     *
+     * @param max_tag
+     *   Tag where we stop clearing. Non inclusive. We clear range [min, max).
+     *
+     * @param unknown_tag
+     *   Boolean indicating if we should clear unknown tag stats.
+     *
+     * @param untagged
+     *   Boolean indicating if we should clear untagged stats.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+    /**
+     * Clear Tagged Packet Group Tx stats.
+     *
+     * @param port_id
+     *   Transmitting port on which we want to clear tags.
+     *
+     * @param tpgid
+     *   Tpgid on which we want to clear the ports.
+     **/
+    void clear_tpg_tx_stats(uint8_t port_id, uint32_t tpgid);
+
+    /**
+     * Get Tagged Packet Group unknown tag on this port.
+     *
+     * @param result
+     *   Json on which we dump the tags.
+     *
+     * @param port_id
+     *   Collecting port on which we collected the tags.
+     **/
+    void get_tpg_unknown_tags(Json::Value& result, uint8_t port_id);
+
+    /**
+     * Clear Tagged Packet Group unknown tags on this port.
+     *
+     * @param port_id
+     *   Collecting port on which we want to clear the unknown tags.
+     **/
+    void clear_tpg_unknown_tags(uint8_t port_id);
+
     virtual void set_capture_feature(const std::set<uint8_t>& rx_ports);
 
     virtual void unset_capture_feature();
