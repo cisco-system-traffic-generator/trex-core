@@ -352,6 +352,24 @@ bool TrexStatelessRxGetTPGState::handle(CRxCore* rx_core) {
     return true;
 }
 
+bool TrexStatelessRxClearTPGStats::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_stats(m_port_id, m_tpgid, m_min_tag, m_max_tag, m_unknown_tag, m_untagged);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxGetTPGUnknownTags::handle(CRxCore* rx_core) {
+    rx_core->get_tpg_unknown_tags(m_result, m_port_id);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGUnknownTags::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_unknown_tags(m_port_id);
+    m_reply.set_reply(true);
+    return true;
+}
+
 /*************************
   DP Features
  ************************/
@@ -437,5 +455,18 @@ bool TrexStatelessDpGetTPGMgr::handle(TrexDpCore *dp_core) {
 
 TrexCpToDpMsgBase* TrexStatelessDpGetTPGMgr::clone() {
     TrexStatelessDpGetTPGMgr *new_msg = new TrexStatelessDpGetTPGMgr(m_reply, m_port);
+    return new_msg;
+}
+
+bool TrexStatelessDpClearTPGTxStats::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    uint8_t dir = m_port % 2;
+    stl_core->clear_tpg_tx_stats(dir, m_tpgid);
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpClearTPGTxStats::clone() {
+    TrexStatelessDpClearTPGTxStats *new_msg = new TrexStatelessDpClearTPGTxStats(m_reply, m_port, m_tpgid);
     return new_msg;
 }

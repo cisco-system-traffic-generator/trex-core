@@ -546,3 +546,38 @@ bool TrexStateless::disable_tpg(const std::string& username) {
      **/
      return true;
 }
+
+void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxClearTPGStats(reply, port_id, tpgid, min_tag, max_tag, unknown_tag, untagged);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_tx_stats(uint8_t port_id, uint32_t tpgid) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToDpMsgBase* msg = new TrexStatelessDpClearTPGTxStats(reply, port_id, tpgid);
+    send_msg_to_dp(get_port_by_id(port_id)->get_sequenced_stream_core(), msg);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::get_tpg_unknown_tags(Json::Value& result, uint8_t port_id) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxGetTPGUnknownTags(reply, result, port_id);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_unknown_tags(uint8_t port_id) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxClearTPGUnknownTags(reply, port_id);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}

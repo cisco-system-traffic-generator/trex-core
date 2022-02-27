@@ -1963,7 +1963,7 @@ class STLClient(TRexClient):
         return rc.data()
 
     @client_api('getter', True)
-    def get_tpg_stats(self, port, tpgid, min_tag, max_tag, max_sections = 50, unknown_tag = False):
+    def get_tpg_stats(self, port, tpgid, min_tag, max_tag, max_sections = 50, unknown_tag = False, untagged = False):
         """
         Get Tagged Packet Group Identifier statistics that are received in this port,
         for this Tagged Packet Group Identifier in [min, max) tag_range.
@@ -1993,6 +1993,9 @@ class STLClient(TRexClient):
             unknown_tag: bool
                 Get the stats of packets received with this tpgid but with a tag that isn't provided in the mapping,
                 i.e an unknown tag.
+
+            untagged: bool
+                Get the stats of packets received with this tpgid but without any tag.
 
         :returns:
             (dict, uint16): Stats collected the next tag to start collecting from (relevant if not all the data was collected)
@@ -2027,19 +2030,22 @@ class STLClient(TRexClient):
                                          'seq_err': 0,
                                          'seq_err_too_big': 0,
                                          'seq_err_too_small': 0},
+                            'untagged': {'bytes': 0,
+                                         'dup': 0,
+                                         'ooo': 0,
+                                         'pkts': 0,
+                                         'seq_err': 0,
+                                         'seq_err_too_big': 0,
+                                         'seq_err_too_small': 0},
                             'unknown_tag': {'bytes': 0,
-                                            'dup': 0,
-                                            'ooo': 0,
-                                            'pkts': 0,
-                                            'seq_err': 0,
-                                            'seq_err_too_big': 0,
-                                            'seq_err_too_small': 0}}}}
+                                            'pkts': 0}}}}
 
             The returned data is separated per port and per tpgid, so it can be easily merged with data from other ports/tpgids.
 
-            In this example we can see that all the data is compressed in 3 sections (excluding the *unknown_tag*).
+            In this example we can see that all the data is compressed in 3 sections (excluding the *unknown_tag* and *untagged*.).
 
             uint16: Indicates the next tag to start collecting from. In case all the tags were collected this will equal *max_tag*.
+                    In case the user provided min_tag = max tag, the user collected only unknown or untagged, hence this will be None.
         """
         self.psv.validate('get_tpg_stats', [port])
         validate_type("tpgid", tpgid, int)
@@ -2047,11 +2053,15 @@ class STLClient(TRexClient):
         validate_type("max_tag", max_tag, int)
         validate_type("max_sections", max_sections, int)
         validate_type("unknown_tag", unknown_tag, bool)
+        validate_type("untagged", untagged, bool)
 
-        if min_tag >=max_tag:
-            raise TRexError("Min Tag {} must be smaller than Max Tag {}".format(min_tag, max_tag))
+        if min_tag > max_tag:
+            raise TRexError("Min Tag {} must be smaller/equal than Max Tag {}".format(min_tag, max_tag))
 
-        def get_tpg_stats_section(self, port, tpgid, min_tag, max_tag, unknown_tag):
+        if min_tag == max_tag and not untagged and not unknown_tag:
+            raise TRexError("Min Tag can equal Max Tag iff untagged or unknown tag flags provided.")
+
+        def get_tpg_stats_section(self, port, tpgid, min_tag, max_tag, unknown_tag, untagged):
             """
             Get TPGID stats from the server for one section only.
 
@@ -2071,6 +2081,9 @@ class STLClient(TRexClient):
                 unknown_tag: bool
                     Collect stats of unknown tags.
 
+                untagged: bool
+                    Collect stats of untagged packets.
+
             :returns:
                 dict: Stats of one section collected from the server.
             """
@@ -2080,6 +2093,7 @@ class STLClient(TRexClient):
                 "min_tag": min_tag,
                 "max_tag": max_tag,
                 "unknown_tag": unknown_tag,
+                "untagged": untagged
             }
             rc = self._transmit("get_tpg_stats", params=params)
             if not rc:
@@ -2106,16 +2120,17 @@ class STLClient(TRexClient):
             """
             tpgid_stats = section_stats[str(port)][str(tpgid)]
             # Keys of tpgid_stats can be:
-            # 1. "unknown"
+            # 1. "unknown", "untagged"
             # 2. "min_tag-new_min_tag"
             # 3. "min_tag"
             for key in tpgid_stats.keys():
-                if "unknown" in key:
+                if "unknown" in key or "untagged" in key:
                     continue
                 elif "-" in key:
                     return int(key.split("-")[1]) + 1  # return the second value, add one for the new minimum
                 else:
                     return (int(key)) + 1
+            return None
 
         # Initialize some variables
         stats = {}
@@ -2126,11 +2141,11 @@ class STLClient(TRexClient):
         # Loop until finished or reached max sections
         while not done and sections < max_sections:
             # Collect one section of stats from the server
-            section_stats = get_tpg_stats_section(self, port, tpgid, _min_tag, max_tag, unknown_tag)
+            section_stats = get_tpg_stats_section(self, port, tpgid, _min_tag, max_tag, unknown_tag, untagged)
             # Calculate the next min tag.
             _min_tag = _get_next_min_tag(section_stats, port, tpgid)
 
-            if _min_tag == max_tag:
+            if _min_tag is None or _min_tag == max_tag:
                 done = True
 
             if not stats:
@@ -2143,9 +2158,66 @@ class STLClient(TRexClient):
                 tpgid_stats.update(new_tpgid_stats)
 
             unknown_tag = False # after the first iteration set unknown_tag to False
+            untagged = False # after the first iteration set untagged to False
             sections += 1
 
         return (stats, _min_tag)
+
+    @client_api('command', True)
+    def clear_tpg_stats(self, port, tpgid, min_tag, max_tag, unknown_tag = False, untagged = False):
+        """
+        Clear Packet Group Identifier statistics that are received in this port,
+        for this Tagged Packet Group Identifier in [min, max) tag_range.
+
+        :parameters:
+            port: uint8
+                Port on which we want to clear the stats.
+
+            tpgid: uint32
+                Tagged Packet Group Identifier whose stats we are interested to clear.
+
+            min_tag: uint16
+                Minimal Tag to clear stats for.
+
+            max_tag: uint16
+                Maximal Tag to clear stats for. Non inclusive.
+
+            unknown_tag: bool
+                Clear the stats of packets received with this tpgid but with a tag that isn't provided in the mapping,
+                i.e an unknown tag.
+
+            untagged: bool
+                Clear the stats of packets received with this tpgid but without any tag.
+        """
+
+        self.ctx.logger.pre_cmd("Clearing TPG stats")
+
+        self.psv.validate('clear_tpg_tx_stats', [port])
+        validate_type("tpgid", tpgid, int)
+        validate_type("min_tag", min_tag, int)
+        validate_type("max_tag", max_tag, int)
+        validate_type("unknown_tag", unknown_tag, bool)
+        validate_type("untagged", untagged, bool)
+
+        if min_tag > max_tag:
+            raise TRexError("Min Tag {} must be smaller/equal than Max Tag {}".format(min_tag, max_tag))
+
+        if min_tag == max_tag and not untagged and not unknown_tag:
+            raise TRexError("Min Tag can equal Max Tag iff untagged or unknown tag flags provided.")
+
+        params = {
+            "port_id": port,
+            "tpgid": tpgid,
+            "min_tag": min_tag,
+            "max_tag": max_tag,
+            "unknown_tag": unknown_tag,
+            "untagged": untagged,
+        }
+
+        rc = self._transmit("clear_tpg_stats", params=params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc)
 
     @client_api('getter', True)
     def get_tpg_tx_stats(self, port, tpgid):
@@ -2180,6 +2252,81 @@ class STLClient(TRexClient):
         if not rc:
             raise TRexError(rc)
         return rc.data()
+
+    @client_api('command', True)
+    def clear_tpg_tx_stats(self, port, tpgid):
+        """
+        Clear Tagged Packet Group Identifier statistics that are transmitted in this port,
+        for this Tagged Packet Group Identifier.
+
+        :parameters:
+            port: uint8
+                Port on which we transmit TPG packets.
+
+            tpgid: uint32
+                Tagged Packet Group Identifier
+        """
+
+        self.ctx.logger.pre_cmd("Clearing TPG Tx stats")
+
+        self.psv.validate('clear_tpg_tx_stats', [port])
+        validate_type("tpgid", tpgid, int)
+
+        rc = self._transmit("clear_tpg_tx_stats", params={"port_id": port, "tpgid": tpgid})
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc)
+
+    @client_api('getter', True)
+    def get_tpg_unknown_tags(self, port):
+        """
+        Get Tagged Packet Group Unknown tags found in this port.
+
+        :parameters:
+            port: uint8
+                Port on which we collect TPG packets.
+
+        :returns:
+            dict: Dictionary contains Tagged Packet Group unknown tags gathered on each port. For example:
+
+            .. highlight:: python
+            .. code-block:: python
+
+                print(get_tpg_unknown_tags(port=1)
+
+                {'1': [
+                    {'tag': {'type': 'Dot1Q', 'value': {'vlan': 12}}, 'tpgid': 12},
+                    {'tag': {'type': 'QinQ', 'value': {'vlans': [1, 100]}}, 'tpgid': 0},
+                    {'tag': {'type': 'Dot1Q', 'value': {'vlan': 11}}, 'tpgid': 11}
+                ]}
+
+        """
+        self.psv.validate('get_tpg_unknown_tags', [port])
+
+        rc = self._transmit("get_tpg_unknown_tags", params={"port_id": port})
+        if not rc:
+            raise TRexError(rc)
+        return rc.data()
+
+    @client_api('command', True)
+    def clear_tpg_unknown_tags(self, port):
+        """
+        Clear Tagged Packet Group Unknown tags found in this port.
+
+        :parameters:
+            port: uint8
+                Port on which we collect TPG packets.
+        """
+
+        self.ctx.logger.pre_cmd("Clearing TPG unknown tags")
+
+        self.psv.validate('clear_tpg_unknown_tags', [port])
+
+        rc = self._transmit("clear_tpg_unknown_tags", params={"port_id": port})
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc)
+
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -2877,9 +3024,12 @@ class STLClient(TRexClient):
         if not opts:
             return opts
 
-        if opts.max_tag <= opts.min_tag:
+        if opts.max_tag < opts.min_tag:
             # The client Api checks this as well but our loop logic requires this condition.
-            raise TRexError(format_text("Max Tag {} must be greater than Min Tag {}".format(opts.max_tag, opts.min_tag), "bold", "red"))
+            raise TRexError(format_text("Max Tag {} must be greater/equal than Min Tag {}".format(opts.max_tag, opts.min_tag), "bold", "red"))
+
+        if opts.min_tag == opts.max_tag and not opts.untagged and not opts.unknown_tag:
+            raise TRexError(format_text("Min Tag can equal Max Tag iff untagged or unknown tag flags provided.", "bold", "red"))
 
         MAX_TAGS_TO_SHOW = 20
         current_tag = opts.min_tag
@@ -2900,11 +3050,12 @@ class STLClient(TRexClient):
                         'keys_to_headers': table_keys_to_headers}
 
         # Loop until we get all the tags
-        while current_tag != opts.max_tag:
+        while current_tag != opts.max_tag or first_iteration:
             stats = None
             try:
                 unknown_tag = first_iteration and opts.unknown_tag
-                stats, new_current_tag = self.get_tpg_stats(opts.port, opts.tpgid, current_tag, opts.max_tag, max_sections=MAX_TAGS_TO_SHOW, unknown_tag=unknown_tag)
+                untagged = first_iteration and opts.untagged
+                stats, new_current_tag = self.get_tpg_stats(opts.port, opts.tpgid, current_tag, opts.max_tag, max_sections=MAX_TAGS_TO_SHOW, unknown_tag=unknown_tag, untagged=untagged)
             except TRexError as e:
                 s = format_text("{}".format(e.brief()), "bold", "red")
                 raise TRexError(s)
@@ -2926,18 +3077,38 @@ class STLClient(TRexClient):
 
             stats_list = []
             for tag_id, tag_stats in tpgid_stats.items():
-                tag_stats['tags'] = tag_id if tag_id != "unknown_tag" else "unknown"
+                tag_stats['tags'] = tag_id.replace("_tag", "") # remove _tag keyword when printing
                 stats_list.append(tag_stats)
 
             table_kwargs['title'] = "Port {}, tpgid {}, Tags = [{}, {})".format(opts.port, opts.tpgid, current_tag, new_current_tag)
             text_tables.print_table_by_keys(stats_list, **table_kwargs)
 
-            if new_current_tag != opts.max_tag:
+            if new_current_tag is not None and new_current_tag != opts.max_tag:
                 # The message should be printed iff there will be another iteration.
                 input("Press Enter to see the rest of the stats")
 
-            first_iteration = False         # Set this false after the first iteration
-            current_tag = new_current_tag   # Update the current tag
+            first_iteration = False                                                         # Set this false after the first iteration
+            current_tag = new_current_tag if new_current_tag is not None else current_tag   # Update the current tag in case it is a new one.
+
+    @console_api('tpg_clear_stats', 'STL', True)
+    def tpg_clear_stats(self, line):
+        '''Clear Tagged Packet Group Stats\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_clear_stats",
+                                         self.tpg_clear_stats.__doc__,
+                                         parsing_opts.TPG_STL_STATS
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        try:
+            self.clear_tpg_stats(opts.port, opts.tpgid, opts.min_tag, opts.max_tag, opts.unknown_tag, opts.untagged)
+        except TRexError as e:
+            s = format_text("{}".format(e.brief()), "bold", "red")
+            raise TRexError(s)
 
     @console_api('tpg_tx_stats', 'STL', True)
     def show_tpg_tx_stats(self, line):
@@ -2980,3 +3151,115 @@ class STLClient(TRexClient):
 
         table_kwargs['title'] = "Port {}, tpgid {}".format(opts.port, opts.tpgid)
         text_tables.print_table_by_keys(tpgid_stats, **table_kwargs)
+
+    @console_api('tpg_clear_tx_stats', 'STL', True)
+    def tpg_clear_tx_stats(self, line):
+        '''Clear Tagged Packet Group Tx Stats\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_clear_tx_stats",
+                                         self.tpg_clear_tx_stats.__doc__,
+                                         parsing_opts.TPG_STL_TX_STATS
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        try:
+            self.clear_tpg_tx_stats(opts.port, opts.tpgid)
+        except TRexError as e:
+            s = format_text("{}".format(e.brief()), "bold", "red")
+            raise TRexError(s)
+
+    @console_api('tpg_show_unknown_tags', 'STL', True)
+    def show_tpg_unknown_stats(self, line):
+        '''Show Tagged Packet Group Unknown Tags\n'''
+
+        def tag_value_2str(tag_type, value):
+            """
+            Convert the structured tag type and value to a printable string.
+
+            :parameters:
+                tag_type: str
+                    String represeting the tag type. Supported tag types are Dot1Q and QinQ.
+
+                value: dict
+                    Value of the tag.
+
+            :return:
+                String representing the tag type and value.
+            """
+            known_types = ["Dot1Q", "QinQ"]
+            if tag_type not in known_types:
+                return "Unknown Type"
+
+            if tag_type == "Dot1Q":
+                return "Dot1Q({})".format(value["vlan"])
+
+            if tag_type == "QinQ":
+                return "QinQ({}, {})".format(value["vlans"][0], value["vlans"][1])
+
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_show_unknown_stats",
+                                         self.show_tpg_unknown_stats.__doc__,
+                                         parsing_opts.TPG_PORT,
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+
+        table_keys_to_headers = [{'key': 'tpgid',                'header': 'tpgid'},
+                                 {'key': 'type',                 'header': 'Type'}]
+
+        table_kwargs = {'empty_msg': '\nNo unknown tags found in port {}.'.format(opts.port),
+                        'keys_to_headers': table_keys_to_headers}
+
+        unknown_tags = {}
+        try:
+            unknown_tags = self.get_tpg_unknown_tags(opts.port)
+        except TRexError as e:
+            s = format_text("{}".format(e.brief()), "bold", "red")
+            raise TRexError(s)
+
+        port_unknown_tags = unknown_tags.get(str(opts.port), None)
+
+        if port_unknown_tags is None:
+            self.logger.info(format_text("\nNo unknown tags found in the provided port.\n", "bold", "yellow"))
+            return
+
+        unknown_tags_to_print = []
+        for val in port_unknown_tags:
+            unknown_tag = {
+                'tpgid': val['tpgid'],
+                'type': tag_value_2str(val['tag']['type'], val['tag']['value'])
+            }
+            if unknown_tag not in unknown_tags_to_print:
+                # This list is at max 10 elements. Dict is not hashable.
+                unknown_tags_to_print.append(unknown_tag)
+
+        table_kwargs['title'] = "Port {} unknown tags".format(opts.port)
+        text_tables.print_table_by_keys(unknown_tags_to_print, **table_kwargs)
+
+    @console_api('tpg_clear_unknown_tags', 'STL', True)
+    def tpg_clear_unknown_stats(self, line):
+        '''Clear Tagged Packet Group Unknown Tags\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_clear_unknown_stats",
+                                         self.tpg_clear_unknown_stats.__doc__,
+                                         parsing_opts.TPG_PORT,
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        try:
+            self.clear_tpg_unknown_tags(opts.port)
+        except TRexError as e:
+            s = format_text("{}".format(e.brief()), "bold", "red")
+            raise TRexError(s)

@@ -1841,6 +1841,10 @@ void TrexStatelessDpCore::disable_tpg() {
     }
 }
 
+void TrexStatelessDpCore::clear_tpg_tx_stats(uint8_t dir, uint32_t tpgid) {
+    m_tpg_mgr[dir]->clear_tx_cntrs(tpgid);
+}
+
 void TrexStatelessDpCore::clear_fs_latency_stats(uint8_t dir) {
     m_ports[dir].m_fs_latency.reset_stats();
 }

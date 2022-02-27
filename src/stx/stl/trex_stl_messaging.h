@@ -426,7 +426,51 @@ private:
     MsgReply<int>&            m_reply;        // Reply object
 };
 
+class TrexStatelessRxClearTPGStats : public TrexCpToRxMsgBase {
+public:
 
+    TrexStatelessRxClearTPGStats(MsgReply<bool>& reply, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged)
+                                            : m_reply(reply), m_port_id(port_id), m_tpgid(tpgid), m_min_tag(min_tag), m_max_tag(max_tag), m_unknown_tag(unknown_tag), m_untagged(untagged) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<bool>&      m_reply;        // Reply object
+    uint8_t              m_port_id;      // Port Id
+    uint32_t             m_tpgid;        // Tpgid
+    uint16_t             m_min_tag;      // Min Tag to clear
+    uint16_t             m_max_tag;      // Max Tag to clear
+    bool                 m_unknown_tag;  // Should clear unknown tag stats?
+    bool                 m_untagged;     // Should clear untagged stats?
+};
+
+class TrexStatelessRxGetTPGUnknownTags : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxGetTPGUnknownTags(MsgReply<bool>& reply, Json::Value& result, uint8_t port_id)
+                                            : m_reply(reply), m_result(result), m_port_id(port_id) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+
+    MsgReply<bool>&      m_reply;        // Reply object
+    Json::Value&         m_result;       // Json to write result to
+    uint8_t              m_port_id;      // Port Id
+};
+
+class TrexStatelessRxClearTPGUnknownTags : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxClearTPGUnknownTags(MsgReply<bool>& reply, uint8_t port_id)
+                                            : m_reply(reply), m_port_id(port_id) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<bool>&      m_reply;        // Reply object
+    uint8_t              m_port_id;      // Port Id
+};
 
 class TrexStatelessDpSetLatencyFeature : public TrexCpToDpMsgBase {
 public:
@@ -472,7 +516,6 @@ private:
     MsgReply<bool>      &m_reply;
 };
 
-
 class TrexStatelessDpSetTPGFeature : public TrexCpToDpMsgBase {
 public:
     TrexStatelessDpSetTPGFeature(MsgReply<int>& reply, uint32_t num_pgids, bool designated_core) :
@@ -505,6 +548,18 @@ public:
 private:
     MsgReply<TPGDpMgrPerSide*>&     m_reply;
     uint8_t                         m_port;
+};
+
+class TrexStatelessDpClearTPGTxStats: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpClearTPGTxStats(MsgReply<bool>& reply, uint8_t port, uint32_t tpgid) : m_reply(reply), m_port(port), m_tpgid(tpgid) {}
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>&     m_reply;
+    uint8_t             m_port;
+    uint32_t            m_tpgid;
 };
 
 

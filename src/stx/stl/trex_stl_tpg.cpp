@@ -383,6 +383,11 @@ void TPGTxGroupCounters::update_cntr(uint64_t pkts, uint64_t bytes) {
     m_bytes += bytes;
 }
 
+void TPGTxGroupCounters::set_cntrs(uint64_t pkts, uint64_t bytes) {
+    m_pkts = pkts;
+    m_bytes = bytes;
+}
+
 void TPGTxGroupCounters::dump_json(Json::Value& stats) {
     stats["pkts"] = m_pkts;
     stats["bytes"] = m_bytes;
@@ -402,11 +407,6 @@ std::ostream& operator<<(std::ostream& os, const TPGTxGroupCounters& tag) {
     os << "Bytes: " << tag.m_bytes << std::endl;
     os << "}" << std::endl;
     return os;
-}
-
-void TPGTxGroupCounters::set_cntrs(uint64_t pkts, uint64_t bytes) {
-    m_pkts = pkts;
-    m_bytes = bytes;
 }
 
 /**************************************
@@ -449,6 +449,14 @@ void TPGDpMgrPerSide::update_tx_cntrs(uint32_t tpgid, uint64_t pkts, uint64_t by
         return;
     }
     m_cntrs[tpgid].update_cntr(pkts, bytes);
+}
+
+void TPGDpMgrPerSide::clear_tx_cntrs(uint32_t tpgid) {
+    assert(m_cntrs);
+    if (tpgid >= m_num_tpgids) {
+        return;
+    }
+    m_cntrs[tpgid].set_cntrs(0, 0);
 }
 
 void TPGDpMgrPerSide::get_tpg_tx_stats(Json::Value& stats, uint32_t tpgid) {

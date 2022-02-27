@@ -132,12 +132,15 @@ std::vector<uint8_t> parse_validate_ports(const Json::Value& ports, Json::Value&
 void enable_cp_rx(const Json::Value& params, Json::Value& result);
 void enable_dp(Json::Value& result, const std::string& username);
 );
-TREX_RPC_CMD(TrexRpcCmdDisableTaggedPacketGroup, "disable_tpg");         // Need username to disable
-TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupState, "get_tpg_state");         // Should not be used by user which is not us.
-TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStatus, "get_tpg_status");       // Can provide username/port.
-TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStats, "get_tpg_stats");         // Any user and any port. No need to own.
-TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupTxStats, "get_tpg_tx_stats");    // Any user and any port. No need to own.
-
+TREX_RPC_CMD(TrexRpcCmdDisableTaggedPacketGroup, "disable_tpg");                    // Need username to disable
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupState, "get_tpg_state");                    // Should not be used by user which is not us.
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStatus, "get_tpg_status");                  // Can provide username/port.
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupStats, "get_tpg_stats");                    // Any user and any port. No need to own.
+TREX_RPC_CMD(TrexRpcCmdClearTaggedPktGroupStats, "clear_tpg_stats");                // Any user and any port. No need to own.
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupTxStats, "get_tpg_tx_stats");               // Any user and any port. No need to own.
+TREX_RPC_CMD(TrexRpcCmdClearTaggedPktGroupTxStats, "clear_tpg_tx_stats");           // Any user and any port. No need to own.
+TREX_RPC_CMD(TrexRpcCmdGetTaggedPktGroupUnknownTags, "get_tpg_unknown_tags");       // Any user and any port. No need to own.
+TREX_RPC_CMD(TrexRpcCmdClearTaggedPktGroupUnknownTags, "clear_tpg_unknown_tags");   // Any user and any port. No need to own.
 
 
 /****************************** commands implementation ******************************/
@@ -1874,6 +1877,7 @@ TrexRpcCmdGetTaggedPktGroupStats::_run(const Json::Value &params, Json::Value &r
     uint16_t min_tag = parse_uint16(params, "min_tag", result);  // Min Tag
     uint16_t max_tag = parse_uint16(params, "max_tag", result);  // Max Tag
     bool unknown_tag = parse_bool(params, "unknown_tag", result, false);  // Unknown Tag, default False.
+    bool untagged = parse_bool(params, "untagged", result, false); // Untagged, default False
 
     TrexStateless* stl = get_stateless_obj();
     TPGCpCtx* tpg_ctx = stl->get_port_by_id(port_id)->get_tpg_ctx();
@@ -1884,8 +1888,12 @@ TrexRpcCmdGetTaggedPktGroupStats::_run(const Json::Value &params, Json::Value &r
     }
 
     // Server Side Validation
-    if (min_tag >= max_tag) {
-        generate_execute_err(result, "Min Tag = " + std::to_string(min_tag) + " must be smaller than Max Tag = " + std::to_string(max_tag));
+    if (min_tag > max_tag) {
+        generate_execute_err(result, "Min Tag = " + std::to_string(min_tag) + " must be smaller/equal than Max Tag = " + std::to_string(max_tag));
+    }
+
+    if (min_tag == max_tag && !unknown_tag && !untagged) {
+        generate_execute_err(result, "Min Tag can equal Max Tag iff unknown tag or untagged flags provided.");
     }
 
     uint16_t num_tags = tpg_ctx->get_tag_mgr()->get_num_tags();
@@ -1905,7 +1913,55 @@ TrexRpcCmdGetTaggedPktGroupStats::_run(const Json::Value &params, Json::Value &r
     // Collect Stats from Rx
     Json::Value& section = result["result"];
 
-    stl->get_stl_rx()->get_tpg_stats(section, port_id, tpgid, min_tag, max_tag, unknown_tag);
+    stl->get_stl_rx()->get_tpg_stats(section, port_id, tpgid, min_tag, max_tag, unknown_tag, untagged);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdClearTaggedPktGroupStats::_run(const Json::Value &params, Json::Value &result) {
+
+
+    uint8_t port_id = parse_port(params, result);  // Validates the port aswell.
+    uint32_t tpgid = parse_uint32(params, "tpgid", result);  // Tagged Packet Group Identifier
+    uint16_t min_tag = parse_uint16(params, "min_tag", result);  // Min Tag
+    uint16_t max_tag = parse_uint16(params, "max_tag", result);  // Max Tag
+    bool unknown_tag = parse_bool(params, "unknown_tag", result, false);  // Unknown Tag, default False.
+    bool untagged = parse_bool(params, "untagged", result, false); // Untagged, default False
+
+    TrexStateless* stl = get_stateless_obj();
+    TPGCpCtx* tpg_ctx = stl->get_port_by_id(port_id)->get_tpg_ctx();
+
+    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::ENABLED) {
+        // Collecting stats is possible only if the feature is already enabled.
+        generate_execute_err(result, "Tagged Packet Group is not enabled on this port.");
+    }
+
+    // Server Side Validation
+    if (min_tag > max_tag) {
+        generate_execute_err(result, "Min Tag = " + std::to_string(min_tag) + " must be smaller/equal than Max Tag = " + std::to_string(max_tag));
+    }
+
+    if (min_tag == max_tag && !unknown_tag && !untagged) {
+        generate_execute_err(result, "Min Tag can equal Max Tag iff unknown tag or untagged flags provided.");
+    }
+
+    uint16_t num_tags = tpg_ctx->get_tag_mgr()->get_num_tags();
+
+    if (max_tag > num_tags) {
+        generate_execute_err(result, "Max Tag " + std::to_string(max_tag) + " is larger than number of tags " + std::to_string(num_tags));
+    }
+
+    if (!tpg_ctx->is_port_collecting(port_id)) {
+        generate_execute_err(result, "Port " + std::to_string(unsigned(port_id)) + " is not a valid port for TPG stats.");
+    }
+
+    if (tpgid >= tpg_ctx->get_num_tpgids()) {
+        generate_execute_err(result, "tpgid " + std::to_string(tpgid) + " is bigger than the max allowed tpgid.");
+    }
+
+
+    stl->clear_tpg_stats(port_id, tpgid, min_tag, max_tag, unknown_tag, untagged);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1934,6 +1990,68 @@ TrexRpcCmdGetTaggedPktGroupTxStats::_run(const Json::Value &params, Json::Value 
     Json::Value& section = result["result"];
 
     tpg_ctx->get_tpg_tx_stats(section, port_id, tpgid);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdClearTaggedPktGroupTxStats::_run(const Json::Value &params, Json::Value &result) {
+
+
+    uint8_t port_id = parse_port(params, result);  // Validates the port aswell.
+    uint32_t tpgid = parse_uint32(params, "tpgid", result);  // Tagged Packet Group Identifier
+
+    TrexStateless* stl = get_stateless_obj();
+    TPGCpCtx* tpg_ctx = stl->get_port_by_id(port_id)->get_tpg_ctx();
+
+    if (tpg_ctx == nullptr || tpg_ctx->get_tpg_state() != TPGState::ENABLED) {
+        // Collecting stats is possible only if the feature is already enabled.
+        generate_execute_err(result, "Tagged Packet Group is not enabled on this port.");
+    }
+
+    // Server Side Validation
+    if (tpgid >= tpg_ctx->get_num_tpgids()) {
+        generate_execute_err(result, "tpgid " + std::to_string(tpgid) + " is bigger than the max allowed tpgid.");
+    }
+
+    stl->clear_tpg_tx_stats(port_id, tpgid);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetTaggedPktGroupUnknownTags::_run(const Json::Value& params, Json::Value& result) {
+
+    uint8_t port_id = parse_port(params, result);  // Validates the port aswell.
+    TrexStateless* stl = get_stateless_obj();
+    TPGCpCtx* tpg_ctx = stl->get_port_by_id(port_id)->get_tpg_ctx();
+
+    if (tpg_ctx == nullptr || !tpg_ctx->is_port_collecting(port_id)) { 
+        // Invalid port
+        generate_execute_err(result, "Tagged Packet Group is not enabled or collecting on this port.");
+    }
+
+    // Collect Stats from Rx
+    Json::Value& section = result["result"];
+
+    stl->get_tpg_unknown_tags(section, port_id);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdClearTaggedPktGroupUnknownTags::_run(const Json::Value& params, Json::Value& result) {
+
+    uint8_t port_id = parse_port(params, result);  // Validates the port aswell.
+    TrexStateless* stl = get_stateless_obj();
+    TPGCpCtx* tpg_ctx = stl->get_port_by_id(port_id)->get_tpg_ctx();
+
+    if (tpg_ctx == nullptr || !tpg_ctx->is_port_collecting(port_id)) { 
+        // Invalid port
+        generate_execute_err(result, "Tagged Packet Group is not enabled or collecting on this port.");
+    }
+
+    stl->clear_tpg_unknown_tags(port_id);
 
     return (TREX_RPC_CMD_OK);
 }
@@ -1989,7 +2107,11 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupState(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStatus(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupStats(this));
+    m_cmds.push_back(new TrexRpcCmdClearTaggedPktGroupStats(this));
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupTxStats(this));
+    m_cmds.push_back(new TrexRpcCmdClearTaggedPktGroupTxStats(this));
+    m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupUnknownTags(this));
+    m_cmds.push_back(new TrexRpcCmdClearTaggedPktGroupUnknownTags(this));
 }
 
 

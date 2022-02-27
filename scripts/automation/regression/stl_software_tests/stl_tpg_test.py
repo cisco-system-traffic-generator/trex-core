@@ -79,7 +79,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             )
         return tpg_conf
 
-    def get_streams(self, burst_size, pps, qinq, vlans, pkt_size=None):
+    def get_streams(self, burst_size, pps, qinq, vlans, pkt_size=None, untagged=False):
         """
         Get Single Burst Streams with given pps and burst size.
 
@@ -89,6 +89,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             qinq (bool): Should add a QinQ stream?
             vlans (int): Number of Vlans starts from 1. Each Vlan is a separate stream -> Separate TPGID.
             pkt_size (int): Size of packet in bytes. Optional. If not defined, it is a small packet (78 bytes)
+            untagged (bool): Add an untagged packet in the end.
 
         Returns: list
             List of Single Burst Streams.
@@ -132,9 +133,26 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
                                     mode=STLTXSingleBurst(total_pkts=total_pkts,
                                                         pps=pps)))
             tpgid += 1
+
+        if untagged:
+            pkt = Ether()/IP(src="16.0.0.1", dst="48.0.0.1")/UDP(dport=12, sport=1025)/'at_least_16_bytes_are_needed'
+
+            if pkt_size is not None and pkt_size > len(pkt):
+                pad = (pkt_size - len(pkt)) * 'x'
+                pkt = STLPktBuilder(pkt=pkt/pad)
+            else:
+                pkt = STLPktBuilder(pkt=pkt)
+
+            streams.append(STLStream(name="untagged",
+                                    packet=pkt,
+                                    flow_stats=STLTaggedPktGroup(tpgid=tpgid),
+                                    mode=STLTXSingleBurst(total_pkts=total_pkts,
+                                                        pps=pps)))
+            tpgid += 1
+
         return streams
 
-    def verify_stream_stats(self, rx_stats, tx_stats, rx_port, tx_port, pkt_len, burst_size, tpgid, ignore_seq_err):
+    def verify_stream_stats(self, rx_stats, tx_stats, rx_port, tx_port, pkt_len, burst_size, tpgid, untagged):
         """
         Verify Tagged Packet Group Stats per stream.
 
@@ -146,8 +164,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             pkt_len (int): Length of the packet in the stream.
             burst_size (int): Burst Size, equals number of packets that we attempted to transmit.
             tpgid (int): Tagged Packet Group Identifier
-            ignore_seq_err (bool): Ignore Sequence errors (can happen if too many vlans). 
-                    In this case verify only pkts and bytes are verified.
+            untagged (bool): Verify untagged stats
 
         Returns: (bool, str)
             True iff the stream stats are valid. False + Message in case of failure.
@@ -184,30 +201,39 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
         tpgid_stats = port_stats.get(str(tpgid), None)
         if tpgid is None:
             return (False, "tpgid {} not found in port {} Rx stats".format(tpgid, rx_port))
-        tag_stats = tpgid_stats.get(str(tag), None)
-        if tag_stats is None:
-            return (False, "tag {} not found in tpgid {} Rx stats".format(tag, tpgid))
+
         exp = {
-            "pkts": burst_size,
-            "bytes": burst_size * pkt_len,
-            "ooo": 0,
-            "dup": 0,
-            "seq_err": 0,
-            "seq_err_too_big": 0,
-            "seq_err_too_small": 0
-        }
-        if ignore_seq_err:
-            relevant_keys = {"pkts", "bytes"}
-            tag_stats = {k: v for k, v in tag_stats.items() if k in relevant_keys}
-            exp = {k: v for k, v in exp.items() if k in relevant_keys}
-        if exp != tag_stats:
-            msg = "Tag {} Rx stats differ from expected: \n".format(tag)
-            msg += "Want: {}\n".format(pformat(exp))
-            msg += "Have: {}\n".format(pformat(tag_stats))
-            return (False, msg)
+                "pkts": burst_size,
+                "bytes": burst_size * pkt_len,
+                "ooo": 0,
+                "dup": 0,
+                "seq_err": 0,
+                "seq_err_too_big": 0,
+                "seq_err_too_small": 0
+            }
+
+        if untagged:
+            untagged_stats =  tpgid_stats.get("untagged", None)
+            if untagged_stats is None:
+                return (False, "untagged stats not found in tpgid {} Rx stats".format(tpgid))
+            if exp != untagged_stats:
+                msg = "Untagged Rx stats differ from expected for tpgid {}: \n".format(tpgid)
+                msg += "Want: {}\n".format(pformat(exp))
+                msg += "Have: {}\n".format(pformat(untagged_stats))
+                return (False, msg)
+        else:
+            tag_stats = tpgid_stats.get(str(tag), None)
+            if tag_stats is None:
+                return (False, "tag {} not found in tpgid {} Rx stats".format(tag, tpgid))
+            if exp != tag_stats:
+                msg = "Tag {} Rx stats differ from expected: \n".format(tag)
+                msg += "Want: {}\n".format(pformat(exp))
+                msg += "Have: {}\n".format(pformat(tag_stats))
+                return (False, msg)
+
         return (True, "")
 
-    def tpg_iteration(self, tx_ports, rx_ports, streams, num_tags, burst_size, verbose):
+    def tpg_iteration(self, tx_ports, rx_ports, streams, num_tags, burst_size, untagged, verbose):
         """
         Run one TPG iteration, meaning:
         1. Enable
@@ -220,6 +246,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             streams (list): List of streams to starts.
             num_tags (list): Number of Vlan Tags, which also equals the number of streams since each TPGID has its own tag.
             burst_size (int): Burst Size, equals number of packets that we attempted to transmit.
+            untagged (bool): Verify untagged stats.
             verbose (bool): Should be verbose and print errors.
 
         """
@@ -238,6 +265,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
 
         for i in range(num_streams):
             # stream number = tpgid
+            untagged_flag = (i == num_streams - 1) and untagged # Only the last tpgid may be untagged
             if verbose:
                 print("*"*TaggedPacketGroup_Test.LINE_LENGTH)
                 print("Verifying stats for tpgid {}".format(i))
@@ -245,15 +273,16 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             for j in range(len(tx_ports)):
                 # Assumes tx_ports[i] <-> rx_ports[i]
                 tx_stats = self.c.get_tpg_tx_stats(port=tx_ports[j], tpgid=i)
-                rx_stats = self.c.get_tpg_stats(port=rx_ports[j], tpgid=i, min_tag=0, max_tag=num_tags, max_sections=num_tags)[0]
+                rx_stats = self.c.get_tpg_stats(port=rx_ports[j], tpgid=i, min_tag=0, max_tag=num_tags, max_sections=num_tags, untagged=untagged_flag)[0]
 
-                tpgid_passed, msg = self.verify_stream_stats(rx_stats, tx_stats, rx_ports[j], tx_ports[j], streams[i].get_pkt_len(), burst_size, i, False)
+                tpgid_passed, msg = self.verify_stream_stats(rx_stats, tx_stats, rx_ports[j], tx_ports[j], streams[i].get_pkt_len(), burst_size, i, untagged_flag)
                 if verbose:
                     indicator = "PASSED" if tpgid_passed else "FAILED"
                     print(indicator)
                 assert tpgid_passed, msg
 
-    def _single_burst_skeleton(self, rx_ports, tx_ports, burst_size, pps, qinq, vlans, warmup, pkt_size=None, verbose=False):
+    def _single_burst_skeleton(self, rx_ports, tx_ports, burst_size, pps, qinq, vlans, warmup, 
+                               pkt_size=None, untagged=False, disable=True, verbose=False):
         """
         A skeleton that provides a single burst TPG test that can be configured 
         in many different constellations.
@@ -267,13 +296,14 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             vlans (int): Number of Vlans. Each Vlan is sent in a separate stream.
             warmup (bool): Send some warmup streams with low pps to stabilize the system. It is important because the counters are allocated with CopyOnWrite.
             pkt_size (int, optional): Specify the size of the packet. Defaults to None, which sends a small packet.
-            num_tags (list): Number of Vlan Tags, which also equals the number of streams since each TPGID has its own tag.
-            verbose (bool): Should be verbose and print errors.
+            untagged (bool): Should send untagged traffic. Defaults to False.
+            disable (bool): Disable TPG at the end. Defaults to True.
+            verbose (bool): Should be verbose and print errors. Defaults to False.
         """
         if verbose:
             print("\nTPG Single burst: {} packets with pps {} per stream. QinQ={}, Num Streams/Vlans = {}".format(burst_size, pps, qinq, vlans))
 
-        streams = self.get_streams(burst_size, pps, qinq, vlans, pkt_size)
+        streams = self.get_streams(burst_size, pps, qinq, vlans, pkt_size, untagged)
         num_streams = len(streams)
 
         ports = list(set(rx_ports + tx_ports)) # all ports, convert to set for unique.
@@ -294,16 +324,17 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
         # In case we want to warmup the Rx stats with some slow streams
         if warmup:
             current_burst_size = 1
-            warmup_streams = self.get_streams(current_burst_size, 1, qinq, vlans, pkt_size) # one packet just to warmup the memory
-            self.tpg_iteration(tx_ports=tx_ports, rx_ports=rx_ports, streams=warmup_streams, num_tags=num_tags, burst_size=current_burst_size, verbose=verbose)
+            warmup_streams = self.get_streams(current_burst_size, 1, qinq, vlans, pkt_size, untagged) # one packet just to warmup the memory
+            self.tpg_iteration(tx_ports=tx_ports, rx_ports=rx_ports, streams=warmup_streams, num_tags=num_tags, burst_size=current_burst_size, untagged=untagged, verbose=verbose)
 
         current_burst_size += burst_size
 
         # one iteration
-        self.tpg_iteration(tx_ports=tx_ports, rx_ports=rx_ports, streams=streams, num_tags=num_tags, burst_size=current_burst_size, verbose=verbose)
+        self.tpg_iteration(tx_ports=tx_ports, rx_ports=rx_ports, streams=streams, num_tags=num_tags, burst_size=current_burst_size, untagged=untagged, verbose=verbose)
 
         # disable tpg
-        self.c.disable_tpg()
+        if disable:
+            self.c.disable_tpg()
 
     ################################################################
     # Test Api Sanity in invalid cases
@@ -356,11 +387,69 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             # Invalid tag
             self.c.get_tpg_stats(port=tx_port, tpgid=num_tpgids-1, min_tag=0, max_tag=num_tags+1)
 
+        with assert_raises(TRexError):
+            # Invalid port
+            self.c.get_tpg_unknown_tags(port=tx_port)
+
+        with assert_raises(TRexError):
+            # Invalid port
+            self.c.clear_tpg_unknown_tags(port=tx_port)
+
         # Assert TPG is enabled
         status = self.c.get_tpg_status()
         assert status["enabled"] == True, "TPG should be enabled"
 
         self.c.disable_tpg()
+
+    def test_tpg_unknown_tags(self,):
+        num_tags = 10 # Dot1Q(1) to Dot1Q(10)
+        num_tpgids = 15
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        tags = self.get_tpg_tags(qinq=False, max_tag=num_tags+1)
+
+        # QinQ(1, 100), Dot1Q(num_tags + 1) and Dot1Q(num_tags + 2) will be unknown
+        streams = self.get_streams(1, 1, qinq=True, vlans=num_tags + 2, pkt_size=100) # one packet but num_tpgids streams
+
+        # acquire ports
+        self.c.reset(ports=[tx_port, rx_port])
+
+        # enable tpg
+        self.c.enable_tpg(num_tpgids=num_tpgids, tags=tags, rx_ports=[rx_port])
+
+        # add the streams
+        self.c.add_streams(streams, ports=[tx_port])
+
+        # start the traffic
+        self.c.start(ports=[tx_port], force=True)
+
+        # Wait for packets to arrive and get parsed by Rx
+        self.wait_for_packets(ports=[tx_port, rx_port])
+
+        self.c.remove_all_streams()
+
+        unknown_tags = self.c.get_tpg_unknown_tags(rx_port)
+
+        expected_unknowns = [
+             {'tag': {'type': 'Dot1Q', 'value': {'vlan': 12}}, 'tpgid': 12},
+             {'tag': {'type': 'QinQ', 'value': {'vlans': [1, 100]}}, 'tpgid': 0},
+             {'tag': {'type': 'Dot1Q', 'value': {'vlan': 11}}, 'tpgid': 11}
+        ]
+
+        port_unknown_tags = unknown_tags.get(str(rx_port), None)
+        assert port_unknown_tags is not None, "Unknown Tags not found for port {}".format(rx_port)
+        assert len(expected_unknowns) == len(port_unknown_tags), "Length Expected Unknown Tags != Length Unknown Tags"
+
+        for tag in port_unknown_tags:
+            assert tag in expected_unknowns, "Tag {} unknown but not expected.".format(pformat(tag))
+
+        # Clear TPG Unknown Tags
+        self.c.clear_tpg_unknown_tags(rx_port)
+
+        # Get again and expect empty.
+        unknown_tags = self.c.get_tpg_unknown_tags(rx_port)
+        port_unknown_tags = unknown_tags.get(str(rx_port), None)
+        assert port_unknown_tags is not None, "Unknown Tags not found for port {}".format(rx_port)
+        assert len(port_unknown_tags) == 0, "Unknown Tags not empty after clear."
 
     ################################################################
     # Enable Disable Test.
@@ -388,7 +477,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
 
         for _ in range(num_iterations):
             self.c.enable_tpg(num_tpgids=num_tpgids, tags=tags, rx_ports=[rx_port])
-            self.tpg_iteration(tx_ports=[tx_port], rx_ports=[rx_port], streams=warmup_streams, num_tags=num_tags, burst_size=1, verbose=False)
+            self.tpg_iteration(tx_ports=[tx_port], rx_ports=[rx_port], streams=warmup_streams, num_tags=num_tags, burst_size=1, untagged=False, verbose=False)
             self.c.disable_tpg()
 
     def test_enable_disable_tpg_small(self):
@@ -423,7 +512,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
     # Single Burst - 1 Rx port only
     # Different Num of Streams
     ################################################################
-    def single_burst_single_rx(self, burst_size, pps, qinq, vlans, warmup, pkt_size=None, verbose=False):
+    def single_burst_single_rx(self, burst_size, pps, qinq, vlans, warmup, pkt_size=None, untagged=False, verbose=False):
         """
         Base function to call for sending TPG in single burst with 1 Tx port and 1 Rx port.
 
@@ -434,10 +523,11 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             vlans (int): Number of Vlans. Each Vlan is sent in a separate stream.
             warmup (bool): Send some warmup streams with low pps to stabilize the system. It is important because the counters are allocated with CopyOnWrite.
             pkt_size (int, optional): Specify the size of the packet. Defaults to None, which sends a small packet.
+            untagged (bool): Should send and verify untagged traffic too?
             verbose (bool): Should be verbose and print errors.
         """
         tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
-        self._single_burst_skeleton([rx_port], [tx_port], burst_size, pps, qinq, vlans, warmup, pkt_size, verbose)
+        self._single_burst_skeleton([rx_port], [tx_port], burst_size, pps, qinq, vlans, warmup, pkt_size, untagged, verbose)
 
     def test_single_burst_one_stream(self):
         pps = int(2.5e6) if not self.mlx5 else int(1e6) # 2.5 Mpps (a bit lower than max so we avoid random failures)
@@ -493,10 +583,17 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
         burst_size = pps * longevity
         self.single_burst_single_rx(burst_size=burst_size, pps=pps, qinq=False, vlans=num_streams, warmup=True, verbose=False)
 
+    def test_singe_burst_mini_with_untagged(self):
+        num_streams = 100
+        pps = 100 # 100
+        longevity = 1  # 5 seconds
+        burst_size = pps * longevity
+        self.single_burst_single_rx(burst_size=burst_size, pps=pps, qinq=False, vlans=num_streams, warmup=True, untagged=True, verbose=False)
+
     ################################################################
     # Single Burst - BiDir
     ################################################################
-    def single_burst_bi_dir(self, burst_size, pps, qinq, vlans, warmup, pkt_size=None, verbose=False):
+    def single_burst_bi_dir(self, burst_size, pps, qinq, vlans, warmup, pkt_size=None, untagged=False, verbose=False):
         """
         Base function to call for sending TPG with 1 Tx port and 1 Rx port but bi directional.
 
@@ -507,10 +604,11 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             vlans (int): Number of Vlans. Each Vlan is sent in a separate stream.
             warmup (bool): Send some warmup streams with low pps to stabilize the system. It is important because the counters are allocated with CopyOnWrite.
             pkt_size (int, optional): Specify the size of the packet. Defaults to None, which sends a small packet.
+            untagged (bool): Should send and verify untagged traffic too?
             verbose (bool): Should be verbose and print errors.
         """
         tx, rx = CTRexScenario.ports_map['bi'][0]
-        self._single_burst_skeleton([tx, rx], [rx, tx], burst_size, pps, qinq, vlans, warmup, pkt_size, verbose)
+        self._single_burst_skeleton([tx, rx], [rx, tx], burst_size, pps, qinq, vlans, warmup, pkt_size, untagged, verbose)
 
     def test_single_burst_one_stream_bi_dir(self):
         pps = int(1e6) if not self.mlx5 else int(5e5)  # 1 Mpps x 2 Dir = 2 Mpps
@@ -523,12 +621,19 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
         pps = 1000 if not self.mlx5 else 500 # 1000 pps per stream x 1k streams x 2 Dir = 2Mpps
         longevity = 20  # 20 seconds
         burst_size = pps * longevity
-        self.single_burst_bi_dir(burst_size=burst_size, pps=pps, qinq=False, vlans=num_streams, warmup=True, verbose=False)
+        self.single_burst_bi_dir(burst_size=burst_size, pps=pps, qinq=False, vlans=num_streams, warmup=True)
+
+    def test_single_burst_1k_streams_bi_dir_with_untagged(self):
+        num_streams = 1000 # 1k streams
+        pps = 1000 if not self.mlx5 else 500 # 1000 pps per stream x 1k streams x 2 Dir = 2Mpps
+        longevity = 20  # 20 seconds
+        burst_size = pps * longevity
+        self.single_burst_bi_dir(burst_size=burst_size, pps=pps, qinq=False, vlans=num_streams, warmup=True, untagged=True)
 
     ################################################################
     # Single Burst - One Dir - All ports
     ################################################################
-    def single_burst_all_ports(self, burst_size, pps, qinq, vlans, warmup, pkt_size=None, verbose=False):
+    def single_burst_all_ports(self, burst_size, pps, qinq, vlans, warmup, pkt_size=None, untagged=False, verbose=False):
         """
         Base function to call for sending TPG one directional but in all dual ports.
 
@@ -539,13 +644,79 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             vlans (int): Number of Vlans. Each Vlan is sent in a separate stream.
             warmup (bool): Send some warmup streams with low pps to stabilize the system. It is important because the counters are allocated with CopyOnWrite.
             pkt_size (int, optional): Specify the size of the packet. Defaults to None, which sends a small packet.
+            untagged (bool): Should send and verify untagged traffic too?
             verbose (bool): Should be verbose and print errors.
         """
         tx_ports, rx_ports = zip(*CTRexScenario.ports_map['bi'])
-        self._single_burst_skeleton(list(rx_ports), list(tx_ports), burst_size, pps, qinq, vlans, warmup, pkt_size, verbose)
+        self._single_burst_skeleton(list(rx_ports), list(tx_ports), burst_size, pps, qinq, vlans, warmup, pkt_size, untagged, verbose)
 
     def test_single_burst_one_stream_all_ports(self):
         pps = int(2e5) # 200k pps - we don't know how many ports are transmitting
         longevity = 20 # 20 seconds
         burst_size = pps * longevity
         self.single_burst_all_ports(burst_size=burst_size, pps=pps, qinq=False, vlans=1, warmup=True)
+
+    ################################################################
+    # Clear
+    ################################################################
+    def test_clear_stats(self):
+        num_streams = 100
+        pps = 100 # 100
+        longevity = 5  # 5 seconds
+        burst_size = pps * longevity
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        self._single_burst_skeleton(rx_ports=[rx_port], tx_ports=[tx_port], burst_size=burst_size, pps=pps, 
+                                    qinq=False, vlans=num_streams, warmup=False, untagged=False, disable=False)
+
+        for tpgid in range(num_streams):
+            # Clear tpgid stats
+            self.c.clear_tpg_tx_stats(tx_port, tpgid)
+            self.c.clear_tpg_stats(rx_port, tpgid, tpgid, tpgid+1)
+            tx_stats = self.c.get_tpg_tx_stats(port=tx_port, tpgid=tpgid)
+            rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=tpgid, min_tag=tpgid, max_tag=tpgid+1, max_sections=num_streams, untagged=False)[0]
+
+            tpgid_passed, msg = self.verify_stream_stats(rx_stats, tx_stats, rx_port, tx_port, 0, 0, tpgid, False)
+
+            assert tpgid_passed, msg
+
+        self.c.disable_tpg()
+
+    def test_clear_untagged_stats(self):
+        num_streams = 100
+        pps = 100 # 100
+        longevity = 5  # 5 seconds
+        burst_size = pps * longevity
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        self._single_burst_skeleton(rx_ports=[rx_port], tx_ports=[tx_port], burst_size=burst_size, pps=pps, 
+                                    qinq=False, vlans=num_streams, warmup=False, untagged=True, disable=False)
+
+        exp = {
+                "pkts": 0,
+                "bytes": 0,
+                "ooo": 0,
+                "dup": 0,
+                "seq_err": 0,
+                "seq_err_too_big": 0,
+                "seq_err_too_small": 0
+            }
+
+        for tpgid in range(num_streams):
+            # Clear tpgid stats
+            self.c.clear_tpg_stats(rx_port, tpgid, tpgid, tpgid+1, untagged=True)
+            rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=tpgid, min_tag=tpgid, max_tag=tpgid+1, max_sections=num_streams, untagged=True)[0]
+
+            port_stats = rx_stats.get(str(rx_port), None)
+            assert port_stats is not None, "Port {} not found in Rx stats".format(rx_port)
+            tpgid_stats = port_stats.get(str(tpgid), None)
+            assert tpgid_stats is not None, "tpgid {} not found in port {} Rx stats".format(tpgid, rx_port)
+
+
+            untagged_stats =  tpgid_stats.get("untagged", None)
+            assert untagged_stats is not None, "untagged stats not found in tpgid {} Rx stats".format(tpgid)
+            if exp != untagged_stats:
+                    msg = "Untagged Rx stats differ from expected for tpgid {}: \n".format(tpgid)
+                    msg += "Want: {}\n".format(pformat(exp))
+                    msg += "Have: {}\n".format(pformat(untagged_stats))
+                    assert False, msg
+
+        self.c.disable_tpg()

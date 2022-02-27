@@ -32,14 +32,20 @@ CTPGTagCntr::CTPGTagCntr() {
     memset(this, 0, sizeof(CTPGTagCntr));
 }
 
-void CTPGTagCntr::update_cntrs(uint32_t rcv_seq, uint32_t pkt_len) {
-    if (rcv_seq > m_exp_seq) {
-        _update_cntr_seq_too_big(rcv_seq);
+void CTPGTagCntr::update_cntrs(uint32_t rcv_seq, uint32_t pkt_len, bool unknown_tag, bool mcast) {
+    if (unlikely(mcast && m_pkts == 0)) {
+        // In case of multicast streams, sync the expected to the first packet received.
         m_exp_seq = rcv_seq + 1;
-    } else if (rcv_seq == m_exp_seq) {
-        m_exp_seq = rcv_seq + 1;
-    } else {
-        _update_cntr_seq_too_small(rcv_seq);
+    } else if (!unknown_tag) {
+        // Sequence counters make sense only if tag is known
+        if (rcv_seq > m_exp_seq) {
+            _update_cntr_seq_too_big(rcv_seq);
+            m_exp_seq = rcv_seq + 1;
+        } else if (rcv_seq == m_exp_seq) {
+            m_exp_seq = rcv_seq + 1;
+        } else {
+            _update_cntr_seq_too_small(rcv_seq);
+        }
     }
     m_pkts++;
     m_bytes += (pkt_len + 4); // +4 for Ethernet FCS
@@ -65,14 +71,17 @@ void CTPGTagCntr::_update_cntr_seq_too_small(uint32_t rcv_seq) {
     m_seq_err_too_small++;
 }
 
-void CTPGTagCntr::dump_json(Json::Value& stats) {
+void CTPGTagCntr::dump_json(Json::Value& stats, bool unknown_tag) {
     stats["pkts"] = m_pkts;
     stats["bytes"] = m_bytes;
-    stats["seq_err"] = m_seq_err;
-    stats["seq_err_too_big"] = m_seq_err_too_big;
-    stats["seq_err_too_small"] = m_seq_err_too_small;
-    stats["ooo"] = m_ooo;
-    stats["dup"] = m_dup;
+    if (!unknown_tag) {
+        // Sequence counters don't make sense for unknown tags.
+        stats["seq_err"] = m_seq_err;
+        stats["seq_err_too_big"] = m_seq_err_too_big;
+        stats["seq_err_too_small"] = m_seq_err_too_small;
+        stats["ooo"] = m_ooo;
+        stats["dup"] = m_dup;
+    }
 }
 
 void CTPGTagCntr::set_cntrs(uint64_t pkts,
@@ -130,6 +139,10 @@ RxTPGPerPort::RxTPGPerPort(uint8_t port_id, uint32_t num_tpgids, PacketGroupTagM
     m_num_tags = m_tag_mgr->get_num_tags();
 }
 
+RxTPGPerPort::~RxTPGPerPort() {
+    clear_tpg_unknown_tags();   // This releases objects.
+}
+
 void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
     // If we got here the feature is set.
 
@@ -145,13 +158,17 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
     // This is a TPG packet
     uint8_t* pkt_ptr = rte_pktmbuf_mtod(m, uint8_t*);
 
+    // Check multicast prior to parse since the pointer can change.
+    EthernetHeader* ether = (EthernetHeader*)pkt_ptr;
+    bool mcast = ether->getDestMacP()->isMcastAddress();
+
     CFlowStatParser parser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW); // Support Dot1Q, QinQ.
     parser.set_vxlan_skip(false); // Ignore VxLAN for now.
     // Intentionally ignore parser return value, since parser doesn't support non IP packets.
     parser.parse(pkt_ptr, m->pkt_len);
 
     uint16_t tag_id = 0;
-    bool tag_exists = false;
+    bool known_tag = false;
     uint8_t vlan_offset = parser.get_vlan_offset();
     if (vlan_offset != 0) {
         // Packet has Dot1Q or QinQ.
@@ -161,85 +178,150 @@ void RxTPGPerPort::handle_pkt(const rte_mbuf_t* m) {
             // QinQ
             pkt_ptr += sizeof(VLANHeader);
             VLANHeader* secondVlan = (VLANHeader*)pkt_ptr;
-            tag_exists = m_tag_mgr->qinq_tag_exists(vlan->getTagID(), secondVlan->getTagID());
-            if (tag_exists) {
+            known_tag = m_tag_mgr->qinq_tag_exists(vlan->getTagID(), secondVlan->getTagID());
+            if (known_tag) {
                 tag_id = m_tag_mgr->get_qinq_tag(vlan->getTagID(), secondVlan->getTagID());
+            } else if (m_unknown_tags.size() < MAX_UNKNOWN_TAGS) {
+                // Tag is unknown and we can add to list of unknown tags. Tag Id is irrelevant.
+                BasePacketGroupTag* tag = new QinQTag(vlan->getTagID(), secondVlan->getTagID(), 0); 
+                m_unknown_tags.emplace_back(std::make_pair(tag, tpg_header->tpgid));
             }
         } else {
             // Dot1Q
-            tag_exists = m_tag_mgr->dot1q_tag_exists(vlan->getTagID());
-            if (tag_exists) {
+            known_tag = m_tag_mgr->dot1q_tag_exists(vlan->getTagID());
+            if (known_tag) {
                 tag_id = m_tag_mgr->get_dot1q_tag(vlan->getTagID());
+            }
+            else if (m_unknown_tags.size() < MAX_UNKNOWN_TAGS) {
+                // Tag is unknown and we can add to list of unknown tags. Tag Id is irrelevant.
+                BasePacketGroupTag* tag = new Dot1QTag(vlan->getTagID(), 0);
+                m_unknown_tags.emplace_back(std::make_pair(tag, tpg_header->tpgid));
             }
         }
     }
 
-    update_cntrs(tpg_header->tpgid, tpg_header->seq, m->pkt_len, tag_id, tag_exists);
+    bool untagged = (vlan_offset == 0); // For now only Dot1Q, QinQ are supported.
+    update_cntrs(tpg_header->tpgid, tpg_header->seq, m->pkt_len, tag_id, !known_tag, untagged, mcast);
 }
 
-void RxTPGPerPort::update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_len, uint16_t tag_id, bool tag_exists) {
+void RxTPGPerPort::update_cntrs(uint32_t tpgid, uint32_t rcv_seq, uint32_t pkt_len, uint16_t tag_id,
+                                bool unknown_tag, bool untagged, bool mcast) {
     if (tpgid >= m_num_tpgids) {
         // Invalid tpgid, ignore.
         return;
     }
+
     CTPGTagCntr* tag_cntr = nullptr;
-    if (tag_exists) {
-        tag_cntr = get_tag_cntr(tpgid, tag_id);
-    } else {
+    if (untagged) {
+        tag_cntr = get_untagged_cntr(tpgid);
+    } else if (unknown_tag) {
         /**
          * Counters based on sequencing are irrelevant in case the tag is not known.
          * For example, we can receive seq = 3 in Vlan 3, and seq = 5 in Vlan 5.
          * We will count this as seq_err even though it isn't necessarily.
          */
         tag_cntr = get_unknown_tag_cntr(tpgid);
+    } else {
+        tag_cntr = get_tag_cntr(tpgid, tag_id);
     }
 
-    tag_cntr->update_cntrs(rcv_seq, pkt_len);
+    tag_cntr->update_cntrs(rcv_seq, pkt_len, unknown_tag && !untagged, mcast);
 }
 
 CTPGTagCntr* RxTPGPerPort::get_tag_cntr(uint32_t tpgid, uint16_t tag) {
     if (tpgid >= m_num_tpgids || tag >= m_num_tags) {
         return nullptr;
     }
-    return m_cntrs + tpgid * (m_num_tags + 1) + tag;
+    return m_cntrs + tpgid * (m_num_tags + NUM_EXTRA_TAGS_TPGID) + tag;
 }
 
 CTPGTagCntr* RxTPGPerPort::get_unknown_tag_cntr(uint32_t tpgid) {
-    // Unkown tag is last at each tpgid
+    // Unknown tag is first after all tags
     if (tpgid >= m_num_tpgids) {
         return nullptr;
     }
-    return m_cntrs +  tpgid * (m_num_tags + 1) + m_num_tags;
+    // tpgid x:  [tag 0, tag 1 .... , tag n, unknown, untagged]
+    return m_cntrs +  tpgid * (m_num_tags + NUM_EXTRA_TAGS_TPGID) + m_num_tags;
 }
 
-void RxTPGPerPort::get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag) {
+CTPGTagCntr* RxTPGPerPort::get_untagged_cntr(uint32_t tpgid) {
+    // Untagged is second after all tags and unknown
+    if (tpgid >= m_num_tpgids) {
+        return nullptr;
+    }
+    // tpgid x:  [tag 0, tag 1 .... , tag n, unknown, untagged]
+    return m_cntrs +  tpgid * (m_num_tags + NUM_EXTRA_TAGS_TPGID) + m_num_tags + 1;
+}
+
+void RxTPGPerPort::get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
     Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
 
-    CTPGTagCntr* ref_cntr = get_tag_cntr(tpgid, min_tag);
-    uint16_t i = min_tag + 1;
-    while (i < max_tag) {
-        if (*ref_cntr != *get_tag_cntr(tpgid, i)) {
-            break;
+
+    if (max_tag > min_tag) {
+        // There can be a corner case where use wants to collect only unknown or untagged, in this case he will provide min_tag = max_tag.
+        CTPGTagCntr* ref_cntr = get_tag_cntr(tpgid, min_tag);
+        uint16_t i = min_tag + 1;
+        while (i < max_tag) {
+            if (*ref_cntr != *get_tag_cntr(tpgid, i)) {
+                break;
+            }
+            i++;
         }
-        i++;
+
+        std::string key = "";
+        if (i != min_tag + 1) {
+            key = std::to_string(min_tag) + "-" + std::to_string(i-1); // i-1 to make it inclusive
+        } else {
+            key = std::to_string(min_tag);
+        }
+
+        Json::Value& key_stats = tpgid_stats[key];
+        ref_cntr->dump_json(key_stats, false); // regular stats
     }
 
-    std::string key = "";
-    if (i != min_tag + 1) {
-        key = std::to_string(min_tag) + "-" + std::to_string(i-1); // i-1 to make it inclusive
-    } else {
-        key = std::to_string(min_tag);
+    if (untagged) {
+        Json::Value& untagged_stats = tpgid_stats["untagged"];
+        get_untagged_cntr(tpgid)->dump_json(untagged_stats, false); // regular stats
     }
-
-    Json::Value& key_stats = tpgid_stats[key];
-    ref_cntr->dump_json(key_stats);
 
     if (unknown_tag) {
         Json::Value& unknown_tag_stats = tpgid_stats["unknown_tag"];
-        get_unknown_tag_cntr(tpgid)->dump_json(unknown_tag_stats);
+        get_unknown_tag_cntr(tpgid)->dump_json(unknown_tag_stats, true); // unknown tag stats
     }
 }
 
+void RxTPGPerPort::clear_tpg_stats(uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
+    // Min - Max Tags are already validated in Control Plane.
+    if (max_tag > min_tag) {
+        // There can be a corner case where use wants to clear only unknown or untagged, in this case he will provide min_tag = max_tag.
+        memset(get_tag_cntr(tpgid, min_tag), 0, sizeof(CTPGTagCntr) * (max_tag - min_tag));
+    }
+
+    if (untagged) {
+        memset(get_untagged_cntr(tpgid), 0, sizeof(CTPGTagCntr));
+    }
+
+    if (unknown_tag) {
+        memset(get_unknown_tag_cntr(tpgid), 0, sizeof(CTPGTagCntr));
+    }
+
+}
+
+void RxTPGPerPort::get_tpg_unknown_tags(Json::Value& tags) {
+
+    for (int i = 0; i < m_unknown_tags.size(); i++) {
+            Json::Value& tag = tags[i]["tag"];
+            m_unknown_tags[i].first->dump_json(tag);
+            tags[i]["tpgid"] = m_unknown_tags[i].second;
+    }
+}
+
+void RxTPGPerPort::clear_tpg_unknown_tags() {
+    for (auto& pair : m_unknown_tags) {
+        delete pair.first;
+    }
+    m_unknown_tags.clear();
+}
 
 /**************************************
  * TPGRxCtx
@@ -294,7 +376,7 @@ void TPGRxCtx::destroy_thread() {
 
 void TPGRxCtx::_allocate() {
     uint8_t num_ports = m_rx_ports.size();
-    uint16_t num_tags = m_tag_mgr->get_num_tags() + 1; // + 1 for unkown tags
+    uint16_t num_tags = m_tag_mgr->get_num_tags() + NUM_EXTRA_TAGS_TPGID;
     uint64_t num_cntrs = num_ports * m_num_tpgids * num_tags;
     /**
      * NOTE: Use calloc to distribute the workload based on COW (Copy on Write).
@@ -316,7 +398,7 @@ void TPGRxCtx::_deallocate() {
 }
 
 CTPGTagCntr* TPGRxCtx::get_port_cntr(uint8_t port_id) {
-    uint16_t num_tags = m_tag_mgr->get_num_tags() + 1; // + 1 for unknown tag
+    uint16_t num_tags = m_tag_mgr->get_num_tags() + NUM_EXTRA_TAGS_TPGID;
     for (int i = 0; i < m_rx_ports.size(); i++) {
         if (m_rx_ports[i] == port_id) {
             // Found it
