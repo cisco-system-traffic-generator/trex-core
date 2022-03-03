@@ -31,31 +31,31 @@ BasePacketGroupTag::~BasePacketGroupTag() {}
  * Packet Group Tag Manager
  *************************************/
 PacketGroupTagMgr::PacketGroupTagMgr(const PacketGroupTagMgr* tag_mgr) {
-    // Copy Dot1Q Map
-    for (auto& iter_pair : tag_mgr->m_dot1q_map) {
-        uint16_t vlan = iter_pair.second->get_vlan();
-        uint16_t tag = iter_pair.second->get_tag();
-        m_dot1q_map[iter_pair.first] = new Dot1QTag(vlan, tag);
-    }
 
-    // Copy QinQ Map
-    for (auto& iter_pair : tag_mgr->m_qinq_map) {
-        uint16_t inner_vlan = iter_pair.second->get_inner_vlan();
-        uint16_t outter_vlan = iter_pair.second->get_outter_vlan();
-        uint16_t tag = iter_pair.second->get_tag();
-        m_qinq_map[iter_pair.first] = new QinQTag(inner_vlan, outter_vlan, tag);
-    }
+    for (uint16_t tag = 0; tag < tag_mgr->m_tags.size(); tag++) {
+        BasePacketGroupTag* tag_obj = tag_mgr->m_tags[tag];
 
-    m_num_tags = tag_mgr->m_num_tags;
+        if (Dot1QTag* dot1q_tag = dynamic_cast<Dot1QTag*>(tag_obj)) {
+            // Dot1Q Tag
+            uint16_t vlan = dot1q_tag->get_vlan();
+            Dot1QTag* new_tag = new Dot1QTag(vlan, tag);
+            m_dot1q_map[vlan] = new_tag;
+            m_tags.push_back(new_tag);
+        } else if (QinQTag* qinq_tag = dynamic_cast<QinQTag*>(tag_obj)) {
+            // QinQ Tag
+            uint16_t inner_vlan = qinq_tag->get_inner_vlan();
+            uint16_t outter_vlan = qinq_tag->get_outter_vlan();
+            uint32_t key = get_qinq_key(inner_vlan, outter_vlan);
+            QinQTag* new_tag = new QinQTag(inner_vlan, outter_vlan, tag);
+            m_qinq_map[key] = new_tag;
+            m_tags.push_back(new_tag);
+        }
+    }
 }
 
 PacketGroupTagMgr::~PacketGroupTagMgr() {
-    for (auto& itr: m_dot1q_map) {
-        delete itr.second;
-    }
-
-    for (auto& itr: m_qinq_map) {
-        delete itr.second;
+    for (BasePacketGroupTag* tag: m_tags) {
+        delete tag;
     }
 }
 
@@ -75,13 +75,41 @@ uint16_t PacketGroupTagMgr::get_qinq_tag(uint16_t inner_vlan, uint16_t outter_vl
     return m_qinq_map[get_qinq_key(inner_vlan, outter_vlan)]->get_tag();
 }
 
+bool PacketGroupTagMgr::remove_tag(uint16_t tag) {
+    if (tag >= m_tags.size()) {
+        // We can't assert this , RPC calls.
+        return false;
+
+    }
+    BasePacketGroupTag* tag_object = m_tags[tag];
+    if(Dot1QTag* dot1q_tag = dynamic_cast<Dot1QTag*>(tag_object)) {
+        m_dot1q_map.erase(dot1q_tag->get_vlan());
+    } else if (QinQTag* qinq_tag = dynamic_cast<QinQTag*>(tag_object)) {
+        uint32_t key = get_qinq_key(qinq_tag->get_inner_vlan(), qinq_tag->get_outter_vlan());
+        m_qinq_map.erase(key);
+    }
+    delete tag_object;
+    m_tags[tag] = nullptr;
+    return true;
+}
+
 bool PacketGroupTagMgr::add_dot1q_tag(uint16_t vlan, uint16_t tag) {
     if (dot1q_tag_exists(vlan) || !valid_vlan(vlan)) {
         return false;
     }
+
     Dot1QTag* dot1q_tag = new Dot1QTag(vlan, tag);
+
+    if (tag < m_tags.size()) {
+        // Replacing an existing tag.
+        remove_tag(tag);
+        m_tags[tag] = dot1q_tag;
+    } else {
+        // Adding a new tag
+        m_tags.push_back(dot1q_tag);
+    }
+
     m_dot1q_map[vlan] = dot1q_tag;
-    m_num_tags++;
     return true;
 }
 
@@ -89,10 +117,30 @@ bool PacketGroupTagMgr::add_qinq_tag(uint16_t inner_vlan, uint16_t outter_vlan, 
     if (qinq_tag_exists(inner_vlan, outter_vlan) || !valid_vlan(inner_vlan) || !valid_vlan(outter_vlan)) {
         return false;
     }
+
     QinQTag* qinq_tag = new QinQTag(inner_vlan, outter_vlan, tag);
+
+    if (tag < m_tags.size()) {
+        // Replacing an existing tag.
+        remove_tag(tag);
+        m_tags[tag] = qinq_tag;
+    } else {
+        // Adding a new tag
+        m_tags.push_back(qinq_tag);
+    }
+
     m_qinq_map[get_qinq_key(inner_vlan, outter_vlan)] = qinq_tag;
-    m_num_tags++;
     return true;
+}
+
+void PacketGroupTagMgr::dump_json(Json::Value& result, uint16_t min_tag, uint16_t max_tag) {
+    for (uint16_t tag = min_tag; tag < max_tag; tag++) { // Max Tag <= Num Tags
+        if (m_tags[tag]) {
+            m_tags[tag]->dump_json(result[tag - min_tag]);
+        } else {
+            result[tag - min_tag] = Json::nullValue;
+        }
+    }
 }
 
 /**************************************

@@ -1674,6 +1674,81 @@ class STLClient(TRexClient):
     ##########################
     # Tagged Packet Grouping #
     ##########################
+    @staticmethod
+    def _validate_tpg_tag(tag, update, num_tags):
+        """
+        Validate Tagged Packet Group tags.
+
+        :parameters:
+            tag: dict
+                Tag to validate
+
+            update: bool
+                Are we verifying the tags for update?
+
+            num_tags: int
+                Number of tags in total
+        """
+        def _verify_vlan(vlan):
+            """
+            Verify vlan is a valid Vlan value.
+
+            :parameters:
+                vlan: int
+                    Vlan to verify
+
+            :raises:
+                TRexError: In case the Vlan is not a valid vlan
+            """
+            validate_type("vlan", vlan, int)
+            MIN_VLAN, MAX_VLAN = 1, 4094
+            if not MIN_VLAN <= vlan <= MAX_VLAN:
+                raise TRexError("Invalid vlan value {}, vlan must be in [{}, {}]".format(vlan, MIN_VLAN, MAX_VLAN))
+
+        SUPPORTED_TAG_TYPES = ["Dot1Q", "QinQ"]
+        if update:
+            SUPPORTED_TAG_TYPES.append(None)
+        validate_type("tag", tag, dict)
+
+        tag_type = tag.get("type", "-")
+        if tag_type == "-":
+            raise TRexError("Please provide a type field for each TPG tag!")
+
+        if tag_type not in SUPPORTED_TAG_TYPES:
+            raise TRexError("Tag type {} not supported. Supported tag types are = {}".format(tag_type, SUPPORTED_TAG_TYPES))
+
+        tag_value = tag.get("value", None)
+        if tag_value is None and not update:
+            raise TRexError("You must provide a value field for each TPG tag!")
+        if not update:
+            validate_type("tag_value", tag_value, (dict, type(None)))
+
+        if tag_type == "Dot1Q":
+            validate_type("tag_value", tag_value, dict)
+            vlan = tag_value.get("vlan", None)
+            if vlan is None: # Check explicitly if it is none, since it can be 0.
+                raise TRexError("You must provide a vlan key for each Dot1Q tag!")
+            _verify_vlan(vlan)
+
+        elif tag_type == "QinQ":
+            validate_type("tag_value", tag_value, dict)
+            vlans = tag_value.get("vlans", None)
+            if not vlans:
+                raise TRexError("You must provide vlans key for each QinQ tag!")
+            validate_type("vlans", vlans, list)
+            if len(vlans) != 2:
+                raise TRexError("You must provide 2 vlans for QinQ tag.")
+            for vlan in vlans:
+                _verify_vlan(vlan)
+
+        if update:
+            tag_id = tag.get("tag_id", None)
+            if tag_id is None:
+                raise TRexError("You must provide a tag id when updating TPG tags.")
+            validate_type("tag_id", tag_id, int)
+            if not 0 <= tag_id < num_tags:
+                raise TRexError("Invalid Tag Id {}. Must be in [0-{}).".format(tag_id, num_tags))
+
     @client_api('command', True)
     def enable_tpg(self, num_tpgids, tags, rx_ports = None):
         """
@@ -1731,62 +1806,6 @@ class STLClient(TRexClient):
                 List of rx ports on which we gather Tagged Packet Group Statistics. Optional. If not provided,
                 data will be gathered on all acquired ports.
         """
-        def _validate_tag(tag):
-            """
-            Validate Tagged Packet Group tags.
-
-            :parameters:
-                tag: dict
-                    Tag to validate
-            """
-            def _verify_vlan(vlan):
-                """
-                Verify vlan is a valid Vlan value.
-
-                :parameters:
-                    vlan: int
-                        Vlan to verify
-
-                :raises:
-                    TRexError: In case the Vlan is not a valid vlan
-                """
-                validate_type("vlan", vlan, int)
-                MIN_VLAN, MAX_VLAN = 1, 4094
-                if not MIN_VLAN <= vlan <= MAX_VLAN:
-                    raise TRexError("Invalid vlan value {}, vlan must be in [{}, {}]".format(vlan, MIN_VLAN, MAX_VLAN))
-
-            SUPPORTED_TAG_TYPES = ["Dot1Q", "QinQ"]
-            validate_type("tag", tag, dict)
-            tag_type = tag.get("type", None)
-
-            if tag_type is None:
-                raise TRexError("Please provide a type field for each TPG tag!")
-
-            if tag_type not in SUPPORTED_TAG_TYPES:
-                raise TRexError("Tag type {} is not supported. Supported tag types are = {}".format(tag_type, SUPPORTED_TAG_TYPES))
-            tag_value = tag.get("value", None)
-
-            if tag_value is None:
-                raise TRexError("You must provide a value field for each TPG tag!")
-            validate_type("tag_value", tag_value, dict)
-
-            if tag_type == "Dot1Q":
-                vlan = tag_value.get("vlan", None)
-                if vlan is None: # Check explicitly if it is none, since it can be 0.
-                    raise TRexError("You must provide a vlan key for each Dot1Q tag!")
-                _verify_vlan(vlan)
-
-            elif tag_type == "QinQ":
-                vlans = tag_value.get("vlans", None)
-                if not vlans:
-                    raise TRexError("You must provide vlans key for each QinQ tag!")
-                validate_type("vlans", vlans, list)
-                if len(vlans) != 2:
-                    raise TRexError("You must provide 2 vlans for QinQ tag.")
-                for vlan in vlans:
-                    _verify_vlan(vlan)
-
-
         acquired_ports = self.get_acquired_ports()
         rx_ports = rx_ports if rx_ports is not None else acquired_ports
 
@@ -1795,7 +1814,7 @@ class STLClient(TRexClient):
         validate_type("tags", tags, list)
 
         for tag in tags:
-            _validate_tag(tag)
+            STLClient._validate_tpg_tag(tag, update=False, num_tags=len(tags))
 
         # Validate that Rx ports are included in Acquired Ports
         if not set(rx_ports).issubset(set(acquired_ports)):
@@ -1818,16 +1837,19 @@ class STLClient(TRexClient):
         rc = self._transmit("enable_tpg", params=params)
 
         if not rc:
+            self.ctx.logger.post_cmd(rc)
             raise TRexError(rc)
 
         tpg_state = TPGState(TPGState.DISABLED)
         while tpg_state != TPGState(TPGState.ENABLED_CP_RX):
             rc = self._transmit("get_tpg_state", params={"username": self.ctx.username})
             if not rc:
+                self.ctx.logger.post_cmd(rc)
                 raise TRexError(rc)
             tpg_state = TPGState(rc.data())
             if tpg_state.is_error_state():
                 self.disable_tpg(surpress_log=True)
+                self.ctx.logger.post_cmd(False)
                 raise TRexError(tpg_state.get_fail_message())
 
         # Enable TPG in DP Sync
@@ -1836,10 +1858,12 @@ class STLClient(TRexClient):
         if not rc:
             rc = self._transmit("get_tpg_state", params={"username": self.ctx.username})
             if not rc:
+                self.ctx.logger.post_cmd(rc)
                 raise TRexError(rc)
             tpg_state = TPGState(rc.data())
             if tpg_state.is_error_state():
                 self.disable_tpg(surpress_log=True)
+                self.ctx.logger.post_cmd(False)
                 raise TRexError(tpg_state.get_fail_message())
             else:
                 raise TRexError("TPG enablement failed but server doesn't indicate of errors.")
@@ -1919,11 +1943,13 @@ class STLClient(TRexClient):
 
                     {
                         "enabled": true,
-                        "rx_ports": [1],
-                        "acquired_ports": [0, 1],
-                        "num_tpgids": 3,
-                        "num_tags": 10,
-                        "username": "bdollma"
+                        "data": {
+                            "rx_ports": [1],
+                            "acquired_ports": [0, 1],
+                            "num_tpgids": 3,
+                            "num_tags": 10,
+                            "username": "bdollma"
+                        }
                     }
 
                 ===============================  ===============
@@ -1962,10 +1988,203 @@ class STLClient(TRexClient):
 
         return rc.data()
 
+    @client_api('command', True)
+    def update_tpg_tags(self, new_tags, clear=False):
+        """
+        Update Tagged Packet Grouping Tags.
+
+        :parameters:
+
+            new_tags: list
+                List of dictionaries that represents the tags to replace.
+
+                .. highlight:: python
+                .. code-block:: python
+
+                    [
+                        {
+                            "type": "Dot1Q",
+                            "value": {
+                                "vlan": 5,
+                            }
+                            "tag_id": 20
+                        },
+                        {
+                            "type": "QinQ",
+                            "value": {
+                                "vlans": [20, 30]
+                            }
+                            "tag_id": 7
+                        },
+                        {
+                            "type": None,
+                            "tag_id": 0
+                        }
+                    ]
+
+                Currently supports only **Dot1Q**, **QinQ**, **None** types. In our example, tag_id 20 is now replaced with Dot1Q(5).
+                Note that Dot1Q(5) must not be present, or at least invalidated in one of the previous entries.
+                When the type is None, it invalidates the tag.
+
+                Each dictionary should be of the following format:
+
+                ===============================  ===============
+                key                               Meaning
+                ===============================  ===============
+                type                             String that represents type of tag, only **Dot1Q**, **QinQ** or None supported at the moment.
+                value                            Dictionary that contains the value for the tag. Differs on each tag type. Not needed in case of None.
+                tag_id                           The tag id that this new tag is going to have.
+                ===============================  ===============
+
+            clear: bool
+                Clear stats for the tags we updated. Defaults to False. 
+
+                .. note:: This can take some time, since we need to clear the stats in all the receiveing ports for all tpgids.
+        """
+
+        def clear_update(self, port, min_tpgid, max_tpgid, tag_list):
+            params = {
+                "username": self.ctx.username,
+                "port_id": port,
+                "min_tpgid": min_tpgid,
+                "max_tpgid": max_tpgid,
+                "tag_list": tag_list
+            }
+            self._transmit("clear_updated", params=params)
+
+        self.ctx.logger.pre_cmd("Updating Tagged Packet Group Tags")
+
+        validate_type("new_tags", new_tags, list)
+
+        tpg_status = self.get_tpg_status()
+        if not tpg_status["enabled"]:
+            raise TRexError("Tagged Packet Group is not enabled.")
+        num_tags = tpg_status["data"]["num_tags"]
+
+        for tag in new_tags:
+            STLClient._validate_tpg_tag(tag, update=True, num_tags=num_tags)
+
+        rc = self._transmit("update_tpg_tags", params={"username": self.ctx.username, "tags": new_tags})
+
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc)
+
+        if clear:
+            tag_list = [tag["tag_id"] for tag in new_tags]
+            rx_ports = tpg_status["data"]["rx_ports"]
+            num_tpgids = tpg_status["data"]["num_tpgids"]
+            NUM_STATS_CHUNK = 2048
+            TPGID_CHUNK_SIZE = NUM_STATS_CHUNK // len(tag_list)
+            min_tpgid = 0
+
+            for port in rx_ports:
+                while min_tpgid != num_tpgids:
+                    max_tpgid = min(min_tpgid + TPGID_CHUNK_SIZE, num_tpgids)
+                    clear_update(self, port, min_tpgid, max_tpgid, tag_list)
+                    min_tpgid = max_tpgid
+
+    @client_api('getter', True)
+    def get_tpg_tags(self, min_tag = 0, max_tag = None, username = None, port = None):
+        """
+        Get Tagged Packet Group Tags from the server. It will return as a list starting from
+        *min_tag* until *max_tag*. If not provided, we will collect for all tags.
+        We can collect the TPG status for a user or for a port.
+        If no parameters are provided we will collect for the calling user. 
+
+        :parameters:
+            min_tag: int
+                Minimal tag to collect the tag for. Optional. If not provided, we will start from 0.
+
+            max_tag: int
+                Maximal tag to collect the tag for. Defaults to None. If not provided, we will collect
+                for the max possible tag.
+
+            username: str
+                Username whose TPG status we want to check. Optional. In case it isn't provided,
+                the username that runs the command will be used.
+
+            port: uint8
+                Port whose TPG status we want to check. Optional.
+
+        :returns:
+            list: Tagged Packet Group Tags from the server. At index *i* in the list we can find the descripton
+            for tag number *i*. If the value is None, it means that this tag index was invalidated.
+
+                .. highlight:: python
+                .. code-block:: python
+
+                    [
+                        {
+                            "type": "Dot1Q",
+                            "value": {
+                                "vlan": 7
+                            }
+                        },
+                        None,
+                        {
+                            "type": "QinQ",
+                            "value": {
+                                "vlans": [1, 11]
+                            }
+                        }
+                    ]
+        """
+
+        CHUNK_SIZE = 500
+
+        def get_tpg_tags_chunk(self, params):
+            """
+            Assumes that the amount of tags requested is at most CHUNKS_SIZE.
+            """
+            rc = self._transmit("get_tpg_tags", params=params)
+
+            if not rc:
+                raise TRexError(rc)
+
+            return rc.data()
+
+        validate_type("min_tag", min_tag, int)
+        validate_type("max_tag", max_tag, (int, type(None)))
+        validate_type("username", username, (str, type(None)))
+
+        tpg_status = self.get_tpg_status(username=username, port=port)
+        if not tpg_status["enabled"]:
+            raise TRexError("Tagged Packet Group is not enabled.")
+        num_tags = tpg_status["data"]["num_tags"]
+
+        if max_tag is None:
+            max_tag = num_tags
+
+        if max_tag > num_tags:
+            raise TRexError("Max Tag {} must be less than number of tags defined: {}".format(max_tag, num_tags))
+
+        if min_tag > max_tag:
+            raise TRexError("Min Tag {} must be less than Max Tag {}".format(min_tag, max_tag))
+
+        params = {}
+        if port is None:
+            params = {"username": self.ctx.username if username is None else username}
+        else:
+            self.psv.validate('get_tpg_tags', [port])
+            if username is not None:
+                raise TRexError("Should provide only one between port and username for get_tpg_tags.")
+            params = {"port_id": port}
+
+        tpg_tags = [] # List that will contain all tags
+        current_max_tag = 0
+        while current_max_tag != max_tag:
+            current_max_tag = min(max_tag, min_tag + CHUNK_SIZE)
+            params["min_tag"], params["max_tag"] = min_tag, current_max_tag
+            tpg_tags += get_tpg_tags_chunk(self, params)
+            min_tag = current_max_tag
+
+        return tpg_tags
+
     @client_api('getter', True)
     def get_tpg_stats(self, port, tpgid, min_tag, max_tag, max_sections = 50, unknown_tag = False, untagged = False):
         """
-        Get Tagged Packet Group Identifier statistics that are received in this port,
+        Get Tagged Packet Group statistics that are received in this port,
         for this Tagged Packet Group Identifier in [min, max) tag_range.
 
         :parameters:
@@ -2164,7 +2383,7 @@ class STLClient(TRexClient):
         return (stats, _min_tag)
 
     @client_api('command', True)
-    def clear_tpg_stats(self, port, tpgid, min_tag, max_tag, unknown_tag = False, untagged = False):
+    def clear_tpg_stats(self, port, tpgid, min_tag = 0, max_tag = None, tag_list = None, unknown_tag = False, untagged = False):
         """
         Clear Packet Group Identifier statistics that are received in this port,
         for this Tagged Packet Group Identifier in [min, max) tag_range.
@@ -2177,10 +2396,13 @@ class STLClient(TRexClient):
                 Tagged Packet Group Identifier whose stats we are interested to clear.
 
             min_tag: uint16
-                Minimal Tag to clear stats for.
+                Minimal Tag to clear stats for. Defaults to 0.
 
             max_tag: uint16
-                Maximal Tag to clear stats for. Non inclusive.
+                Maximal Tag to clear stats for. Non inclusive. Defaults to None. Exclusive to *tag_list*.
+
+            tag_list: list or None
+                List of tags to clear, if provided takes precedence over the range [min-max). Exclusive to *max_tag*.
 
             unknown_tag: bool
                 Clear the stats of packets received with this tpgid but with a tag that isn't provided in the mapping,
@@ -2195,21 +2417,33 @@ class STLClient(TRexClient):
         self.psv.validate('clear_tpg_tx_stats', [port])
         validate_type("tpgid", tpgid, int)
         validate_type("min_tag", min_tag, int)
-        validate_type("max_tag", max_tag, int)
+        validate_type("max_tag", max_tag, (int, type(None)))
+        validate_type("tag_list", tag_list, (list, type(None)))
         validate_type("unknown_tag", unknown_tag, bool)
         validate_type("untagged", untagged, bool)
 
-        if min_tag > max_tag:
-            raise TRexError("Min Tag {} must be smaller/equal than Max Tag {}".format(min_tag, max_tag))
+        if (max_tag is None and not tag_list) or (max_tag is not None and tag_list):
+            raise TRexError("One between max_tag and tag_list must be provided.")
 
-        if min_tag == max_tag and not untagged and not unknown_tag:
-            raise TRexError("Min Tag can equal Max Tag iff untagged or unknown tag flags provided.")
+        if max_tag is not None:
+            if min_tag > max_tag:
+                raise TRexError("Min Tag {} must be smaller/equal than Max Tag {}".format(min_tag, max_tag))
+
+            if min_tag == max_tag and not untagged and not unknown_tag:
+                raise TRexError("Min Tag can equal Max Tag iff untagged or unknown tag flags provided.")
+
+        if tag_list:
+            for tag in tag_list:
+                validate_type("tag", tag, int)
+                if tag < 0:
+                    raise TRexError("Invalid tag {}. Tag must be positive.".format(tag))
 
         params = {
             "port_id": port,
             "tpgid": tpgid,
             "min_tag": min_tag,
             "max_tag": max_tag,
+            "tag_list": tag_list if tag_list else None, # Send None in case of empty list too
             "unknown_tag": unknown_tag,
             "untagged": untagged,
         }
@@ -2222,7 +2456,7 @@ class STLClient(TRexClient):
     @client_api('getter', True)
     def get_tpg_tx_stats(self, port, tpgid):
         """
-        Get Tagged Packet Group Identifier statistics that are transmitted in this port,
+        Get Tagged Packet Group Identifier statistics that are *transmitted* in this port,
         for this Tagged Packet Group Identifier.
 
         :parameters:
@@ -2284,7 +2518,7 @@ class STLClient(TRexClient):
 
         :parameters:
             port: uint8
-                Port on which we collect TPG packets.
+                Port on which we collect TPG stats.
 
         :returns:
             dict: Dictionary contains Tagged Packet Group unknown tags gathered on each port. For example:
@@ -2326,7 +2560,6 @@ class STLClient(TRexClient):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc)
-
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -2911,6 +3144,31 @@ class STLClient(TRexClient):
     ##########################
     # Tagged Packet Grouping #
     ##########################
+    @staticmethod
+    def _tpg_tag_value_2str(tag_type, value):
+        """
+        Convert the structured tag type and value to a printable string.
+
+        :parameters:
+            tag_type: str
+                String represeting the tag type. Supported tag types are Dot1Q and QinQ.
+
+            value: dict
+                Value of the tag.
+
+        :return:
+            String representing the tag type and value.
+        """
+        known_types = ["Dot1Q", "QinQ"]
+        if tag_type not in known_types:
+            return "Unknown Type"
+
+        if tag_type == "Dot1Q":
+            return "Dot1Q({})".format(value["vlan"])
+
+        if tag_type == "QinQ":
+            return "QinQ({}, {})".format(value["vlans"][0], value["vlans"][1])
+
     @console_api('tpg_enable', 'STL', True)
     def tpg_enable(self, line):
         """Enable Tagged Packet Group"""
@@ -3010,6 +3268,110 @@ class STLClient(TRexClient):
                        'keys_to_headers': keys_to_headers}
             text_tables.print_table_by_keys(data, **kwargs)
 
+    @console_api('tpg_update', 'STL', True)
+    def tpg_update(self, line):
+        '''Update Tagged Packet Group Tag\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_tags",
+                                         self.show_tpg_tags.__doc__,
+                                         parsing_opts.TPG_UPDATE
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        tag_type = opts.tag_type if opts.tag_type != "Invalidate" else None
+        new_tag = {
+            "type": tag_type,
+            "tag_id": opts.tag_id
+        }
+
+        if tag_type is not None:
+            # Not invalidating tag, value is needed
+            if opts.value is None:
+                raise TRexError(format_text("Value must be present for type {}.".format(tag_type), "red", "bold"))
+
+            if tag_type == "Dot1Q":
+                if len(opts.value) != 1:
+                    raise TRexError(format_text("Only one value must be presented for Dot1Q tags. Invalid value {}.".format(opts.value), "red", "bold"))
+                new_tag["value"] = {
+                    "vlan": opts.value[0]
+                }
+
+            if tag_type == "QinQ":
+                if len(opts.value) != 2:
+                    raise TRexError(format_text("Exactly two values must be presented for QinQ tags. Invalid value {}.".format(opts.value), "red", "bold"))
+                new_tag["value"] = {
+                    "vlans": opts.value
+                }
+
+        try:
+            self.update_tpg_tags([new_tag], opts.clear)
+        except TRexError as e:
+            s = format_text("{}".format(e.brief()), "bold", "red")
+            raise TRexError(s)
+
+    @console_api('tpg_tags', 'STL', True)
+    def show_tpg_tags(self, line):
+        '''Show Tagged Packet Group Tags\n'''
+        parser = parsing_opts.gen_parser(self,
+                                         "tpg_tags",
+                                         self.show_tpg_tags.__doc__,
+                                         parsing_opts.TPG_USERNAME,
+                                         parsing_opts.SINGLE_PORT_NOT_REQ,
+                                         parsing_opts.TPG_MIN_TAG,
+                                         parsing_opts.TPG_MAX_TAG_NOT_REQ,
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        if not opts:
+            return opts
+
+        MAX_TAGS_TO_SHOW = 20
+
+        table_keys_to_headers = [   {'key': 'tag_id',                'header': 'Tag Id'},
+                                    {'key': 'tag',                   'header': 'Tag Type'}
+        ]
+
+        table_kwargs = {'empty_msg': '\nNo tags found',
+                        'keys_to_headers': table_keys_to_headers}
+
+        tpg_status = self.get_tpg_status(username=opts.username, port=opts.port)
+        if not tpg_status["enabled"]:
+            raise TRexError(format_text("Tagged Packet Group is not enabled.", "bold", "red"))
+        num_tags_total = tpg_status["data"]["num_tags"]
+        last_tag = num_tags_total if opts.max_tag is None else min(num_tags_total, opts.max_tag)
+
+        current_tag = opts.min_tag
+        while current_tag != last_tag:
+
+            next_current_tag = min(current_tag + MAX_TAGS_TO_SHOW, last_tag)
+            try:
+                tags = self.get_tpg_tags(current_tag, next_current_tag, opts.username, opts.port)
+            except TRexError as e:
+                s = format_text("{}".format(e.brief()), "bold", "red")
+                raise TRexError(s)
+
+            tags_to_print = []
+            for i in range(len(tags)):
+                tags_to_print.append(
+                {
+                    "tag_id": current_tag + i,
+                    "tag": '-' if tags[i] is None else STLClient._tpg_tag_value_2str(tags[i]['type'], tags[i]['value'])
+                }
+            )
+
+            table_kwargs['title'] = "Tags [{}-{})".format(current_tag, next_current_tag)
+            text_tables.print_table_by_keys(tags_to_print, **table_kwargs)
+            current_tag = next_current_tag
+
+            if current_tag != last_tag:
+                # The message should be printed iff there will be another iteration.
+                input("Press Enter to see the rest of the tags")
+
     @console_api('tpg_stats', 'STL', True)
     def show_tpg_stats(self, line):
         '''Show Tagged Packet Group Statistics\n'''
@@ -3096,7 +3458,7 @@ class STLClient(TRexClient):
         parser = parsing_opts.gen_parser(self,
                                          "tpg_clear_stats",
                                          self.tpg_clear_stats.__doc__,
-                                         parsing_opts.TPG_STL_STATS
+                                         parsing_opts.TPG_STL_CLEAR_STATS
                                         )
 
         opts = parser.parse_args(line.split())
@@ -3105,7 +3467,7 @@ class STLClient(TRexClient):
             return opts
 
         try:
-            self.clear_tpg_stats(opts.port, opts.tpgid, opts.min_tag, opts.max_tag, opts.unknown_tag, opts.untagged)
+            self.clear_tpg_stats(opts.port, opts.tpgid, opts.min_tag, opts.max_tag, opts.tag_list, opts.unknown_tag, opts.untagged)
         except TRexError as e:
             s = format_text("{}".format(e.brief()), "bold", "red")
             raise TRexError(s)
@@ -3176,30 +3538,6 @@ class STLClient(TRexClient):
     def show_tpg_unknown_stats(self, line):
         '''Show Tagged Packet Group Unknown Tags\n'''
 
-        def tag_value_2str(tag_type, value):
-            """
-            Convert the structured tag type and value to a printable string.
-
-            :parameters:
-                tag_type: str
-                    String represeting the tag type. Supported tag types are Dot1Q and QinQ.
-
-                value: dict
-                    Value of the tag.
-
-            :return:
-                String representing the tag type and value.
-            """
-            known_types = ["Dot1Q", "QinQ"]
-            if tag_type not in known_types:
-                return "Unknown Type"
-
-            if tag_type == "Dot1Q":
-                return "Dot1Q({})".format(value["vlan"])
-
-            if tag_type == "QinQ":
-                return "QinQ({}, {})".format(value["vlans"][0], value["vlans"][1])
-
         parser = parsing_opts.gen_parser(self,
                                          "tpg_show_unknown_stats",
                                          self.show_tpg_unknown_stats.__doc__,
@@ -3235,7 +3573,7 @@ class STLClient(TRexClient):
         for val in port_unknown_tags:
             unknown_tag = {
                 'tpgid': val['tpgid'],
-                'type': tag_value_2str(val['tag']['type'], val['tag']['value'])
+                'type': STLClient._tpg_tag_value_2str(val['tag']['type'], val['tag']['value'])
             }
             if unknown_tag not in unknown_tags_to_print:
                 # This list is at max 10 elements. Dict is not hashable.

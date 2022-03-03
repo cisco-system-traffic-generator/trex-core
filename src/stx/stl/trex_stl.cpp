@@ -547,6 +547,43 @@ bool TrexStateless::disable_tpg(const std::string& username) {
      return true;
 }
 
+bool TrexStateless::update_tpg_tags(const std::string& username) {
+    if (!tpg_ctx_exists(username)) {
+        return false;
+    }
+
+    TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
+
+    // The tag manager in CP is updated as parsed, we need only update Rx.
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxUpdateTPGTags(reply, username, tpg_ctx->get_tag_mgr());
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    return reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    // It is important to keep this message sync. The tag list object is a CP object.
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxClearTPGStatsTpgid(reply, port_id, min_tpgid, max_tpgid, tag_list);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    // It is important to keep this message sync. The tag list object is a CP object.
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxClearTPGStatsList(reply, port_id, tpgid, tag_list, unknown_tag, untagged);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
 void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
     static MsgReply<bool> reply;
     reply.reset();

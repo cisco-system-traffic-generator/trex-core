@@ -352,6 +352,24 @@ bool TrexStatelessRxGetTPGState::handle(CRxCore* rx_core) {
     return true;
 }
 
+bool TrexStatelessRxUpdateTPGTags::handle(CRxCore* rx_core) {
+    bool result = rx_core->update_tpg_ctx_tags(m_username, m_tag_mgr);
+    m_reply.set_reply(result);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGStatsTpgid::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_stats(m_port_id, m_min_tpgid, m_max_tpgid, m_tag_list);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGStatsList::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_stats(m_port_id, m_tpgid, m_tag_list, m_unknown_tag, m_untagged);
+    m_reply.set_reply(true);
+    return true;
+}
+
 bool TrexStatelessRxClearTPGStats::handle(CRxCore* rx_core) {
     rx_core->clear_tpg_stats(m_port_id, m_tpgid, m_min_tag, m_max_tag, m_unknown_tag, m_untagged);
     m_reply.set_reply(true);

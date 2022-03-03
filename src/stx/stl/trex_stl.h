@@ -241,13 +241,61 @@ public:
     bool disable_tpg(const std::string& username);
 
     /**
+     * Update Tagged Packet Group Tags in Rx.
+     *
+     * @param username
+     *   Username whose Tags we want to update.
+     *
+     * @return bool
+     *   Success indicator
+     **/
+    bool update_tpg_tags(const std::string& username);
+
+    /**
      * Clear Tagged Packet Group stats.
      *
      * @param port_id
-     *   Transmitting port on which we want to clear tags.
+     *   Receiveing port on which we want to clear stats.
+     *
+     * @param min_tpgid
+     *   Min Tpgid on which we want to clear the stats.
+     *
+     * @param max_tpgid
+     *   Max Tpgid on which we want to clear the stats.
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list);
+
+    /**
+     * Clear Tagged Packet Group stats.
+     *
+     * @param port_id
+     *   Receiveing port on which we want to clear stats.
      *
      * @param tpgid
-     *   Tpgid on which we want to clear the ports.
+     *   Tpgid on which we want to clear the stats.
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     *
+     * @param unknown_tag
+     *   Boolean indicating if we should clear unknown tag stats.
+     *
+     * @param untagged
+     *   Boolean indicating if we should clear untagged stats.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged);
+
+    /**
+     * Clear Tagged Packet Group stats.
+     *
+     * @param port_id
+     *   Receiveing port on which we want to clear stats.
+     *
+     * @param tpgid
+     *   Tpgid on which we want to clear the stats.
      *
      * @param min_tag
      *   Tag from which we start clearing. We clear range [min, max).
@@ -267,10 +315,10 @@ public:
      * Clear Tagged Packet Group Tx stats.
      *
      * @param port_id
-     *   Transmitting port on which we want to clear tags.
+     *   Transmitting port on which we want to clear stats.
      *
      * @param tpgid
-     *   Tpgid on which we want to clear the ports.
+     *   Tpgid on which we want to clear the stats.
      **/
     void clear_tpg_tx_stats(uint8_t port_id, uint32_t tpgid);
 

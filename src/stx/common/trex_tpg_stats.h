@@ -188,6 +188,14 @@ public:
     void handle_pkt(const rte_mbuf_t* m);
 
     /**
+     * Set the tag manager for this port.
+     *
+     * @param tag_mgr
+     *   New Tag Manager.
+     **/
+    inline void set_tag_mgr(PacketGroupTagMgr* tag_mgr) { m_tag_mgr = tag_mgr; }
+
+    /**
      * Provided a tpgid and a tag, gets the counter to that tag. In case of invalid params, it will return nullptr.
      *
      * @param tpgid
@@ -274,6 +282,38 @@ public:
      *   Add the stats for untagged packets in the Json too.
      **/
     void get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+
+    /**
+     * Clear Tagged Packet Group Statistics of a range of tpgid from [min_tpgid, max_tpgid).
+     *
+     * @param min_tpgid
+     *   Min Tagged Packet Group Identifier whose stats we want to clear.
+     *
+     * @param min_tpgid
+     *   Max Tagged Packet Group Identifier whose stats we want to clear.
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     **/
+    void clear_tpg_stats(uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list);
+
+    /**
+     * Clear Tagged Packet Group Statistics of a specific tpgid for the provided tag list.
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier whose stats we want to clear.
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     *
+     * @param unknown_tag
+     *   Clear the stats for unknown tags too.
+     *
+     * @param untagged
+     *   Clear the stats for untagged packets to..
+     **/
+    void clear_tpg_stats(uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged);
 
     /**
      * Clear Tagged Packet Group Statistics of a specific tpgid from [min_tag, max_tag).
@@ -411,6 +451,17 @@ public:
      *   Packet Group Tag Manager
      */
     PacketGroupTagMgr* get_tag_mgr() { return m_tag_mgr; }
+
+    /**
+     * Update Tag Manager.
+     *
+     * @param tag_mgr
+     *   Updated Tag Manager from CP.
+     *
+     * @return PacketGroupTagMgr* 
+     *   A pointer to the new Tag Manager.
+     **/
+    PacketGroupTagMgr* update_tag_mgr(PacketGroupTagMgr* tag_mgr);
 
     /**
      * Allocates the counters in a chunk using *calloc*.

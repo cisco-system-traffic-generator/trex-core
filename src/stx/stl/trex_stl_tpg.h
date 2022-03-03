@@ -46,7 +46,7 @@ limitations under the License.
  **/
 class TPGDpMgrPerSide;
 
-#define TPG_PAYLOAD_MAGIC 0xE50B5CC1 // Consider the endianess
+constexpr uint32_t TPG_PAYLOAD_MAGIC = 0xE50B5CC1; // Consider the endianess
 
 /**************************************
  * Tagged Packet Group Payload Header
@@ -199,7 +199,7 @@ private:
 class PacketGroupTagMgr {
 
 public:
-    PacketGroupTagMgr() : m_num_tags(0) {};
+    PacketGroupTagMgr() {};
 
     PacketGroupTagMgr(const PacketGroupTagMgr* tag_mgr);
 
@@ -245,7 +245,7 @@ public:
      *    Number of Tags in Tag Manager.
      **/
     inline uint16_t get_num_tags() {
-        return m_num_tags;
+        return m_tags.size();
     }
 
     /**
@@ -310,15 +310,41 @@ public:
      **/
     bool add_qinq_tag(uint16_t inner_vlan, uint16_t outter_vlan, uint16_t tag);
 
+    /**
+     * Removes tag using just the tag id. Removes tag from respective map, deletes the object
+     * and invalidates the entry in the vector.
+     *
+     * @param tag
+     *   Tag Id to remove.
+     *
+     * @return bool
+     *   Indicator of success.
+     **/
+    bool remove_tag(uint16_t tag);
+
+    /**
+     * Dump the PacketGroupTagMgr as a Json.
+     *
+     * @param result
+     *   Json Array to dump into.
+     *
+     * @param min_tag
+     *   Min Tag to dump.
+     *
+     * @param max_tag
+     *   Max Tag to dump.
+     **/
+    void dump_json(Json::Value& result, uint16_t min_tag, uint16_t max_tag);
+
 private:
 
     inline uint32_t get_qinq_key(uint16_t inner_vlan, uint16_t outter_vlan) {
         return inner_vlan << 16 | outter_vlan;
     }
 
-    std::unordered_map<uint16_t, Dot1QTag*>   m_dot1q_map;    // Vlan to Dot1QTag
-    std::unordered_map<uint32_t, QinQTag*>    m_qinq_map;     // Inner, Outter Vlan to QinQTag
-    uint16_t                                  m_num_tags;     // Number of Tags
+    std::unordered_map<uint16_t, Dot1QTag*>     m_dot1q_map;    // Vlan to Dot1QTag
+    std::unordered_map<uint32_t, QinQTag*>      m_qinq_map;     // Inner, Outter Vlan to QinQTag
+    std::vector<BasePacketGroupTag*>            m_tags;         // Tag objects indexed by tag_id.
 };
 
 

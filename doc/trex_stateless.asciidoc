@@ -4190,6 +4190,7 @@ Tagged Packet Grouping *(TPG)* is a STL feature introduced in TRex v2.94 whose m
 
 TPG is dynamic. It means that you can provide a list of tags that you are interested on, on a port that you are interested
 on a stream that you are interested. We will allocate enough memory to collect statistics based on the user's request.
+You can then update the list of tags you are interested and start transmitting again.
 
 WARNING: In case your request too much memory, the process of allocating may take time. Yet, we will attempt 
 and allocate as much memory as possible.
@@ -4353,7 +4354,7 @@ The SDK can be found here: link:{client_code.html#https://trex-tgn.cisco.com/tre
 
 In order to enable TPG you must provide 3 parameters:
 
-* Collecting ports. If you don't provide, by default we collect on all ports.
+* Collecting ports. If you don't provide, by default we collect on all acquired ports.
 * Number of tpgid. Each TPG stream needs a unique tpgid, hence this translates to number of TPG streams. It doesn't have to be exact, but it should be greater or equal the number of TPG streams.
 * Tag configuration. A list that maps each tag to its *tag_id*. In the following sections we will see that we can provide a path to a file containing the configuration.
 The configuration must follow the following schema:
@@ -4379,10 +4380,9 @@ If we provide a big amount of tags, and a big number of tpgids we can be allocat
 * 4000 tags
 * 64 bytes of counters per port/tpgid/tag
 
-We achieve 2 x 20000 x 4000 x 64 = 10 GB. Allocating this amount of memory takes time.
+We achieve 2 x 20000 x 4000 x 64 = 10 GB. This allocation is done lazily.
 
-The stats are kept in the Rx thread. The Rx watchdog is disabled prior to starting allocation. The process is async in context of Control Plane to Rx and the waiting for the allocation to finish is done
-in the Python Client.
+The stats are kept in the Rx thread. The process of allocation is performed asynchronously (in context of Control Plane to Rx) and the waiting for the allocation to finish is done in the Python Client.
 
 Also, when enabling TPG we allocate an object per Data Plane Core Side, that keeps track of the sequence numbers.
 
@@ -4402,6 +4402,62 @@ At each moment, you can check if TPG is enabled or disabled using this method. I
 * Number of tags
 * Username - User that owns this TPG context
 
+===== Update TPG Tags
+
+After you have enabled TPG you might want to update the tags. Maybe you received traffic on a Vlan you didn't think about. In order to update the tags you must provide a list of new tags based on the following schema:
+
+.Tag Configuration Schema
+[source, python]
+----
+[
+    {
+        "type": "-",         # <1>
+        "value": {           # <2>
+        }
+        "tag_id": 0          # <3>
+    }
+]
+----
+<1> Type of Tag. Consult list of supported tag types. In order to invalidate a tag (stop collecting stats for it), simple provide None here.
+<2> Value of tag. Depends on tag type. In case of invalidation, no need to provide a value.
+<3> Tag Id represents the id this tag will receive. It also means that the tag that currently ows this tag_id is going to be removed.
+
+NOTE: If you provided 10 tags when you enabled TPG, you should provide a *tag_id* between 0 and 9. This function replaces actual tags, it doesn't add new ones.
+
+WARNING: If the tag already exists, the update will fail. The API commits the change for each entry. This means that if you are trying to update 5 tags, and the 3rd one fails, the 1st and 2nd are successfully updated but the 3rd, 4th and 5th are not.
+
+Lastly, in some use cases you want to clear the stats for the updated **tag_id**s. The API provides a boolean flag to clear these stats, however by default it won't clear.
+
+===== Get TPG Tags
+
+Since the mapping between tags and tag_id can be updated, we can loose track of it. In order to see the mapping in the server at all time, we can use this API.
+
+The API can receive 2 optional parameters, **min_tag** and **max_tag** and it will return all the tags in the range (**max_tag** excluded). By default it will return all tags.לא זה 
+
+.Get Tags Output
+[source, python]
+----
+[
+    {
+        "type": "Dot1Q",        # <1>
+        "value": {
+            "vlan": 7
+        }
+    },
+    None,                       # <2>
+    {
+        "type": "QinQ",         # <3>
+        "value": {
+            "vlans": [1, 11]
+        }
+    }
+]
+----
+<1> tag_id 0 is a Dot1Q(7).
+<2> tag_id 1 is invalidated.
+<3> tag_id 2 is QinQ(1, 11)
+
+
 ===== Get TPG Stats
 
 Collecting the statistics from the server is a challenge. Keep in mind the calculation we did before, there can be 10 GB of statistics. However, let's look at the main use case.
@@ -4417,9 +4473,10 @@ In order to collect the stats, the user must provide the following parameters:
 * Minimal Tag Id to start collecting from
 * Maximal Tag Id to collect (exclusive)
 * Maximal number of sections
-* Unknown Tag, a boolean indicating to get the stats received from unknown tags. Unknown tags are tags that the user didn't provide when enabling TPG.
+* Unknown Tag, a boolean indicating to get the stats received from unknown tags. Unknown tags are tags that the user didn't provide when enabling TPG. Note that sequenced counters don't make sense for unknown tags.
+* Untagged, a boolean indicating to get the stats received without any tag at all. 
 
-Let's say the user wants to collect the stats in port 3, for tpgid 1. He wants to collect all the tags from 0-4000. He also wants to know if there were any packets received with a unknown tag.
+Let's say the user wants to collect the stats in port 3, for tpgid 1. He wants to collect all the tags from 0-4000. He also wants to know if there were any packets received with a unknown tag and packets received without any tags.
 
 One such example can be:
 
@@ -4449,13 +4506,15 @@ One such example can be:
                          'seq_err': 0,
                          'seq_err_too_big': 0,
                          'seq_err_too_small': 0},
+            'untagged': {'bytes': 0,
+                         'dup': 0,
+                         'ooo': 0,
+                         'pkts': 0,
+                         'seq_err': 0,
+                         'seq_err_too_big': 0,
+                         'seq_err_too_small': 0},
             'unknown_tag': {'bytes': 0,
-                            'dup': 0,
-                            'ooo': 0,
-                            'pkts': 0,
-                            'seq_err': 0,
-                            'seq_err_too_big': 0,
-                            'seq_err_too_small': 0}}}}
+                            'pkts': 0}}}}
 ----
 
 In this case packets were received with *tag_id* = 201 only. 
@@ -4468,10 +4527,18 @@ Note that the stats in this case were compressed in 3 sections.
 * Section 2 - Tag 201
 * Section 3 - Tags 202-3999
 
-This Api also returns the next tag to start collecting from. In this case it returns 4000 since it collected all the data. But in case there were different stats for each tag, 
-we would have received only part of the stats we asked for.
+This Api also returns the next tag to start collecting from. In this case it returns 4000 since it collected all the data. But in case there were different stats for each tag, we would have received only part of the stats we asked for.
 
-===== Get TPG Tx Stats
+===== Clear TPG Stats
+
+Using almost the same parameters as Get TPG stats, we can clear the TPG stats. The API clears the stats for one collecting port, for one tpgid. You can provide either:
+
+* range of tags (using min, max)
+* a tag list
+
+Using the API you can also clear the stats for unknown and untagged entries too.
+
+===== Get/Clear TPG Tx Stats
 
 We can also collect the Tx statistics. This can be done on every port that TPG is enabled on, not only collecting ports.
 
@@ -4494,7 +4561,34 @@ Tx statistics are limited to the number of packets and number of bytes transmitt
 }
 ----
 
-===== Api Tutorial
+The same parameters we use to get the TPG Tx stats can be used to clear stats. It will clear the transmitted stats for a port, for a tpgid.
+
+===== Get/Clear TPG Unknown Tags
+
+A serious problem occurs when we receive traffic with unknown tags. The **unknown_tag** counters provide us information that traffic was received
+with an unknown tag. However, they don't tell us which tag this was. As such we don't know which tag to add to our mapping so that in the next iteration we won't have any unknown tags.
+
+In order to help the user easily locate the missing tags, we provide this API. When processing incoming packets, we maintain a list of at max 10 unknown tags. The list will store the first 10 unknown tags the packet processor matches. The list contains duplicates because it is easier to implement it this way. 
+
+NOTE: The list is kept per port.
+
+The output of the Api looks like this:
+
+.Unknown Tags
+[source, python]
+----
+{'1': [
+    {'tag': {'type': 'Dot1Q', 'value': {'vlan': 12}}, 'tpgid': 12},
+    {'tag': {'type': 'QinQ', 'value': {'vlans': [1, 100]}}, 'tpgid': 0},
+    {'tag': {'type': 'Dot1Q', 'value': {'vlan': 11}}, 'tpgid': 11}
+]}
+----
+
+In this output example, at port 1, we received 3 packets with unknown tags. These tags are Dot1Q(11), Dot1Q(12) and QinQ(1, 100). It also shows us with which tpgid each of these packets was received.
+
+Same as the previous API, you can clear the list of unknown tags in the server.
+
+===== Api Tutorial 1
 
 *Goal*:: Show an End to End use case of Tagged Packet Grouping.
 
@@ -4641,7 +4735,114 @@ Lastly, we enable TPG, start the streams and collect stats.
 <8> Verify the stats
 <9> Disable TPG
 
-=== Console Api
+===== Api Tutorial 2
+
+*Goal*:: Show an example how to update TPG tags.
+
+*File*:: link:{github_stl_examples_path}/tpg_tag_update_example.py[tpg_tag_update_example.py]
+
+The following example is presented here in a simplified form. See the file above for the full working example.
+
+First we enable TPG with a simple configuration of 3 tags as follows:
+
+[source, python]
+----
+    initial_tags = [                                                 # <1>
+        {
+            "type": "QinQ",
+            "value": {
+                "vlans": [1, 2]
+            }
+        },
+        {
+            "type": "Dot1Q",
+            "value": {
+                "vlan": 1
+            }
+        },
+        {
+            "type": "Dot1Q",
+            "value": {
+                "vlan": 2
+            }
+        }
+    ]
+
+    c.enable_tpg(num_tpgids=10, tags=initial_tags, rx_ports=[rx_port]) # <2>
+----
+<1> Initial tags are QinQ(1, 2), Dot1Q(1) and Dot1Q(2).
+<2> Enable TPG
+
+For example, now we want to invalidate Dot1Q(2) (stop collecting stats for it). Note that this tag, has **tag_id = 2**. We can do it like this:
+
+.Invalidate Tag Example
+[source, python]
+----
+    tags_to_update = [
+        {
+            "type": None,
+            "tag_id": 2
+        }
+    ]
+
+    c.update_tpg_tags(tags_to_update)
+----
+
+If we collect the tags from the server now, we will have the following output:
+
+.Tags after invalidation
+[source, python]
+----
+    print(c.get_tpg_tags())
+
+    [
+        {'type': 'QinQ', 'value': {'vlans': [1, 2]}},
+        {'type': 'Dot1Q', 'value': {'vlan': 1}},
+        None
+    ]
+----
+
+Now, suppose we want to change the **tag_id** of QinQ(1, 2) from 0 to 2. We can do it like this:
+
+.Change tag_id Example
+[source, python]
+----
+    tags_to_update = [
+        {
+            "type": None,               # <1>
+            "tag_id": 0
+        },
+        {
+            "type": "QinQ",             # <2>
+            "value": {
+                "vlans": [1, 2]
+            },
+            "tag_id": 2
+        },
+    ]
+
+    c.update_tpg_tags(tags_to_update)
+----
+<1> First we need to invalidate the QinQ(1, 2) tag at tag_id = 0.
+<2> Next we can add the QinQ(1, 2) tag at tag_id = 2.
+
+NOTE: You don't need to invalidate **tag_id=2** before putting a new tag there. In case a tag exists with this tag_id, it will replace it.
+
+Now if we collect the tags:
+
+.Tags after replacement
+[source, python]
+----
+    print(c.get_tpg_tags())
+
+    [
+        None,
+        {'type': 'Dot1Q', 'value': {'vlan': 1}},
+        {'type': 'QinQ', 'value': {'vlans': [1, 2]}}
+    ]
+----
+
+==== Console Api
 
 TPG can be used through the TRex-Console as well. Let us show how.
 
@@ -4651,7 +4852,7 @@ TPG can be used through the TRex-Console as well. Let us show how.
 $ sudo ./t-rex-64 -i --software
 ----
 
-==== TPG Status
+===== TPG Status
 
 From the console, we can see the status of TPG.
 
@@ -4664,8 +4865,7 @@ Tagged Packet Group is disabled
 
 By default TPG is disabled.
 
-
-==== Enable TPG
+===== Enable TPG
 
 We can enable the TPG using the following method:
 
@@ -4720,12 +4920,12 @@ For example:
 
 [source, bash]
 ----
-trex>tpg_enable --num-tpgids 20 --tags stl/tpg_tags_conf.py -t --min-vlan 1 --max-vlan 20
+trex>tpg_enable --num-tpgids 20 --tags stl/tpg_tags_conf.py -t --min-vlan 1 --max-vlan 10
 
 Enabling Tagged Packet Group                                 [SUCCESS]
 ----
 
-WARNING: Tunables are supported only in the shown format. Passing tunables in the *-t min-vlan=1,max-vlan=20* format is *not* supported.
+WARNING: Tunables are supported only in the shown format. Passing tunables in the *-t min-vlan=1,max-vlan=10* format is *not* supported.
 
 If we collect the status now:
 
@@ -4740,10 +4940,33 @@ Tagged Packet Group Data
 
 Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
 ---------+----------------+----------+-----------+---------
- user1   |     [0, 1]     |  [0, 1]  |    20     |    19
+ user1   |     [0, 1]     |  [0, 1]  |    20     |    10
 ----
 
-==== Start TPG Traffic
+===== Seeing the TPG Tags
+
+We can see the mapping between tags and their tag_id using:
+
+[source, bash]
+----
+trex>tpg_tags
+Tags (0-10)
+
+Tag Id | Tag Type
+-------+----------
+  0    | Dot1Q(1)
+  1    | Dot1Q(2)
+  2    | Dot1Q(3)
+  3    | Dot1Q(4)
+  4    | Dot1Q(5)
+  5    | Dot1Q(6)
+  6    | Dot1Q(7)
+  7    | Dot1Q(8)
+  8    | Dot1Q(9)
+  9    | Dot1Q(10)
+----
+
+===== Start TPG Traffic
 
 Same as with other STL profiles, TPG traffic can be applied through the traffic profiles.
 
@@ -4769,10 +4992,11 @@ Then you can start the profile through the console:
 
 [source, bash]
 ----
-trex>start -f stl/tpg_1tag_stream.py -t --burst-size 10 --pps 5 --vlans 19 --qinq
+trex>start -f stl/tpg_1tag_stream.py -t --burst-size 10 --pps 5 --vlans 10 --qinq #<1>
 ----
+<1> Note that we are sending some QinQ traffic but we have no QinQ tags.
 
-==== Collecting the Rx stats
+===== Collecting the Rx stats
 
 After the traffic starts, we can collect the Rx stats:
 
@@ -4787,10 +5011,10 @@ Show Tagged Packet Group Statistics
 optional arguments:
   -h, --help            show this help message and exit
 
-  -p PORT, --port PORT  Port that collects stats.
-  --tpgid TPGID         Tpgid for which we collect stats
-  --min-tag MIN_TAG     Min Tag for which we collect the stats. Defaults to 0.
-  --max-tag MAX_TAG     Max Tag for which we collect the stats.
+  -p PORT, --port PORT  Port to perform the action.
+  --tpgid TPGID         Tpgid for which we perform the action
+  --min-tag MIN_TAG     Min Tag for which we perform the action. Defaults to 0.
+  --max-tag MAX_TAG     Max Tag for which we perform the action.
   --unknown             Show Unknown Tag Stats. Defaults to False.
 ----
 
@@ -4798,18 +5022,83 @@ In this case:
 
 [source, bash]
 ----
-trex>tpg_stats -p 0 --tpgid 5 --max-tag 19 --unknown
-Port 0, Tpgid 5, Tags = [0, 18]
+trex>tpg_stats -p 0 --tpgid 5 --max-tag 10 --unknown --untagged
+Port 0, Tpgid 5, Tags = (0, 10)
 
-Tag Id  | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
---------+---------+-------+-----------+-------------+---------------+------------+-------------
-  0-4   |    0    |   0   |     0     |      0      |       0       |     0      |      0
-unknown |    0    |   0   |     0     |      0      |       0       |     0      |      0
-   5    |   10    |  780  |     0     |      0      |       0       |     0      |      0
- 6-18   |    0    |   0   |     0     |      0      |       0       |     0      |      0
+ Tag Id  | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
+---------+---------+-------+-----------+-------------+---------------+------------+-------------
+  5-9    |    0    |   0   |     0     |      0      |       0       |     0      |      0
+untagged |    0    |   0   |     0     |      0      |       0       |     0      |      0
+  0-3    |    0    |   0   |     0     |      0      |       0       |     0      |      0
+   4     |   10    |  780  |     0     |      0      |       0       |     0      |      0
+unknown  |    0    |   0   |     -     |      -      |       -       |     -      |      -
 ----
 
-==== Collecting the Tx stats
+For example, tpgid 0 sends a QinQ packet, but we didn't define a QinQ tag, as such:
+
+[source, bash]
+----
+trex>tpg_stats -p 0 --tpgid 0 --max-tag 10 --unknown --untagged
+Port 0, Tpgid 0, Tags = (0, 10)
+
+ Tag Id  | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
+---------+---------+-------+-----------+-------------+---------------+------------+-------------
+untagged |    0    |   0   |     0     |      0      |       0       |     0      |      0
+  0-9    |    0    |   0   |     0     |      0      |       0       |     0      |      0
+unknown  |   10    |  820  |     -     |      -      |       -       |     -      |      -
+----
+
+===== Clearing the Rx stats
+
+We can clear the Rx stats for a port, for a tpgid. We can do this using a range of tags or list of tags. For example:
+
+[source, bash]
+----
+trex>tpg_clear_stats -h
+usage: tpg_clear_stats [-h] -p PORT --tpgid TPGID [--min-tag MIN_TAG]
+                       [--max-tag MAX_TAG]
+                       [--tag-list TAG_LIST]
+                       [--unknown]
+                       [--untagged]
+
+Clear Tagged Packet Group Stats
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+  -p PORT, --port PORT  Port to perform the action.
+  --tpgid TPGID         Tpgid for which we perform the action
+  --min-tag MIN_TAG     Min Tag for which we perform the action. Defaults to 0.
+  --max-tag MAX_TAG     Max Tag for which we perform the action. Defaults to None
+  --tag-list TAG_LIST [TAG_LIST ...]
+                        List of Tags
+  --unknown             Show Unknown Tag Stats. Defaults to False.
+  --untagged            Show Untagged Stats. Defaults to False.
+----
+
+[source, bash]
+----
+trex>tpg_clear_stats -p 0 --tpgid 5 --tag-list 4                # <1>
+
+Clearing TPG stats                                           [SUCCESS]
+----
+<1> Note that for tpgid 5, the tag with active counters was 4.
+
+Now if we collect the stats again:
+
+[source, bash]
+----
+trex>tpg_stats -p 0 --tpgid 5 --max-tag 10 --unknown --untagged
+Port 0, Tpgid 5, Tags = (0, 10)
+
+ Tag Id  | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
+---------+---------+-------+-----------+-------------+---------------+------------+-------------
+untagged |    0    |   0   |     0     |      0      |       0       |     0      |      0
+  0-9    |    0    |   0   |     0     |      0      |       0       |     0      |      0
+unknown  |    0    |   0   |     -     |      -      |       -       |     -      |      -
+----
+
+===== Collecting the Tx stats
 
 After the traffic finishes, we can collect the Tx stats:
 
@@ -4823,8 +5112,8 @@ Show Tagged Packet Group Tx Statistics
 optional arguments:
   -h, --help            show this help message and exit
 
-  -p PORT, --port PORT  Port that collects stats.
-  --tpgid TPGID         Tpgid for which we collect stats
+  -p PORT, --port PORT  Port to perform the action.
+  --tpgid TPGID         Tpgid for which we perform the action.
 ----
 
 In this case, we will collect Tx stats in port *1* since we collected Rx stats in port *0*:
@@ -4839,7 +5128,146 @@ Packets | Bytes
   10    |  780
 ----
 
-==== Disable TPG
+===== Clearing the Tx stats
+
+We can clear the Tx stats in the same way:
+
+[source, bash]
+----
+trex>tpg_clear_tx_stats -h
+usage: tpg_clear_tx_stats [-h] -p PORT --tpgid TPGID
+
+Clear Tagged Packet Group Tx Stats
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+  -p PORT, --port PORT  Port to perform the action.
+  --tpgid TPGID         Tpgid for which we perform the action.
+----
+
+[source, bash]
+----
+trex>tpg_clear_tx_stats -p 1 --tpgid 5
+
+Clearing TPG Tx stats                                        [SUCCESS]
+----
+
+If we collect again:
+
+[source, bash]
+----
+trex>tpg_tx_stats -p 1 --tpgid 5
+Port 1, Tpgid 5
+
+Packets | Bytes
+--------+------
+   0    |   0
+----
+
+===== Unknown Tags
+
+As we mentioned before, we transmitted a QinQ packet with tpgid 0. However we didn't add any QinQ tag when we enabled TPG. As such this tag is considered unknown. We can see a partial list of unknown tags using the following command:
+
+[source, bash]
+----
+trex>tpg_show_unknown_tags -p 0
+Port 0 Unknown Tags
+
+tpgid |     Type
+------+-------------
+  0   | QinQ(1, 100)
+----
+
+Now that we saw which tag is missing we can clear the list of unknown tags because it is limited in size.
+
+[source, bash]
+----
+trex>tpg_clear_unknown_tags -p 0
+
+Clearing TPG unknown tags                                    [SUCCESS]
+
+trex>tpg_show_unknown_tags -p 0
+
+No unknown tags found in port 0.
+----
+
+===== Updating Tags
+
+Let us add the tag that is missing. We can do so with the following command:
+
+[source, bash]
+----
+trex>tpg_update -h
+usage: tpg_tags [-h] --type {Dot1Q,QinQ,Invalidate}
+                [--value VALUE ] --tag_id TAG_ID [--clear]
+
+Show Tagged Packet Group Tags
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+  --type {Dot1Q,QinQ,Invalidate}
+                        Type of the new tag
+  --value VALUE [VALUE ...]
+                        Value for the new tag.
+  --tag_id TAG_ID       Tag Identifier to change
+  --clear               Clear TPG stats for tag
+----
+
+[source, bash]
+----
+trex>tpg_update --type QinQ --value 1 100 --tag_id 0 --clear     # <1>
+
+Updating Tagged Packet Group Tags                            [SUCCESS]
+----
+<1> Add the QinQ(1, 100) tag that was missing. Clear the stats for tag id 0.
+
+Now we can see the tags again:
+
+[source, bash]
+----
+trex>tpg_tags
+Tags (0-10)
+
+Tag Id |   Tag Type
+-------+-------------
+  0    | QinQ(1, 100)
+  1    |   Dot1Q(2)
+  2    |   Dot1Q(3)
+  3    |   Dot1Q(4)
+  4    |   Dot1Q(5)
+  5    |   Dot1Q(6)
+  6    |   Dot1Q(7)
+  7    |   Dot1Q(8)
+  8    |   Dot1Q(9)
+  9    |  Dot1Q(10)
+----
+
+Now if we send traffic again with QinQ:
+[source, bash]
+----
+trex>start -f stl/tpg_1tag_stream.py -t --burst-size 10 --pps 5 --vlans 10 --qinq
+----
+
+[source, bash]
+----
+trex>tpg_stats -p 0 --tpgid 0 --max-tag 10 --unknown --untagged
+Port 0, Tpgid 0, Tags = (0, 10)
+
+ Tag Id  | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates | Out of Order
+---------+---------+-------+-----------+-------------+---------------+------------+-------------
+   0     |   10    |  820  |    10     |      1      |       0       |     0      |      0
+untagged |    0    |   0   |     0     |      0      |       0       |     0      |      0
+  1-9    |    0    |   0   |     0     |      0      |       0       |     0      |      0
+unknown  |   10    |  820  |     -     |      -      |       -       |     -      |      -
+----
+
+We see that now the packets are classified with tag_id 0, instead of unknown. The reason the unknown stats are not empty, is because we didn't clear.
+
+WARNING: As you can see the Seq Error counter is not 0. The reason is that the newly added QinQ counter expects to receive the first packet with sequence 0, however tpgid 0 in Tx side has already sent 10 packets, so it will send with sequence 10.
+
+===== Disable TPG
 
 Disabling TPG is as easy as follows:
 
@@ -4854,7 +5282,7 @@ trex>tpg_status
 Tagged Packet Group is disabled
 ----
 
-==== Multiple Users Support
+===== Multiple Users Support
 
 TPG works on an user basis. We will understand this best through an example.
 
@@ -4957,7 +5385,7 @@ Username | Acquired Ports | Rx Ports | Num TPGId | Num Tags
  user2   |     [1, 2]     |  [1, 2]  |    10     |    9
 ----
 
-Statistics can be collected by any user for any port that collects TPG stats. For example *user1* can get the statistics of port 2 even if this is not owned by him:
+Statistics can be collected and cleared by any user for any port that collects TPG stats. For example *user1* can get the statistics of port 2 even if this is not owned by him:
 
 [source, bash]
 ----
@@ -4984,6 +5412,8 @@ Tag Id | Packets | Bytes | Seq Error | Seq Too Big | Seq Too Small | Duplicates 
 -------+---------+-------+-----------+-------------+---------------+------------+-------------
   0    |    0    |   0   |     0     |      0      |       0       |     0      |      0
 ----
+
+A user can see the tags (unknown tags too) of another user, however he can't update them.
 
 ===== Changing Port Ownership
 

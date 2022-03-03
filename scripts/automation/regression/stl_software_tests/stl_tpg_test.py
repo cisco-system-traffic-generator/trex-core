@@ -337,7 +337,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             self.c.disable_tpg()
 
     ################################################################
-    # Test Api Sanity in invalid cases
+    # Test Api Sanity
     ################################################################
     def test_tpg_api_invalid(self):
         """
@@ -401,7 +401,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
 
         self.c.disable_tpg()
 
-    def test_tpg_unknown_tags(self,):
+    def test_tpg_unknown_tags(self):
         num_tags = 10 # Dot1Q(1) to Dot1Q(10)
         num_tpgids = 15
         tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
@@ -450,6 +450,313 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
         port_unknown_tags = unknown_tags.get(str(rx_port), None)
         assert port_unknown_tags is not None, "Unknown Tags not found for port {}".format(rx_port)
         assert len(port_unknown_tags) == 0, "Unknown Tags not empty after clear."
+
+        self.c.disable_tpg()
+
+    def test_tpg_tag_mgr_no_traffic(self):
+        num_tags = 10 # Dot1Q(1) to Dot1Q(10)
+        num_tpgids = 15
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        tags = self.get_tpg_tags(qinq=False, max_tag=num_tags+1)
+
+        # acquire ports
+        self.c.reset(ports=[tx_port, rx_port])
+
+        # enable tpg
+        self.c.enable_tpg(num_tpgids=num_tpgids, tags=tags, rx_ports=[rx_port])
+
+        have = self.c.get_tpg_tags()
+
+        want = []
+        for i in range(1, num_tags+1):
+            want.append(
+                {
+                    "type": "Dot1Q",
+                    "value": {
+                        "vlan": i
+                    }
+                }
+        )
+
+        assert want == have, "\n Want: {}\n, Have: {}\n".format(pformat(want), pformat(have))
+
+        qinq_tag = {
+            "type": "QinQ",
+            "value": {
+                    "vlans": [2, 3]
+            }
+        }
+
+        new_tags = [
+            {
+                "type": qinq_tag["type"],
+                "value": qinq_tag["value"],
+                "tag_id": 8
+            },
+            {
+                "type": None,
+                "tag_id": 9
+            }
+        ]
+
+        want[new_tags[0]["tag_id"]] = qinq_tag
+        want[new_tags[1]["tag_id"]] = None
+
+        self.c.update_tpg_tags(new_tags)
+
+        have = self.c.get_tpg_tags()
+
+        assert want == have, "\n Want: {}\n, Have: {}\n".format(pformat(want), pformat(have))
+
+
+        vlan = 3
+        dot1q_tag = {
+            "type": "Dot1Q",
+            "value": {
+                "vlan": vlan
+            }
+        }
+
+        new_tags = [
+            {
+                "type": None,
+                "tag_id": vlan - 1 , # Invalidate Dot1Q(vlan)
+            },
+            {
+                "type": dot1q_tag["type"],      # Re instate in on the same run
+                "value": dot1q_tag["value"],
+                "tag_id": 9
+            }
+        ]
+
+        want[vlan-1] = None
+        want[new_tags[1]["tag_id"]] = dot1q_tag
+
+        self.c.update_tpg_tags(new_tags)
+
+        have = self.c.get_tpg_tags()
+
+        assert want == have, "\n Want: {}\n, Have: {}\n".format(pformat(want), pformat(have))
+
+        self.c.disable_tpg()
+
+    def test_tpg_tag_mgr_with_traffic(self):
+        num_tags = 10 # Dot1Q(1) to Dot1Q(10)
+        num_tpgids = 15
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        tags = self.get_tpg_tags(qinq=False, max_tag=num_tags+1)
+
+        streams = self.get_streams(1, 1, qinq=False, vlans=num_tags, pkt_size=100) # one packet but num_tpgids streams
+
+        # acquire ports
+        self.c.reset(ports=[tx_port, rx_port])
+
+        # enable tpg
+        self.c.enable_tpg(num_tpgids=num_tpgids, tags=tags, rx_ports=[rx_port])
+
+        # start the traffic - tpgid i has counters only on tag i.
+        self.tpg_iteration(tx_ports=[tx_port], rx_ports=[rx_port], streams=streams, num_tags=num_tags, burst_size=1, untagged=False, verbose=False)
+
+        ####################################################################
+        #  Invalidate the last tag without clearing the stats
+        ####################################################################
+        last_tag = num_tags - 1
+        new_tag = {
+            "type": None,
+            "tag_id": last_tag
+        }
+
+        self.c.update_tpg_tags([new_tag])
+
+        rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=last_tag, min_tag=0, max_tag=num_tags)[0]
+
+        port_stats = rx_stats.get(str(rx_port), None)
+        assert port_stats is not None, "Failed getting port stats. Rx Stats {}".format(pformat(rx_stats))
+
+        tpgid_stats = port_stats.get(str(last_tag), None)
+        assert tpgid_stats is not None, "Failed getting tpgid stats. Port Stats {}".format(pformat(port_stats))
+
+        want = {
+        '0-8': {'bytes': 0,
+                'dup': 0,
+                'ooo': 0,
+                'pkts': 0,
+                'seq_err': 0,
+                'seq_err_too_big': 0,
+                'seq_err_too_small': 0},
+        '9': {'bytes': 104,
+                'dup': 0,
+                'ooo': 0,
+                'pkts': 1,
+                'seq_err': 0,
+                'seq_err_too_big': 0,
+                'seq_err_too_small': 0}
+        }
+
+        assert tpgid_stats == want, "Invalid stats, want {}, have {}".format(pformat(want), pformat(tpgid_stats))
+
+        ####################################################################
+        #  Add QinQ as the last tag and clear the stats
+        ####################################################################
+
+        qinq_tag =  {
+                    "type": "QinQ",
+                    "value": {
+                        "vlans": [TaggedPacketGroup_Test.QINQ_INNER_VLAN, TaggedPacketGroup_Test.QINQ_OUTTER_VLAN]
+                    },
+                    "tag_id": last_tag
+                }
+
+        self.c.update_tpg_tags([qinq_tag], clear=True)
+
+        rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=last_tag, min_tag=0, max_tag=num_tags)[0]
+
+        port_stats = rx_stats.get(str(rx_port), None)
+        assert port_stats is not None, "Failed getting port stats. Rx Stats {}".format(pformat(rx_stats))
+
+        tpgid_stats = port_stats.get(str(last_tag), None)
+        assert tpgid_stats is not None, "Failed getting tpgid stats. Port Stats {}".format(pformat(port_stats))
+
+        want = {
+        '0-9': {'bytes': 0,
+                'dup': 0,
+                'ooo': 0,
+                'pkts': 0,
+                'seq_err': 0,
+                'seq_err_too_big': 0,
+                'seq_err_too_small': 0},
+        }
+
+        assert tpgid_stats == want, "Invalid stats, want {}, have {}".format(pformat(want), pformat(tpgid_stats))
+
+        ####################################################################
+        #  Send QinQ traffic
+        ####################################################################
+
+        streams = self.get_streams(1, 1, qinq=True, vlans=0, pkt_size=200)  # note that this goes with tpgid 0
+
+        # add the streams
+        self.c.add_streams(streams, ports=[tx_port])
+
+        # start the traffic
+        self.c.start(ports=[tx_port], force=True)
+
+        # Wait for packets to arrive and get parsed by Rx
+        self.wait_for_packets(ports=[tx_port, rx_port])
+
+        self.c.remove_all_streams()
+
+        rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=0, min_tag=0, max_tag=num_tags)[0]
+
+        port_stats = rx_stats.get(str(rx_port), None)
+        assert port_stats is not None, "Failed getting port stats. Rx Stats {}".format(pformat(rx_stats))
+
+        tpgid_stats = port_stats.get('0', None)
+        assert tpgid_stats is not None, "Failed getting tpgid stats. Port Stats {}".format(pformat(port_stats))
+
+        tag_stats = tpgid_stats.get(str(last_tag), None)
+        assert tag_stats is not None, "Failed getting tag stats. Tpgid Stats {}".format(pformat(tpgid_stats))
+
+        want = {
+            'bytes': 204,
+            'dup': 0,
+            'ooo': 0,
+            'pkts': 1,
+            'seq_err': 1,
+            'seq_err_too_big': 1,       # Sequence is not cleared in DP!
+            'seq_err_too_small': 0
+        }
+
+        assert tag_stats == want, "Invalid stats, want {}, have {}".format(pformat(want), pformat(tag_stats))
+
+        self.c.disable_tpg()
+
+    def test_tpg_tag_mgr_large(self):
+        num_tags = 500 # Dot1Q(1) to Dot1Q(500)
+        num_tpgids = 20000
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        tags = self.get_tpg_tags(qinq=False, max_tag=num_tags+1)
+
+        # acquire ports
+        self.c.reset(ports=[tx_port, rx_port])
+
+        # enable tpg
+        self.c.enable_tpg(num_tpgids=num_tpgids, tags=tags, rx_ports=[rx_port])
+
+        have = self.c.get_tpg_tags()
+
+        want = []
+        for i in range(1, num_tags+1):
+            want.append(
+                {
+                    "type": "Dot1Q",
+                    "value": {
+                        "vlan": i
+                    }
+                }
+        )
+
+        assert want == have, "\n Want: {}\n, Have: {}\n".format(pformat(want), pformat(have))
+
+        new_tags = []
+        for i in range(1, num_tags + 1):
+            new_tags.append(
+            {
+                "type": "Dot1Q",
+                "value": {
+                    "vlan": num_tags + i,
+                },
+                "tag_id": i - 1
+            })
+
+        self.c.update_tpg_tags(new_tags, clear=True)
+
+        have = self.c.get_tpg_tags()
+
+        want = []
+        for i in range(1, num_tags+1):
+            want.append(
+                {
+                    "type": "Dot1Q",
+                    "value": {
+                        "vlan": num_tags + i
+                    }
+                }
+        )
+
+        assert want == have, "\n Want: {}\n, Have: {}\n".format(pformat(want), pformat(have))
+
+        self.c.disable_tpg()
+
+    def test_tpg_get_tags(self):
+        # Verify we can send and receive a large amount of tags from the server.
+        num_tags = 4000 # 4000 tags
+        multiplier = 5 # multiplied by 5 -> 20k tags in total (larger than this will fail)
+        num_tpgids = 200
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+
+        tags = []
+        for i in range(1, multiplier+1):
+            for tag in range(1, num_tags+1):
+                tags.append(
+                    {
+                        "type": "QinQ",
+                        "value": {
+                            "vlans": [i, tag]
+                        }
+                    }
+                )
+
+
+        # acquire ports
+        self.c.reset(ports=[tx_port, rx_port])
+
+        # enable tpg
+        self.c.enable_tpg(num_tpgids=num_tpgids, tags=tags, rx_ports=[rx_port])
+
+        self.c.get_tpg_tags()
+
+        self.c.disable_tpg()
 
     ################################################################
     # Enable Disable Test.
@@ -678,6 +985,130 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
             tpgid_passed, msg = self.verify_stream_stats(rx_stats, tx_stats, rx_port, tx_port, 0, 0, tpgid, False)
 
             assert tpgid_passed, msg
+
+        self.c.disable_tpg()
+
+    def test_clear_stats_list(self):
+        # Vlan 1 -> Tag 0
+        # Vlan 2 -> Tag 1
+        # Vlan 3 -> Tag 2
+        num_streams = 3
+        pps = 100 # 100
+        longevity = 5  # 5 seconds
+        burst_size = pps * longevity
+        tx_port, rx_port = CTRexScenario.ports_map['bi'][0]
+        self._single_burst_skeleton(rx_ports=[rx_port], tx_ports=[tx_port], burst_size=burst_size, pps=pps, 
+                                    qinq=False, vlans=num_streams, warmup=False, untagged=False, disable=False)
+
+        tpgid = 0
+        exp = {
+        '0': { 'bytes': 39000,
+               'dup': 0,
+               'ooo': 0,
+               'pkts': 500,
+               'seq_err': 0,
+               'seq_err_too_big': 0,
+               'seq_err_too_small': 0},
+        '1-2': {'bytes': 0,
+                'dup': 0,
+                'ooo': 0,
+                'pkts': 0,
+                'seq_err': 0,
+                'seq_err_too_big': 0,
+                'seq_err_too_small': 0}
+        }
+
+        rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=tpgid, min_tag=0, max_tag=num_streams, max_sections=num_streams, untagged=False)[0]
+        port_stats = rx_stats.get(str(rx_port), None)
+        assert port_stats is not None, "Failed getting port stats. Rx Stats {}".format(pformat(rx_stats))
+
+        tpgid_stats = port_stats.get(str(tpgid), None)
+        assert tpgid_stats is not None, "Failed getting tpgid stats. Port Stats {}".format(pformat(port_stats))
+
+        assert tpgid_stats == exp, "Invalid stats, want {}, have {}".format(pformat(exp), pformat(tpgid_stats))
+
+        ####################################################################
+        # Send Vlan 3 (Tag 2) in tpgid 0. This will have sequence errors,
+        # since the expected sequence in rx = 0, but in tx = 500
+        ####################################################################
+        vlan = 3
+        pkt = Ether()/Dot1Q(vlan=3)/IP(src="16.0.0.1", dst="48.0.0.1")/UDP(dport=12, sport=1025)/'at_least_16_bytes_are_needed'
+        pkt = STLPktBuilder(pkt=pkt)
+
+        streams = []
+        streams.append(STLStream(name="vlan_{}".format(vlan),
+                        packet=pkt,
+                        flow_stats=STLTaggedPktGroup(tpgid=tpgid),
+                        mode=STLTXSingleBurst(total_pkts=100,
+                                            pps=pps)))
+
+
+        self.c.add_streams(streams, ports=[tx_port])
+
+        # start the traffic
+        self.c.start(ports=[tx_port], force=True)
+
+        # Wait for packets to arrive and get parsed by Rx
+        self.wait_for_packets(ports=[tx_port, rx_port])
+
+        self.c.remove_all_streams()
+
+        rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=tpgid, min_tag=0, max_tag=num_streams, max_sections=num_streams, untagged=False)[0]
+        port_stats = rx_stats.get(str(rx_port), None)
+        assert port_stats is not None, "Failed getting port stats. Rx Stats {}".format(pformat(rx_stats))
+
+        tpgid_stats = port_stats.get(str(tpgid), None)
+        assert tpgid_stats is not None, "Failed getting tpgid stats. Port Stats {}".format(pformat(port_stats))
+
+        exp = {
+        '0': {'bytes': 39000,
+              'dup': 0,
+              'ooo': 0,
+              'pkts': 500,
+              'seq_err': 0,
+              'seq_err_too_big': 0,
+              'seq_err_too_small': 0},
+        '1': {'bytes': 0,
+             'dup': 0,
+             'ooo': 0,
+             'pkts': 0,
+             'seq_err': 0,
+             'seq_err_too_big': 0,
+             'seq_err_too_small': 0},
+        '2': {'bytes': 7800,
+              'dup': 0,
+              'ooo': 0,
+              'pkts': 100,
+              'seq_err': 500,
+              'seq_err_too_big': 1,
+              'seq_err_too_small': 0}
+        }
+
+        assert tpgid_stats == exp, "Invalid stats, want {}, have {}".format(pformat(exp), pformat(tpgid_stats))
+
+        ####################################################################
+        # Clear Tag 0 and Tag 2
+        ####################################################################
+        self.c.clear_tpg_stats(port=rx_port, tpgid=tpgid, tag_list=[0, 2])
+
+        rx_stats = self.c.get_tpg_stats(port=rx_port, tpgid=tpgid, min_tag=0, max_tag=num_streams, max_sections=num_streams, untagged=False)[0]
+        port_stats = rx_stats.get(str(rx_port), None)
+        assert port_stats is not None, "Failed getting port stats. Rx Stats {}".format(pformat(rx_stats))
+
+        tpgid_stats = port_stats.get(str(tpgid), None)
+        assert tpgid_stats is not None, "Failed getting tpgid stats. Port Stats {}".format(pformat(port_stats))
+
+        exp = {
+        '0-2': {'bytes': 0,
+             'dup': 0,
+             'ooo': 0,
+             'pkts': 0,
+             'seq_err': 0,
+             'seq_err_too_big': 0,
+             'seq_err_too_small': 0},
+        }
+
+        assert tpgid_stats == exp, "Invalid stats, want {}, have {}".format(pformat(exp), pformat(tpgid_stats))
 
         self.c.disable_tpg()
 
