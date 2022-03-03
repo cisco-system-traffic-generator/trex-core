@@ -767,7 +767,7 @@ class OPTIONS_DB_ARGS:
         ['--force'],
         {"action": "store_true",
          'default': False,
-         'help': "Set if you want to stop active ports before appyling command."})
+         'help': "Set if you want to stop active ports before applying command."})
 
     LOOPBACK = ArgumentPack(
         ['--loopback'],
@@ -846,7 +846,7 @@ class OPTIONS_DB_ARGS:
         ['-r', '--remote'],
         {"action": "store_true",
          'default': False,
-         'help': "file path should be interpeted by the server (remote file)"})
+         'help': "file path should be interpreted by the server (remote file)"})
 
     DUAL = ArgumentPack(
         ['--dual'],
@@ -906,7 +906,7 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'dest': 'sync',
          'default': False,
-         'help': 'Run the traffic with syncronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'})
+         'help': 'Run the traffic with synchronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'})
 
     XTERM = ArgumentPack(
         ['-x', '--xterm'],
@@ -1049,7 +1049,7 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'dest': 'pin_cores',
          'default': False,
-         'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"})
+         'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boost for symmetric profiles)"})
 
     CORE_MASK = ArgumentPack(
         ['--core_mask'],
@@ -1654,7 +1654,7 @@ class OPTIONS_DB_ARGS:
     # Tagged Packet Group
     TPG_PORT = ArgumentPack(
         ['-p', '--port'],
-        {'help': 'Port that collects stats.',
+        {'help': 'Port to perform the action.',
          'dest': 'port',
          'required': True,
          'action': action_check_min_max(),
@@ -1671,7 +1671,7 @@ class OPTIONS_DB_ARGS:
 
     TPG_ID = ArgumentPack(
         ['--tpgid'],
-        {'help': 'Tpgid for which we collect stats',
+        {'help': 'Tpgid for which we perform the action.',
          'dest': 'tpgid',
          'required': True,
          'action': action_check_min_max(),
@@ -1679,7 +1679,7 @@ class OPTIONS_DB_ARGS:
 
     TPG_MIN_TAG = ArgumentPack(
         ['--min-tag'],
-        {'help': 'Min Tag for which we collect the stats. Defaults to 0.',
+        {'help': 'Min Tag for which we perform the action. Defaults to 0.',
          'dest': 'min_tag',
          'required': False,
          'default': 0,
@@ -1688,11 +1688,32 @@ class OPTIONS_DB_ARGS:
 
     TPG_MAX_TAG = ArgumentPack(
         ['--max-tag'],
-        {'help': 'Max Tag for which we collect the stats.',
+        {'help': 'Max Tag for which we perform the action.',
          'dest': 'max_tag',
          'required': True,
          'action': action_check_min_max(),
          'min_val': 0})
+
+    TPG_MAX_TAG_NOT_REQ = ArgumentPack(
+        ['--max-tag'],
+        {'help': 'Max Tag for which we perform the action. Defaults to None',
+         'dest': 'max_tag',
+         'required': False,
+         'default': None,
+         'type': int
+        }
+    )
+
+    TPG_TAG_LIST = ArgumentPack(
+        ["--tag-list"],
+        {"help": "List of Tags.",
+         "dest": "tag_list",
+         "required": False,
+         "default": None,
+         "type": int,
+         "nargs": "+"
+        }
+    )
 
     TPG_UNKNOWN_TAG = ArgumentPack(
         ['--unknown'],
@@ -1710,7 +1731,7 @@ class OPTIONS_DB_ARGS:
 
     TPG_NUM_TPGIDS = ArgumentPack(
         ["--num-tpgids"],
-        {'help': "Number of Tagged Packet Groups",
+        {'help': "Number of Tagged Packet Groups.",
          'dest': "num_tpgids",
          'required': True,
          'action': action_check_min_max(),
@@ -1719,7 +1740,7 @@ class OPTIONS_DB_ARGS:
 
     TPG_TAGS_CONF = ArgumentPack(
         ["--tags"],
-        {'help': "Json/Python file of TPG Tag Configuration",
+        {'help': "Json/Python file of TPG Tag Configuration.",
          'dest': "tags_conf",
          'required': True,
          'type': is_valid_file})
@@ -1732,6 +1753,45 @@ class OPTIONS_DB_ARGS:
          "type": str,
         }
     )
+
+    TPG_TAG_TYPE = ArgumentPack(
+        ["--type"],
+        {"help": "Type of the new tag.",
+         "dest": "tag_type",
+         "choices": ["Dot1Q", "QinQ", "Invalidate"],
+         "type": str,
+         "required": True
+        }
+    )
+
+    TPG_TAG_VALUE = ArgumentPack(
+        ["--value"],
+        {"help": "Value for the new tag.",
+         "dest": "value",
+         "type": int,
+         "required": False,     # Not required in case of invalidate, we will ensure in code it is provided otherwise.
+         "default": None,
+         "nargs": "+"
+        }
+    )
+
+    TPG_TAG_ID = ArgumentPack(
+        ["--tag_id"],
+        {"help": "Tag Identifier to change.",
+         "dest": "tag_id",
+         "type": int,
+         "required": True,
+        }
+    )
+
+    TPG_CLEAR = ArgumentPack(
+        ["--clear"],
+        {"help": "Clear TPG stats for tag.",
+         "dest": "clear",
+         "action": "store_true"
+        }
+    )
+
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1830,6 +1890,19 @@ class OPTIONS_DB_GROUPS:
         ],
         {})
 
+    TPG_STL_CLEAR_STATS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORT,
+            TPG_ID,
+            TPG_MIN_TAG,
+            TPG_MAX_TAG_NOT_REQ,
+            TPG_TAG_LIST,
+            TPG_UNKNOWN_TAG,
+            TPG_UNTAGGED,
+        ],
+        {})
+
     TPG_STL_TX_STATS = ArgumentGroup(
         NON_MUTEX,
         [
@@ -1845,6 +1918,16 @@ class OPTIONS_DB_GROUPS:
             TPG_NUM_TPGIDS,
             TPG_TAGS_CONF,
             ARGPARSE_TUNABLES,
+        ],
+        {})
+
+    TPG_UPDATE = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_TAG_TYPE,
+            TPG_TAG_VALUE,
+            TPG_TAG_ID,
+            TPG_CLEAR,
         ],
         {})
 

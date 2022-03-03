@@ -27,7 +27,7 @@ class TPGTagConf():
                 "value": {
                     "vlan": i
                 }
-            } for i in range(args.min_vlan, args.max_vlan)]
+            } for i in range(args.min_vlan, args.max_vlan + 1)]
         return tpg_conf
 
 

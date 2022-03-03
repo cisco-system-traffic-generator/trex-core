@@ -775,6 +775,28 @@ void CRxCore::disable_tpg_ctx(const std::string& username) {
     tpg_rx_ctx->deallocate();            // Start deallocating in another thread
 }
 
+bool CRxCore::update_tpg_ctx_tags(const std::string& username, PacketGroupTagMgr* tag_mgr) {
+    if (!tpg_ctx_exists(username)) {
+        // TPG context doesn't exist for this user.
+        return false;
+    }
+
+    TPGRxCtx* tpg_rx_ctx = m_tpg_ctx[username];
+    assert(tpg_rx_ctx);
+
+    // Update in Context.
+    PacketGroupTagMgr* new_tag_mgr = tpg_rx_ctx->update_tag_mgr(tag_mgr);
+
+    // Distribute to ports.
+    const std::vector<uint8_t>& rx_ports_vec = tpg_rx_ctx->get_rx_ports();
+    for (uint8_t port: rx_ports_vec) {
+        RxTPGPerPort* rx_tpg = m_rx_port_mngr_vec[port]->get_rx_tpg();
+        assert(rx_tpg);
+        rx_tpg->set_tag_mgr(new_tag_mgr); // Set the pointer to the new allocated tag manager in Rx.
+    }
+    return true;
+}
+
 bool CRxCore::handle_tpg_threads() {
     /**
      * NOTE: Called by the scheduler periodically if there is an allocating/deallocating thread working.
@@ -841,11 +863,20 @@ void CRxCore::get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid,
     rx_tpg->get_tpg_stats(port_stats, tpgid, min_tag, max_tag, unknown_tag, untagged);
 }
 
+void CRxCore::clear_tpg_stats(uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list) {
+    RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
+    rx_tpg->clear_tpg_stats(min_tpgid, max_tpgid, tag_list);
+}
+
+void CRxCore::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged) {
+    RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
+    rx_tpg->clear_tpg_stats(tpgid, tag_list, unknown_tag, untagged);
+}
+
 void CRxCore::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
     RxTPGPerPort* rx_tpg = m_rx_port_mngr_map[port_id]->get_rx_tpg(); // This is not nullptr, validated that we are collecting on this port.
     rx_tpg->clear_tpg_stats(tpgid, min_tag, max_tag, unknown_tag, untagged);
 }
-
 
 void CRxCore::get_tpg_unknown_tags(Json::Value& tags, uint8_t port_id) {
     tags[std::to_string(port_id)] = Json::arrayValue;

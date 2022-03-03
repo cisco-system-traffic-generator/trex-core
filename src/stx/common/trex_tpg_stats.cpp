@@ -290,21 +290,45 @@ void RxTPGPerPort::get_tpg_stats(Json::Value& stats, uint32_t tpgid, uint16_t mi
     }
 }
 
+void RxTPGPerPort::clear_tpg_stats(uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list) {
+    // Tags are already validated in CP.
+    for (uint32_t tpgid = min_tpgid; tpgid < max_tpgid; tpgid++) {
+        for (uint16_t tag : tag_list) {
+            memset(static_cast<void*>(get_tag_cntr(tpgid, tag)), 0, sizeof(CTPGTagCntr));
+        }
+    }
+}
+
+void RxTPGPerPort::clear_tpg_stats(uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged) {
+    // Tags are already validated in CP.
+    for (uint16_t tag : tag_list) {
+        memset(static_cast<void*>(get_tag_cntr(tpgid, tag)), 0, sizeof(CTPGTagCntr));
+    }
+
+    if (untagged) {
+        memset(static_cast<void*>(get_untagged_cntr(tpgid)), 0, sizeof(CTPGTagCntr));
+    }
+
+    if (unknown_tag) {
+        memset(static_cast<void*>(get_unknown_tag_cntr(tpgid)), 0, sizeof(CTPGTagCntr));
+    }
+}
+
+
 void RxTPGPerPort::clear_tpg_stats(uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
     // Min - Max Tags are already validated in Control Plane.
     if (max_tag > min_tag) {
         // There can be a corner case where use wants to clear only unknown or untagged, in this case he will provide min_tag = max_tag.
-        memset(get_tag_cntr(tpgid, min_tag), 0, sizeof(CTPGTagCntr) * (max_tag - min_tag));
+        memset(static_cast<void*>(get_tag_cntr(tpgid, min_tag)), 0, sizeof(CTPGTagCntr) * (max_tag - min_tag));
     }
 
     if (untagged) {
-        memset(get_untagged_cntr(tpgid), 0, sizeof(CTPGTagCntr));
+        memset(static_cast<void*>(get_untagged_cntr(tpgid)), 0, sizeof(CTPGTagCntr));
     }
 
     if (unknown_tag) {
-        memset(get_unknown_tag_cntr(tpgid), 0, sizeof(CTPGTagCntr));
+        memset(static_cast<void*>(get_unknown_tag_cntr(tpgid)), 0, sizeof(CTPGTagCntr));
     }
-
 }
 
 void RxTPGPerPort::get_tpg_unknown_tags(Json::Value& tags) {
@@ -340,6 +364,12 @@ TPGRxCtx::~TPGRxCtx() {
     delete m_thread;    // Delete detached thread
     delete m_tag_mgr;   // Remove the clone
     free(m_cntrs);      // Free the counters if needed
+}
+
+PacketGroupTagMgr* TPGRxCtx::update_tag_mgr(PacketGroupTagMgr* tag_mgr) {
+    delete m_tag_mgr;                               // Release the old one.
+    m_tag_mgr = new PacketGroupTagMgr(tag_mgr);     // Clone the new one.
+    return m_tag_mgr;
 }
 
 void TPGRxCtx::allocate() {

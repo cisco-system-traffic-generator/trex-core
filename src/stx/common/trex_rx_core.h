@@ -206,6 +206,20 @@ protected:
     void disable_tpg_ctx(const std::string& username);
 
     /**
+     * Update the tags for a Tagged Packet Group Packet Context.
+     *
+     * @param username
+     *   Username whose context we are updating.
+     *
+     * @param tag_mgr
+     *   Updated Tag Manager in CP to clone.
+     *
+     * @return bool
+     *   Success indicator.
+     **/
+    bool update_tpg_ctx_tags(const std::string& username, PacketGroupTagMgr* tag_mgr);
+
+    /**
      * Get Tagged Packet Group Statistics
      *
      * @param stats
@@ -232,7 +246,44 @@ protected:
     void get_tpg_stats(Json::Value& stats, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
 
     /**
-     * Get Tagged Packet Group Statistics
+     * Clear Tagged Packet Group Statistics
+     *
+     * @param port_id
+     *   Port on which we clear the stats
+     *
+     * @param min_tpgid
+     *   Minimal Tagged Packet Group Identifier for which we clear the stats
+     *
+     * @param max_tpgid
+     *   Minimal Tagged Packet Group Identifier for which we clear the stats
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list);
+
+    /**
+     * Clear Tagged Packet Group Statistics
+     *
+     * @param port_id
+     *   Port on which we clear the stats
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier for which we clear the stats
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     *
+     * @param unknown_tag
+     *   Clear the stats of the unknown tag too.
+     *
+     * @param untagged
+     *   Clear the stats of the untagged too.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged);
+
+    /**
+     * Clear Tagged Packet Group Statistics
      *
      * @param port_id
      *   Port on which we clear the stats
