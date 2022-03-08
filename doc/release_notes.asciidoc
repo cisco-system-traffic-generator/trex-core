@@ -34,7 +34,8 @@ endif::backend-docbook[]
 *** The new TCP logic has some effect on performance (usually slower, depends on the scenario)
 *** The behavior in case of drop scenario expected to be better (cubic)
 *** The pattern of packets for the same profile is not backward compatible (e.g. packets is larger due to more tcp options for example SACK), so old benchmark with the same profile might need to be tuned
-
+* STL 
+** Tagged Packet Group (TPG) -- add dynamic command to update mapping/clear specific tag API for debugging 
 
 == Release 2.95 ==
 
