@@ -55,6 +55,7 @@ void CAstfDB::Create(){
     m_topo_mngr = new TopoMngr();
     m_factor = -1.0;
     m_json_initiated = false;
+    m_tunnel_topo = new CTunnelsTopo();
 }
 
 
@@ -70,6 +71,8 @@ void CAstfDB::Delete(){
         delete it.second;
     }
     m_smart_gen.clear();
+    delete m_tunnel_topo;
+    m_tunnel_topo = nullptr;
 }
 
 CAstfDB::~CAstfDB(){

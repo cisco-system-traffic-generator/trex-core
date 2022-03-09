@@ -551,6 +551,9 @@ void CGtpuCtx::get_dst_ipv6(ipv6_addr_t* dst) {
     *dst = m_dst.ipv6;
 }
 
+uint16_t CGtpuCtx::get_src_port() {
+    return m_src_port;
+}
 
 void * CGtpuCtx::get_outer_hdr() {
     return (void*)m_outer_hdr;

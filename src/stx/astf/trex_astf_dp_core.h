@@ -67,7 +67,7 @@ public:
     void update_rate(profile_id_t profile_id, double ratio);
     void create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db);
     void delete_tcp_batch(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db);
-    void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db);
+    void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db, const string* tunnel_topo_buffer=nullptr);
     void remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db);
 
     void scheduler(bool activate);

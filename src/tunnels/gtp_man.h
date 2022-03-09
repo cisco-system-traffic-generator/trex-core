@@ -23,6 +23,7 @@ public:
     ipv4_addr_t get_dst_ipv4();
     void get_src_ipv6(ipv6_addr_t* src_ipv6);
     void get_dst_ipv6(ipv6_addr_t* src_ipv6);
+    uint16_t get_src_port();
     void* get_outer_hdr();
     bool is_ipv6();
     ~CGtpuCtx();

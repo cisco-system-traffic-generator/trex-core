@@ -119,14 +119,15 @@ private:
  */
 class TrexAstfLoadDB : public TrexCpToDpMsgBase {
 public:
-    TrexAstfLoadDB(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db);
+    TrexAstfLoadDB(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db, const string* tunnel_topo_buffer);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
-    profile_id_t m_profile_id;
-    std::string *m_profile_buffer;
-    std::string *m_topo_buffer;
-    CAstfDB* m_astf_db;
+    profile_id_t       m_profile_id;
+    std::string       *m_profile_buffer;
+    std::string       *m_topo_buffer;
+    CAstfDB           *m_astf_db;
+    const std::string *m_tunnel_topo_buffer;
 };
 
 /**

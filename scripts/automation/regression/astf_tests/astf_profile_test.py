@@ -260,7 +260,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
 
 
     @try_few_times
-    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, short_duration = False, tunnel_info = None):
+    def run_astf_profile(self, profile_name, m, is_udp, is_tcp, ipv6 =False, check_counters=True, nc = False, short_duration = False, tunnel_info = None, latency_pps = 1000):
         c = self.astf_trex;
 
         if ipv6 and self.driver_params.get('no_ipv6', False):
@@ -274,7 +274,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         print('starting profile %s for duration %s' % (profile_name, d))
         c.load_profile(self.get_profile_by_name(profile_name))
         c.clear_stats()
-        c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = 1000)
+        c.start(duration = d,nc= nc,mult = m,ipv6 = ipv6,latency_pps = latency_pps)
         if tunnel_info:
             tunnel_type, clients_list = tunnel_info["tunnel_type"], tunnel_info["clients_list"]
             c.update_tunnel_client_record(clients_list, tunnel_type)
@@ -403,6 +403,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_simple_emu.py',  # Emu profiles
                     'http_simple_emu_ipv6.py',
                     'http_many.py',
+                    'gtpu_topo.py',
                     ]
         self.duration=1
         try:
@@ -416,13 +417,34 @@ class ASTFProfile_Test(CASTFGeneral_Test):
         finally:
             self.duration = duration
 
+    def test_gtpu_mode_tunnel_topo(self):
+        c = self.astf_trex
+        if not c.is_tunnel_supported(tunnel_type=1)['is_tunnel_supported']:
+            self.skip("tunnel is no supported")
+
+        duration = self.duration
+        self.duration = 20
+        fname = 'http_simple.py'
+        try:
+            c.reset()
+            c.activate_tunnel(tunnel_type=1, activate=True, loopback=True)
+            #loading tunnel topology that holds the tunnel context
+            c.tunnels_topo_load(self.get_profile_by_name("gtpu_topo.py"))
+            print(" running {}".format(fname))
+            self.run_astf_profile(fname, m=1000, is_udp=False, is_tcp=True, latency_pps=0)
+        finally:
+            self.duration = duration
+            c.reset()
+            c.tunnels_topo_clear()
+            c.activate_tunnel(tunnel_type=1, activate=False, loopback=False)
+
     def test_gtpu_mode(self):
         c = self.astf_trex
         if not c.is_tunnel_supported(tunnel_type=1)['is_tunnel_supported']:
             self.skip("tunnel is no supported")
         
         duration = self.duration
-        self.duration = 1
+        self.duration = 20
         fname = 'http_simple.py'
         version = 4
         sport = 5000
@@ -444,7 +466,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             c.reset()
             c.activate_tunnel(tunnel_type=1, activate=True, loopback=True)
             print(" running {}".format(fname))
-            self.run_astf_profile(fname, m=1, is_udp=False, is_tcp=True, ipv6 =False, check_counters=True, nc = True,  tunnel_info=tunnel_info)
+            self.run_astf_profile(fname, m=1000, is_udp=False, is_tcp=True, tunnel_info=tunnel_info, latency_pps=0)
         finally:
             self.duration = duration
             c.reset()
@@ -479,6 +501,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'udp_topo_traffic.py',
                     'http_simple_emu.py',  # Emu profiles
                     'http_simple_emu_ipv6.py',
+                    'gtpu_topo.py',
                     ]
         self.duration=1
         try:

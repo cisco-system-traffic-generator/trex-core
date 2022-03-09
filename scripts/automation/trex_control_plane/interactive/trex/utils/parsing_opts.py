@@ -416,6 +416,11 @@ def get_tunnel_type(tunnel_type_str):
     else:
         raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_str))
 
+def get_tunnel_type_str(tunnel_type_num):
+    if tunnel_type_num == TunnelType.GTPU:
+        return "gtpu"
+    else:
+        raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_num))
 
 def convert_old_tunables_to_new_tunables(tunable_str, help=False):
     try:

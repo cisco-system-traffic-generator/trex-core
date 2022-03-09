@@ -19,6 +19,7 @@ from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
 from .topo import ASTFTopologyManager
+from .tunnels_topo import TunnelsTopo
 from .stats.traffic import CAstfTrafficStats
 from .stats.latency import CAstfLatencyStats
 from ..utils.common import  is_valid_ipv4, is_valid_ipv6
@@ -103,6 +104,7 @@ class ASTFClient(TRexClient):
         self.traffic_stats = CAstfTrafficStats(self.conn.rpc)
         self.latency_stats = CAstfLatencyStats(self.conn.rpc)
         self.topo_mngr     = ASTFTopologyManager(self)
+        self.tunnels_topo = TunnelsTopo(self)
         self.sync_waiting = False
         self.last_error = ''
         self.last_profile_error = {}
@@ -1272,6 +1274,40 @@ class ASTFClient(TRexClient):
 
         self.ctx.logger.post_cmd(True)
 
+
+    @client_api('command', True)
+    def tunnels_topo_load(self, topology, tunables = {}):
+        ''' Load network topology
+
+            :parameters:
+                topology: string or TunnelTopo
+                    | Path to topology filename or topology object
+                    | Supported file formats:
+                    | * JSON
+                    | * YAML
+                    | * Python
+
+                tunables: dict
+                    forward those key-value pairs to the topology Python file
+
+            :raises:
+                + :exc:`TRexError`
+        '''
+        self.tunnels_topo.load(topology, **tunables)
+        print('')
+
+    @client_api('command', True)
+    def tunnels_topo_clear(self):
+        ''' Clear network topology '''
+
+        self.tunnels_topo.clear()
+
+    @client_api('command', False)
+    def tunnels_topo_show(self):
+        ''' Show current network topology status '''
+        self.tunnels_topo.show()
+        print('')
+
     # private function to form json data for GTP tunnel
     def _update_gtp_tunnel(self, client_list):
 
@@ -1635,6 +1671,51 @@ class ASTFClient(TRexClient):
             raise TRexError('Unhandled command %s' % opts.command)
 
         return True
+
+
+    @console_api('tunnels_topo', 'ASTF', True, True)
+    def tunnels_topo_line(self, line):
+        '''Tunnel Topology-related commands'''
+        parser = parsing_opts.gen_parser(
+            self,
+            'tunnel_topo',
+            self.topo_line.__doc__)
+
+        def topology_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        load_parser = topology_add_parsers(subparsers, 'load', help = 'Load topology from file,  push to server on success')
+        show_parser = topology_add_parsers(subparsers, 'show', help = 'Show current topology status')
+        topology_add_parsers(subparsers, 'clear', help = 'Clear current topology')
+
+        load_parser.add_arg_list(
+            parsing_opts.FILE_PATH,
+            parsing_opts.TUNABLES,
+            )
+
+        show_parser.add_arg_list(
+            parsing_opts.PORT_LIST_NO_DEFAULT,
+            )
+
+        opts = parser.parse_args(shlex.split(line))
+
+        if opts.command == 'load':
+            self.tunnels_topo_load(opts.file[0], opts.tunables)
+            return False
+
+        elif opts.command == 'show' or not opts.command:
+            self.tunnels_topo_show()
+            return False
+
+        elif opts.command == 'clear':
+            self.tunnels_topo_clear()
+
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+        return True
+
 
     @console_api('topo', 'ASTF', True, True)
     def topo_line(self, line):

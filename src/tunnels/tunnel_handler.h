@@ -6,7 +6,6 @@
 #include "common/Network/Packet/IPv6Header.h"
 #include "stx/astf/trex_astf_topo.h"
 #include "trex_global.h"
-#include "tuple_gen.h"
 #include "dyn_sts.h"
 
 using namespace std;
@@ -18,6 +17,7 @@ using namespace std;
 #define TUNNEL_MODE_LOOPBACK 16
 
 typedef void* tunnel_cntxt_t;
+typedef void (*tunnel_ctx_del_cb_t)(void *tunnel_handler, void *tunnel_ctx);
 
 enum tunnel_type: uint8_t {
     TUNNEL_TYPE_NONE,
@@ -26,7 +26,7 @@ enum tunnel_type: uint8_t {
 
 // The client_tunnel_data holds basic info
 // Use the ex_data pointer for specific data.
-typedef struct client_tunnel_data {
+typedef struct {
     uint32_t client_ip;
     uint32_t teid;
     uint32_t version;

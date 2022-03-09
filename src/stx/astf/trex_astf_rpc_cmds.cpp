@@ -126,6 +126,9 @@ TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
 TREX_RPC_CMD(TrexRpcCmdIsTunnelSupported,  "is_tunnel_supported");
 TREX_RPC_CMD(TrexRpcCmdActivateTunnelMode,  "activate_tunnel_mode");
 TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
+TREX_RPC_CMD(TrexRpcCmdAstfTunnelTopoGet, "tunnel_topo_get");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTunnelTopoFragment, "tunnel_topo_fragment");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTunnelTopoClear, "tunnel_topo_clear");
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
@@ -980,6 +983,74 @@ TrexRpcCmdIsTunnelSupported::_run(const Json::Value &params, Json::Value &result
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTunnelTopoGet::_run(const Json::Value &params, Json::Value &result) {
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result,  "Tunnel mode has to be activated in order to use Tunnel Topology");
+    }
+
+    try {
+        get_astf_object()->tunnel_topo_get(result["result"]);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTunnelTopoFragment::_run(const Json::Value &params, Json::Value &result) {
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result,  "Tunnel mode has to be activated in order to use Tunnel Topology");
+    }
+
+    const bool frag_first = parse_bool(params, "frag_first", result, false);
+    const bool frag_last = parse_bool(params, "frag_last", result, false);
+
+    TrexAstf *stx = get_astf_object();
+
+    if ( frag_first && !frag_last) {
+        const string hash = parse_string(params, "md5", result);
+        if ( stx->tunnel_topo_cmp_hash(hash) ) {
+            result["result"]["matches_loaded"] = true;
+            return TREX_RPC_CMD_OK;
+        }
+    }
+
+    const string fragment = parse_string(params, "fragment", result);
+
+    try {
+        if ( frag_first ) {
+            stx->tunnel_topo_clear();
+        }
+
+        stx->tunnel_topo_append(fragment);
+
+        if ( frag_last ) {
+            stx->tunnel_topo_set_loaded();
+        }
+
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTunnelTopoClear::_run(const Json::Value &params, Json::Value &result) {
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result,  "Tunnel mode has to be activated in order to use Tunnel Topology");
+    }
+
+    try {
+        get_astf_object()->tunnel_topo_clear();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return TREX_RPC_CMD_OK;
+}
+
 /****************************** component implementation ******************************/
 
 /**
@@ -1019,4 +1090,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTotalDynamicCountersValues(this));
     m_cmds.push_back(new TrexRpcCmdAstfDynamicCountersDesc(this));
     m_cmds.push_back(new TrexRpcCmdAstfDynamicCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoGet(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoFragment(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoClear(this));
 }

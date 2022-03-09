@@ -3140,6 +3140,13 @@ CIpInfoBase* CFlowGenListPerThread::client_lookup(uint32_t ip){
     }
 }
 
+void CFlowGenListPerThread::set_tunnel_handler(void* tunnel_handler, void* tunnel_ctx_del_cb) {
+    for (auto it : m_ip_info) {
+        it.second->set_tunnel_handler(tunnel_handler);
+        it.second->set_tunnel_ctx_del_cb(tunnel_ctx_del_cb);
+    }
+}
+
 
 void CFlowGenListPerThread::allocate_ip_info(CIpInfoBase* ip_info) {
     uint32_t ip = ip_info->get_ip();
