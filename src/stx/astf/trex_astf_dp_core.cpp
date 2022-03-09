@@ -361,7 +361,11 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
     set_profile_stop_event(profile_id);
 }
 
-void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB *astf_db) {
+void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id,
+                                     string *profile_buffer,
+                                     string *topo_buffer,
+                                     CAstfDB *astf_db,
+                                     const string* tunnel_topo_buffer) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -386,6 +390,17 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
             report_error(profile_id, ex.what());
             return;
         }
+    }
+
+    if (tunnel_topo_buffer) {
+        //verifies that has tunnel handler
+        assert(m_tunnel_handler);
+        CTunnelsTopo* tunnel_topo = astf_db->get_tunnel_topo();
+        //initialize the tunnel topo
+        tunnel_topo->from_json_str(*tunnel_topo_buffer);
+        // initialize the tunnel db with the tunnel topo
+        CTunnelsDB* m_tunnel_db = m_flow_gen->m_flow_list->m_client_config_info.get_tunnel_db();
+        m_tunnel_db->load_from_tunnel_topo(tunnel_topo);
     }
 
     if ( !profile_buffer ) {
@@ -467,6 +482,11 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CA
         return;
     }
 
+    // In case of tunnel mode we need to assign the CIpInfoBase objects with the tunnel handler and
+    // tunnel context deletion function, so the tunnel context could be deleted
+    if (m_tunnel_handler) {
+        m_flow_gen->set_tunnel_handler(m_tunnel_handler, (void*)m_tunnel_handler->get_tunnel_ctx_del_cb());
+    }
     set_profile_state(profile_id, pSTATE_LOADED);
     report_profile_ctx(profile_id);
 }
@@ -741,8 +761,6 @@ void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<clie
            } else {
                void *tunnel_ctx = m_tunnel_handler->get_tunnel_ctx(&elem);
                ip_info->set_tunnel_ctx(tunnel_ctx);
-               ip_info->set_tunnel_handler(m_tunnel_handler);
-               ip_info->set_tunnel_ctx_del_cb(m_tunnel_handler->get_tunnel_ctx_del_cb());
            }
         }
     }

@@ -201,9 +201,11 @@ ClientCfgDB::ClientCfgDB() {
     m_cache_group = NULL;
     m_under_vlan  = false;
     m_tg = NULL;
+    m_tunnel_db = new CTunnelsDB();
 }
 
 ClientCfgDB::~ClientCfgDB() {
+    delete m_tunnel_db;
     clear();
 }
 

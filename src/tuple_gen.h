@@ -42,7 +42,6 @@ limitations under the License.
 #include <random>
 #include "common/dlist.h"
 
-typedef void (*tunnel_ctx_del_cb_t)(void *tunnel_handler, void *tunnel_ctx);
 
 struct ActiveClientListNode {
     TCDListNode  m_node;
@@ -272,7 +271,7 @@ class CIpInfoBase {
             m_tunnel_handler = tunnel_handler;
         }
 
-        void set_tunnel_ctx_del_cb(tunnel_ctx_del_cb_t del_cb) {
+        void set_tunnel_ctx_del_cb(void* del_cb) {
             m_del_tunnel_ctx_cb = del_cb;
         }
 
@@ -314,21 +313,13 @@ class CIpInfoBase {
             m_ref_cnt = 0;
         }
 
-        virtual ~CIpInfoBase() {
-            if (m_tunnel_ctx) {
-                assert(m_tunnel_handler);
-                assert(m_del_tunnel_ctx_cb);
-                (m_del_tunnel_ctx_cb)(m_tunnel_handler, m_tunnel_ctx);
-            }
-            m_tunnel_handler = nullptr;
-            m_tunnel_ctx = nullptr;
-        }
+        virtual ~CIpInfoBase();
     protected:
         uint32_t            m_ip;
         bool                m_is_active;
         void               *m_tunnel_ctx;
         void               *m_tunnel_handler;
-        tunnel_ctx_del_cb_t m_del_tunnel_ctx_cb;
+        void               *m_del_tunnel_ctx_cb;
         uint32_t            m_ref_cnt;    // shared reference count
  
         /* 1 : 1 maapping between m_ref_pool_ptr and m_active_c_node */

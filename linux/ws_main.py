@@ -248,7 +248,8 @@ bp_sim_gtest = SrcGroup(dir='src',
              'gtest/nat_test.cpp',
              'gtest/trex_stateless_gtest.cpp',
              'gtest/bp_tunnel_gtest.cpp',
-             'gtest/bp_dyn_sts_gtest.cpp'
+             'gtest/bp_dyn_sts_gtest.cpp',
+             'gtest/bp_tunnel_topo_gtest.cpp'
              ])
 
 main_src = SrcGroup(dir='src',
@@ -321,7 +322,8 @@ main_src = SrcGroup(dir='src',
             'utils/utl_port_map.cpp',
             'utils/utl_sync_barrier.cpp',
             'utils/utl_yaml.cpp',
-            'tunnels/gtp_man.cpp'
+            'tunnels/gtp_man.cpp',
+            'tunnels/tunnel_db.cpp'
             ]);
 
 cmn_src = SrcGroup(dir='src/common',

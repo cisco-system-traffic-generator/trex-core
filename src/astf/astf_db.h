@@ -435,6 +435,11 @@ class CAstfDB  : public CTRexDummyCommand  {
         return m_topo_mngr;
     }
 
+    CTunnelsTopo* get_tunnel_topo() {
+        assert(m_tunnel_topo);
+        return m_tunnel_topo;
+    }
+
     virtual ~CAstfDB();
 
     void Create();
@@ -634,6 +639,7 @@ private:
     ClientCfgDB        *m_client_config_info;
     static CAstfJsonValidator *m_validator;
     TopoMngr           *m_topo_mngr;
+    CTunnelsTopo       *m_tunnel_topo;
 
     uint16_t m_num_of_tg_ids;
     std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 

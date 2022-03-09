@@ -296,6 +296,14 @@ public:
     void topo_set_loaded();
     void topo_get(Json::Value &obj);
 
+    bool tunnel_topo_cmp_hash(const std::string &hash);
+    void tunnel_topo_clear();
+    void tunnel_topo_append(const std::string &fragment);
+    void tunnel_topo_set_loaded();
+    void tunnel_topo_get(Json::Value &obj);
+    bool tunnel_topo_needs_parsing();
+    std::string* get_tunnel_topo_buffer() { return &m_tunnel_topo_buffer; }
+    void         set_tunnel_topo_parsed(bool topo) { m_tunnel_topo_parsed = topo; }
     /**
      * Stats Related
      */
@@ -447,6 +455,9 @@ protected:
     std::string     m_topo_buffer;
     std::string     m_topo_hash;
     bool            m_topo_parsed;
+    std::string     m_tunnel_topo_buffer;
+    std::string     m_tunnel_topo_hash;
+    bool            m_tunnel_topo_parsed;
     uint64_t        m_epoch;
     CTunnelHandler *m_tunnel_handler;
     CCpDynStsInfra *m_cp_sts_infra;

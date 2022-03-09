@@ -156,15 +156,16 @@ TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone() {
 /*************************
   parse ASTF JSON from string
  ************************/
-TrexAstfLoadDB::TrexAstfLoadDB(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB* astf_db) {
-    m_profile_id     = profile_id;
-    m_profile_buffer = profile_buffer;
-    m_topo_buffer    = topo_buffer;
-    m_astf_db        = astf_db;
+TrexAstfLoadDB::TrexAstfLoadDB(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB* astf_db, const string* tunnel_topo_buffer) {
+    m_profile_id         = profile_id;
+    m_profile_buffer     = profile_buffer;
+    m_topo_buffer        = topo_buffer;
+    m_astf_db            = astf_db;
+    m_tunnel_topo_buffer = tunnel_topo_buffer;
 }
 
 bool TrexAstfLoadDB::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer, m_astf_db);
+    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer, m_astf_db, m_tunnel_topo_buffer);
     return true;
 }
 

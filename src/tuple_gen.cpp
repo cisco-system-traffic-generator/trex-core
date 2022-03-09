@@ -26,6 +26,7 @@ limitations under the License.
 #include "bp_sim.h"
 #include "tuple_gen.h"
 #include "trex_exception.h"
+#include "tunnels/tunnel_db.h"
 
 static bool _enough_ips(uint32_t total_ip,
                        double active_flows,
@@ -150,6 +151,14 @@ void CIpInfoBase::set_client_active(bool activate)
     }
 }
 
+CIpInfoBase::~CIpInfoBase() {
+    if (m_tunnel_ctx) {
+        assert(m_tunnel_handler);
+        assert(m_del_tunnel_ctx_cb);
+        ((tunnel_ctx_del_cb_t)m_del_tunnel_ctx_cb)(m_tunnel_handler, m_tunnel_ctx);
+    }
+}
+
 
 /*
   1. Remove this pool from m_ref_pool_pt 
@@ -203,10 +212,22 @@ void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
                                                         bool      is_long_range,
                                                         ClientCfgDB &client_info,
                                                         bool is_simple_alloc) {
+    CTunnelsDB *tunnel_db = client_info.get_tunnel_db();
+    bool has_tunnel_topo = !tunnel_db->is_empty();
     /* simple creation of clients - no extended info */
     for (uint32_t i = 0; i < total_ip; i++) {
+        bool activate = true;
         uint32_t ip = min_ip + i;
-        ClientCfgBase info; 
+        ClientCfgBase info;
+        // gets the tunnel context from the tunnel db
+        if (has_tunnel_topo) {
+            CClientCfgEntryTunnel *tunnel_entry = tunnel_db->lookup(ip);
+            if (!tunnel_entry) {
+                throw TrexException("Client configuration error - no tunnel group containing IP: " + ip_to_str(ip));
+            }
+            tunnel_entry->assign(info, ip);
+            activate = tunnel_entry->is_activate();
+        }
         if (!is_simple_alloc){
             /* lookup for the right group of clients */
             ClientCfgEntry *group = client_info.lookup(ip);
@@ -231,6 +252,7 @@ void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
                 else
                    m_ip_info[i] =  new CConfiguredClientInfo<CIpInfo>(ip, info);
             }
+            m_ip_info[i]->set_tunnel_ctx(info.m_tunnel_ctx);
             configure_client(i);
 
             // set CIpInfoBase to be shared
@@ -246,7 +268,7 @@ void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
         */
         m_ip_info[i]->add_ref_pool_ptr(this);
         ActiveClientListNode *cn = m_ip_info[i]->add_client_list_node(m_ip_info[i]);
-        set_client_active(m_ip_info[i], cn, true);
+        set_client_active(m_ip_info[i], cn, activate);
  
     }
     set_active_list_ptr_to_start();

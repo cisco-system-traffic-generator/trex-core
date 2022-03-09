@@ -76,6 +76,10 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_topo_hash = "";
     m_topo_parsed = false;
 
+    m_tunnel_topo_buffer = "";
+    m_tunnel_topo_hash = "";
+    m_tunnel_topo_parsed = false;
+
     m_state = STATE_IDLE;
     m_epoch = 0;
 
@@ -348,6 +352,43 @@ void TrexAstf::topo_set_loaded() {
 
 void TrexAstf::topo_get(Json::Value &result) {
     CAstfDB::instance()->get_topo()->to_json(result["topo_data"]);
+}
+
+//tunnel topo
+bool TrexAstf::tunnel_topo_cmp_hash(const string &hash) {
+    return m_tunnel_topo_hash == hash;
+}
+
+void TrexAstf::tunnel_topo_clear() {
+    check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    m_tunnel_topo_buffer.clear();
+    m_tunnel_topo_hash.clear();
+    m_tunnel_topo_parsed = false;
+    CTunnelsDB *tunnel_db = m_fl->m_client_config_info.get_tunnel_db();
+    tunnel_db->clear();
+    CAstfDB::instance()->get_tunnel_topo()->clear();
+}
+
+void TrexAstf::tunnel_topo_append(const string &fragment) {
+    check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    m_tunnel_topo_buffer += fragment;
+}
+
+void TrexAstf::tunnel_topo_set_loaded() {
+    check_whitelist_states({STATE_IDLE, STATE_LOADED});
+    m_tunnel_topo_hash = md5(m_tunnel_topo_buffer);
+}
+
+void TrexAstf::tunnel_topo_get(Json::Value &result) {
+    if (m_tunnel_topo_hash.size()) {
+        result["tunnel_topo_data"] = m_tunnel_topo_buffer;
+        return;
+    }
+    result["tunnel_topo_data"] = "{\"tunnels\": []}";
+}
+
+bool TrexAstf::tunnel_topo_needs_parsing() {
+    return m_tunnel_topo_hash.size() && !m_tunnel_topo_parsed;
 }
 
 bool TrexAstf::is_state_build() {
@@ -944,12 +985,13 @@ bool TrexAstfPerProfile::profile_needs_parsing() {
 void TrexAstfPerProfile::parse() {
     string *prof = profile_needs_parsing() ? &(m_profile_buffer) : nullptr;
     string *topo = m_astf_obj->topo_needs_parsing() ? m_astf_obj->get_topo_buffer() : nullptr;
+    const std::string *tunnel_topo = (m_astf_obj->tunnel_topo_needs_parsing() && CGlobalInfo::m_options.m_tunnel_enabled) ? m_astf_obj->get_tunnel_topo_buffer() : nullptr;
     assert(prof||topo);
     profile_change_state(STATE_PARSE);
 
     auto astf_db = CAstfDB::get_instance(m_dp_profile_id);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db);
+    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db, tunnel_topo);
     m_astf_obj->send_message_to_dp(0, msg);
 }
 
@@ -1011,6 +1053,9 @@ void TrexAstfPerProfile::all_dp_cores_finished(bool partial) {
             } else {
                 m_profile_parsed = true;
                 m_astf_obj->set_topo_parsed(true);
+                if (CGlobalInfo::m_options.m_tunnel_enabled) {
+                    m_astf_obj->set_tunnel_topo_parsed(true);
+                }
                 build();
             }
             break;
