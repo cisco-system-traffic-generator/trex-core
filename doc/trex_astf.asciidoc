@@ -674,6 +674,49 @@ class Prof1():
 
 The tuple generator ranges should not overlap.
 
+==== Tutorial: Profile with different offset per side
+
+*Goal*:: 
+
+Create a profile with different offset per side for dual mask ports.
+
+*Traffic profile*::  
+
+A modified version of http_simply profile. 
+
+*File*:: 
+
+link:{github_astf_path}/offset_per_side.py[astf/offset_per_side.py]
+
+[source,python]
+----
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0", ip_offset_server="5.0.0.0"),  <1>
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",
+                            cps=2.776)])
+----
+<1> Defines offset of "1.0.0.0" to the client side and offset of "5.0.0.0" to the server side
+
+*Discussion*::
+
+Offset per side is available from version v2.97 and above.
+
+
 ==== Tutorial: IPv6 traffic 
 
 ASTF can run a profile that includes a mix of IPv4 and IPv6  template using ipv6. enables tunable. The tunable could be global (for all profile) or per template. 
