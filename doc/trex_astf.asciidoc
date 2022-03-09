@@ -1374,7 +1374,7 @@ This example forces the *server* side to wait for close from peer (client) and o
 The packets trace should look like this:
 
 [source,python]
-----
+-----------------
   client server 
   -------------
     FIN             
@@ -1382,7 +1382,7 @@ The packets trace should look like this:
          FIN
    ACK
   -------------
-----  
+-----------------
         
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
@@ -1396,7 +1396,7 @@ This is seen as SYN/SYN-ACK/GET-ACK in the trace (piggyback ack in the GET reque
 To force the client side to send ACK and only *then* send the data use the 'connect()' command.
 
 [source,python]
-----
+-----------------
   client server 
   -------------
     SYN
@@ -1404,7 +1404,7 @@ To force the client side to send ACK and only *then* send the data use the 'conn
     ACK
     GET       
   -------------
-----  
+-----------------
 
 
 .Connect() example with RST
@@ -1421,7 +1421,7 @@ To force the client side to send ACK and only *then* send the data use the 'conn
 This example will wait for connect and then will send RST packet to shutdown peer and current socket.
 
 [source,python]
-----
+-----------------
   client server 
   -------------
     SYN
@@ -1429,7 +1429,7 @@ This example will wait for connect and then will send RST packet to shutdown pee
     ACK
     RST       
   -------------
-----  
+-----------------
 
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
@@ -2254,8 +2254,21 @@ def register():
     return Prof1()
 ----
 
-After we enabled the GTPU mode and started traffic with some profile.
-We need to update the GTPU context for each client. +
+In order to generate GTPU traffic we have to assign each client with GTPU context. +
+There are 2 ways for achieving this: +
+
+* Using update_tunnel_client_record API.
+* Using tunnel topology - from version v2.97
+
+We will start with the update_tunnel_client_record API examples, and then move to tunnel_topology, which is newer
+and more flexible.
+
+*update_tunnel_client_record API*: +
+
+As we mention earlier, in order to generate GTPU traffic we have to assign each client with GTPU context. +
+One of the ways for achieving this is by using update_tunnel_client_record API. +
+Ths first step of using this API is to enable the GTPU mode and start traffic with some profile. +
+After we have successfully completed the first step we need to update the GTPU context of each client. +
 Each client tunnel record consist of:
 
 * Source ip of the outer IP header
@@ -2288,7 +2301,7 @@ trex> update_tunnel --c_start 16.0.0.0 --c_end 16.0.0.255 --teid 0 --src_ip 1.1.
 
 *For IPv6 outer header:* +
 
-* Change the source IP and the destination IP to IPv6 adresses
+* Change the source IP and the destination IP to IPv6 addresses
 * Add the flag --ipv6
 
 <<<
@@ -2357,6 +2370,155 @@ and for each client we are building the same record we used in the console examp
 
 <<<
 
+Now we will see the second way for assigning GTPU context for each client. +
+
+*Tunnels Topology*: +
+
+Until version v2.97 in order to assign the tunnel context of each client, we had to
+start traffic with some profile, and then use the update_tunnel API to update the tunnel context of each client. +
+
+From version v2.97 we can use python profiles of tunnels topology to set the clients tunnel context before starting the traffic. +
+
+This topology consists of an array of tunnel context. +
+Each element in the array holds the tunnel context of groups of clients and consist of:
+
+* src_start    - The first client IP address in the group
+* src_end      - The last client IP address in the group
+* initial_teid - The teid of the first client in the group
+* teid_jump    - The difference between the teids of two consecutive clients ips in the group
+* sport        - The tunnel source port
+* version      - The tunnel IP header version
+* type         - The Tunnel type (for example 1 for gtpu) see: See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/parsing_opts.py#L403[tunnel_type]
+* src_ip       - The tunnel source IP
+* dst_ip       - The tunnel destination IP
+* activate     - Boolean whether to activate/deactivate the client by default.
+
+.Tunnel Topology profile example:
+[source,python]
+----
+from trex.astf.api import *
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        type = 1,
+        src_ip = '1.1.1.11',
+        dst_ip = '11.1.1.1',
+        activate = True
+    )
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 6,
+        sport = 5000,
+        version = 6,
+        type = 1,
+        src_ip = '2001:db8:3333:4444:5555:6666:7777:8888',
+        dst_ip = '2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF',
+        activate = False
+    )
+    return topo
+----
+
+Now we will see two identical examples of how to use the Tunnel Topology to generate GTPU traffic with IPv4 outer header. +
+In the first example we will use the TRex console and in the second one will use the ASTF automation API. +
+In these examples we will use the tunnel topology profile *gtpu_topo.py*, and *http_simple.py* as the traffic profile. +
+
+*File*:: 
+
+link:{github_astf_path}/gtpu_topo.py[astf/gtpu_topo.py]
+
+[source,python]
+----
+from trex.astf.api import *
+from trex.astf.tunnels_topo import TunnelsTopo
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,                <1>
+        tunnel_type = 1,
+        src_ip = '1.1.1.11',        <2>
+        dst_ip = '11.1.1.1',        <3>
+        activate = True
+    )
+
+    return topo
+----
+<1> The outer IP header version, for IPv6 change to 6.
+<2> The src IP address of the outer header, for IPv6 change to IPv6 address.
+<3> The dst IP address of the outer header, for IPv6 change to IPv6 address.
+
+[NOTE] 
+=====================================================================
+The clients ips range is 16.0.0.0 - 16.0.0.255, to fits the clients range inside the traffic profile http_simple.py.
+=====================================================================
+
+<<<
+
+.TRex console
+
+loading the gtpu_topo profile
+[source,bash]
+----
+trex>tunnels_topo load -f astf/gtpu_topo.py
+----
+Using the show command we can see the tunnels topology that we loaded.
+[source,bash]
+----
+trex>tunnels_topo show
+Tunnel Topology
+
+Src_start| Src_end  |Initial-Teid|Teid-jump|Sport|Version|Type| Src_ip |Dest_ip |Activate
+---------+----------+------------+---------+-----+-------+----+--------+--------+--------
+16.0.0.0 |16.0.0.255|      0     |    1    |5000 |   4   |gtpu|1.1.1.11|11.1.1.1|  True
+
+----
+
+
+Starting traffic with http_simple.py profile
+[source,bash]
+----
+trex>start -f astf/http_simple.py
+----
+
+Now the clients will have the tunnel contexts that we set using the tunnel topology profile - gtpu_topo.py.
+
+.ASTF automation API
+
+*Starting GTPU traffic with tunnel topology:*
+[source,python]
+----
+astf_client.tunnels_topo_load(astf_profile_path + "/gtpu_topo.py")
+astf_client.load_profile(astf_profile_path + "/http_simple.py")
+astf_client.start()
+----
+
+*Notice:*
+
+1. The GTPU mode have to be on in order to generate traffic with GTPU tunnel
+2. The clients ips inside the traffic profile have to exists in the tunnel topology profile you are using.
+3. There will be no traffic with clients that have no tunnel context.
+4. With more than one pair of ports you have to include ips with the right offsets.
+5. You can use multiple tunnel_ctx with different fields inside the tunnel topology profile.
+
+
+<<<
 
 *Tutorial: Generating GTPU traffic on more than 2 ports* +
 
