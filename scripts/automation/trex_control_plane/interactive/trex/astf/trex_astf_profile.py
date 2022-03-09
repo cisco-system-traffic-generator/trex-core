@@ -1044,7 +1044,7 @@ class ASTFIPGenGlobal(object):
 
     """
 
-    def __init__(self, ip_offset="1.0.0.0"):
+    def __init__(self, ip_offset="1.0.0.0", ip_offset_server=None):
         """
         Global properties for IP generator
 
@@ -1054,19 +1054,28 @@ class ASTFIPGenGlobal(object):
                 | Offset for dual mask ports.
                 | This value is added to each next pair of ports - ports 1 and 2 will have ip_offset added to IPs in their pool, ports 3 and 4 will have added ip_offset*2 and so on.
 
+            ip_offset_server:
+                set in case you want offset per side.
         """
 
         ver_args = {"types":
                     [{"name": "ip_offset", 'arg': ip_offset, "t": "ip address", "must": False},
+                     {"name": "ip_offset_server", 'arg': ip_offset_server, "t": "ip address", "must": False},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
 
         self.fields = {}
         self.fields['ip_offset'] = ip_offset
+        if ip_offset_server:
+            self.fields['ip_offset_server'] = ip_offset_server
 
     @property
     def ip_offset(self):
         return self.fields['ip_offset']
+
+    @property
+    def ip_offset_server(self):
+        return self.fields.get('ip_offset_server', self.fields['ip_offset'])
 
     def to_json(self):
         return dict(self.fields)
@@ -1117,7 +1126,7 @@ class ASTFIPGen(object):
         if dist_server.direction and dist_server.direction != "s":
             raise ASTFError("dist_server.direction is already dir:{0}".format(dist_server.direction))
         dist_server.direction = "s"
-        dist_server.ip_offset = glob.ip_offset
+        dist_server.ip_offset = glob.ip_offset_server
 
     @staticmethod
     def __str__():
