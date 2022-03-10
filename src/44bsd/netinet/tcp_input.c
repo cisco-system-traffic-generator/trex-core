@@ -2437,7 +2437,7 @@ int
 tcp_mssopt(struct tcpcb *tp)
 {
     int mss = 0;
-    mss = V_tcp_mssdflt;
+    mss = tp->t_maxseg ? tp->t_maxseg: V_tcp_mssdflt;
 
     return (mss);
 }
@@ -2549,9 +2549,11 @@ tcp_compute_initwnd(struct tcpcb *tp, uint32_t maxseg)
      * RFC6928 increases it to ten segments.
      * Support for user specified value for initial flight size.
      */
-    if (V_tcp_initcwnd_segments)
-        return min(V_tcp_initcwnd_segments * maxseg,
-            max(2 * maxseg, V_tcp_initcwnd_segments * 1460));
+    int initcwnd_segments = tp->initcwnd_segments ? tp->initcwnd_segments:
+                                                    V_tcp_initcwnd_segments;
+    if (initcwnd_segments)
+        return min(initcwnd_segments * maxseg,
+            max(2 * maxseg, initcwnd_segments * 1460));
     else if (V_tcp_do_rfc3390)
         return min(4 * maxseg, max(2 * maxseg, 4380));
     else {
