@@ -732,6 +732,7 @@ public:
     int tcp_maxidle;            /* time to drop after starting probes */
     int tcp_maxpersistidle;
     int tcp_ttl;            /* time to live for TCP segs */
+    int tcp_reass_maxqlen;  /* maximum number of TCP segments per reassembly queue */
 
     uint8_t use_inbound_mac;    /* whether to use MACs from incoming pkts */
 
@@ -1251,6 +1252,18 @@ public:
 };
 
 
+class CTcpSeqKey {
+    uint32_t m_seq;
+
+public:
+    CTcpSeqKey(uint32_t seq): m_seq(seq) {}
+
+    bool operator<(const CTcpSeqKey& rhs) const {
+        return int(m_seq - rhs.m_seq) < 0;
+    }
+};
+
+
 class CTcpReassBlock {
 
 public:
@@ -1270,49 +1283,49 @@ typedef std::vector<CTcpReassBlock> vec_tcp_reas_t;
 class CTcpReass {
 
 public:
- CTcpReass(){
-     m_active_blocks=0;
- }
+    CTcpReass(int size): m_max_size(size) {}
 
- int pre_tcp_reass(CPerProfileCtx * pctx,
-              struct CTcpCb *tp, 
-              struct tcpiphdr *ti, 
-              struct rte_mbuf *m);
+    int pre_tcp_reass(CPerProfileCtx * pctx,
+                      struct CTcpCb *tp,
+                      struct tcpiphdr *ti,
+                      struct rte_mbuf *m);
 
- int tcp_reass_no_data(CPerProfileCtx * pctx,
-                         struct CTcpCb *tp);
+    int tcp_reass_no_data(CPerProfileCtx * pctx,
+                          struct CTcpCb *tp);
 
- int tcp_reass(CPerProfileCtx * pctx,
-                          struct CTcpCb *tp, 
-                          struct tcpiphdr *ti, 
-                          struct rte_mbuf *m);
+    int tcp_reass(CPerProfileCtx * pctx,
+                  struct CTcpCb *tp,
+                  struct tcpiphdr *ti,
+                  struct rte_mbuf *m);
 
 #ifdef  TREX_SIM
- int pre_tcp_reass(CTcpPerThreadCtx * ctx,
-              struct CTcpCb *tp,
-              struct tcpiphdr *ti,
-              struct rte_mbuf *m) { return pre_tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
+    CTcpReass(): CTcpReass(MAX_TCP_REASS_BLOCKS) {}
 
- int tcp_reass_no_data(CTcpPerThreadCtx * ctx,
-                         struct CTcpCb *tp) { return tcp_reass_no_data(DEFAULT_PROFILE_CTX(ctx), tp); }
+    int pre_tcp_reass(CTcpPerThreadCtx * ctx,
+                      struct CTcpCb *tp,
+                      struct tcpiphdr *ti,
+                      struct rte_mbuf *m) { return pre_tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
 
- int tcp_reass(CTcpPerThreadCtx * ctx,
-                          struct CTcpCb *tp,
-                          struct tcpiphdr *ti,
-                          struct rte_mbuf *m) { return tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
+    int tcp_reass_no_data(CTcpPerThreadCtx * ctx,
+                          struct CTcpCb *tp) { return tcp_reass_no_data(DEFAULT_PROFILE_CTX(ctx), tp); }
+
+    int tcp_reass(CTcpPerThreadCtx * ctx,
+                  struct CTcpCb *tp,
+                  struct tcpiphdr *ti,
+                  struct rte_mbuf *m) { return tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
 #endif
 
- inline uint8_t   get_active_blocks(void){
-     return (m_active_blocks);
- }
+    inline uint8_t get_active_blocks(void){
+        return m_blocks.size();
+    }
 
- void Dump(FILE *fd);
+    void Dump(FILE *fd);
 
- bool expect(vec_tcp_reas_t & lpkts,FILE * fd);
+    bool expect(vec_tcp_reas_t & lpkts,FILE * fd);
 
 private:
-  uint8_t         m_active_blocks;
-  CTcpReassBlock  m_blocks[MAX_TCP_REASS_BLOCKS];
+    std::map<CTcpSeqKey,CTcpReassBlock> m_blocks;
+    uint16_t m_max_size;
 };
 
 
@@ -1359,7 +1372,13 @@ inline bool tcp_reass_is_exists(struct CTcpCb *tp){
 inline void tcp_reass_alloc(CPerProfileCtx * pctx,
                             struct CTcpCb *tp){
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reasalloc);
-    tp->m_tpc_reass = new CTcpReass();
+
+    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
+    int maxqlen = tctx->tcp_reass_maxqlen;
+    if (tp->t_maxseg) {
+        maxqlen = std::min(int(tp->m_socket.so_rcv.sb_hiwat/tp->t_maxseg) + 1, maxqlen);
+    }
+    tp->m_tpc_reass = new CTcpReass(maxqlen);
 }
 
 inline void tcp_reass_free(CPerProfileCtx * pctx,

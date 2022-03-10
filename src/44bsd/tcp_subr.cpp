@@ -641,6 +641,8 @@ CTcpTunableCtx::CTcpTunableCtx() {
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
     tcp_maxidle = std::min(tcp_keepcnt * tcp_keepintvl, TCPTV_2MSL);
     tcp_ttl=0;
+
+    tcp_reass_maxqlen = 100;
 }
 
 void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
@@ -715,6 +717,10 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_cc_algo)) {
         tcp_cc_algo = (int)tune->m_tcp_cc_algo;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_reass_maxqlen)) {
+        tcp_reass_maxqlen = (int)tune->m_tcp_reass_maxqlen;
     }
 }
 

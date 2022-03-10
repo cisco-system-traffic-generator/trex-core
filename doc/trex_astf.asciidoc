@@ -3582,8 +3582,9 @@ link:cp_astf_docs/index.html[python index]
 |   tcp.txbufsize   | 1K-1G  |32K |+|+| socket tx buffer size in bytes.
 |   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
 |   tcp.do_rfc1323  | bool   |1|-|+| enable timestamp rfc 1323. 
-|   tcp.do_sack     | bool   |1|+|+| enable SACK.
-|   tcp.cc_algo     | 0,1    |0|+|+| select congestion control algorithm (0 - newreno, 1 - cubic).
+|   tcp.do_sack     | bool   |1|-|+| enable SACK.
+|   tcp.cc_algo     | 0,1    |0|-|+| select congestion control algorithm (0 - newreno, 1 - cubic).
+|   tcp.reass_maxqlen | 0,1000 |100|-|+| maximum number of TCP segments per reassembly queue.
 |   tcp.keepinit    |2-65533|5|-|+| value in second for TCP keepalive.
 |   tcp.keepidle    |2-65533|5|-|+| value in second for TCP keepidle
 |   tcp.keepintvl   |2-65533|7|-|+| value in second for TCP keepalive interval
