@@ -132,16 +132,17 @@ m_pktlen(struct mbuf *m)
 
 
 bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
-    int i; 
-    if (lpkts.size() !=m_active_blocks) {
+    if (lpkts.size() != m_blocks.size()) {
         fprintf(fd,"ERROR not the same size");
         return(false);
     }
-    for (i=0;i<m_active_blocks;i++) {
-        if ( !(m_blocks[i] == lpkts[i] )){
+    int i = 0;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it, ++i) {
+        auto& block = it->second;
+        if ( !(block == lpkts[i] )){
             fprintf(fd,"ERROR object are not the same \n");
             fprintf(fd,"Exists :\n");
-            m_blocks[i].Dump(fd);
+            block.Dump(fd);
             fprintf(fd,"Expected :\n");
             lpkts[i].Dump(fd);
         }
@@ -150,10 +151,10 @@ bool CTcpReass::expect(vec_tcp_reas_t & lpkts,FILE * fd){
 }
 
 void CTcpReass::Dump(FILE *fd){
-    int i; 
-    fprintf(fd,"active blocks : %d \n",m_active_blocks);
-    for (i=0;i<m_active_blocks;i++) {
-        m_blocks[i].Dump(fd);
+    fprintf(fd,"active blocks : %d \n", get_active_blocks());
+    for (auto it: m_blocks) {
+        auto& block = it.second;
+        block.Dump(fd);
     }
 }
 
@@ -166,28 +167,26 @@ int CTcpReass::tcp_reass_no_data(CPerProfileCtx * pctx,
         return (0);
     }
 
-    if (m_blocks[0].m_seq != tp->rcv_nxt) {
+    auto first = m_blocks.begin();
+    auto& block = first->second;
+
+    if (block.m_seq != tp->rcv_nxt) {
         return(0);
     }
 
-    tp->rcv_nxt += m_blocks[0].m_len;
+    tp->rcv_nxt += block.m_len;
     uint16_t tg_id = tp->m_flow->m_tg_id;
     INC_STAT(pctx, tg_id, tcps_rcvpack);
-    INC_STAT_CNT(pctx, tg_id, tcps_rcvbyte, m_blocks[0].m_len);
+    INC_STAT_CNT(pctx, tg_id, tcps_rcvbyte, block.m_len);
 
-    flags = (m_blocks[0].m_flags==1) ? TH_FIN :0;
+    flags = (block.m_flags==1) ? TH_FIN :0;
 
     sbappend_bytes((struct tcp_socket*)&tp->m_socket,
                    &tp->m_socket.so_rcv ,
-                   m_blocks[0].m_len);
+                   block.m_len);
 
     /* remove the first block */
-    int i;
-    for (i=0; i<m_active_blocks-1; i++) {
-        m_blocks[i]=m_blocks[i+1];
-    }
-
-    m_active_blocks-=1;
+    m_blocks.erase(first);
 
     sorwakeup(&tp->m_socket);
     return (flags);
@@ -203,6 +202,38 @@ int CTcpReass::tcp_reass(CPerProfileCtx * pctx,
 }
 
 
+bool tcp_reass_merge_block(CPerProfileCtx * pctx,
+                           struct CTcpCb *tp,
+                           CTcpReassBlock& base,
+                           CTcpReassBlock& next)
+{
+    int32_t diff = base.m_seq + base.m_len - next.m_seq;
+
+    if (diff < 0) { /* no overlap */
+        return false;
+    }
+
+    if (diff > 0) {
+        uint16_t tg_id = tp->m_flow->m_tg_id;
+        if (diff >= next.m_len) {
+            /* all packet is duplicate */
+            INC_STAT(pctx, tg_id, tcps_rcvduppack);
+            INC_STAT_CNT(pctx, tg_id, tcps_rcvdupbyte, next.m_len);
+        } else {
+            /* part of it duplicate */
+            INC_STAT(pctx, tg_id, tcps_rcvpartduppack);
+            INC_STAT_CNT(pctx, tg_id, tcps_rcvpartdupbyte, next.m_len - diff);
+        }
+    }
+    if (next.m_len > diff) {
+        base.m_len += (next.m_len - diff);
+        base.m_flags |= next.m_flags; /* or the overlay FIN */
+    }
+
+    return true;
+}
+
+
 int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
                          struct CTcpCb *tp, 
                          struct tcpiphdr *ti, 
@@ -212,104 +243,62 @@ int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
     if (m) {
         rte_pktmbuf_free(m);
     }
+
     uint16_t tg_id = tp->m_flow->m_tg_id;
     INC_STAT(pctx, tg_id, tcps_rcvoopack);
-    INC_STAT_CNT(pctx, tg_id, tcps_rcvoobyte,ti->ti_len);
+    INC_STAT_CNT(pctx, tg_id, tcps_rcvoobyte, ti->ti_len);
 
-    if (m_active_blocks==0) {
+    CTcpReassBlock cur{ti->ti_seq, ti->ti_len, !!(ti->ti_flags & TH_FIN)};
+    CTcpSeqKey cur_seq{cur.m_seq};
+
+    if (m_blocks.empty()) {
         /* first one - just add it to the list */
-        CTcpReassBlock * lpb=&m_blocks[0];
-        lpb->m_seq = ti->ti_seq;
-        lpb->m_len = (uint32_t)ti->ti_len;
-        lpb->m_flags = (ti->ti_flags & TH_FIN) ?1:0;
-        m_active_blocks=1;
-        return(0);
+        m_blocks.insert(std::pair<CTcpSeqKey,CTcpReassBlock>(cur_seq, cur));
+        return 0;
     }
-    /* we have at least 1 block */
 
-    int ci=0;
-    int li=0;
-    CTcpReassBlock  tblocks[MAX_TCP_REASS_BLOCKS+1];
-    CTcpReassBlock *ti_block = nullptr;
-    bool save_ptr=false;
+    auto it = m_blocks.upper_bound(cur_seq);
+    /*
+     * 'it' points the block next to the current block(cur).
+     * so, the current block should be merged to the previous block(--it).
+     */
+    if ((it == m_blocks.begin()) || !tcp_reass_merge_block(pctx, tp, (--it)->second, cur)) {
+        it = m_blocks.insert(it, std::pair<CTcpSeqKey,CTcpReassBlock>(cur_seq, cur));
+    }
 
+    /* merge following overlapped blocks: [next..last), 'it' points current block */
+    auto next = std::next(it, 1);
+    if (next != m_blocks.end()) {
+        auto last = next;
 
-    CTcpReassBlock cur;
-
-    while ((save_ptr!=true) || (li < m_active_blocks)) {
-
-        if (save_ptr==false) {
-            if (li==(m_active_blocks)) {
-                cur.m_seq = ti->ti_seq;
-                cur.m_len = ti->ti_len;
-                cur.m_flags = (ti->ti_flags & TH_FIN) ?1:0;
-                save_ptr=true;
-                ti_block = &tblocks[ci];
-            }else{
-                if (SEQ_GT(m_blocks[li].m_seq,ti->ti_seq)) {
-                  cur.m_seq = ti->ti_seq;
-                  cur.m_len = ti->ti_len;
-                  cur.m_flags = (ti->ti_flags & TH_FIN) ?1:0;
-                  save_ptr=true;
-                  ti_block = &tblocks[ci];
-                }else{
-                    cur=m_blocks[li];
-                    li++;
-                }
+        while (last != m_blocks.end()) {
+            if (!tcp_reass_merge_block(pctx, tp, it->second, last->second)) {
+                break;
             }
-        }else{
-            cur=m_blocks[li];
-            li++;
+            ++last;
         }
 
-        if (ci==0) {
-            tblocks[ci]=cur;
-            ci++;
-        }else{
-            int32 q = tblocks[ci-1].m_seq + tblocks[ci-1].m_len - cur.m_seq;
-            if (q<0) {
-                tblocks[ci]=cur;
-                ci++;
-            }else{
-
-                if (q>0) {
-                    if (q>=cur.m_len) {
-                        /* all packet is duplicate */
-                        INC_STAT(pctx, tg_id,tcps_rcvduppack);
-                        INC_STAT_CNT(pctx, tg_id, tcps_rcvdupbyte,cur.m_len);
-                    }else{
-                        /* part of it duplicate */
-                        INC_STAT(pctx, tg_id,tcps_rcvpartduppack);
-                        INC_STAT_CNT(pctx, tg_id, tcps_rcvpartdupbyte,(cur.m_len-q));
-                    }
-                }
-                if (cur.m_len>q) {
-                    tblocks[ci-1].m_len+=(cur.m_len-q);
-                    tblocks[ci-1].m_flags |=cur.m_flags; /* or the overlay FIN */
-                }
-            }
-        }
-
-        if (cur.m_seq == ti->ti_seq) {
-            ti_block = &tblocks[ci-1];
+        /* remove merged blocks */
+        if (next != last) {
+            m_blocks.erase(next, last);
         }
     }
 
-    if (ci>MAX_TCP_REASS_BLOCKS) {
+    ti->ti_len = it->second.m_len;
+
+    if (m_max_size && m_blocks.size() > m_max_size) {
         /* drop last segment */
+        auto last = std::prev(m_blocks.end(), 1);
+        if (it == last) {
+            ti->ti_len = 0;    /* to update ti_len as dropped */
+        }
         INC_STAT(pctx, tg_id, tcps_rcvoopackdrop);
-        INC_STAT_CNT(pctx, tg_id, tcps_rcvoobytesdrop,tblocks[MAX_TCP_REASS_BLOCKS].m_len);
-        tblocks[MAX_TCP_REASS_BLOCKS].m_len = 0;    /* to update ti_len as dropped */
-    }
-    if (ti_block) {
-        ti->ti_len = ti_block->m_len;
-    }
-    m_active_blocks = bsd_umin(ci,MAX_TCP_REASS_BLOCKS);
-    for (li=0; li<m_active_blocks; li++ ) {
-        m_blocks[li]= tblocks[li];
+        INC_STAT_CNT(pctx, tg_id, tcps_rcvoobytesdrop, last->second.m_len);
+
+        m_blocks.erase(last);
     }
 
-    return(0);
+    return 0;
 }
 
 

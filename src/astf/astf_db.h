@@ -85,6 +85,8 @@ class CTcpTuneables {
 
         tcp_do_sack     = 0x200000,
         tcp_cc_algo     = 0x400000,
+
+        tcp_reass_maxqlen = 0x800000,
     };
     enum {
         no_delay_mask_nagle = 0x1,
@@ -118,6 +120,8 @@ class CTcpTuneables {
 
         m_tcp_do_sack=1;
         m_tcp_cc_algo=0;
+
+        m_tcp_reass_maxqlen=0;
 
         memset(m_ipv6_src,0,16);
         memset(m_ipv6_dst,0,16);
@@ -167,6 +171,8 @@ class CTcpTuneables {
 
     uint8_t  m_tcp_do_sack;
     uint8_t  m_tcp_cc_algo;
+
+    uint8_t  m_tcp_reass_maxqlen;
 
  private:
     uint32_t m_bitfield;
