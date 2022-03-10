@@ -727,7 +727,7 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
     return c_data;
 }
 
-bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply) {
+void TrexAstfDpCore::get_client_stats(std::vector<uint32_t> &msg_data, bool is_range) {
 
     Json::Value res = Json::objectValue;
     if (is_range){
@@ -735,18 +735,15 @@ bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> ms
             CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
             res[to_string(client)] = client_data_to_json(ip_info);
         }
-        reply.set_reply(res);
-        return true;
     }
-    
-    for ( auto client : msg_data)
-    {
-        CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
-        res[to_string(client)] = client_data_to_json(ip_info);
+    else {
+        for ( auto client : msg_data) {
+            CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
+            res[to_string(client)] = client_data_to_json(ip_info);
+        }
     }
-   
-    reply.set_reply(res);
-    return true;
+    TrexDpToCpMsgBase *msg = new TrexAstfDpSentClientStats(res);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
 }
 
 

@@ -186,18 +186,31 @@ private:
 
 class TrexAstfDpGetClientStats : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpGetClientStats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply) : m_reply(reply) {
-        m_astf_db = astf_db;
+    TrexAstfDpGetClientStats(std::vector<uint32_t> &msg_data, bool is_range) {
         m_msg_data =  msg_data;
         m_is_range = is_range;
     }
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
-    CAstfDB* m_astf_db;
     std::vector<uint32_t> m_msg_data;
     bool     m_is_range;
-    MsgReply<Json::Value> &m_reply;
+};
+
+/**
+ * a message for sending the clients sts from dp to cp
+ */
+class TrexAstfDpSentClientStats : public TrexDpToCpMsgBase {
+public:
+
+    TrexAstfDpSentClientStats(Json::Value& client_sts) {
+        m_client_sts = client_sts;
+    }
+
+    virtual bool handle(void);
+
+private:
+    Json::Value m_client_sts;
 };
 
 /**

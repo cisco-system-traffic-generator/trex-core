@@ -122,7 +122,8 @@ TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
-TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
+TREX_RPC_CMD(TrexRpcCmdGetClientsInfoStart, "get_clients_info_start");
+TREX_RPC_CMD(TrexRpcCmdGetClientsInfoPull, "get_clients_info_pull");
 TREX_RPC_CMD(TrexRpcCmdIsTunnelSupported,  "is_tunnel_supported");
 TREX_RPC_CMD(TrexRpcCmdActivateTunnelMode,  "activate_tunnel_mode");
 TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
@@ -820,53 +821,58 @@ TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &resu
 }
 
 trex_rpc_cmd_rc_e
-TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdGetClientsInfoStart::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &attr = parse_array(params, "attr", result);
     bool is_range = parse_bool(params, "is_range", result);
 
-    auto astf_db = CAstfDB::get_instance(0);
     cpu_util_full_t cpu_util_full;
 
     if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
         return TREX_RPC_CMD_INTERNAL_ERR;
     }
 
-    std::vector<Json::Value> dps_results;
     std::vector<uint32_t> msg_data;
+    TrexAstf* stx = get_astf_object();
+
+    bool ready = stx->get_clients_info_ready();
+    if (!ready) {
+        generate_execute_err(result, "Getting client info has already started, use get_clients_info_pull to collect the info");
+    }
 
     uint32_t client_start_ip = 0, client_end_ip = 0;
     for (auto each_client : attr) {
         if (!is_range){
-             client_start_ip = parse_uint32(each_client, "client_ip", result);
-             msg_data.push_back(client_start_ip);
+            client_start_ip = parse_uint32(each_client, "client_ip", result);
+            msg_data.push_back(client_start_ip);
         }
         else {
-             client_start_ip = parse_uint32(each_client, "client_start_ip", result);
-             client_end_ip = parse_uint32(each_client, "client_end_ip", result);
-             msg_data.push_back(client_start_ip);
-             msg_data.push_back(client_end_ip);
+            client_start_ip = parse_uint32(each_client, "client_start_ip", result);
+            client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+            msg_data.push_back(client_start_ip);
+            msg_data.push_back(client_end_ip);
         }
     }
 
-    uint8_t dp_core_count = get_astf_object()->get_dp_core_count();
-    for (uint8_t core_id = 0; core_id < dp_core_count; core_id++) {
-        static MsgReply<Json::Value> reply;
-        reply.reset();
-        TrexCpToDpMsgBase *msg = new TrexAstfDpGetClientStats(astf_db, msg_data, is_range, reply);
-        get_astf_object()->send_msg_to_dp(core_id, msg);
-        dps_results.push_back(reply.wait_for_reply());
-    }
+    TrexCpToDpMsgBase *msg = new TrexAstfDpGetClientStats(msg_data, is_range);
+    stx->send_message_to_all_dp(msg, false);
+    stx->set_clients_info_ready(false);
 
-    assert(dps_results.size() != 0);
-    result["result"] = dps_results[0];
-    for (int i=0;i<dps_results.size();i++) {
-        Json::Value::Members dp_clients = dps_results[i].getMemberNames();
-        for (auto client : dp_clients) {
-            if (dps_results[i][client]["Found"] == 1) {
-                result["result"][client] = dps_results[i][client];
-            }
-        }
+
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetClientsInfoPull::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    bool is_get_client_info_started = stx->get_clients_info_ready();
+    if (is_get_client_info_started) {
+        generate_execute_err(result, "get_clients_info_start has to be called before get_clients_info_pull");
+    }
+    bool suc = stx->get_clients_info(result["result"]);
+    if (!suc) {
+        generate_execute_err(result, "The clients info is not ready yet");
     }
 
     return (TREX_RPC_CMD_OK);
@@ -1083,7 +1089,8 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
     m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
-    m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsInfoStart(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsInfoPull(this));
     m_cmds.push_back(new TrexRpcCmdUpdateTunnelClient(this));
     m_cmds.push_back(new TrexRpcCmdActivateTunnelMode(this));
     m_cmds.push_back(new TrexRpcCmdIsTunnelSupported(this));

@@ -103,6 +103,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_states_cnt[instance->get_profile_state()]++;
     m_tunnel_handler = nullptr;
     m_cp_sts_infra = new CCpDynStsInfra(get_dp_core_count());;
+    m_is_clients_info_ready = true;
 }
 
 
@@ -627,6 +628,24 @@ CCpDynStsInfra * TrexAstf::get_cp_sts_infra() {
 
 vector<CSTTCp *> TrexAstf::get_dyn_sttcp_list() {
     return m_cp_sts_infra->get_dyn_sts_list();
+}
+
+bool TrexAstf::get_clients_info(Json::Value &clients_info) {
+    if (m_clients_info.size() != m_dp_core_count) {
+        return false;
+    }
+    m_is_clients_info_ready = true;
+    clients_info = m_clients_info[0];
+    for (int i=0;i<m_clients_info.size();i++) {
+        Json::Value::Members dp_clients = m_clients_info[i].getMemberNames();
+        for (auto client : dp_clients) {
+            if (m_clients_info[i][client]["Found"] == 1) {
+                clients_info[client] = m_clients_info[i][client];
+            }
+        }
+    }
+    m_clients_info.clear();
+    return true;
 }
 
 /***********************************************************

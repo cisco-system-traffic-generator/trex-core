@@ -75,7 +75,7 @@ public:
     void set_service_mode(bool enabled, bool filtered, uint8_t mask);
     void activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate, bool is_range);
     void client_lookup_and_activate(uint32_t client, bool activate);
-    bool get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply);
+    void get_client_stats(std::vector<uint32_t>& msg_data, bool is_range);
     Json::Value client_data_to_json(void *ip_info);
     void update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
 

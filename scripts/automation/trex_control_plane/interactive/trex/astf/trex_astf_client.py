@@ -1421,9 +1421,24 @@ class ASTFClient(TRexClient):
 
         return self._transmit("enable_disable_client", params)
 
+    def _get_client_info(self, params, timeout):
+        # starting the gathering of the clients info
+        rc = self._transmit("get_clients_info_start", params)
+        if not rc:
+            raise TRexError(rc.err())
+
+        rc = False
+        # getting the client info using get_clients_info_pull asynchronously
+        while not rc and timeout > 0:
+            rc = self._transmit("get_clients_info_pull")
+            time.sleep(1)
+            timeout-=1
+        if not rc:
+            raise TRexError(rc.err())
+        return rc
 
      # execute 'method' for getting clients stats
-    def get_clients_info (self, client_list):
+    def get_clients_info (self, client_list, timeout = 10):
         '''
         Version 1 
         API to get client information: Currently only state and if client is present. 
@@ -1437,11 +1452,11 @@ class ASTFClient(TRexClient):
         params = {"is_range": False,
                   "attr": json_attr }
 
-        return self._transmit("get_clients_info", params)
+        return self._get_client_info(params, timeout)
 
 
      # execute 'method' for getting clients stats
-    def get_clients_info_range (self, client_start, client_end):
+    def get_clients_info_range (self, client_start, client_end, timeout=10):
         '''
         Version 2 
         API to get client information: Currently only state and if client is present. 
@@ -1455,7 +1470,7 @@ class ASTFClient(TRexClient):
         params = {"is_range": True,
                   "attr": json_attr }
 
-        return self._transmit("get_clients_info", params)
+        return self._get_client_info(params, timeout)
 
 
 

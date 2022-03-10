@@ -21,6 +21,7 @@ limitations under the License.
 */
 
 #include "trex_astf_dp_core.h"
+#include "trex_astf.h"
 #include "trex_astf_messaging.h"
 #include "trex_rx_core.h"
 
@@ -236,12 +237,21 @@ TrexCpToDpMsgBase* TrexAstfDpActivateClient::clone() {
 + ************************/
 
 bool TrexAstfDpGetClientStats::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->get_client_stats(m_astf_db, m_msg_data, m_is_range, m_reply);
+    astf_core(dp_core)->get_client_stats(m_msg_data, m_is_range);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpGetClientStats::clone() {
-    return new TrexAstfDpGetClientStats(m_astf_db, m_msg_data, m_is_range, m_reply);
+    return new TrexAstfDpGetClientStats(m_msg_data, m_is_range);
+}
+
+/*************************
++  Sending Client Stats MSG
++ ************************/
+
+bool TrexAstfDpSentClientStats::handle(void) {
+    ((TrexAstf*)get_stx())->add_clients_info(m_client_sts);
+    return true;
 }
 
 /*************************
