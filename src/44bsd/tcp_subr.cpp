@@ -419,13 +419,8 @@ void CTcpFlow::update_new_template_assoc_info() {
 }
 
 
-void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
-
-    m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
-
-    CTcpTuneables *tune = rw_db->get_c_tune();
-    if (!tune)
-        return;
+static inline
+void set_tcp_info(struct CTcpCb& m_tcp, CTcpTuneables *tune) {
 
     if (tune->is_empty())
         return;
@@ -439,10 +434,19 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
 
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit) ) {
         m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
+        m_tcp.initcwnd_segments = tune->m_tcp_initwnd;
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+
+        m_tcp.t_flags &= ~(TF_NODELAY|TF_NODELAY_PUSH);
+        if (tune->m_tcp_no_delay& CTcpTuneables::no_delay_mask_nagle) {
+            m_tcp.t_flags |= TF_NODELAY;
+        }
+        if (tune->m_tcp_no_delay& CTcpTuneables::no_delay_mask_push) {
+            m_tcp.t_flags |= TF_NODELAY_PUSH;
+        }
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) ) {
@@ -459,43 +463,24 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
 
 }
 
+void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
+
+    m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
+
+    CTcpTuneables *tune = rw_db->get_c_tune();
+    if (!tune)
+        return;
+
+    set_tcp_info(m_tcp, tune);
+}
+
 void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
     m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
 
     if (!tune)
         return;
 
-    if (tune->is_empty())
-        return;
-
-    /* TCP object is part of a bigger object */
-    m_tcp.m_tuneable_flags |= TUNE_HAS_PARENT_FLOW;
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
-        m_tcp.m_tuneable_flags |= TUNE_MSS;
-        m_tcp.t_maxseg = tune->m_tcp_mss;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
-        m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
-        m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) ) {
-        m_tcp.m_delay_limit = tune->m_tcp_no_delay_counter;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
-        m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
-        m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
-    }
-
+    set_tcp_info(m_tcp, tune);
 }
 
 

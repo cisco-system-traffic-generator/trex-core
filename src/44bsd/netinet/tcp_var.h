@@ -222,6 +222,7 @@ struct tcpcb {
     int	t_bytes_acked;		/* # bytes acked during current RTT */
     int	t_dupacks;		/* consecutive dup acks recd */
 
+    int initcwnd_segments;	/* TREX_FBSD: trex-core compatible: tunable per flow */
 };
 #endif	/* _KERNEL || _WANT_TCPCB */
 
