@@ -430,6 +430,20 @@ public:
         }
     }
 
+    void set_clients_info_ready(bool ready) {
+        m_is_clients_info_ready = ready;
+    }
+
+    bool get_clients_info_ready() {
+        return m_is_clients_info_ready;
+    }
+
+    void add_clients_info(Json::Value &clients_info) {
+        m_clients_info.push_back(clients_info);
+    }
+
+    bool get_clients_info(Json::Value &clients_info);
+
     CTunnelHandler *get_tunnel_handler(){
         return m_tunnel_handler;
     }
@@ -442,25 +456,28 @@ protected:
     //void check_blacklist_states(const states_t &blacklist);
 
     void ports_report_state(state_e state);
-    state_latency_e m_l_state;
-    uint32_t        m_latency_pps;
-    bool            m_lat_with_traffic;
-    int32_t         m_lat_profile_id;
 
-    TrexOwner       m_owner;
-    state_e         m_state;
-    CSyncBarrier   *m_sync_b;
-    CFlowGenList   *m_fl;
-    CParserOption  *m_opts;
-    std::string     m_topo_buffer;
-    std::string     m_topo_hash;
-    bool            m_topo_parsed;
-    std::string     m_tunnel_topo_buffer;
-    std::string     m_tunnel_topo_hash;
-    bool            m_tunnel_topo_parsed;
-    uint64_t        m_epoch;
-    CTunnelHandler *m_tunnel_handler;
-    CCpDynStsInfra *m_cp_sts_infra;
+    state_latency_e          m_l_state;
+    uint32_t                 m_latency_pps;
+    bool                     m_lat_with_traffic;
+    int32_t                  m_lat_profile_id;
+         
+    TrexOwner                m_owner;
+    state_e                  m_state;
+    std::vector<Json::Value> m_clients_info;
+    CSyncBarrier            *m_sync_b;
+    CFlowGenList            *m_fl;
+    CParserOption           *m_opts;
+    std::string              m_topo_buffer;
+    std::string              m_topo_hash;
+    bool                     m_topo_parsed;
+    std::string              m_tunnel_topo_buffer;
+    std::string              m_tunnel_topo_hash;
+    bool                     m_tunnel_topo_parsed;
+    bool                     m_is_clients_info_ready;
+    uint64_t                 m_epoch;
+    CTunnelHandler          *m_tunnel_handler;
+    CCpDynStsInfra          *m_cp_sts_infra;
 
 public:
     bool                m_stopping_dp;
