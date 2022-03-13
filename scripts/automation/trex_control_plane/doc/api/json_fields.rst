@@ -24,12 +24,12 @@ These main fields are:
 |                             | In case histogram is zero it means that all packets|                           |
 |                             | were injected in the right time.                   |                           |
 +-----------------------------+----------------------------------------------------+---------------------------+
-| :ref:`trex-latecny-field`   | Latency reports, containing latency data on        | - Generated when latency  |
+| :ref:`trex-latency-field`   | Latency reports, containing latency data on        | - Generated when latency  |
 |                             | generated data and on response traffic             |   test is enabled (``l``  |
 |                             |                                                    |   param)                  |
 |                             |                                                    | - *typo* on field key:    |
 +-----------------------------+----------------------------------------------------+   will be fixed on next   |   
-| :ref:`trex-latecny-v2-field`| Extended latency information                       |   release                 |
+| :ref:`trex-latency-v2-field`| Extended latency information                       |   release                 |
 +-----------------------------+----------------------------------------------------+---------------------------+
 
 
@@ -130,9 +130,9 @@ tx-gen field
 | unknown           | int   |                                                           |
 +-------------------+-------+-----------------------------------------------------------+
 
-.. _trex-latecny-field:
+.. _trex-latency-field:
 
-trex-latecny field
+trex-latency field
 ~~~~~~~~~~~~~~~~~~
 
 +---------+-------+---------------------------------------------------------+
@@ -149,9 +149,9 @@ trex-latecny field
 | unknown |  int  |                                                         |
 +---------+-------+---------------------------------------------------------+
 
-.. _trex-latecny-v2-field:
+.. _trex-latency-v2-field:
 
-trex-latecny-v2 field
+trex-latency-v2 field
 ~~~~~~~~~~~~~~~~~~~~~
 
 +--------------------------------------+-------+--------------------------------------+

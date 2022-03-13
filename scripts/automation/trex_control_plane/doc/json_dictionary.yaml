@@ -128,11 +128,11 @@ tx-gen :
       exp  : ""
       val  : 0
 
-trex-latecny :
+trex-latency :
   name              : 
     type : string
     exp  : "this is a name representation of the main field"
-    val  : "trex-latecny"
+    val  : "trex-latency"
   type              : 
     type : int
     val  : 0
@@ -159,11 +159,11 @@ trex-latecny :
       val  : 0
 
 
-trex-latecny-v2 :
+trex-latency-v2 :
   name              : 
     type : string
     exp  : "this is a name representation of the main field"
-    val  : "trex-latecny-v2"
+    val  : "trex-latency-v2"
   type              : 
     type : int
     val  : 0

@@ -264,7 +264,7 @@ class STLRX_Test(CStlGeneral_Test):
                 self.max_latency  = max_lat
                 obj = { "name" : self.get_name(),
                         "type"  : "stateless",
-                        "latecny" :  { "min" : self.__get_as_float(latency['total_min']),
+                        "latency" :  { "min" : self.__get_as_float(latency['total_min']),
                                        "max" : max_lat,
                                        "avr" : latency['average'],
                                        "jitter" : latency['jitter'],

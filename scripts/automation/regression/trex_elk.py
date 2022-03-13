@@ -57,7 +57,7 @@ def create_one_object (build_id):
                 "gbps_pc" :  random.randint(9,32),
                 "gbps" :  random.randint(9,32),
                 "avg-pktsize" : random.randint(60,1500),
-                "latecny" : { "min" : random.randint(1,10),
+                "latency" : { "min" : random.randint(1,10),
                               "max" : random.randint(100,120),
                               "avr" : random.randint(1,60)
                              }
@@ -258,7 +258,7 @@ class TRexEs(object):
                                     "gbps"        : { "type": "double" },
                                     "avg-pktsize" : { "type": "long" },
                                     "kcps"        : { "type": "double" },
-                                    "latecny"     : {
+                                    "latency"     : {
                                                      "properties": {
                                                        "min"        : { "type": "double" },
                                                        "max"        : { "type": "double" },

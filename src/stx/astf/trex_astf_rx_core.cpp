@@ -468,7 +468,7 @@ void CRxAstfCore::cp_update_stats(){
 }
 
 void CRxAstfCore::cp_get_json(std::string & json){
-    json="{\"name\":\"trex-latecny-v2\",\"type\":0,\"data\":{";
+    json="{\"name\":\"trex-latency-v2\",\"type\":0,\"data\":{";
     json+=add_json("cpu_util", m_cpu_cp_u.GetVal());
     json+=add_json("epoch", m_epoc);
 

@@ -3154,7 +3154,7 @@ array of id and value
 
 * *Result* ['object'] - {}
 
-se link:cp_docs/api/json_fields.html#trex-latecny-v2-field[stf latency]
+se link:cp_docs/api/json_fields.html#trex-latency-v2-field[stf latency]
 
 == Typical Transactions Examples
 the following examples represents common scenarios.

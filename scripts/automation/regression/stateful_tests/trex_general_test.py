@@ -275,7 +275,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 __jitter = max(trex_res.get_jitter_latency().values())
                 __max_win =  max(trex_res.get_avg_window_latency ().values())
 
-                obj["latecny"]= { "min" : __min,
+                obj["latency"]= { "min" : __min,
                                   "max" : __max,
                                   "avr" : __avr,
                                   "jitter" : __jitter,
@@ -400,11 +400,11 @@ class CTRexGeneral_Test(unittest.TestCase):
                 if max(trex_res.get_avg_latency().values()) > allowed_latency:
                     self.fail('LatencyError: Average latency exceeds %s (usec)' % allowed_latency)
 
-                ports_names = trex_res.get_last_value('trex-latecny-v2.data', 'port\-\d+')
+                ports_names = trex_res.get_last_value('trex-latency-v2.data', 'port\-\d+')
                 if not ports_names:
-                    raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latecny-v2.data.port-*')
+                    raise AbnormalResultError('Could not find ports info in TRex results, path: trex-latency-v2.data.port-*')
                 for port_name in ports_names:
-                    path = 'trex-latecny-v2.data.%s.hist.cnt' % port_name
+                    path = 'trex-latency-v2.data.%s.hist.cnt' % port_name
                     lat_count = trex_res.get_last_value(path)
                     if lat_count == 0:
                         self.fail('LatencyError: Number of latency packets received on %s is 0' % port_name)

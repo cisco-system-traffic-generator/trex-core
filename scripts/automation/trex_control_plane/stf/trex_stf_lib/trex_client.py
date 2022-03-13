@@ -1512,12 +1512,12 @@ class CTRexResult(object):
                     latest_dump['warmup_barrier'] = True
 
             # handle latency data
-            if self.latency_checked and 'trex-latecny-v2' in latest_dump and 'trex-latecny' in latest_dump:
+            if self.latency_checked and 'trex-latency-v2' in latest_dump and 'trex-latency' in latest_dump:
                 # fix typos, by "pointer"
-                if 'trex-latecny-v2' in latest_dump and 'trex-latency-v2' not in latest_dump:
-                    latest_dump['trex-latency-v2'] = latest_dump['trex-latecny-v2']
-                if 'trex-latecny' in latest_dump and 'trex-latency' not in latest_dump:
-                    latest_dump['trex-latency'] = latest_dump['trex-latecny']
+                if 'trex-latency-v2' in latest_dump and 'trex-latency-v2' not in latest_dump:
+                    latest_dump['trex-latency-v2'] = latest_dump['trex-latency-v2']
+                if 'trex-latency' in latest_dump and 'trex-latency' not in latest_dump:
+                    latest_dump['trex-latency'] = latest_dump['trex-latency']
 
                 latency_per_port         = self.get_last_value("trex-latency-v2.data", "port-")
                 self._max_latency        = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)

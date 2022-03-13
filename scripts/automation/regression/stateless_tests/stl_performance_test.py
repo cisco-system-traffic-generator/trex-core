@@ -93,7 +93,7 @@ class PerformanceReport(object):
                     "gbps_pc" :  self.avg_gbps_per_core,
                     "gbps" :  self.avg_gbps,
                     "avg-pktsize" : ((1000.0*self.avg_gbps/(8.0*self.avg_mpps))),
-                    "latecny" : { "min" : -1.0,
+                    "latency" : { "min" : -1.0,
                                   "max" : -1.0,
                                   "avr" : -1.0
                                  }

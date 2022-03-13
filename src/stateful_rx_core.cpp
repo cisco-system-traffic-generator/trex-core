@@ -1104,7 +1104,7 @@ bool   CLatencyManager::is_any_error(){
 
 
 void CLatencyManager::dump_json(std::string & json ){
-    json="{\"name\":\"trex-latecny\",\"type\":0,\"data\":{";
+    json="{\"name\":\"trex-latency\",\"type\":0,\"data\":{";
     for (auto &i: m_port_ids) {
         CLatencyManagerPerPort * lp=&m_ports[i];
         lp->m_port.dump_json(json);
@@ -1115,7 +1115,7 @@ void CLatencyManager::dump_json(std::string & json ){
 }
 
 void CLatencyManager::dump_json_v2(std::string & json ){
-    json="{\"name\":\"trex-latecny-v2\",\"type\":0,\"data\":{";
+    json="{\"name\":\"trex-latency-v2\",\"type\":0,\"data\":{";
     json+=add_json("cpu_util",m_cpu_cp_u.GetVal());
 
     for (auto &i: m_port_ids) {

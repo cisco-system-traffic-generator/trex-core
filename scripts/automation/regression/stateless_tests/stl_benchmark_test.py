@@ -98,7 +98,7 @@ class STLBenchmark_Test(CStlGeneral_Test):
                             "gbps_pc" :  (agv_gbps_norm_pc),
                             "gbps" :  (agv_gbps),
                             "avg-pktsize" : round((1000.0*agv_gbps/(8.0*agv_mpps))),
-                            "latecny" : { "min" : -1.0,
+                            "latency" : { "min" : -1.0,
                                           "max" : -1.0,
                                           "avr" : -1.0
                                          }
