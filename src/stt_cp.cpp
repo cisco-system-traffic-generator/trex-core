@@ -504,6 +504,10 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     
     TCP_S_ADD_CNT_E(tcps_reasalloc,"allocate tcp reasembly ctx");
     TCP_S_ADD_CNT_E(tcps_reasfree,"free tcp reasembly ctx");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_4,"count of max queue <= 4");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_16,"count of max queue <= 16");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_100,"count of max queue <= 100");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_other,"count of max queue > 100");
     TCP_S_ADD_CNT_E(tcps_nombuf,"no mbuf for tcp - drop the packets");
 
     /* TREX_FBSD: SACK counters */

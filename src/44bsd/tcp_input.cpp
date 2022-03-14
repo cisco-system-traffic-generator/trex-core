@@ -254,6 +254,7 @@ int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
     if (m_blocks.empty()) {
         /* first one - just add it to the list */
         m_blocks.insert(std::pair<CTcpSeqKey,CTcpReassBlock>(cur_seq, cur));
+        m_max_used = std::max(m_max_used, get_active_blocks());
         return 0;
     }
 
@@ -286,7 +287,7 @@ int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
 
     ti->ti_len = it->second.m_len;
 
-    if (m_max_size && m_blocks.size() > m_max_size) {
+    if (m_max_size && get_active_blocks() > m_max_size) {
         /* drop last segment */
         auto last = std::prev(m_blocks.end(), 1);
         if (it == last) {
@@ -298,6 +299,7 @@ int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
         m_blocks.erase(last);
     }
 
+    m_max_used = std::max(m_max_used, get_active_blocks());
     return 0;
 }
 

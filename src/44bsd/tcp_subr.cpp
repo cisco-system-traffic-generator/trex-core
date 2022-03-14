@@ -151,6 +151,10 @@ void CTcpStats::Dump(FILE *fd){
     MYC(tcps_badsyn); 
     MYC(tcps_reasalloc);
     MYC(tcps_reasfree);
+    MYC(tcps_reas_hist_4);
+    MYC(tcps_reas_hist_16);
+    MYC(tcps_reas_hist_100);
+    MYC(tcps_reas_hist_other);
     MYC(tcps_nombuf);
     MYC(tcps_notunnel);
 
