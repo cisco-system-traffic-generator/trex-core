@@ -75,7 +75,7 @@ static inline void tcp_pktmbuf_trim(struct rte_mbuf *m, uint16_t len){
  * Drop TCP, IP headers and TCP options. go to L7 
    remove pad if exists
  */
-static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *m, 
+static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *& m,
                                         uint16_t adj_len,
                                         uint16_t l7_len){
 
@@ -104,10 +104,11 @@ static inline void tcp_pktmbuf_fix_mbuf(struct rte_mbuf *m,
 
 /* tcp_mbuf.h */
 
-void
+struct mbuf *
 m_adj_fix(struct mbuf *m, int req_len, int l7_len)
 {
-    tcp_pktmbuf_fix_mbuf((struct rte_mbuf *)m, req_len, l7_len);
+    tcp_pktmbuf_fix_mbuf((struct rte_mbuf *&)m, req_len, l7_len);
+    return m;
 }
 
 void
