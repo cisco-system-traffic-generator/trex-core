@@ -185,6 +185,11 @@ struct  tcpstat_int_t: public tcpstat {
 
     uint64_t    tcps_reasalloc;     /* allocate tcp reasembly object */
     uint64_t    tcps_reasfree;      /* free tcp reasembly object  */
+    uint64_t    tcps_reas_hist_4;       /* count of max queue <= 4 */
+    uint64_t    tcps_reas_hist_16;      /* count of max queue <= 16 */
+    uint64_t    tcps_reas_hist_100;     /* count of max queue <= 100 */
+    uint64_t    tcps_reas_hist_other;   /* count of max queue > 100 */
+
     uint64_t    tcps_nombuf;        /* no mbuf for tcp - drop the packets */
     uint64_t    tcps_notunnel;       /* no GTP Tunnel for tcp - drop the packets */
 };
@@ -1283,7 +1288,7 @@ typedef std::vector<CTcpReassBlock> vec_tcp_reas_t;
 class CTcpReass {
 
 public:
-    CTcpReass(int size): m_max_size(size) {}
+    CTcpReass(uint16_t size): m_max_size(size), m_max_used(0) {}
 
     int pre_tcp_reass(CPerProfileCtx * pctx,
                       struct CTcpCb *tp,
@@ -1315,8 +1320,12 @@ public:
                   struct rte_mbuf *m) { return tcp_reass(DEFAULT_PROFILE_CTX(ctx), tp, ti, m); }
 #endif
 
-    inline uint8_t get_active_blocks(void){
-        return m_blocks.size();
+    inline uint16_t get_active_blocks(void){
+        return (uint16_t)m_blocks.size();
+    }
+
+    inline uint16_t get_max_blocks(void) {
+        return m_max_used;
     }
 
     void Dump(FILE *fd);
@@ -1326,6 +1335,7 @@ public:
 private:
     std::map<CTcpSeqKey,CTcpReassBlock> m_blocks;
     uint16_t m_max_size;
+    uint16_t m_max_used;
 };
 
 
@@ -1384,6 +1394,16 @@ inline void tcp_reass_alloc(CPerProfileCtx * pctx,
 inline void tcp_reass_free(CPerProfileCtx * pctx,
                             struct CTcpCb *tp){
     INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reasfree);
+    uint16_t max_blocks = tp->m_tpc_reass->get_max_blocks();
+    if (max_blocks <= 4) {
+        INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reas_hist_4);
+    } else if (max_blocks <= 16) {
+        INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reas_hist_16);
+    } else if (max_blocks <= 100) {
+        INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reas_hist_100);
+    } else {
+        INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_reas_hist_other);
+    }
     delete tp->m_tpc_reass;
     tp->m_tpc_reass=(CTcpReass *)0;
 }
