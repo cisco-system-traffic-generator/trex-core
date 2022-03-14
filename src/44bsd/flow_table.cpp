@@ -966,7 +966,7 @@ void CTcpRxOffloadBuf::set(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpT
     flow->m_lro_buf = this;
 }
 
-void CTcpRxOffloadBuf::clear() {
+void CTcpRxOffloadBuf::clear_flow() {
     if (m_flow) {
         if (m_flow->m_lro_buf == this) {
             m_flow->m_lro_buf = nullptr;
@@ -981,7 +981,7 @@ void CTcpRxOffloadBuf::reset() {
             rte_pktmbuf_free(m_mbuf);
             m_mbuf = nullptr;
         }
-        clear();
+        clear_flow();
     }
 }
 
@@ -1074,8 +1074,8 @@ HOT_FUNC bool CTcpRxOffload::append_buf(CTcpFlow* flow,
             lro_done = true;
         } else {
             /* nullptr ctx prevents unexpected flow closing */
-            m_cb(nullptr, buf->m_flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
-            buf->clear();
+            m_cb(nullptr, flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
+            buf->clear_flow();
         }
     }
 
@@ -1103,10 +1103,11 @@ inline void CTcpRxOffload::flush_bufs(CTcpPerThreadCtx * ctx) {
 
     for (; m_tail < m_head; ++m_tail) {
         CTcpRxOffloadBuf* buf = &m_bufs[m_tail % m_size];
+        CTcpFlow* flow = buf->m_flow;
 
-        if (buf->m_flow) {
-            m_cb(ctx, buf->m_flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
-            buf->clear();
+        if (flow) {
+            buf->clear_flow(); /* to prevent mbuf double-free from flow closing. */
+            m_cb(ctx, flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
         }
     }
 }

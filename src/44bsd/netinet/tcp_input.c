@@ -908,7 +908,7 @@ tcp_do_segment(struct mbuf *m, struct tcphdr *th, struct socket *so,
             if (so->so_rcv.sb_state & SBS_CANTRCVMORE) {
                 m_freem(m);
             } else {
-                m_adj_fix(m, drop_hdrlen, tlen);	/* delayed header drop */
+                m = m_adj_fix(m, drop_hdrlen, tlen);	/* delayed header drop */
                 sbappendstream_locked(&so->so_rcv, m, 0, so);
             }
             tp->t_flags |= TF_WAKESOR;
@@ -1954,7 +1954,7 @@ step6:
         tcp_seq save_start = th->th_seq;
         tcp_seq save_rnxt  = tp->rcv_nxt;
         int     save_tlen  = tlen;
-        m_adj_fix(m, drop_hdrlen, tlen);	/* delayed header drop */
+        m = m_adj_fix(m, drop_hdrlen, tlen);	/* delayed header drop */
         /*
          * Insert segment which includes th into TCP reassembly queue
          * with control block tp.  Set thflags to whether reassembly now

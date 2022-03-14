@@ -227,7 +227,7 @@ class CTcpRxOffloadBuf {
 
 public:
     void set(CTcpFlow*, struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
-    void clear();
+    void clear_flow();
     void reset();
     bool is_active() const { return m_flow != nullptr; }
     CTcpFlow* get_flow() const { return m_flow; }
