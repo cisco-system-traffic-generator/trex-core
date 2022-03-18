@@ -3582,7 +3582,7 @@ class TRexClient(object):
             return
 
         # for each port, fetch port status
-        port_status = [self.ports[port_id].get_port_status() for port_id in ports[:4]]
+        port_status = [self.ports[port_id].get_port_status() for port_id in ports]
 
         # merge
         table = TRexTextTable.merge(port_status)
