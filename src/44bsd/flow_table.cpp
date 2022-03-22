@@ -160,8 +160,6 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
         }
     }
 
-    TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
-
     uint8_t *p=rte_pktmbuf_mtod(mbuf, uint8_t*);
     uint32_t mbuf_pkt_len=rte_pktmbuf_pkt_len(mbuf);
     /* check packet length and checksum in case of TCP */
@@ -1161,6 +1159,10 @@ HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                 ctx->get_rx_checksum_check(),
                 action,
                 port_id);
+
+    if ( action != tREDIRECT_RX_CORE ) {
+        TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
+    }
 
     if ( action != tPROCESS ) {
         rx_non_process_packet(action, ctx, mbuf);
