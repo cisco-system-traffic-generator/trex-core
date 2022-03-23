@@ -198,6 +198,38 @@ private:
 };
 
 /**
++ * a message to set ignored MAC addresses
++ *
++ */
+
+class TrexAstfDpIgnoredMacAddrs : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpIgnoredMacAddrs(std::vector<uint64_t>& mac_addresses) {
+        m_mac_addresses = mac_addresses;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    std::vector<uint64_t> m_mac_addresses;
+};
+
+/**
++ * a message to set ignored IPv4 addresses
++ *
++ */
+
+class TrexAstfDpIgnoredIpAddrs : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpIgnoredIpAddrs(std::vector<uint32_t>& ip_addresses) {
+        m_ip_addresses = ip_addresses;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    std::vector<uint32_t> m_ip_addresses;
+};
+
+/**
  * a message for sending the clients sts from dp to cp
  */
 class TrexAstfDpSentClientStats : public TrexDpToCpMsgBase {

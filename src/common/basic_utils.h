@@ -173,6 +173,17 @@ std::string    utl_uint32_to_ipv4_buf(uint32_t ipv4_addr);
 
 float clear_nan_inf(const float var);
 
+/**
+* reverse the order of the bytes.
+*
+* @param p
+*   pointer to first byte
+*
+* @param len
+*   the number of bytes
+*/
+void reverse_order(uint8_t* p, size_t len);
+
 #endif
 
 

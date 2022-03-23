@@ -130,6 +130,10 @@ TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
 TREX_RPC_CMD(TrexRpcCmdAstfTunnelTopoGet, "tunnel_topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTunnelTopoFragment, "tunnel_topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTunnelTopoClear, "tunnel_topo_clear");
+TREX_RPC_CMD(TrexRpcCmdAstfSetIgnoredMacs, "set_ignored_macs");
+TREX_RPC_CMD(TrexRpcCmdAstfGetIgnoredMacs, "get_ignored_macs");
+TREX_RPC_CMD(TrexRpcCmdAstfSetIgnoredIps, "set_ignored_ips");
+TREX_RPC_CMD(TrexRpcCmdAstfGetIgnoredIps, "get_ignored_ips");
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
@@ -901,6 +905,77 @@ TrexRpcCmdGetClientsInfoPull::_run(const Json::Value &params, Json::Value &resul
 
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfSetIgnoredMacs::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    const Json::Value &mac_addresses_json = parse_array(params, "mac_list", result);
+    std::vector<uint64_t> mac_addresses;
+    for (auto & mac_addr : mac_addresses_json) {
+        uint64_t network_order_mac = parse_uint64(mac_addr, "mac_addr", result);
+        reverse_order((uint8_t*)&network_order_mac, sizeof(uint64_t));
+        mac_addresses.push_back(network_order_mac);
+    }
+    if (mac_addresses.size() > MAC_ADDR_MAX) {
+        generate_execute_err(result, "The amount of MAC addresses exceeds the maximum size: " + to_string(MAC_ADDR_MAX));
+    }
+    TrexCpToDpMsgBase *msg = new TrexAstfDpIgnoredMacAddrs(mac_addresses);
+    stx->send_message_to_all_dp(msg, false);
+    stx->insert_ignored_mac_addresses(mac_addresses);
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetIgnoredMacs::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    std::vector<uint64_t> mac_addresses;
+    stx->get_ignored_mac_addresses(mac_addresses);
+    result["result"] = Json::arrayValue;
+    for (int i=0;i<mac_addresses.size();i++) {
+        uint64_t host_order = mac_addresses[i];
+        reverse_order((uint8_t*)&host_order, sizeof(uint64_t));
+        Json::Value val;
+        val["mac_addr"] = host_order;
+        result["result"].append(val);
+    }
+
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfSetIgnoredIps::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    const Json::Value &ip_addresses_json = parse_array(params, "ip_list", result);
+    std::vector<uint32_t> ip_addresses;
+    for (auto & ip_json : ip_addresses_json) {
+        ip_addresses.push_back(parse_uint32(ip_json, "ip", result));
+    }
+    if (ip_addresses.size() > IPV4_ADDR_MAX) {
+        generate_execute_err(result, "The amount of IPv4 addresses exceeds the maximum size: " + to_string(IPV4_ADDR_MAX));
+    }
+    TrexCpToDpMsgBase *msg = new TrexAstfDpIgnoredIpAddrs(ip_addresses);
+    stx->send_message_to_all_dp(msg, false);
+    stx->insert_ignored_ip_addresses(ip_addresses);
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetIgnoredIps::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    std::vector<uint32_t> ip_addresses;
+    stx->get_ignored_ip_addresses(ip_addresses);
+    result["result"] = Json::arrayValue;
+    for (int i=0;i<ip_addresses.size();i++) {
+        Json::Value val;
+        val["ip"] = ip_addresses[i];
+        result["result"].append(val);
+    }
+
+    return (TREX_RPC_CMD_OK);
+
+}
 
 
 /****************************** component implementation ******************************/
@@ -1123,4 +1198,8 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoClear(this));
+    m_cmds.push_back(new TrexRpcCmdAstfSetIgnoredMacs(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetIgnoredMacs(this));
+    m_cmds.push_back(new TrexRpcCmdAstfSetIgnoredIps(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetIgnoredIps(this));
 }

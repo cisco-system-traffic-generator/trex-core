@@ -1797,6 +1797,31 @@ class OPTIONS_DB_ARGS:
         }
     )
 
+    MAC_ADDRS = ArgumentPack(
+        ['--macs'],
+        {'help': "One or more MAC addresses",
+         'required': False,
+         'dest': 'macs',
+         'default': None,
+         'nargs': '*',
+         'action': "merge",
+         'type': check_mac_addr})
+
+    IPV4_ADDRS= ArgumentPack(
+        ['--ipv4'],
+        {"required": False,
+         'dest': 'ipv4',
+         'default': None,
+         'type': check_ipv4_addr,
+         'nargs': '*',
+         'action': "merge",
+         'help': "One ore more IPv4 addresses."})
+
+    UPLOAD = ArgumentPack(
+        ['--upload'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to upload the black list after the changes."})
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -2084,6 +2109,14 @@ class OPTIONS_DB_GROUPS:
             PING_SIZE,
         ], {}
     )
+
+    BLACK_LIST_ADDR = ArgumentGroup(
+        NON_MUTEX,
+        [
+            MAC_ADDRS,
+            IPV4_ADDRS,
+            UPLOAD,
+        ],{})
 
 for var_name in dir(OPTIONS_DB_GROUPS):
     var = getattr(OPTIONS_DB_GROUPS, var_name)

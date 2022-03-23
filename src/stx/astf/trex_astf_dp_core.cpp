@@ -747,6 +747,18 @@ void TrexAstfDpCore::get_client_stats(std::vector<uint32_t> &msg_data, bool is_r
 }
 
 
+void TrexAstfDpCore::insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses) {
+    m_flow_gen->m_s_tcp->insert_ignored_macs(mac_addresses);
+    m_flow_gen->m_c_tcp->insert_ignored_macs(mac_addresses);
+}
+
+
+void TrexAstfDpCore::insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses) {
+    m_flow_gen->m_s_tcp->insert_ignored_ips(ip_addresses);
+    m_flow_gen->m_c_tcp->insert_ignored_ips(ip_addresses);
+}
+
+
 void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data) {
     assert(m_tunnel_handler);
     for (auto elem : msg_data) {

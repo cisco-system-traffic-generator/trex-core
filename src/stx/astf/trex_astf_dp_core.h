@@ -77,6 +77,8 @@ public:
     void client_lookup_and_activate(uint32_t client, bool activate);
     void get_client_stats(std::vector<uint32_t>& msg_data, bool is_range);
     Json::Value client_data_to_json(void *ip_info);
+    void insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
+    void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
     void update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
 
 protected:

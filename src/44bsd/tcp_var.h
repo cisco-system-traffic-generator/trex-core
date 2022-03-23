@@ -31,6 +31,7 @@
 #include "os_time.h"
 #include <algorithm>
 #include "tunnels/tunnel_factory.h"
+#include <unordered_set>
 /*
  * Copyright (c) 1982, 1986, 1993, 1994, 1995
  *  The Regents of the University of California.  All rights reserved.
@@ -1152,6 +1153,8 @@ public:
     /* server port management */
 private:
     std::unordered_map<uint32_t,CServerPortInfo> m_server_ports;
+    std::unordered_set<uint64_t>                 m_ignored_macs;
+    std::unordered_set<uint32_t>                 m_ignored_ips;
 public:
     void append_server_ports(profile_id_t profile_id);
     void remove_server_ports(profile_id_t profile_id);
@@ -1216,6 +1219,44 @@ public:
         if (is_profile_ctx(profile_id)) {
             m_active_profiles.erase(profile_id);
         }
+    }
+
+    void insert_ignored_macs(std::vector<uint64_t>& ignored_macs) {
+        m_ignored_macs.clear();
+        m_ignored_macs.insert(ignored_macs.begin(), ignored_macs.end());
+        uint8_t mask = 1;
+        if (m_ignored_macs.size()) {
+            m_ft.m_black_list |= mask;
+        } else{
+            m_ft.m_black_list &= ~mask;
+        }
+    }
+
+    bool mac_lookup(uint64_t mac) {
+        return (m_ignored_macs.find(mac) != m_ignored_macs.end());
+    }
+
+    bool is_ignored_macs_empty() {
+        return (m_ignored_macs.size() == 0);
+    }
+
+    void insert_ignored_ips(std::vector<uint32_t>& ignored_ips) {
+        m_ignored_ips.clear();
+        m_ignored_ips.insert(ignored_ips.begin(), ignored_ips.end());
+        uint8_t mask = 2;
+        if (m_ignored_ips.size()) {
+            m_ft.m_black_list |= mask;
+        } else {
+            m_ft.m_black_list &= ~mask;
+        }
+    }
+
+    bool ip_lookup(uint32_t ip) {
+        return (m_ignored_ips.find(ip) != m_ignored_ips.end());
+    }
+
+    bool is_ignored_ips_empty() {
+        return (m_ignored_ips.size() == 0);
     }
 
     /* per profile context access by profile_id */

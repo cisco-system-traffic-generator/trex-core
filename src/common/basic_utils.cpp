@@ -379,3 +379,16 @@ float clear_nan_inf(const float var) {
     }
     return var;
 }
+
+
+void reverse_order(uint8_t* p, size_t len) {
+    size_t i = 0;
+    size_t j = len-1;
+    while (i < j) {
+        uint8_t tmp = p[i];
+        p[i] = p[j];
+        p[j] = tmp;
+        i++;
+        j--;
+    }
+}

@@ -662,6 +662,32 @@ bool TrexAstf::get_clients_info(Json::Value &clients_info) {
     return true;
 }
 
+void TrexAstf::insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses) {
+    m_ignored_macs.clear();
+    m_ignored_macs.insert(mac_addresses.begin(), mac_addresses.end());
+}
+
+void TrexAstf::get_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses) {
+    mac_addresses.insert(mac_addresses.begin(), m_ignored_macs.begin(), m_ignored_macs.end());
+}
+
+int TrexAstf::get_ignored_macs_size() {
+    return m_ignored_macs.size();
+}
+
+void TrexAstf::insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses) {
+    m_ignored_ips.clear();
+    m_ignored_ips.insert(ip_addresses.begin(), ip_addresses.end());
+}
+
+void TrexAstf::get_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses) {
+    ip_addresses.insert(ip_addresses.begin(), m_ignored_ips.begin(), m_ignored_ips.end());
+}
+
+int TrexAstf::get_ignored_ips_size() {
+    return m_ignored_ips.size();
+}
+
 /***********************************************************
  * TrexAstfProfile
  ***********************************************************/

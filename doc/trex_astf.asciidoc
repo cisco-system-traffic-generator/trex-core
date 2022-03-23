@@ -2148,6 +2148,132 @@ ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255",
                     l7_map=[0,1,2,3])                                   # for template 2
 ----
 
+==== Black list of MAC and IPv4 addresses
+
+Until version v2.97, in case the received packets are not destined for TRex server, TRex response depends on the tunable tcp.blackhole value. +
+
+The values of tcp.blackhole are: +
+
+* tcp.blackhole = 0 - TRex returns RST packets always
+* tcp.blackhole = 1 - TRex returns RST packets only if the received packets are SYN packets.
+* tcp.blackhole = 2 - TRex doesn't return RST packets.
+
+see: link:trex_astf.html#_tunables_reference_a_id_tunables_a[Tunables] +
+
+The response depends only on the tcp.blackhole without any consideration of the MAC, and IPv4 addresses. +
+We would like TRex response in case of error would be also depends on the MAC, and IPv4 addresses. +
+So for that, from version v2.97, we can choose list of MAC, and IPv4 addresses that TRex server ignores. +
+Namely, in case the received packets are not destined for TRex server, TRex response with RST packets depends on two additional values: +
+
+* Source MAC address - don't generate RST packets in case the MAC address is in the black list.
+* Source IPv4 address - don't generate RST packets in case the IPv4 address is in the black list.
+
+Now we will see two identical examples of how to use the black list, using TRex console and ASTF automation API. +
+
+.TRex console
+
+Setting ignored MAC and IPv4 addresses locally on python client
+[source,bash]
+-------------------
+trex> black_list set --macs 24:8a:07:a2:f3:80 25:9a:08:a1:f3:40 --ipv4 16.0.0.0 17.0.0.0 17.0.0.1
+-------------------
+* For uploading the addresses to TRex server use --upload flag +
+
+Shows the local ignored MAC and IPv4 addresses
+[source,bash]
+-------------------
+trex> black_list show
+
+Macs black list (Not sync with server)
+
+    Mac_start     |      Mac_end      | Is-Sync
+------------------+-------------------+--------
+24:8a:07:a2:f3:80 | 24:8a:07:a2:f3:80 |  False
+25:9a:08:a1:f3:40 | 25:9a:08:a1:f3:40 |  False
+
+IPs black list (Not sync with server)
+
+IP_start |  IP_end  | Is-Sync
+---------+----------+--------
+16.0.0.0 | 16.0.0.0 |  False
+17.0.0.0 | 17.0.0.1 |  False
+-------------------
+
+* The Is-Sync values are False since we haven't push our list to TRex server yet. +
+
+Upload the local addresses to TRex server
+[source,bash]
+-------------------
+trex> black_list upload
+-------------------
+
+The local ignored MAC and IPv4 addresses after the upload
+[source,bash]
+-------------------
+trex> black_list show
+Macs black list (Sync with server)
+
+    Mac_start     |      Mac_end      | Is-Sync
+------------------+-------------------+--------
+24:8a:07:a2:f3:80 | 24:8a:07:a2:f3:80 |  True
+25:9a:08:a1:f3:40 | 25:9a:08:a1:f3:40 |  True
+
+IPs black list (Sync with server)
+
+IP_start |  IP_end  | Is-Sync
+---------+----------+--------
+16.0.0.0 | 16.0.0.0 |  True
+17.0.0.0 | 17.0.0.1 |  True
+-------------------
+
+* Now the Is-Sync values are True. +
+
+Clears the local's black_list and the server's black_list - using the --upload flag
+[source,bash]
+-------------------
+trex> black_list clear --upload
+-------------------
+
+For more commands
+[source,bash]
+-------------------
+trex> black_list --help
+usage: black_list [-h]  ...
+
+Black_list of MAC and IPv4 addresses related commands
+
+optional arguments:
+  -h, --help  show this help message and exit
+
+commands:
+
+    set       Set black list of MAC and IPv4 addresses
+    get       Override the local list of black list with the server list
+    remove    Remove MAC and IPv4 addresses from the black list
+    upload    Upload to the server the current black list
+    clear     Clear the current black list
+    show      Show the current black list
+-------------------
+
+
+.ASTF automation API
+
+[source,python]
+----
+client = ASTFClient("127.0.0.1")
+client.connect()
+ip_list = ["16.0.0.0", "17.0.0.0", "17.0.0.1"]
+mac_list = ["24:8a:07:a2:f3:80", "25:9a:08:a1:f3:40"]
+# setting the ignored MAC and IPv4 address
+client.set_ignored_macs_ips(ip_list=ip_list, mac_list=mac_list, is_str=True)
+black_list_dict = client.get_ignored_macs_ips(to_str=True)
+
+....
+
+# clearing the black list
+client.set_ignored_macs_ips(ip_list=[], mac_list=[])
+----
+
 <<<
 
 ==== GTPU tutorials

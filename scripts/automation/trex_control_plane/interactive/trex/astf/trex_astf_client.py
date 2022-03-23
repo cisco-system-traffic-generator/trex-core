@@ -6,6 +6,7 @@ import time
 import os
 import shlex
 
+from trex.astf.ignored_ips_macs import MacsIpsMngr
 from ..utils.common import get_current_user, ip2int, user_input, PassiveTimer
 from ..utils import parsing_opts, text_tables
 
@@ -105,6 +106,7 @@ class ASTFClient(TRexClient):
         self.latency_stats = CAstfLatencyStats(self.conn.rpc)
         self.topo_mngr     = ASTFTopologyManager(self)
         self.tunnels_topo = TunnelsTopo(self)
+        self.macs_ips_mngr = MacsIpsMngr(self)
         self.sync_waiting = False
         self.last_error = ''
         self.last_profile_error = {}
@@ -132,6 +134,7 @@ class ASTFClient(TRexClient):
         self.last_error = ''
         self.sync()
         self.topo_mngr.sync_with_server()
+        self.macs_ips_mngr.sync_with_server()
         return RC_OK()
 
     def _on_connect_create_ports(self, system_info):
@@ -1484,6 +1487,39 @@ class ASTFClient(TRexClient):
         return self._get_client_info(params, timeout)
 
 
+    @client_api('command', True)
+    def get_ignored_macs_ips(self, to_str=True):
+        ''' 
+        getting the ignore MAC and IPv4 addresses from the server
+            :parameters:
+                to_str: Boolean
+                    True: getting the addresses as str format.
+                    False: getting the addresses as numbers.
+        '''
+        d = {}
+        d["ips"] = self.macs_ips_mngr.get_ips_list(to_str=to_str)
+        d["macs"] = self.macs_ips_mngr.get_mac_list(to_str=to_str)
+        return d
+
+
+    @client_api('command', True)
+    def set_ignored_macs_ips(self, mac_list = None, ip_list=None, is_str=True):
+        ''' 
+        setting the ignore MAC and IPv4 addresses and push to the server
+            :parameters:
+                mac_list:
+                    List that holds MAC addresses
+
+                ip_list:
+                    List that holds IPv4 addresses
+
+                is_str: Boolean
+                    boolean that indicates whether the MAC and IPv4 addresses are in str format.
+
+            :raises:
+                + :exc:`TRexError`
+        '''
+        return self.macs_ips_mngr.set_ignored_macs_ips(mac_list=mac_list, ip_list=ip_list, is_str=is_str)
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -2048,3 +2084,63 @@ class ASTFClient(TRexClient):
             )
         opts = parser.parse_args(shlex.split(line))
         self.activate_tunnel(opts.type, not opts.off, opts.loopback)
+
+
+    @console_api('black_list', 'ASTF', True, True)
+    def black_list_line(self, line):
+        '''Black_list of MAC and IPv4 addresses related commands'''
+        parser = parsing_opts.gen_parser(
+            self,
+            'black_list',
+            self.black_list_line.__doc__)
+
+        def black_list_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        set_parser = black_list_add_parsers(subparsers, 'set', help = 'Set black list of MAC and IPv4 addresses')
+        get_parser = black_list_add_parsers(subparsers, 'get', help = 'Override the local list of black list with the server list')
+        remove_parser = black_list_add_parsers(subparsers, 'remove', help = 'Remove MAC and IPv4 addresses from the black list')
+        upload_parser = black_list_add_parsers(subparsers, 'upload', help = "Upload to the server the current black list")
+        clear_parser = black_list_add_parsers(subparsers, 'clear', help = 'Clear the current black list')
+        show_parser = black_list_add_parsers(subparsers, 'show', help = 'Show the current black list')
+        
+
+        set_parser.add_arg_list(parsing_opts.BLACK_LIST_ADDR)
+        remove_parser.add_arg_list(parsing_opts.BLACK_LIST_ADDR)
+        clear_parser.add_arg_list(parsing_opts.UPLOAD)
+        upload_parser.add_arg_list()
+        show_parser.add_arg_list()
+        get_parser.add_arg_list()
+
+        opts = parser.parse_args(shlex.split(line))
+
+        if opts.command == 'set' or opts.command == 'remove':
+            if not opts.ipv4 and not opts.macs:
+                raise TRexError('Use --macs or --ipv4')
+            if opts.command == 'set':
+                self.macs_ips_mngr.set_ignored_macs_ips(mac_list=opts.macs, ip_list=opts.ipv4, is_str=True, upload_to_server=opts.upload, to_override=False)
+            if opts.command == 'remove':
+                self.macs_ips_mngr._remove_ignored_macs_ips(mac_list=opts.macs, ip_list=opts.ipv4, is_str=True, upload_to_server=opts.upload)
+            return True
+
+        elif opts.command == 'show' or not opts.command:
+            self.macs_ips_mngr._show()
+            return True
+
+        elif opts.command == 'clear':
+            self.macs_ips_mngr._clear_all()
+            if opts.upload:
+                self.macs_ips_mngr._flush_all()
+            return True
+
+        elif opts.command == 'upload':
+            self.macs_ips_mngr._flush_all()
+            return True
+
+        elif opts.command == 'get':
+            self.macs_ips_mngr.sync_with_server()
+            return True
+
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
