@@ -46,7 +46,7 @@ using namespace std;
 TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 2;
-    const int API_VER_MINOR = 2;
+    const int API_VER_MINOR = 3;
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
@@ -385,7 +385,7 @@ void TrexAstf::tunnel_topo_get(Json::Value &result) {
         result["tunnel_topo_data"] = m_tunnel_topo_buffer;
         return;
     }
-    result["tunnel_topo_data"] = "{\"tunnels\": []}";
+    result["tunnel_topo_data"] = "{\"tunnels\": [], \"latency\": []}";
 }
 
 bool TrexAstf::tunnel_topo_needs_parsing() {
@@ -492,7 +492,7 @@ void TrexAstf::update_rate(cp_profile_id_t profile_id, double mult) {
 }
 
 
-void TrexAstf::start_transmit_latency(const lat_start_params_t &args) {
+void TrexAstf::start_transmit_latency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo, CTunnelsDB* tunnel_db) {
 
     if (m_l_state != STATE_L_IDLE){
         throw TrexException("Latency state is not idle, should stop latency first");
@@ -500,7 +500,7 @@ void TrexAstf::start_transmit_latency(const lat_start_params_t &args) {
 
     m_l_state = STATE_L_WORK;
 
-    TrexRxStartLatency *msg = new TrexRxStartLatency(args);
+    TrexRxStartLatency *msg = new TrexRxStartLatency(args, tunnel_topo, tunnel_db);
     send_msg_to_rx(msg);
 }
 
@@ -542,15 +542,29 @@ string TrexAstf::handle_start_latency(int32_t dp_profile_id) {
         lat_start_params_t args;
 
         try {
+            CTunnelsDB *tunnel_db = nullptr;
+            CTunnelsTopo* tunnel_topo = (m_tunnel_topo_parsed && CGlobalInfo::m_options.m_tunnel_enabled) ? db->get_tunnel_topo() : nullptr;
+            if (tunnel_topo) {
+                tunnel_db = m_fl->m_client_config_info.get_tunnel_db();
+            }
+            if (CGlobalInfo::m_options.m_tunnel_enabled) {
+                if (!tunnel_topo) {
+                    throw TrexException("In Tunnel mode with latency the tunnel_topology must be loaded");
+                }
+                if (!tunnel_topo->get_latency_clients().size()) {
+                    throw TrexException("In Tunnel mode with latency the tunnel_topology must be loaded with latency clients");
+                }
+            }
             if ( !db->get_latency_info(args.client_ip.v4,
                                        args.server_ip.v4,
-                                       args.dual_ip) ) {
+                                       args.c_ip_offset,
+                                       args.s_ip_offset) ) {
                 throw TrexException("No valid ip range for latency");
             }
 
             args.cps = m_latency_pps;
             args.ports_mask = 0xffffffff;
-            start_transmit_latency(args);
+            start_transmit_latency(args, tunnel_topo, tunnel_db);
         } catch (const TrexException &ex) {
             return ex.what();
         }
@@ -750,6 +764,9 @@ bool TrexAstfProfile::delete_profile(cp_profile_id_t profile_id) {
 
         delete m_profile_list.find(profile_id)->second;
         m_profile_list.erase(profile_id);
+    }
+    if (get_astf_object()->is_tunnel_topo_parsed()) {
+        get_astf_object()->set_tunnel_topo_parsed(false);
     }
 
     return true;

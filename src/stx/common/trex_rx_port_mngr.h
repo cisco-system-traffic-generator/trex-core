@@ -483,6 +483,10 @@ public:
         return ( (m_features & feature) == feature );
     }
 
+    void set_tunnel_handler(CTunnelHandler* tunnel_handler) {
+        m_tunnel_handler = tunnel_handler;
+    }
+
     /**
      * returns ignored set of stats
      * (grat ARP, PING response and etc.)
@@ -545,6 +549,7 @@ private:
     CZmqPacketReader *           m_zmq_rd;
     
     CFlowStatParser *             m_parser;
+    CTunnelHandler  *             m_tunnel_handler;
 
 };
 

@@ -404,6 +404,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_simple_emu_ipv6.py',
                     'http_many.py',
                     'gtpu_topo.py',
+                    'gtpu_topo_latency.py',
                     ]
         self.duration=1
         try:
@@ -432,6 +433,26 @@ class ASTFProfile_Test(CASTFGeneral_Test):
             c.tunnels_topo_load(self.get_profile_by_name("gtpu_topo.py"))
             print(" running {}".format(fname))
             self.run_astf_profile(fname, m=1000, is_udp=False, is_tcp=True, latency_pps=0)
+        finally:
+            self.duration = duration
+            c.reset()
+            c.tunnels_topo_clear()
+            c.activate_tunnel(tunnel_type=1, activate=False, loopback=False)
+
+    def test_gtpu_mode_tunnel_topo_latency(self):
+        c = self.astf_trex
+        if not c.is_tunnel_supported(tunnel_type=1)['is_tunnel_supported']:
+            self.skip("tunnel is no supported")
+
+        duration = self.duration
+        self.duration = 20
+        fname = 'http_simple.py'
+        try:
+            c.reset()
+            c.activate_tunnel(tunnel_type=1, activate=True, loopback=True)
+            #loading tunnel topology that holds the tunnel context and latency client
+            c.tunnels_topo_load(self.get_profile_by_name("gtpu_topo_latency.py"))
+            self.run_astf_profile(fname, m=1000, is_udp=False, is_tcp=True)
         finally:
             self.duration = duration
             c.reset()
@@ -502,6 +523,7 @@ class ASTFProfile_Test(CASTFGeneral_Test):
                     'http_simple_emu.py',  # Emu profiles
                     'http_simple_emu_ipv6.py',
                     'gtpu_topo.py',
+                    'gtpu_topo_latency.py',
                     ]
         self.duration=1
         try:

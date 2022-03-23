@@ -88,7 +88,7 @@ class ASTFClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 2}
+        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 3}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -1099,7 +1099,7 @@ class ASTFClient(TRexClient):
         return self.latency_stats.get_stats(skip_zero)
 
     @client_api('command', True)
-    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0"):
+    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0", port_ipv4_offset_s = None):
         '''
            Start ICMP latency traffic.
 
@@ -1119,6 +1119,10 @@ class ASTFClient(TRexClient):
                 dual_ipv4: IP string
                     IPv4 address to be added for each pair of ports (starting from second pair)
 
+                port_ipv4_offset_s: IP string
+                    In case of different offset per side, the port_ipv4_offset_s should hold the server side offset.
+                    The default value is dual_ipv4
+
             .. note::
                 VLAN will be taken from interface configuration
 
@@ -1126,6 +1130,9 @@ class ASTFClient(TRexClient):
                 + :exc:`TRexError`
 
         '''
+        if not port_ipv4_offset_s:
+            port_ipv4_offset_s = dual_ipv4
+
         if not is_valid_ipv4(src_ipv4):
             raise TRexError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
 
@@ -1135,12 +1142,16 @@ class ASTFClient(TRexClient):
         if not is_valid_ipv4(dual_ipv4):
             raise TRexError("dual_ipv4 is not a valid IPv4 address: '{0}'".format(dual_ipv4))
 
+        if not is_valid_ipv4(port_ipv4_offset_s):
+            raise TRexError("port_ipv4_offset_s is not a valid IPv4 address: '{0}'".format(port_ipv4_offset_s))
+
         params = {
             'handler': self.handler,
             'mult': mult,
             'src_addr': src_ipv4,
             'dst_addr': dst_ipv4,
             'dual_port_addr': dual_ipv4,
+            'port_s_offset' : port_ipv4_offset_s,
             'mask': ports_mask,
             }
 

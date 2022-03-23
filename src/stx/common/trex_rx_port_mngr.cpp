@@ -494,6 +494,7 @@ RXPortManager::create_async(uint32_t port_id,
     m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
 
     set_feature(STACK);
+    m_tunnel_handler = nullptr;
 }
 
 std::string wait_stack_tasks(CStackBase *stack, double timeout_sec) {
@@ -785,6 +786,13 @@ RXPortManager::tx_pkt(const std::string &pkt) {
 
 bool
 RXPortManager::tx_pkt(rte_mbuf_t *m) {
+    //tunnel mode
+    if (m_tunnel_handler) {
+        pkt_dir_t dir = port_id_to_dir(m_port_id);
+        if (m_tunnel_handler->on_tx(dir, m)) {
+            return false;
+        }
+    }
     TrexCaptureMngr::getInstance().handle_pkt_tx(m, m_port_id);
     return (m_io->tx_raw(m) == 0);
 }

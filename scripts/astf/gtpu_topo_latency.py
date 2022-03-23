@@ -1,4 +1,4 @@
-# Example of Topology profile
+# Example of Tunnel Topology profile
 
 from trex.astf.api import *
 from trex.astf.tunnels_topo import TunnelsTopo
@@ -21,5 +21,9 @@ def get_topo():
         activate = True
     )
 
+    topo.add_tunnel_latency(
+        client_port_id = 0,
+        client_ip = "16.0.0.0",
+        server_ip = "48.0.0.0"
+    )
     return topo
-

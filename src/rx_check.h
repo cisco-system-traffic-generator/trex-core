@@ -41,6 +41,10 @@ typedef uint8_t   pkt_dir_t  ;
 
 void  flow_aging_callback(CFlowTimerHandle * t);
 
+inline pkt_dir_t port_id_to_dir(uint8_t port_id) {
+    return (pkt_dir_t)(port_id&1);
+}
+
 class CRxCheckFlowPerDir {
 public:
     CRxCheckFlowPerDir(){

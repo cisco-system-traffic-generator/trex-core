@@ -373,11 +373,18 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result) {
     const string src_ipv4_str  = parse_string(params, "src_addr", result);
     const string dst_ipv4_str  = parse_string(params, "dst_addr", result);
-    const string dual_ipv4_str  = parse_string(params, "dual_port_addr", result);
+    const string port_c_offset_str  = parse_string(params, "dual_port_addr", result);
+    std::string port_s_offset_str;
+    if (params.isMember("port_s_offset")) {
+        port_s_offset_str = parse_string(params, "port_s_offset", result);
+    } else {
+         port_s_offset_str = port_c_offset_str;
+    }
 
     uint32_t src_ip;
     uint32_t dst_ip;
-    uint32_t dual_ip;
+    uint32_t c_ip_offset;
+    uint32_t s_ip_offset;
     if (!utl_ipv4_to_uint32(src_ipv4_str.c_str(), src_ip)){
         stringstream ss;
         ss << "invalid source IPv4 address: '" << src_ipv4_str << "'";
@@ -390,13 +397,18 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
         generate_parse_err(result, ss.str());
     }
 
-    if (!utl_ipv4_to_uint32(dual_ipv4_str.c_str(), dual_ip)){
+    if (!utl_ipv4_to_uint32(port_c_offset_str.c_str(), c_ip_offset)){
         stringstream ss;
-        ss << "invalid dual port ip IPv4 address: '" << dual_ipv4_str << "'";
+        ss << "invalid dual port ip IPv4 address: '" << port_c_offset_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+    if (!utl_ipv4_to_uint32(port_s_offset_str.c_str(), s_ip_offset)){
+        stringstream ss;
+        ss << "invalid dual port ip IPv4 address: '" << port_s_offset_str << "'";
         generate_parse_err(result, ss.str());
     }
 
-    /* check that the dest IP (+dual_ip) of latency is not equal to src IP of any TRex interface */
+    /* check that the dest IP (+ ip_offset) of latency is not equal to src IP of any TRex interface */
     uint8_t max_port_id = 0;
     for (auto &port : get_astf_object()->get_port_map()) {
         max_port_id = max(max_port_id, port.first);
@@ -417,7 +429,16 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
         utl_ipv4_to_uint32(ip_str, port_ip_num);
 
         for ( uint8_t dual_port_id=0; dual_port_id<=(max_port_id/2); dual_port_id++ ) {
-            if ( port_ip_num == dst_ip + dual_port_id*dual_ip ) {
+            uint32_t tmp_dst_ip;
+            pkt_dir_t dir = port_id_to_dir(port.first);
+            if (dir == SERVER_SIDE) {
+                //server side
+                tmp_dst_ip = src_ip + dual_port_id*c_ip_offset;
+            } else {
+                //client side 
+                tmp_dst_ip = dst_ip + dual_port_id*s_ip_offset;
+            }
+            if ( port_ip_num == tmp_dst_ip) {
                 string err = "Latency dst IP and dual_port might reach port " + to_string(port.first) + " with IP " + ip_str;
                 generate_execute_err(result, err);
             }
@@ -430,7 +451,8 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
     args.ports_mask  = parse_uint32(params, "mask", result);
     args.client_ip.v4 = src_ip;
     args.server_ip.v4 = dst_ip;
-    args.dual_ip = dual_ip;
+    args.c_ip_offset = c_ip_offset;
+    args.s_ip_offset = s_ip_offset;
 
     try {
         get_astf_object()->start_transmit_latency(args);
@@ -939,10 +961,9 @@ TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &resul
     if (!is_tunnel_enabled && !activate) {
         generate_execute_err(result, "The tunnel mode is already off");
     }
-    TrexAstf* stx = get_astf_object();
-    CCpDynStsInfra* cp_infra = stx->get_cp_sts_infra();
+    CCpDynStsInfra* cp_infra = astf->get_cp_sts_infra();
     if (!activate) {
-        CTunnelHandler* tunnel_handler = stx->get_tunnel_handler();
+        CTunnelHandler* tunnel_handler = astf->get_tunnel_handler();
         cp_infra->remove_counters(tunnel_handler->get_meta_data());
     }
     astf->activate_tunnel_handler(activate, tunnel_type);
@@ -965,6 +986,8 @@ TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &resul
         astf->send_msg_to_dp(core_id, msg);
         dp_sts.add_dp_dyn_sts(reply.wait_for_reply());
     }
+    TrexAstfRxInitTunnelHandler *msg = new TrexAstfRxInitTunnelHandler(activate, tunnel_type, loopback);
+    astf->send_msg_to_rx(msg);
     if (activate) {
         assert(cp_infra->add_counters(tunnel_handler->get_meta_data(), &dp_sts));
     }

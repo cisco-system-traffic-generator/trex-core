@@ -270,16 +270,24 @@ int CGtpuMan::prepend(rte_mbuf *pkt, uint8_t dir) {
     uint16_t inner_cs = 0;
     uint8_t l3_nxt_hdr;
     if (iph->getVersion() == IPHeader::Protocol::IP) {
-        IPPseudoHeader ips((IPHeader *)iph);
-        inner_cs = ~ips.inetChecksum();
         l3_nxt_hdr = ((IPHeader *)iph)->getNextProtocol();
+        if (l3_nxt_hdr != IPHeader::Protocol::ICMP) {
+            IPPseudoHeader ips((IPHeader *)iph);
+            inner_cs = ~ips.inetChecksum();
+        }
+        else {
+            pkt->ol_flags &= ~(PKT_TX_IPV4 | PKT_TX_IP_CKSUM);
+            ((IPHeader *)iph)->updateCheckSumFast();
+        }
     } else {
-        l4_offset = l3_offset + IPV6_HDR_LEN;
-        IPv6PseudoHeader ips((IPv6Header *)iph);
-        inner_cs = ~ips.inetChecksum();
         l3_nxt_hdr = ((IPv6Header *)iph)->getNextHdr();
+        if (l3_nxt_hdr != IPHeader::Protocol::ICMP) {
+            IPv6PseudoHeader ips((IPv6Header *)iph);
+            inner_cs = ~ips.inetChecksum();
+        }
+        l4_offset = l3_offset + IPV6_HDR_LEN;
     }
-    if (l3_nxt_hdr != IPHeader::Protocol::UDP && l3_nxt_hdr != IPHeader::Protocol::TCP){
+    if (l3_nxt_hdr != IPHeader::Protocol::ICMP && (l3_nxt_hdr != IPHeader::Protocol::UDP && l3_nxt_hdr != IPHeader::Protocol::TCP)){
         m_total_sts[dir].sts.m_err_l4_hdr++;
         return -1;
     }

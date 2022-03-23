@@ -48,7 +48,26 @@ public:
      */
     void set_ip(uint32_t                src,
                 uint32_t                dst,
-                uint32_t                dual_port_mask);
+                uint32_t                c_ip_offset,
+                uint32_t                s_ip_offset);
+    
+    /**
+     * set IP with client clustering configuration
+     */
+    void set_ip(uint32_t                src,
+                uint32_t                dst,
+                uint32_t                c_ip_offset,
+                uint32_t                s_ip_offset,
+                uint8_t                 port_cnt,
+                ClientCfgDB            &db);
+    /**
+     * regular set IP
+     */
+    void set_ip(uint32_t                src,
+                uint32_t                dst,
+                uint32_t                dual_port_mask) {
+        set_ip(src, dst, dual_port_mask, dual_port_mask);
+    }
     
     /**
      * set IP with client clustering configuration
@@ -57,7 +76,9 @@ public:
                 uint32_t                dst,
                 uint32_t                dual_port_mask,
                 uint8_t                 port_cnt,
-                ClientCfgDB            &db);
+                ClientCfgDB            &db) {
+        set_ip(src, dst, dual_port_mask, dual_port_mask, port_cnt, db);
+    }
     
     
     rte_mbuf_t * generate_pkt(int port_id,uint32_t extern_ip=0,uint32_t extern_dest_ip=0);
@@ -82,6 +103,8 @@ private:
     ipaddr_t                m_client_ip;
     ipaddr_t                m_server_ip;
     uint32_t                m_dual_port_mask;
+    uint32_t                m_s_ip_offset;
+    uint32_t                m_c_ip_offset;
     CGenNode                m_dummy_node;
     CFlowPktInfo            m_pkt_info;
     CPacketIndication       m_pkt_indication;
@@ -102,7 +125,7 @@ struct  latency_header {
 };
 
 class CLatencyManager ;
-
+class CRxAstfCore;
 // per port
 class CCPortLatency {
 public:
@@ -151,6 +174,7 @@ public:
     void update_packet(rte_mbuf_t * m, int port_id);
     bool do_learn(uint32_t external_ip,
                   uint32_t external_dest_ip);
+    void reset_learn();
     bool check_packet(rte_mbuf_t * m, CRx_check_header * & rx_p);
     bool check_rx_check(rte_mbuf_t * m);
     bool dump_packet(rte_mbuf_t * m);
@@ -199,6 +223,20 @@ public:
         return true;
     }
 
+    void set_astf_rx(CRxAstfCore* astf_rx) {
+        m_astf_rx = astf_rx;
+    }
+
+    void* get_tunnel_ctx() const{
+        return m_tunnel_ctx;
+    }
+
+    void set_tunnel_ctx(void* tunnel_ctx){
+        m_tunnel_ctx = tunnel_ctx;
+    }
+
+    void set_opposite_port(uint8_t id);
+
 private:
     std::string get_field(std::string name,float f);
 
@@ -207,6 +245,8 @@ private:
      CLatencyPktMode * m_pkt_mode;
      CNatRxManager *   m_nat_manager;
      CCPortLatency *   m_rx_port; /* corespond rx port  */
+     CRxAstfCore*      m_astf_rx;
+     void*             m_tunnel_ctx;
      bool              m_nat_learn;
      bool              m_nat_can_send;
      uint32_t          m_nat_external_ip;

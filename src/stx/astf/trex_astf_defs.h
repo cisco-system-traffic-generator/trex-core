@@ -40,7 +40,8 @@ typedef struct {
     uint32_t    ports_mask;
     ipaddr_t    client_ip;
     ipaddr_t    server_ip;
-    uint32_t    dual_ip;
+    uint32_t    c_ip_offset;
+    uint32_t    s_ip_offset;
 } lat_start_params_t;
 
 

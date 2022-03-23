@@ -25,6 +25,7 @@ limitations under the License.
 #include "pkt_gen.h"
 #include "common/basic_utils.h"
 #include <rte_atomic.h>
+#include "tunnels/tunnel_factory.h"
 
 
 
@@ -43,7 +44,7 @@ int CRxAstfPort::tx(rte_mbuf_t *m){
 
 bool TrexRxStartLatency::handle(CRxCore *rx_core){
     CRxAstfCore * lp=(CRxAstfCore *)rx_core;
-    lp->start_latency(m_args);
+    lp->start_latency(m_args, m_tunnel_topo, m_tunnel_db);
     return(true);
 }
 
@@ -63,6 +64,11 @@ bool TrexRxUpdateLatency::handle(CRxCore *rx_core){
 }
 
 
+bool TrexAstfRxInitTunnelHandler::handle(CRxCore *rx_core){
+    CRxAstfCore * lp=(CRxAstfCore *)rx_core;
+    lp->activate_tunnel_handler(m_activate, m_tunnel_type, m_loopback_mode);
+    return(true);
+}
 
 
 CRxAstfCore::CRxAstfCore() : CRxCore() {
@@ -80,6 +86,12 @@ CRxAstfCore::CRxAstfCore() : CRxCore() {
     m_cp_ports_mask_cache =0;
     m_cp_disable_update=false;
     m_cp_update=false;
+    m_tunnel_handler=nullptr;
+}
+
+
+CRxAstfCore::~CRxAstfCore() {
+    delete m_tunnel_handler;
 }
 
 
@@ -301,7 +313,7 @@ static double _get_d_from_cps(double cps){
     return (delta_sec);
 }
 
-void CRxAstfCore::start_latency(const lat_start_params_t &args){
+void CRxAstfCore::start_latency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo, CTunnelsDB* tunnel_db){
 
     /* create a node */
     assert(m_latency_active ==false);
@@ -331,6 +343,8 @@ void CRxAstfCore::start_latency(const lat_start_params_t &args){
         lp->m_port.reset_seq();
         lp->m_port.m_hist.set_hot_max_cnt((int(args.cps)/2));
         lp->m_port.set_epoc(m_epoc);
+        //reseting the learned src and dst addresses
+        lp->m_port.reset_learn();
 
         if (args.ports_mask & (1<<port_id)){
             m_port_ids.push_back(port_id);
@@ -341,7 +355,12 @@ void CRxAstfCore::start_latency(const lat_start_params_t &args){
 
     m_pkt_gen.set_ip(args.client_ip.v4,
                      args.server_ip.v4,
-                     args.dual_ip);
+                     args.s_ip_offset,
+                     args.c_ip_offset);
+    if (tunnel_topo) {
+        assert(tunnel_db);
+        load_from_tunnel_db(args, tunnel_topo, tunnel_db);
+    }
 
     CGenNode * node;
     node = new CGenNode();
@@ -369,6 +388,9 @@ void CRxAstfCore::start_latency(const lat_start_params_t &args){
 
 void CRxAstfCore::stop_latency(){
     m_latency_active = false;
+    if (m_tunnel_handler) {
+        delete_tunnel_ctx();
+    }
 }
 
 
@@ -482,5 +504,71 @@ void CRxAstfCore::cp_get_json(std::string & json){
     json+="\"unknown\":0}}"  ;
 }
 
+CLatencyManagerPerPort* CRxAstfCore::get_latency_mngr_per_port(uint8_t id) {
+    if (id >= TREX_MAX_PORTS) {
+        return nullptr;
+    }
+    return &m_ports[id];
+}
 
+void CRxAstfCore::delete_tunnel_ctx() {
+    assert(m_tunnel_handler);
+    for (auto &i: m_port_ids) {
+        CCPortLatency* lp=&m_ports[i].m_port;
+        pkt_dir_t dir = port_id_to_dir(i);
+        //delete from client's side only
+        if (dir == CLIENT_SIDE) {
+            m_tunnel_handler->delete_tunnel_ctx(lp->get_tunnel_ctx());
+        }
+        lp->set_tunnel_ctx(nullptr);
+    }
+}
 
+void CRxAstfCore::activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback) {
+    if (activate) {
+        uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);
+        if (loopback) {
+            tunnel_mode = (uint8_t) tunnel_mode | TUNNEL_MODE_LOOPBACK;
+        }
+        m_tunnel_handler = create_tunnel_handler(tunnel_type, tunnel_mode);
+        assert(m_tunnel_handler);
+    } else {
+        delete_tunnel_ctx();
+        delete m_tunnel_handler;
+        m_tunnel_handler = nullptr;
+    }
+    //assgin the tunnel handler to the port managers
+    for (int i=0;i<m_rx_port_mngr_vec.size();i++) {
+        pkt_dir_t dir = port_id_to_dir(i);
+        //in loopback mode assign also to the server side managers
+        if ((dir == CLIENT_SIDE || loopback) || !activate ) {
+            m_rx_port_mngr_vec[i]->set_tunnel_handler(m_tunnel_handler);
+        }
+    }
+}
+
+void CRxAstfCore::load_from_tunnel_db(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo, CTunnelsDB *tunnel_db) {
+    assert(m_tunnel_handler);
+    client_per_port_t clients_latency =  tunnel_topo->get_latency_clients();
+    bool tunnel_loopback = CGlobalInfo::m_options.m_tunnel_loopback;
+    for (auto &i: m_port_ids) {
+        CLatencyManagerPerPort * lp=&m_ports[i];
+        pkt_dir_t dir = port_id_to_dir(i);
+        if (dir == CLIENT_SIDE) {
+            auto it = clients_latency.find(i);
+            assert(it  != clients_latency.end());
+            uint32_t client_ip = it->second.get_client_ip();
+            uint32_t server_ip = it->second.get_server_ip();
+            lp->m_port.do_learn(client_ip, server_ip);
+            CClientCfgEntryTunnel* entry = tunnel_db->lookup(client_ip);
+            ClientCfgBase info;
+            entry->assign(info, client_ip);
+            lp->m_port.set_tunnel_ctx(info.m_tunnel_ctx);
+        } else {
+            //in loopback mode assign only the server's port with astf_rx
+            if (tunnel_loopback) {
+                lp->m_port.set_astf_rx(this);
+            }
+        }
+    }
+}
