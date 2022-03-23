@@ -197,6 +197,8 @@ struct  CFlowTableIntStats {
     uint32_t        m_rss_redirect_tx;              // Outgoing Redirected packets 
     uint32_t        m_rss_redirect_drops;           // How many packets were dropped cause of unsuccessful RSS redirect?
     uint32_t        m_rss_redirect_queue_full;      // How many times the tx queue was full while trying to insert new packets.
+    uint32_t        m_ignored_macs;                 //packets with source mac that was set to be ignored
+    uint32_t        m_ignored_ips;                  //packets with source IP that was set to be ignored
 };
 
 class  CSttFlowTableStats {
@@ -308,6 +310,9 @@ public:
                               UDPHeader    * lpUDP,
                               CFlowKeyFullTuple &ftuple);
 
+      bool ignore_packet(CTcpPerThreadCtx * ctx,
+                         struct rte_mbuf * mbuf,
+                         CFlowKeyFullTuple &ftuple);
 
       bool rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
                                         struct rte_mbuf * mbuf,
@@ -333,6 +338,7 @@ public:
                         bool remove_from_ft);
 
       bool update_new_template(CTcpPerThreadCtx * ctx,
+                              struct rte_mbuf * mbuf,
                               CTcpFlow *  flow,
                               TCPHeader    * lpTcp,
                               CFlowKeyFullTuple &ftuple);
@@ -463,6 +469,7 @@ public:
 
     service_status m_service_status;
     uint8_t        m_service_filtered_mask;
+    uint8_t        m_black_list;
 
 private:
     bool            m_verbose;

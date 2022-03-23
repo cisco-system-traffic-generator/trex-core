@@ -246,6 +246,32 @@ TrexCpToDpMsgBase* TrexAstfDpGetClientStats::clone() {
 }
 
 /*************************
++  Set ignored mac addresses
++ ************************/
+
+bool TrexAstfDpIgnoredMacAddrs::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->insert_ignored_mac_addresses(m_mac_addresses);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpIgnoredMacAddrs::clone() {
+    return new TrexAstfDpIgnoredMacAddrs(m_mac_addresses);
+}
+
+/*************************
++  Set ignored IPv4 addresses
++ ************************/
+
+bool TrexAstfDpIgnoredIpAddrs::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->insert_ignored_ip_addresses(m_ip_addresses);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpIgnoredIpAddrs::clone() {
+    return new TrexAstfDpIgnoredIpAddrs(m_ip_addresses);
+}
+
+/*************************
 +  Sending Client Stats MSG
 + ************************/
 

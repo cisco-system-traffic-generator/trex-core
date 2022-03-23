@@ -58,6 +58,9 @@ void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_rss_redirect_rx);
     MYC(m_rss_redirect_tx);
     MYC(m_rss_redirect_drops);
+    MYC(m_rss_redirect_queue_full);
+    MYC(m_ignored_macs);
+    MYC(m_ignored_ips);
 }
 
 
@@ -96,6 +99,7 @@ bool CFlowTable::Create(uint32_t size,
         m_tcp_lro = new CTcpRxOffload;
         m_tcp_lro->Create(cb);
     }
+    m_black_list = 0;
     return(true);
 }
 
@@ -386,6 +390,7 @@ void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple
 
 
 bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
+                                    struct rte_mbuf * mbuf,
                                     CTcpFlow *  flow,
                                     TCPHeader    * lpTcp,
                                     CFlowKeyFullTuple &ftuple){
@@ -396,7 +401,13 @@ bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
         assert(flow->is_activated()); /* flow is now activated */
     } else {    /* no matched template found, now mbuf should be freed */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
-        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+        uint8_t mask = 3;
+        bool ignore = false;
+        // black_list is not empty
+        if (m_black_list & mask) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
             tcp_respond_rst(flow, lpTcp, ftuple);
         }
         FT_INC_SCNT(m_err_defer_no_template);
@@ -430,7 +441,7 @@ void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
 
     if (unlikely(flow->new_template_identified())) {
         /* identifying new template has been done */
-        if (!update_new_template(ctx, flow, &tcphdr, ftuple)) {
+        if (!update_new_template(ctx, mbuf, flow, &tcphdr, ftuple)) {
             return; /* when update is failed, flow is not available also. */
         }
     }
@@ -611,6 +622,31 @@ void CFlowTable::process_udp_packet(CTcpPerThreadCtx * ctx,
     }
 }
 
+bool CFlowTable::ignore_packet(CTcpPerThreadCtx * ctx,
+                               struct rte_mbuf * mbuf,
+                               CFlowKeyFullTuple &ftuple) {
+
+    if (!ctx->is_ignored_macs_empty()) {
+        uint8_t* p = rte_pktmbuf_mtod(mbuf, uint8_t*);
+        uint64_t mac_addr = 0;
+        uint8_t* mac_p = (uint8_t*)&mac_addr;
+        memcpy((void*)(mac_p + 2), (void*)p, 6);
+        if (ctx->mac_lookup(mac_addr)) {
+            FT_INC_SCNT(m_ignored_macs);
+            return true;
+        }
+    }
+    if (!ctx->is_ignored_ips_empty()) {
+        IPHeader *iph = rte_pktmbuf_mtod_offset (mbuf, IPHeader *, ftuple.m_l3_offset);
+        if (iph->getVersion() == IPHeader::Protocol::IP) {
+            if (ctx->ip_lookup(iph->getSourceIp())) {
+                FT_INC_SCNT(m_ignored_ips);
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
                                               struct rte_mbuf * mbuf,
@@ -782,7 +818,13 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
-        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+        uint8_t mask = 3;
+        bool ignore = false;
+        // black_list is not empty
+        if (m_black_list & mask) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
 
             uint32_t source_ip;
             if (parser.m_ipv4){
@@ -816,7 +858,13 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
         /* no syn */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
-        if (pctx->m_tunable_ctx.tcp_blackhole != 2) {
+        uint8_t mask = 3;
+        bool ignore = false;
+        // black_list is not empty
+        if (m_black_list & mask) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole != 2 && !ignore) {
             generate_rst_pkt(pctx,
                              dest_ip,
                              tuple.get_src_ip(),
@@ -844,7 +892,13 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         if (!pctx) {
             pctx = FALLBACK_PROFILE_CTX(ctx);
         }
-        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+        uint8_t mask = 3;
+        bool ignore = false;
+        // black_list is not empty
+        if (m_black_list & mask) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
           generate_rst_pkt(pctx,
                          dest_ip,
                          tuple.get_src_ip(),

@@ -37,6 +37,8 @@ class CRxAstfCore;
 class TrexAstf;
 class TrexCpToDpMsgBase;
 
+#define MAC_ADDR_MAX 1000
+#define IPV4_ADDR_MAX 1000
 typedef std::unordered_map<uint8_t, TrexAstfPort*> astf_port_map_t;
 typedef std::string cp_profile_id_t;
 
@@ -451,6 +453,12 @@ public:
     }
     CCpDynStsInfra* get_cp_sts_infra();
     vector<CSTTCp *> get_dyn_sttcp_list();
+    void insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
+    void get_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
+    int get_ignored_macs_size();
+    void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
+    void get_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
+    int get_ignored_ips_size();
 
 protected:
     void change_state(state_e new_state);
@@ -459,27 +467,28 @@ protected:
 
     void ports_report_state(state_e state);
 
-    state_latency_e          m_l_state;
-    uint32_t                 m_latency_pps;
-    bool                     m_lat_with_traffic;
-    int32_t                  m_lat_profile_id;
-         
-    TrexOwner                m_owner;
-    state_e                  m_state;
-    std::vector<Json::Value> m_clients_info;
-    CSyncBarrier            *m_sync_b;
-    CFlowGenList            *m_fl;
-    CParserOption           *m_opts;
-    std::string              m_topo_buffer;
-    std::string              m_topo_hash;
-    bool                     m_topo_parsed;
-    std::string              m_tunnel_topo_buffer;
-    std::string              m_tunnel_topo_hash;
-    bool                     m_tunnel_topo_parsed;
-    bool                     m_is_clients_info_ready;
-    uint64_t                 m_epoch;
-    CTunnelHandler          *m_tunnel_handler;
-    CCpDynStsInfra          *m_cp_sts_infra;
+    state_latency_e              m_l_state;
+    uint32_t                     m_latency_pps;
+    bool                         m_lat_with_traffic;
+    int32_t                      m_lat_profile_id;
+    TrexOwner                    m_owner;
+    state_e                      m_state;
+    std::vector<Json::Value>     m_clients_info;
+    std::unordered_set<uint64_t> m_ignored_macs;
+    std::unordered_set<uint32_t> m_ignored_ips;
+    CSyncBarrier                *m_sync_b;
+    CFlowGenList                *m_fl;
+    CParserOption               *m_opts;
+    std::string                  m_topo_buffer;
+    std::string                  m_topo_hash;
+    bool                         m_topo_parsed;
+    std::string                  m_tunnel_topo_buffer;
+    std::string                  m_tunnel_topo_hash;
+    bool                         m_tunnel_topo_parsed;
+    bool                         m_is_clients_info_ready;
+    uint64_t                     m_epoch;
+    CTunnelHandler              *m_tunnel_handler;
+    CCpDynStsInfra              *m_cp_sts_infra;
 
 public:
     bool                m_stopping_dp;
