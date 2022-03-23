@@ -75,7 +75,6 @@ void CTRexExtendedDriverIce::update_configuration(port_cfg_t * cfg){
     cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
     cfg->tx_offloads.common_required = DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-    cfg->tx_offloads.common_best_effort = 0;
 }
 
 void CTRexExtendedDriverIce::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {
