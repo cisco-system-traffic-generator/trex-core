@@ -202,6 +202,7 @@ tcp_timer_persist(struct tcpcb *tp)
         (ticks - tp->t_rcvtime >= tcp_maxpersistidle ||
          ticks - tp->t_rcvtime >= TCP_REXMTVAL(tp) * tcp_totbackoff)) {
         TCPSTAT_INC(tcps_persistdrop);
+        tp = tcp_drop(tp, ETIMEDOUT);
         goto out;
     }
     /*
@@ -220,7 +221,6 @@ tcp_timer_persist(struct tcpcb *tp)
     tp->t_flags &= ~TF_FORCEDATA;
 
 out:
-    tp = tcp_drop(tp, ETIMEDOUT);
 #ifdef TCPDEBUG
     if (tp != NULL && (tcp_getsocket(tp)->so_options & SO_DEBUG))
         tcp_trace(TA_USER, ostate, tp, NULL, NULL, PRU_SLOWTIMO|(TT_PERSIST<<8));
@@ -355,6 +355,9 @@ _handle_slow_timers(struct tcpcb *tp, uint32_t tick_passed)
             case TT_PERSIST: tcp_timer_persist(tp); break;
             case TT_KEEP: tcp_timer_keep(tp); break;
             case TT_2MSL: tcp_timer_2msl(tp); break;
+            }
+            if (tp->t_state == TCPS_CLOSED) {
+                break;
             }
         } else {
             tp->m_timer.tt_timer[i] -= tick_passed;
