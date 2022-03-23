@@ -513,7 +513,8 @@ class CAstfDB  : public CTRexDummyCommand  {
     void get_tuple_info(CTupleGenYamlInfo & tuple_info);
     bool get_latency_info(uint32_t & src_ipv4,
                           uint32_t & dst_ipv4,
-                          uint32_t & dual_port_mask);
+                          uint32_t & c_ip_info,
+                          uint32_t & s_ip_info);
 
     void get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
             std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion);

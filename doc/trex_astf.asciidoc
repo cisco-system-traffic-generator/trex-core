@@ -2453,16 +2453,16 @@ def get_topo():
         version = 4,
         type = 1,
         src_ip = '1.1.1.11',
-        dst_ip = '11.1.1.1',
+        dst_ip = '12.2.2.2',
         activate = True
     )
 
     topo.add_tunnel_ctx(
-        src_start = '16.0.0.0',
-        src_end  = '16.0.0.255',
-        initial_teid = 0,
+        src_start = '16.0.1.0',
+        src_end  = '16.0.1.255',
+        initial_teid = 256,
         teid_jump = 6,
-        sport = 5000,
+        sport = 4000,
         version = 6,
         type = 1,
         src_ip = '2001:db8:3333:4444:5555:6666:7777:8888',
@@ -2497,7 +2497,7 @@ def get_topo():
         version = 4,                <1>
         tunnel_type = 1,
         src_ip = '1.1.1.11',        <2>
-        dst_ip = '11.1.1.1',        <3>
+        dst_ip = '12.2.2.2',        <3>
         activate = True
     )
 
@@ -2516,6 +2516,11 @@ The clients ips range is 16.0.0.0 - 16.0.0.255, to fits the clients range inside
 
 .TRex console
 
+Activating GTPU mode
+[source,bash]
+----
+trex>tunnel --type gtpu
+----
 loading the gtpu_topo profile
 [source,bash]
 ----
@@ -2529,7 +2534,7 @@ Tunnel Topology
 
 Src_start| Src_end  |Initial-Teid|Teid-jump|Sport|Version|Type| Src_ip |Dest_ip |Activate
 ---------+----------+------------+---------+-----+-------+----+--------+--------+--------
-16.0.0.0 |16.0.0.255|      0     |    1    |5000 |   4   |gtpu|1.1.1.11|11.1.1.1|  True
+16.0.0.0 |16.0.0.255|      0     |    1    |5000 |   4   |gtpu|1.1.1.11|12.2.2.2|  True
 
 ----
 
@@ -2547,6 +2552,7 @@ Now the clients will have the tunnel contexts that we set using the tunnel topol
 *Starting GTPU traffic with tunnel topology:*
 [source,python]
 ----
+astf_client.activate_tunnel(tunnel_type=1, activate=True, loopback=False)
 astf_client.tunnels_topo_load(astf_profile_path + "/gtpu_topo.py")
 astf_client.load_profile(astf_profile_path + "/http_simple.py")
 astf_client.start()
@@ -2557,7 +2563,7 @@ astf_client.start()
 1. The GTPU mode have to be on in order to generate traffic with GTPU tunnel
 2. The clients ips inside the traffic profile have to exists in the tunnel topology profile you are using.
 3. There will be no traffic with clients that have no tunnel context.
-4. With more than one pair of ports you have to include ips with the right offsets.
+4. With more than one pair of ports you have to include ips with the right offsets - more details in "*Generating GTPU traffic on more than 2 ports*" section.
 5. You can use multiple tunnel_ctx with different fields inside the tunnel topology profile.
 
 
@@ -2580,12 +2586,12 @@ As you can see in http_simple example, we are using ASTFIPGen object when we are
 The ASTFIPGen class gets the offset as a parameter in the constructor, and the default value is "1.0.0.0". + 
 Each dual port has it's own offset, and this offset is used to route the packets to their right port.
 
-So when we are using *update_tunnel_client_record* API, we need to use the real clients IP that TRex server knows.
+So when we are using *update_tunnel_client_record* API, or *Tunnel Topology* we need to use the real clients IP that TRex server knows.
 
 *For example:* If we are using setup with 2 dual port with clients ip range: 16.0.0.0 - 16.0.0.255, and the offset is "1.0.0.0" +
 The clients in the first dual port will receive offset of 0, meaning ip prefix of "16.0.0." +
 And the clients in the second dual port will receive offset of '1.0.0.0', meaning ip prefix of "17.0.0."
-So when we are using this API we need to use clients ip with "17.0.0." and "16.0.0." prefixes. +
+So when we are using these API we need to use clients ip with "17.0.0." and "16.0.0." prefixes. +
 
 *Capturing of the traffic on setups with 2 dual ports and client range of 16.0.0.0 - 16.0.0.255* +
 
@@ -2629,10 +2635,156 @@ astf_client.update_tunnel_client_record(client_db, tunnel_type)
 <3> Adding to the client_ip the offset of the dual port
 <4> Updating the IP offset to the offset of the next dual port
 
+
+<<<
+
+*Example - Tunnel Topology profile for 2 dual ports*
+[source,python]
+----
+from trex.astf.api import *
+from trex.astf.tunnels_topo import TunnelsTopo
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',      <1>
+        src_end  = '16.0.0.255',     <2>
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        tunnel_type = 1,
+        src_ip = '1.1.1.11',
+        dst_ip = '12.2.2.2',
+        activate = True
+    )
+
+    topo.add_tunnel_ctx(
+        src_start = '17.0.0.0',      <3>
+        src_end  = '17.0.0.255',     <4>
+        initial_teid = 256,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        tunnel_type = 1,
+        src_ip = '2.1.1.11',         <5>
+        dst_ip = '13.2.2.2',         <6>
+        activate = True
+    )
+
+    return topo
+----
+<1> src_start for the first dual port - offset of '0.0.0.0'
+<2> src_end for the first dual port - offset of '0.0.0.0'
+<3> src_start for the second dual port - offset of '1.0.0.0'
+<4> src_end for the second dual port - offset of '1.0.0.0'
+<5> added offset of '1.0.0.0' to the outer source IP
+<6> added offset of '1.0.0.0' to the outer destination IP
+
 [NOTE] 
 =====================================================================
-The records will hold clients IP that doesn't necessarily exist in TRex server, but the server will ignore these records.
+In our both examples using the update_tunnel_client_record API, and with tunnel topology. The records will hold clients IP that don't necessarily exist in TRex server, but the server will ignore these records.
 =====================================================================
+
+<<<
+
+*Tutorial: Generating GTPU traffic with latency* +
+
+*Goal*:: Generating GTPU traffic with latency using Tunnel Topology profile.
+
+*File*::
+link:{github_astf_path}/gtpu_topo_latency.py[astf/gtpu_topo_latency.py]
+
+[source,python]
+----
+from trex.astf.api import *
+from trex.astf.tunnels_topo import TunnelsTopo
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        tunnel_type = 1,
+        src_ip = '1.1.1.11',
+        dst_ip = '12.2.2.2',
+        activate = True
+    )
+
+    topo.add_tunnel_latency(
+        client_port_id = 0,     <1>
+        client_ip = "16.0.0.0", <2>
+        server_ip = "48.0.0.0"  <3>
+    )
+    return topo
+----
+<1> The client's port_id that holds the client_ip: "16.0.0.0"
+<2> The source IP of the ICMP packets
+<3> The destincation IP of the ICMP packets.
+
+From v2.97 TRex supports latency with GTPU mode. +
+In order to generate GTPU traffic with latency we have to use Tunnel Topology with latency information per client port. +
+We will also have to start traffic with some profile with latency_pps > 0. +
+
+The latency information per client port consist of: +
+
+* client_port_id: The client's port_id that holds the client_ip.
+* client_ip: The source ip of the ICMP packets, this client will generate the ICMP packets.
+* server_ip: The destincation ip of the ICMP packets, this server will answer to the ICMP packets.
+
+[NOTE] 
+=====================================================================
+With setups that have more than 1 dual port, you have to use client and server IP, with their right offset.
+For more details on how the offset is being calculated read "*Generating GTPU traffic on more than 2 ports*" section. +
+=====================================================================
+
+<<<
+
+Now we will see an example of how to use the tunnel topology to generate GTPU traffic with latency. +
+In this example we will use the tunnel topology profile *gtpu_topo_latency.py*, and *http_simple.py* as the traffic profile. +
+
+.TRex console
+
+Activating GTPU mode
+[source,bash]
+----
+trex>tunnel --type gtpu
+----
+loading the gtpu_topo_latency profile
+[source,bash]
+----
+trex>tunnels_topo load -f astf/gtpu_topo_latency.py
+----
+Using the show command we can see the tunnels topology that we loaded.
+[source,bash]
+----
+trex>tunnels_topo show
+Tunnel Topology
+
+Src_start| Src_end  |Initial-Teid|Teid-jump|Sport|Version|Type| Src_ip |Dest_ip |Activate
+---------+----------+------------+---------+-----+-------+----+--------+--------+--------
+16.0.0.0 |16.0.0.255|      0     |    1    |5000 |   4   |gtpu|1.1.1.11|12.2.2.2|  True
+
+Tunnel Latency
+
+Client_port_id | Client_ip | Server_ip
+---------------+-----------+----------
+      0        | 16.0.0.0  | 48.0.0.0
+
+----
+Starting traffic with http_simple.py profile with latency
+[source,bash]
+----
+trex>start -f astf/http_simple.py -l 1000
+----
+
+<<<
 
 *Tutorial: Bad distribution with GTPU traffic* +
 

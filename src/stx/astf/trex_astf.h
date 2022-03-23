@@ -304,6 +304,7 @@ public:
     bool tunnel_topo_needs_parsing();
     std::string* get_tunnel_topo_buffer() { return &m_tunnel_topo_buffer; }
     void         set_tunnel_topo_parsed(bool topo) { m_tunnel_topo_parsed = topo; }
+    bool         is_tunnel_topo_parsed() { return m_tunnel_topo_parsed; }
     /**
      * Stats Related
      */
@@ -337,7 +338,7 @@ public:
     /**
      * Start transmit latency streams only 
      */
-    void start_transmit_latency(const lat_start_params_t &args);
+    void start_transmit_latency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo=nullptr, CTunnelsDB* tunnel_db=nullptr);
 
     /**
      * Stop transmit latency streams only 
@@ -428,6 +429,7 @@ public:
             delete m_tunnel_handler;
             m_tunnel_handler = nullptr;
         }
+        tunnel_topo_clear();
     }
 
     void set_clients_info_ready(bool ready) {

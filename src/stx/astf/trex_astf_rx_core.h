@@ -25,18 +25,23 @@ limitations under the License.
 #include "bp_sim.h"
 #include "common/trex_messaging.h"
 #include "trex_astf_defs.h"
+#include "tunnels/tunnel_db.h"
 
 
 class TrexRxStartLatency : public TrexCpToRxMsgBase {
 public:
-    TrexRxStartLatency(const lat_start_params_t &args) {
+    TrexRxStartLatency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo, CTunnelsDB* tunnel_db) {
         m_args = args;
+        m_tunnel_topo = tunnel_topo;
+        m_tunnel_db = tunnel_db;
     }
 
     virtual bool handle(CRxCore *rx_core);
 
 private:
     lat_start_params_t m_args;
+    CTunnelsTopo*      m_tunnel_topo;
+    CTunnelsDB*        m_tunnel_db;
 };
 
 
@@ -59,6 +64,23 @@ public:
 
 private:
     double  m_cps;
+};
+
+
+class TrexAstfRxInitTunnelHandler : public TrexCpToRxMsgBase {
+public:
+    TrexAstfRxInitTunnelHandler(bool activate, uint8_t tunnel_type, bool loopback_mode) {
+        m_activate = activate;
+        m_tunnel_type = tunnel_type;
+        m_loopback_mode = loopback_mode;
+    }
+
+    virtual bool handle(CRxCore *rx_core);
+
+private:
+    bool    m_activate;
+    uint8_t m_tunnel_type;
+    bool    m_loopback_mode;
 };
 
 
@@ -104,15 +126,50 @@ public:
 class CRxAstfCore : public CRxCore {
 public:
     CRxAstfCore();
+    ~CRxAstfCore();
 
 public:
     /* commands */ 
-    void start_latency(const lat_start_params_t &args);
+    void start_latency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo=nullptr, CTunnelsDB* tunnel_db=nullptr);
     void stop_latency();
     void update_latency(double cps);
     void cp_update_stats();
 
+    /**
+    * Activate/Deactivate the tunnel handler
+    *
+    * @param activate
+    *   Boolean whether to activate or deactivate the tunnel handler.
+    *
+    * @param tunnel_type
+    *   The type of the tunnel for example gtpu type is 1.
+    *
+    * @param loopback
+    *   Boolean whether to activate with loopback mode
+    */
+    void activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback);
 
+    /**
+    * Delete the tunnel context of each port
+    *
+    */
+    void delete_tunnel_ctx();
+
+    /**
+    * Load the clients and their tunnel contexts from the topo and from the tunnel_db
+    *
+    * @param args
+    *   holds the basic latency arguments.
+    *
+    * @param tunnel_topo
+    *   pointer to the CTunnelsTopo object.
+    *
+    * @param tunnel_db
+    *   pointer to CTunnelsDB object.
+    */
+    void load_from_tunnel_db(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo, CTunnelsDB *tunnel_db);
+
+    CLatencyManagerPerPort* get_latency_mngr_per_port(uint8_t id);
     void cp_dump(FILE *fd);
     void cp_get_json(std::string & json);
 
@@ -149,6 +206,7 @@ private:
     std::vector<uint8_t>    m_port_ids; // (non dummy) port IDs
     CLatencyPktMode         *m_l_pkt_mode;
     CPortLatencyHWBase *    m_port_io[TREX_MAX_PORTS];
+    CTunnelHandler*         m_tunnel_handler;
     uint8_t                 m_epoc;
 };
 

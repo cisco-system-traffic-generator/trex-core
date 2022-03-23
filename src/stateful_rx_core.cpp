@@ -25,6 +25,7 @@ limitations under the License.
 #include "pkt_gen.h"
 #include "common/basic_utils.h"
 #include "stateful_rx_core.h"
+#include "astf/trex_astf_rx_core.h"
 
 const uint8_t sctp_pkt[]={
 
@@ -131,7 +132,12 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,
                                            uint32_t extern_dest_ip) {
     bool is_client_to_server = (port_id % 2 == 0) ? true:false;
     int dual_port_index = port_id >> 1;
-    uint32_t mask = dual_port_index * m_dual_port_mask;
+    uint32_t mask = 0;
+    if (is_client_to_server) {
+        mask = dual_port_index * m_c_ip_offset;
+    } else {
+        mask = dual_port_index * m_s_ip_offset;
+    }
     uint32_t c = m_client_ip.v4;
     uint32_t s = m_server_ip.v4;
 
@@ -164,10 +170,12 @@ rte_mbuf_t * CLatencyPktInfo::generate_pkt(int port_id,
 
 void CLatencyPktInfo::set_ip(uint32_t                src,
                              uint32_t                dst,
-                             uint32_t                dual_port_mask) {
+                             uint32_t                c_ip_offset,
+                             uint32_t                s_ip_offset) {
     m_client_ip.v4   = src;
     m_server_ip.v4   = dst;
-    m_dual_port_mask = dual_port_mask;
+    m_c_ip_offset = c_ip_offset;
+    m_s_ip_offset = s_ip_offset;
     
     if (m_client_cfg) {
         delete [] m_client_cfg;
@@ -180,12 +188,14 @@ void CLatencyPktInfo::set_ip(uint32_t                src,
 
 void CLatencyPktInfo::set_ip(uint32_t        src,
                              uint32_t        dst,
-                             uint32_t        dual_port_mask,
+                             uint32_t        c_ip_offset,
+                             uint32_t        s_ip_offset,
                              uint8_t         port_cnt,
                              ClientCfgDB    &client_cfg_db) {
     m_client_ip.v4   = src;
     m_server_ip.v4   = dst;
-    m_dual_port_mask = dual_port_mask;
+    m_c_ip_offset = c_ip_offset;
+    m_s_ip_offset = s_ip_offset;
     
     if (m_client_cfg) {
         delete [] m_client_cfg;
@@ -197,7 +207,7 @@ void CLatencyPktInfo::set_ip(uint32_t        src,
     
     /* for each IP - lookup the client cluster */
     for (int i = 0; i < dual_port_cnt; i++) {
-        uint32_t ip = src + (dual_port_mask * i);
+        uint32_t ip = src + (c_ip_offset * i);
         
         ClientCfgEntry *entry = client_cfg_db.lookup(ip);
         if (!entry) {
@@ -226,6 +236,8 @@ void CLatencyPktInfo::Delete(){
 void CCPortLatency::reset_seq(){
     m_tx_seq=0;
     m_rx_seq=0;
+    m_icmp_tx_seq=1;
+    m_icmp_rx_seq=0;
 }
 
 void CCPortLatency::reset(){
@@ -279,6 +291,7 @@ bool CCPortLatency::Create(uint8_t id,
     m_nat_learn    = m_nat_can_send;
     m_nat_external_ip=0;
     m_nat_external_dest_ip=0;
+    m_astf_rx = nullptr;
     if ( CGlobalInfo::m_options.m_dummy_port_map[m_id] ) {
         set_dummy_port_in_pair();
         rx_port->set_dummy_port_in_pair();
@@ -286,6 +299,7 @@ bool CCPortLatency::Create(uint8_t id,
 
     m_hist.Create();
     reset();
+    m_tunnel_ctx = nullptr;
     return (true);
 }
 
@@ -299,6 +313,8 @@ void CCPortLatency::update_packet(rte_mbuf_t * m, int port_id){
 
     /* update mac addr dest/src 12 bytes */
     memcpy(p,CGlobalInfo::m_options.get_dst_src_mac_addr(m_id),12);
+    //in tunnel mode the dynfield_ptr should hold the tunnel context in non tunnel mode the tunnel context is nullptr
+    m->dynfield_ptr = m_tunnel_ctx;
 
     latency_header * h=(latency_header *)(p+m_payload_offset);
     h->magic = (LATENCY_MAGIC | m_id)+ (m_epoc<<8);
@@ -444,6 +460,14 @@ bool CCPortLatency::check_rx_check(rte_mbuf_t * m) {
     return (true);
 }
 
+void CCPortLatency::set_opposite_port(uint8_t id) {
+    assert(m_astf_rx);
+    CLatencyManagerPerPort* p = m_astf_rx->get_latency_mngr_per_port(id);
+    assert(p);
+    m_rx_port = &p->m_port;
+    m_tunnel_ctx = m_rx_port->get_tunnel_ctx();
+}
+
 bool CCPortLatency::do_learn(uint32_t external_ip,
                              uint32_t external_dest_ip) {
     m_nat_learn=true;
@@ -451,6 +475,13 @@ bool CCPortLatency::do_learn(uint32_t external_ip,
     m_nat_external_ip=external_ip;
     m_nat_external_dest_ip = external_dest_ip ;
     return (true);
+}
+
+void CCPortLatency::reset_learn() {
+    m_nat_can_send = nat_is_port_can_send(m_id);
+    m_nat_learn = m_nat_can_send;
+    m_nat_external_ip = 0;
+    m_nat_external_dest_ip = 0;
 }
 
 bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
@@ -573,6 +604,11 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     c_l_pkt_mode->rcv_debug_print(p + m_l4_offset + vlan_offset);
 #endif
     latency_header * h=(latency_header *)(p+m_payload_offset + vlan_offset);
+    //learns the real opposite port
+    //m_astf_rx is non null only in tunnel_loopback mode and in server's ports
+    if (!m_tunnel_ctx && m_astf_rx) {
+        set_opposite_port(h->get_id());
+    }
     if ( h->seq != m_rx_seq ){
         m_seq_error++;
         m_rx_seq =h->seq +1;
@@ -633,7 +669,8 @@ bool CLatencyManager::Create(CLatencyManagerCfg *cfg){
         lp->m_port.Create(i,
                           m_pkt_gen.get_payload_offset(),
                           m_pkt_gen.get_l4_offset(),
-                          m_pkt_gen.get_pkt_size(),lpo,
+                          m_pkt_gen.get_pkt_size(),
+                          lpo,
                           c_l_pkt_mode,
                           &m_nat_check_manager
                            );

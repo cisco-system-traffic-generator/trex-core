@@ -22,13 +22,14 @@ public:
 
 
 void initialize_tunnels_topo_json(Json::Value &tunnels_topo, std::vector<CTunnelsCtxGroup>& group_vec) {
-    tunnels_topo["tunnels"] = Json::arrayValue;;
+    tunnels_topo["tunnels"] = Json::arrayValue;
     Json::Value * p = &tunnels_topo["tunnels"];
     for (CTunnelsCtxGroup& group : group_vec) {
         Json::Value group_json;
         group.to_json(group_json);
         p->append(group_json);
     }
+    tunnels_topo["latency"] = Json::arrayValue;
 }
 
 

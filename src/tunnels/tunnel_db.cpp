@@ -4,6 +4,7 @@
 #include "arpa/inet.h"
 #include "trex_client_config.h"
 #include "tunnels/tunnel_factory.h"
+#include "rx_check.h"
 
 /************************************************* CClientCfgEntryTunnel ****************************************************************************/
 
@@ -16,6 +17,14 @@ void CClientCfgEntryTunnel::assign(ClientCfgBase &info, uint32_t ip) const {
     // teid = inital_teid + (index) * teid_jump
     tmp.teid = tmp.teid + (index) * m_tunnel_group.get_teid_jump();
     info.m_tunnel_ctx = get_tunnel_ctx(&tmp);
+}
+
+/************************************************* CTunnelsLatencyPerPort ****************************************************************************/
+
+void CTunnelsLatencyPerPort::to_json(Json::Value& latency_json) const {
+    latency_json["client_port_id"] = m_client_port_id;
+    latency_json["client_ip"] = m_client_ip;
+    latency_json["server_ip"] = m_server_ip;
 }
 
 
@@ -110,17 +119,9 @@ void CTunnelsTopo::validate_tunnel_topo(std::vector<CTunnelsCtxGroup>& groups) {
 }
 
 
-void CTunnelsTopo::from_json_str(const std::string &topo_buffer) {
+void CTunnelsTopo::from_json_obj_tunnel_groups(Json::Value& tunnels_group_json) {
     std::vector<CTunnelsCtxGroup> tmp_groups;
-    Json::Reader reader;
-    Json::Value json_obj;
-    bool rc = reader.parse(topo_buffer, json_obj, false);
-    if (!rc) {
-        parse_tunnel_topo_err(reader.getFormattedErrorMessages());
-    }
-    Json::Value tunnels_group;
-    json_map_init(json_obj, "tunnels", "JSON map", tunnels_group);
-    for (auto &group : tunnels_group) {
+    for (auto &group : tunnels_group_json) {
         client_tunnel_data_t tunnel_data;
         memset(&tunnel_data, 0 , sizeof(client_tunnel_data_t));
         tunnel_data.client_ip = 0;
@@ -128,7 +129,7 @@ void CTunnelsTopo::from_json_str(const std::string &topo_buffer) {
         std::string src_end_str = json_map_get_value(group, "src_end", "JSON map").asString();
         uint32_t src_start;
         uint32_t src_end;
-        rc = utl_ipv4_to_uint32(src_start_str.c_str(), src_start);
+        bool rc = utl_ipv4_to_uint32(src_start_str.c_str(), src_start);
         rc = rc && utl_ipv4_to_uint32(src_end_str.c_str(), src_end);
         if (!rc) {
             parse_tunnel_topo_err("invalid src_start and src_end: " + src_start_str + " " + src_end_str);
@@ -158,20 +159,82 @@ void CTunnelsTopo::from_json_str(const std::string &topo_buffer) {
     }
 
     validate_tunnel_topo(tmp_groups);
-
     std::unique_lock<std::recursive_mutex> lock(m_lock);
     std::swap(tmp_groups, m_tunnels_groups);
+}
+
+
+void CTunnelsTopo::from_json_obj_tunnel_latency(Json::Value& latency_json) {
+    client_per_port_t tmp_latency_clients;
+    uint8_t expected_clients = CGlobalInfo::m_options.get_expected_dual_ports();
+    for (auto &l : latency_json) {
+        std::vector<uint32_t> ips = {0, 0};
+        std::vector<std::string> ips_dir = {"client_ip", "server_ip"};
+        for (int i=0;i<ips.size();i++) {
+            std::string ip_str = json_map_get_value(l, ips_dir[i], "JSON map").asString();
+            bool rc = utl_ipv4_to_uint32(ip_str.c_str(), ips[i]);
+            if (!rc) {
+                parse_tunnel_topo_err("invalid " + ips_dir[i] + " " + ip_str);
+            }
+        }
+        uint8_t client_port_id = json_map_get_value(l, "client_port_id", "JSON map").asUInt();
+        pkt_dir_t dir = port_id_to_dir(client_port_id);
+        if (dir != CLIENT_SIDE) {
+            parse_tunnel_topo_err("client_port_id must be even number " + to_string(client_port_id));
+        }
+        if (client_port_id >= expected_clients<<1) {
+            parse_tunnel_topo_err("client_port_id: " + to_string(client_port_id) + "exceeds num of ports: " + to_string(expected_clients<<1));
+        }
+        std::pair<uint8_t, CTunnelsLatencyPerPort> p = std::make_pair(client_port_id, CTunnelsLatencyPerPort(client_port_id, ips[0], ips[1]));
+        if (!tmp_latency_clients.insert(p).second) {
+            parse_tunnel_topo_err("at least two instances of the port: " + to_string(client_port_id));
+        }
+    }
+
+    if ((tmp_latency_clients.size() != expected_clients) && tmp_latency_clients.size()) {
+        std::stringstream ss;
+        ss<<"There should be one latency client per dual port."<<endl;
+        ss<<"num of latency clients found is: "<<tmp_latency_clients.size()<<endl;
+        ss<<"num of dual ports is: "<<to_string(expected_clients)<<endl;
+        parse_tunnel_topo_err(ss.str());
+    }
+
+    std::unique_lock<std::recursive_mutex> lock(m_lock);
+    std::swap(tmp_latency_clients, m_latency_clients);
+}
+
+
+void CTunnelsTopo::from_json_str(const std::string &topo_buffer) {
+    std::vector<CTunnelsCtxGroup> tmp_groups;
+    Json::Reader reader;
+    Json::Value json_obj;
+    bool rc = reader.parse(topo_buffer, json_obj, false);
+    if (!rc) {
+        parse_tunnel_topo_err(reader.getFormattedErrorMessages());
+    }
+    Json::Value tunnels_group;
+    Json::Value latency;
+    json_map_init(json_obj, "tunnels", "JSON map", tunnels_group);
+    json_map_init(json_obj, "latency", "JSON map", latency);
+    from_json_obj_tunnel_groups(tunnels_group);
+    from_json_obj_tunnel_latency(latency);
 }
 
 
 void CTunnelsTopo::clear() {
     std::unique_lock<std::recursive_mutex> lock(m_lock);
     m_tunnels_groups.clear();
+    m_latency_clients.clear();
 }
 
 
 const std::vector<CTunnelsCtxGroup>& CTunnelsTopo::get_tunnel_topo() const {
     return m_tunnels_groups;
+}
+
+
+const client_per_port_t& CTunnelsTopo::get_latency_clients() const {
+    return m_latency_clients;
 }
 
 
@@ -181,6 +244,12 @@ void CTunnelsTopo::to_json(Json::Value& val){
         Json::Value value;
         m_tunnels_groups[i].to_json(value);
         val["tunnels"].append(value);
+    }
+    val["latency"] = Json::arrayValue;
+    for (auto& l : m_latency_clients) {
+        Json::Value value;
+        l.second.to_json(value);
+        val["latency"].append(value);
     }
 }
 

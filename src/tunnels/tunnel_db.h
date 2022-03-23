@@ -11,6 +11,74 @@ namespace Json {
 class ClientCfgBase;
 
 
+/************************************************* CTunnelsLatencyPerPort ****************************************************************************/
+class CTunnelsLatencyPerPort {
+public:
+
+    /**
+    * CTunnelsCtxGroup constructor
+    * This class holds the latency context per port.
+    *
+    * @param client_port_id
+    *   Ths client port id, which will generate the ICMP packets with this context.
+    *
+    * @param client_ip
+    *   The source IP address of the ICMP packets.
+    *
+    * @param server_ip
+    *   The destination IP address of the ICMP packets.
+    */
+    CTunnelsLatencyPerPort(uint8_t client_port_id, uint32_t client_ip, uint32_t server_ip) {
+        m_client_port_id = client_port_id;
+        m_client_ip = client_ip;
+        m_server_ip = server_ip;
+    }
+
+    /**
+    * Gets the the client_port_id.
+    *
+    * @return uint8_t
+    *   The client_port_id.
+    */
+    uint8_t get_client_port_id() const {
+        return m_client_port_id;
+    }
+
+    /**
+    * Gets the the client_ip.
+    *
+    * @return uint32_t ip address
+    *   The client_ip - the source IP address of the ICMP packets.
+    */
+    uint32_t get_client_ip() const {
+        return m_client_ip;
+    }
+
+    /**
+    * Gets the the server_ip.
+    *
+    * @return uint32_t ip address
+    *   The server_ip - the destination IP address of the ICMP packets.
+    */
+    uint32_t get_server_ip() const {
+        return m_server_ip;
+    }
+
+    /**
+    * Initialize the data argument with the CTunnelsLatencyPerPort data.
+    *
+    * @param latency_json
+    *   The json object to which we want to copy the
+    *   CTunnelsLatencyPerPort data to.
+    */
+    void to_json(Json::Value& latency_json) const;
+
+private:
+    uint8_t  m_client_port_id;
+    uint32_t m_client_ip;
+    uint32_t m_server_ip;
+};
+
 /************************************************* CTunnelsCtxGroup ****************************************************************************/
 
 
@@ -174,6 +242,7 @@ public:
 
 /************************************************* CTunnelsTopo ****************************************************************************/
 
+typedef std::map<uint8_t, CTunnelsLatencyPerPort> client_per_port_t;
 
 class CTunnelsTopo {
     friend class Topo_Test;
@@ -185,7 +254,7 @@ public:
     * Initialize the topo object from a json string.
     *
     * @param json_str
-    *   Json string that holds list of CTunnelsCtxGroup objects.
+    *   Json string that holds list of CTunnelsCtxGroup objects and list of latency clients with their port id.
     */
     void from_json_str(const std::string &json_str);
 
@@ -204,17 +273,26 @@ public:
     void to_json(Json::Value& val);
 
     /**
-    * Gets a vector of CTunnelsCtxGroup that holds the tunnel topo data.
+    * Gets a vector of CTunnelsCtxGroup that holds the tunnel_topo's context data.
     *
     * @return const std::vector<CTunnelsCtxGroup>&
     *   A vector of CTunnelsCtxGroup that holds the tunnel topo data.
     */
     const std::vector<CTunnelsCtxGroup>& get_tunnel_topo() const;
+
+    /**
+    * Gets a map from port id to its client
+    *
+    * @return const std::map<uint8_t, CTunnelsLatencyPerPort>&
+    *   map from port id to latency tunnel context per port
+    */
+    const client_per_port_t& get_latency_clients() const;
+
     ~CTunnelsTopo() {}
 
 private:
     /**
-    * Verifies there is no intersrction between the CTunnelsCtxGroup objects
+    * Verifies there is no intersections between the CTunnelsCtxGroup objects
     * inside the groups vector.
     *
     * @param groups
@@ -222,8 +300,25 @@ private:
     */
     void validate_tunnel_topo(std::vector<CTunnelsCtxGroup>& groups);
 
+    /**
+    * Initialize the tunnel groups vector of CTunnelsTopo
+    *
+    * @param tunnels_group_json
+    *   Json object that holds list of CTunnelsCtxGroup objects.
+    */
+    void from_json_obj_tunnel_groups(Json::Value& tunnels_group_json);
+
+    /**
+    * Initialize the latency port_id->client_ip map of CTunnelsTopo
+    *
+    * @param latency_json
+    *   Json object that holds list of latency tunnel context per port.
+    */
+    void from_json_obj_tunnel_latency(Json::Value& latency_json);
+
 private:
     std::vector<CTunnelsCtxGroup> m_tunnels_groups;
+    client_per_port_t             m_latency_clients;
     std::recursive_mutex          m_lock;
 };
 

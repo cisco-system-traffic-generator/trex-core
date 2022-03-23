@@ -999,7 +999,8 @@ ClientCfgDB  *CAstfDB::get_client_cfg_db() {
 
 bool CAstfDB::get_latency_info(uint32_t & src_ipv4,
                                uint32_t & dst_ipv4,
-                               uint32_t & dual_port_mask){
+                               uint32_t & c_ip_offset,
+                               uint32_t & s_ip_offset){
 
     Json::Value ip_gen_list = m_val["ip_gen_dist_list"];
     std::string s;
@@ -1015,12 +1016,14 @@ bool CAstfDB::get_latency_info(uint32_t & src_ipv4,
 
         if (g["dir"] == "c") {
             s = g["ip_offset"].asString();
-            dual_port_mask = ip_from_str(s.c_str());
+            c_ip_offset = ip_from_str(s.c_str());
             s = g["ip_start"].asString();
             src_ipv4 = ip_from_str(s.c_str());
             valid|=1;
         }
         if (g["dir"] == "s") {
+            s = g["ip_offset"].asString();
+            s_ip_offset = ip_from_str(s.c_str());
             s= g["ip_start"].asString();
             dst_ipv4 = ip_from_str(s.c_str());
             valid|=2;

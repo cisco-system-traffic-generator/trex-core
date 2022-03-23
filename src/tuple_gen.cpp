@@ -213,7 +213,7 @@ void CClientPool::allocate_simple_or_configured_clients(uint32_t  min_ip,
                                                         ClientCfgDB &client_info,
                                                         bool is_simple_alloc) {
     CTunnelsDB *tunnel_db = client_info.get_tunnel_db();
-    bool has_tunnel_topo = !tunnel_db->is_empty();
+    bool has_tunnel_topo = !tunnel_db->is_empty() && CGlobalInfo::m_options.m_tunnel_enabled;
     /* simple creation of clients - no extended info */
     for (uint32_t i = 0; i < total_ip; i++) {
         bool activate = true;
