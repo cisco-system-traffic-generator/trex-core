@@ -3582,11 +3582,21 @@ class TRexClient(object):
             return
 
         # for each port, fetch port status
-        port_status = [self.ports[port_id].get_port_status() for port_id in ports[:4]]
+        port_status = [self.ports[port_id].get_port_status() for port_id in ports]
 
-        # merge
-        table = TRexTextTable.merge(port_status)
-        text_tables.print_table_with_header(table, table.title)
+        CHUNK_SIZE = 4
+        start = 0
+        while start < len(port_status):
+            end = min(start + CHUNK_SIZE, len(port_status))
+            ports = port_status[start:end]
+            table = TRexTextTable.merge(ports)
+            text_tables.print_table_with_header(table, table.title)
+            start = end
+            if start < len(port_status):
+                # Some ports left to see
+                client_input = input("Do you want to see more ports? [y/N]: ")
+                if client_input not in ["y", "yes", "Yes"]:
+                    break
 
 
     def _show_cpu_util (self, buffer = sys.stdout):
