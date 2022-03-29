@@ -10,6 +10,7 @@ import errno
 import traceback
 import sys
 import random as rand
+from trex.utils.zipmsg import ZippedMsg
 
 import zmq
 from trex.common.trex_types import LRU_cache
@@ -216,6 +217,7 @@ class BirdServer():
         self.current_handler       = None  # store random 32bit number for current client
         self.connected_clients     = 0
         self.bird_wrapper          = BirdWrapper()
+        self.zipper = ZippedMsg()
 
         try:
             self.IP_address = socket.gethostbyname(socket.gethostname())
@@ -306,13 +308,26 @@ class BirdServer():
         if params['handler'] != self.current_handler:
             raise InvalidHandler('Cannot make a change while another client is handled')
 
+    def recv_msg(self):
+        to_compress = False
+        message = self.socket.recv()
+        if self.zipper.is_compressed(message):
+            message = self.zipper.decompress(message)
+            to_compress = True
+        return message.decode(), to_compress
+
+    def send_msg(self, json_response, to_compress=False):
+        buffer = json_response.encode('utf-8')
+        if self.zipper.check_threshold(buffer) and to_compress:
+            buffer = self.zipper.compress(buffer)
+        self.socket.send(buffer)
+
     def start(self):
         self.logger.info('***Bird Server Started***')
         try:
             while True:
                 try:
-                    message = self.socket.recv()
-                    message = message.decode()
+                    message, to_compress = self.recv_msg()
 
                     self.logger.info('Received Message: %s' % message)
                 except zmq.ZMQError as e:
@@ -351,7 +366,7 @@ class BirdServer():
                         json_response = json.dumps(self.bird_wrapper.error_handler(e, req_id))
 
                 #  Send reply back to client
-                    self.socket.send(json_response.encode('utf-8'))
+                    self.send_msg(json_response, to_compress=to_compress)
                     if (method == 'shut_down'):
                         break
 
