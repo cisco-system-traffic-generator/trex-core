@@ -26,6 +26,19 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.97 ==
+
+* ASTF 
+** Bug fixes TCP 
+** Add software LRU for better performance 
+** Bigger reassembly window with new tunable 
+* GTPU
+** Topology manager 
+** Add latency support 
+** Add mask per client/server 
+* E810 fix truncate packet issue
+* Add generic black list per MAC/IP in case of EMU usage 
+
 == Release 2.96 ==
 
 * ASTF
