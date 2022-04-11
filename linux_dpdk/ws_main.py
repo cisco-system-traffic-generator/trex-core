@@ -2056,6 +2056,7 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/lib/librte_ring/
                         ../src/dpdk/lib/librte_timer/
                         ../src/dpdk/lib/librte_ip_frag/
+                        ../src/dpdk/lib/librte_pcapng/
                         ../src/dpdk/
                         
                         ../src/dpdk/lib/librte_security/

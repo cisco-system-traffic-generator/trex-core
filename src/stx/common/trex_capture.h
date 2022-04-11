@@ -29,6 +29,7 @@ limitations under the License.
 #include "trex_capture_rc.h"
 #include "bpf_api.h"
 
+#include <common/pcap.h>
 
 /**
  * a class to handle BPF filter 
@@ -307,6 +308,116 @@ private:
 
 
 /**************************************
+ * Capture Endpoint
+ *
+ * An endpoint to save captured packets
+ *************************************/
+class EndpointWriter {
+public:
+    virtual ~EndpointWriter() {}
+    virtual bool Create(std::string &endpoint, std::string &err) = 0;
+    virtual bool is_open() const = 0;
+    virtual int write(const void *buf, size_t nbyte) = 0;
+    virtual void close() = 0;
+};
+
+class EndpointBuffer {
+    uint8_t* m_base;
+    uint32_t m_size;
+    uint32_t m_reserved;
+    uint16_t m_count;   /* packet count */
+
+public:
+    EndpointBuffer();
+
+    ~EndpointBuffer();
+
+    uint8_t* get_base() const { return m_base; }
+    uint32_t get_size() const { return m_size; }
+    uint32_t get_count() const { return m_count; }
+
+    uint32_t available_size() const;
+    uint8_t * reserve_block(uint32_t size);
+    void consume_block(uint32_t size);
+
+    bool in_use() const { return m_size != m_reserved; }
+    bool has_reserved(uint8_t *block) const {
+        return (block - m_base) < m_reserved;
+    }
+};
+
+class CaptureEndpoint {
+    std::string m_endpoint;
+    enum format {
+        PCAP = 0,
+        PCAPNG = 1,
+    } m_format;
+
+    uint16_t m_snaplen;
+    std::map<uint8_t,uint8_t> m_ports_map;
+    EndpointWriter *m_writer;
+
+    uint64_t m_timestamp_ns;
+    uint64_t m_timestamp_cycles;
+    uint64_t m_timestamp_last;
+
+    uint64_t get_timestamp_ns() const;
+
+public:
+    CaptureEndpoint(const std::string& endpoint, uint16_t snaplen);
+
+    virtual ~CaptureEndpoint();
+
+    bool Init(const CaptureFilter& filter, std::string &err);
+
+    bool writer_is_active() const {
+        return m_writer && m_writer->is_open();
+    }
+
+    std::string get_name() const {
+        return m_endpoint;
+    }
+
+    uint16_t get_snaplen() const {
+        return m_snaplen;
+    }
+
+    bool write_header();
+
+    void write_packet(const rte_mbuf_t *m, int port, TrexPkt::origin_e origin, uint64_t index);
+
+    void stop();
+
+    void to_json_status(Json::Value &output) const;
+
+    double get_start_ts() const;
+
+private:
+    mutable std::mutex m_lock;
+    std::vector<EndpointBuffer*> m_buffers;
+
+    uint64_t m_packet_limit;    // limit count of saved packets to endpoint
+    uint64_t m_packet_count;    // total count of saved packets to endpoint
+    uint64_t m_packet_bytes;    // total bytes of saved packets to endpoint
+
+    uint8_t* allocate_block(uint32_t size);
+    void finalize_block(uint8_t *block, uint32_t size, uint32_t bytes);
+
+public:
+    void set_packet_limit(uint64_t limit) { m_packet_limit = limit; }
+    uint64_t get_packet_limit() const { return m_packet_limit; }
+    uint64_t get_packet_count() const { return m_packet_count; }
+    uint64_t get_packet_bytes() const { return m_packet_bytes; }
+
+    int flush_buffer(bool all);
+
+    bool is_empty() const { return m_buffers.empty(); }
+
+    uint32_t get_element_count() const;
+};
+
+
+/**************************************
  * Capture
  *  
  * A single instance of a capture
@@ -322,7 +433,8 @@ public:
     TrexCapture(capture_id_t id,
                          uint64_t limit,
                          const CaptureFilter &filter,
-                         TrexPktBuffer::mode_e mode);
+                         TrexPktBuffer::mode_e mode,
+                         CaptureEndpoint *endpoint);
     
     ~TrexCapture();
     
@@ -357,14 +469,35 @@ public:
     }
     
     uint32_t get_pkt_count() const {
-        return m_pkt_buffer->get_element_count();
+        if (m_endpoint) {
+            return m_endpoint->get_element_count();
+        } else {
+            return m_pkt_buffer->get_element_count();
+        }
+    }
+
+    uint64_t get_pkt_lost() const {
+        return m_pkt_index - (m_pkt_count + get_pkt_count());
     }
     
     dsec_t get_start_ts() const {
         return m_start_ts;
     }
-    
-    
+
+    bool has_endpoint() const {
+        return m_endpoint;
+    }
+
+    bool has_active_endpoint() const {
+        return m_endpoint && m_endpoint->writer_is_active();
+    }
+
+    std::string get_endpoint_name() const {
+        return m_endpoint ? m_endpoint->get_name(): "";
+    }
+
+    int flush_endpoint();
+
     Json::Value to_json() const;
     
 private:
@@ -373,7 +506,9 @@ private:
     dsec_t           m_start_ts;
     CaptureFilter    m_filter;
     uint64_t         m_id;
-    uint64_t         m_pkt_index;
+    uint64_t         m_pkt_index;   // matched packets
+    uint64_t         m_pkt_count;   // delivered packets
+    CaptureEndpoint *m_endpoint;
 };
 
 
@@ -404,6 +539,8 @@ public:
     void start(const CaptureFilter &filter,
                uint64_t limit,
                TrexPktBuffer::mode_e mode,
+               uint16_t snaplen,
+               const std::string& endpoint,
                TrexCaptureRCStart &rc);
    
     /**
@@ -520,12 +657,15 @@ public:
     }
     
     Json::Value to_json();
+
+    bool tick();    /* periodic flush for live captures */
         
 private:
     
     TrexCaptureMngr() {
         /* init this to 1 */
         m_id_counter = 1;
+        m_tick_time_sec = 0.0;
     }
     
     
@@ -548,6 +688,7 @@ private:
     
     static const int MAX_CAPTURE_SIZE = 10;
     
+    dsec_t m_tick_time_sec;
 };
 
 #endif /* __TREX_CAPTURE_H__ */
