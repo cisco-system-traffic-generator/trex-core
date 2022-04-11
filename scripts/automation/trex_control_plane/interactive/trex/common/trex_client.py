@@ -1044,7 +1044,7 @@ class TRexClient(object):
             except IOError as e:
                 raise TRexError('Could not open file %s: %s' % (output, e))
             writer._write_header(None)
-        else:
+        elif isinstance(output, list):
             # clear the list
             del output[:]
 
@@ -1063,6 +1063,10 @@ class TRexClient(object):
             start_ts  = rc.data()['start_ts']
             pkt_count -= len(pkts)
 
+            if pending and not pkts:
+                time.sleep(0.1) # to reduce 'fetch' RPC request during 'endpoint' flush
+                continue
+
             # write packets
             for pkt in pkts:
                 ts = pkt['ts'] - start_ts
@@ -1073,7 +1077,7 @@ class TRexClient(object):
                     ts_sec, ts_usec = sec_split_usec(ts)
                     wirelen = pkt.get('wirelen', None) if snaplen else None
                     writer._write_packet(pkt['binary'], sec=ts_sec, usec=ts_usec, wirelen=wirelen)
-                else:
+                elif isinstance(output, list):
                     output.append(pkt)
 
 
@@ -2385,7 +2389,7 @@ class TRexClient(object):
 
 
     @client_api('command', True)
-    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed', bpf_filter = ''):
+    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed', bpf_filter = '', endpoint = "", snaplen = 0):
         """
             Starts a low rate packet capturing on the server
 
@@ -2406,6 +2410,16 @@ class TRexClient(object):
                 bpf_filter: str
                     A Berkeley Packet Filter pattern
                     Only packets matching the filter will be appended to the capture
+
+                endpoint: str
+                    save the matched packets through the specified endpoint as PCAPNG format.
+
+                    file endpoint -  'file:///' + '<filepath>', it can be a directory or a file.
+                    ZMQ endpoint - 'tcp://' or 'ipc://' + <zmq recv server>
+
+                snaplen: int
+                    maximum number of bytes dumped from each packet
+
                     
             :returns:
                 returns a dictionary:
@@ -2448,7 +2462,13 @@ class TRexClient(object):
                   'tx'        : tx_ports,
                   'rx'        : rx_ports,
                   'filter'    : bpf_filter}
-        
+
+        # optional RPC parameters
+        if endpoint:
+            params['endpoint'] = endpoint
+        if snaplen:
+            params['snaplen'] = snaplen
+
         rc = self._transmit("capture", params = params)
         self.ctx.logger.post_cmd(rc)
 
@@ -2468,10 +2488,11 @@ class TRexClient(object):
                 capture_id: int
                     an active capture ID to stop
                     
-                output: None / str / list
+                output: None / str / list / function
                     if output is None - all the packets will be discarded
                     if output is a 'str' - it will be interpeted as output filename
                     if it is a list, the API will populate the list with packet objects
+                    if it is a function, the API will call it with 'endpoint' argument
 
                     in case 'output' is a list, each element in the list is an object
                     containing:
@@ -2480,6 +2501,8 @@ class TRexClient(object):
                     'ts'     - timestamp relative to the start of the capture
                     'index'  - order index in the capture
                     'port'   - on which port did the packet arrive or was transmitted from
+
+                    in case 'output' is a function, capture_id should have file endpoint.
                     
             :raises:
                 + :exe:'TRexError'
@@ -2493,7 +2516,7 @@ class TRexClient(object):
         
         
         validate_type('capture_id', capture_id, (int))
-        validate_type('output', output, (type(None), str, list))
+        validate_type('output', output, (type(None), str, list, type(lambda:_)))
         
         # stop
         self.ctx.logger.pre_cmd("Stopping packet capture {0}".format(capture_id))
@@ -2501,14 +2524,19 @@ class TRexClient(object):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc)
-        
+
         # pkt count
         pkt_count = rc.data()['pkt_count']
-        
-        # fetch packets
-        if output is not None:
+        endpoint = rc.data().get('endpoint', '')
+
+        # fetch packets (waiting flush if endpoint exists)
+        if output is not None or endpoint:
             self.fetch_capture_packets(capture_id, output, pkt_count)
-        
+
+        # 'endpoint' post process: copy it from host
+        if endpoint and callable(output):
+            output(endpoint)
+
         # remove
         self.ctx.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
         rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})

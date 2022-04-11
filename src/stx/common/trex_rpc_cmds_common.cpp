@@ -1397,11 +1397,13 @@ TrexRpcCmdCapture::_run(const Json::Value &params, Json::Value &result) {
 void
 TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &result) {
     
+    const std::string endpoint  = parse_string(params, "endpoint", result, "");
+
+    /* parse buffering parameters */
     uint32_t limit              = parse_uint32(params, "limit", result);
-    
-    /* parse mode type */
     const string mode_str  = parse_choice(params, "mode", {"fixed", "cyclic"}, result);
     TrexPktBuffer::mode_e mode  = ( (mode_str == "fixed") ? TrexPktBuffer::MODE_DROP_TAIL : TrexPktBuffer::MODE_DROP_HEAD);
+    uint16_t snaplen            = parse_uint16(params, "snaplen", result, 0);
     
     /* parse filters */
     const Json::Value &tx_json  = parse_array(params, "tx", result);
@@ -1445,7 +1447,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     reply.reset();
   
     /* send a start message to RX core */
-    TrexRxCaptureStart *start_msg = new TrexRxCaptureStart(filter, limit, mode, reply);
+    TrexRxCaptureStart *start_msg = new TrexRxCaptureStart(filter, limit, mode, snaplen, endpoint, reply);
     get_stx()->send_msg_to_rx(start_msg);
     
       /* wait for reply - might get a timeout */
@@ -1492,6 +1494,7 @@ TrexRpcCmdCapture::parse_cmd_stop(const Json::Value &params, Json::Value &result
             generate_execute_err(result, rc.get_err());
         }
         result["result"]["pkt_count"] = rc.get_pkt_count();
+        result["result"]["endpoint"] = rc.get_endpoint();
     
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());

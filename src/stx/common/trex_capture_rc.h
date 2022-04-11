@@ -45,7 +45,8 @@ public:
         RC_OK = 1,
         RC_CAPTURE_NOT_FOUND,
         RC_CAPTURE_LIMIT_REACHED,
-        RC_CAPTURE_FETCH_UNDER_ACTIVE
+        RC_CAPTURE_FETCH_UNDER_ACTIVE,
+        RC_CAPTURE_INVALID_ENDPOINT
     };
 
     bool operator !() const {
@@ -55,6 +56,10 @@ public:
     std::string get_err() const {
         assert(m_rc != RC_INVALID);
         
+        if (!m_err.empty()) {
+            return m_err;
+        }
+
         switch (m_rc) {
         case RC_OK:
             return "";
@@ -64,6 +69,8 @@ public:
             return "capture ID not found";
         case RC_CAPTURE_FETCH_UNDER_ACTIVE:
             return "fetch command cannot be executed on an active capture";
+        case RC_CAPTURE_INVALID_ENDPOINT:
+            return "specified endpoint is unavailable";
         case RC_INVALID:
             /* should never be called under invalid */
             assert(0);
@@ -77,9 +84,14 @@ public:
         m_rc = rc;
     }
     
+    void set_err(rc_e rc, const std::string& err) {
+        m_rc = rc;
+        m_err = err;
+    }
     
 protected:
     rc_e m_rc;
+    std::string m_err;
 };
 
 /**
@@ -115,8 +127,9 @@ private:
 class TrexCaptureRCStop : public TrexCaptureRC {
 public:
     
-    void set_rc(uint32_t pkt_count) {
+    void set_rc(uint32_t pkt_count, const std::string &endpoint) {
         m_pkt_count = pkt_count;
+        m_endpoint  = endpoint;
         m_rc        = RC_OK;
     }
     
@@ -124,9 +137,15 @@ public:
         assert(m_rc == RC_OK);
         return m_pkt_count;
     }
+
+    std::string get_endpoint() const {
+        assert(m_rc == RC_OK);
+        return m_endpoint;
+    }
     
 private:
     uint32_t m_pkt_count;
+    std::string m_endpoint;
 };
 
 /**

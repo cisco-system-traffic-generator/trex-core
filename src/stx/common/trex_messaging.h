@@ -401,11 +401,15 @@ public:
     TrexRxCaptureStart(const CaptureFilter& filter,
                                 uint64_t limit,
                                 TrexPktBuffer::mode_e mode,
+                                uint16_t snaplen,
+                                const std::string& endpoint,
                                 MsgReply<TrexCaptureRCStart> &reply) : m_reply(reply) {
         
         m_limit  = limit;
         m_filter = filter;
         m_mode   = mode;
+        m_snaplen   = snaplen;
+        m_endpoint  = endpoint;
     }
 
     virtual bool handle(CRxCore *rx_core);
@@ -415,6 +419,8 @@ private:
     uint64_t                         m_limit;
     CaptureFilter                    m_filter;
     TrexPktBuffer::mode_e            m_mode;
+    uint16_t                         m_snaplen;
+    std::string                      m_endpoint;
     MsgReply<TrexCaptureRCStart>    &m_reply;
 };
 
