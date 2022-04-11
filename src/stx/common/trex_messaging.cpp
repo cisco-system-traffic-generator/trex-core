@@ -167,7 +167,7 @@ TrexRxCaptureStart::handle(CRxCore *rx_core) {
     
     TrexCaptureRCStart start_rc;
     
-    TrexCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, start_rc);
+    TrexCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, m_snaplen, m_endpoint, start_rc);
     
     /* mark as done */
     m_reply.set_reply(start_rc);

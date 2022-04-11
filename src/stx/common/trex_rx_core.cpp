@@ -439,7 +439,7 @@ bool CRxCore::work_tick() {
         }
 
         if (unlikely(m_working_tpg_threads != 0)) {
-            did_something = handle_tpg_threads();
+            did_something |= handle_tpg_threads();
         }
 
         m_sync_time_sec = now + m_sync_time_period;
@@ -449,6 +449,8 @@ bool CRxCore::work_tick() {
 
        */
     m_tx_queue.tick();
+
+    did_something |= TrexCaptureMngr::getInstance().tick();
 
     return did_something;
 }
