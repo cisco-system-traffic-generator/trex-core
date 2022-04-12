@@ -84,6 +84,7 @@ class Emu_Test(CEmuGeneral_Test):
         print(" -- Router ARP entry cleared successfully.")
         print(" -- Loading profile...")
         self.emu_client.load_profile(profile)
+        time.sleep(1) #wait for resolve
 
         dual_if = self.router.if_mngr.get_dual_if_list()[port] # same port as we used to create the profile.
         resolved_mac = Emu_Test.convert_mac_unix_format(dual_if.client_if.get_src_mac_addr())
@@ -143,7 +144,6 @@ class Emu_Test(CEmuGeneral_Test):
             'pktRxArpQuery': 0,
             'pktRxArpQueryNotForUs': 0,
             'pktRxArpReply': 1,
-            'pktRxErrNoBroadcast': 0,
             'pktRxErrTooShort': 0,
             'pktRxErrWrongOp': 0,
             'pktTxArpQuery': 1,
@@ -158,6 +158,8 @@ class Emu_Test(CEmuGeneral_Test):
             'timerEventRefresh': 0}
         }
         res = self.emu_client.arp.get_counters(ns_key, zero = True, verbose = False)
+        if 'arp' in res:
+            res['arp'].pop('pktRxErrNoBroadcast', None)
         assert expected == res, "ARP counters differ from expected!"
         print(" -- ARP counters verified correctly.")
 
