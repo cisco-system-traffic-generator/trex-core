@@ -1051,6 +1051,10 @@ class TRexClient(object):
         pending = pkt_count
         rc = RC_OK()
 
+        # to check if endpoint flush is stalled
+        flush_stall = 0
+        flush_pending = pending
+
         # fetch with iterations - each iteration up to fetch_limit(default:50) packets
         while pending > 0 and pkt_count > 0:
             rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(fetch_limit, pkt_count), 'snaplen': snaplen})
@@ -1063,7 +1067,16 @@ class TRexClient(object):
             start_ts  = rc.data()['start_ts']
             pkt_count -= len(pkts)
 
+            # in case of capture by endpoint
             if pending and not pkts:
+                if pending == flush_pending:
+                    flush_stall += 1
+                    if flush_stall > 10:
+                        break
+                else:
+                    flush_stall = 0
+                    flush_pending = pending
+
                 time.sleep(0.1) # to reduce 'fetch' RPC request during 'endpoint' flush
                 continue
 
@@ -2479,8 +2492,23 @@ class TRexClient(object):
 
 
         
+    def endpoint_cb_rsync(self, output):
+        """ Return typical endpoint callback function with rsync """
+        server = self.ctx.server
+        user = self.ctx.username
+
+        def cb(endpoint):
+            rc = 0
+            if endpoint.startswith('file:///'):
+                filepath = endpoint.split('file:///')[1]
+                rc = os.system(f'rsync {user}@{server}:{filepath} {output}')
+            return rc
+
+        return cb
+
+
     @client_api('command', True)
-    def stop_capture (self, capture_id, output = None):
+    def stop_capture (self, capture_id, output = None, endpoint_cb = None):
         """
             Stops an active capture and optionally save it to a PCAP file
 
@@ -2488,11 +2516,10 @@ class TRexClient(object):
                 capture_id: int
                     an active capture ID to stop
                     
-                output: None / str / list / function
+                output: None / str / list
                     if output is None - all the packets will be discarded
                     if output is a 'str' - it will be interpeted as output filename
                     if it is a list, the API will populate the list with packet objects
-                    if it is a function, the API will call it with 'endpoint' argument
 
                     in case 'output' is a list, each element in the list is an object
                     containing:
@@ -2501,9 +2528,12 @@ class TRexClient(object):
                     'ts'     - timestamp relative to the start of the capture
                     'index'  - order index in the capture
                     'port'   - on which port did the packet arrive or was transmitted from
-
-                    in case 'output' is a function, capture_id should have file endpoint.
                     
+                endpoint_cb: function
+                    a method to get the captured file from the server host
+                    in case capture_id started with 'endpoint' only
+                    the API will wait for flush done and call 'endpoint_cb(endpoint)'
+
             :raises:
                 + :exe:'TRexError'
 
@@ -2516,7 +2546,8 @@ class TRexClient(object):
         
         
         validate_type('capture_id', capture_id, (int))
-        validate_type('output', output, (type(None), str, list, type(lambda:_)))
+        validate_type('output', output, (type(None), str, list))
+        validate_type('endpoint_cb', endpoint_cb, (type(None), type(lambda:_)))
         
         # stop
         self.ctx.logger.pre_cmd("Stopping packet capture {0}".format(capture_id))
@@ -2527,15 +2558,20 @@ class TRexClient(object):
 
         # pkt count
         pkt_count = rc.data()['pkt_count']
-        endpoint = rc.data().get('endpoint', '')
 
-        # fetch packets (waiting flush if endpoint exists)
-        if output is not None or endpoint:
+        endpoint = rc.data().get('endpoint', '')
+        if endpoint:
+            if type(output) is str and not endpoint_cb:
+                endpoint_cb = self.endpoint_cb_rsync(output)
+            if endpoint_cb:
+                output = []     # waiting for endpoint flush done
+
+        # fetch packets
+        if output is not None:
             self.fetch_capture_packets(capture_id, output, pkt_count)
 
-        # 'endpoint' post process: copy it from host
-        if endpoint and callable(output):
-            output(endpoint)
+        if endpoint and callable(endpoint_cb):
+            endpoint_cb(endpoint)
 
         # remove
         self.ctx.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
