@@ -644,6 +644,20 @@ class OPTIONS_DB_ARGS:
          'default':  1000,
          'type': int})
 
+    ENDPOINT = ArgumentPack(
+        ['-e', '--endpoint'],
+        {'help': 'Specify endpoint to write the packets',
+         'dest': 'endpoint',
+         'default': '',
+         'type': str})
+
+    SNAPLEN = ArgumentPack(
+        ['-s', '--snaplen'],
+        {'help': 'Limit the packet size to be written to the endpoint',
+         'dest': 'snaplen',
+         'default': 0,
+         'type': int})
+
     SUPPORTED = ArgumentPack(
         ['--supp'],
         {'help': 'Show which attributes are supported by current NICs',
