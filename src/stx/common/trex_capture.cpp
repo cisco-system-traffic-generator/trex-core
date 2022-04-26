@@ -63,7 +63,7 @@ public:
         if (filepath.empty() || filepath[0] != '/') {
             /* convert to absolute path */
             char cpath[PATH_MAX];
-            getcwd(cpath, PATH_MAX);
+            std::ignore = getcwd(cpath, PATH_MAX);
             filepath = std::string(cpath) + "/" + filepath;
         }
         if (filepath.substr(filepath.length()-1) == "/") {
