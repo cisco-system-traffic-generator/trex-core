@@ -21,6 +21,8 @@ limitations under the License.
 #include "trex_capture.h"
 #include "trex_exception.h"
 
+#include "trex_watchdog.h"
+
 #ifndef TREX_SIM
 #define ENDPOINT_PCAPNG
 #endif
@@ -251,6 +253,10 @@ CaptureEndpoint::CaptureEndpoint(const std::string& endpoint, uint16_t snaplen):
 
 CaptureEndpoint::~CaptureEndpoint() {
     if (m_writer) {
+        /* IO might take time, increse timeout of WD inside this function */
+        TrexWatchDog::IOFunction dummy;
+        (void)dummy;
+
         delete m_writer;
         m_writer = nullptr;
     }
@@ -334,6 +340,10 @@ CaptureEndpoint::Init(const CaptureFilter& filter, std::string &err) {
             m_ports_map[port_id] = index;
         }
     }
+
+    /* IO might take time, increse timeout of WD inside this function */
+    TrexWatchDog::IOFunction dummy;
+    (void)dummy;
 
     bool done = m_writer->Create(m_endpoint, err);
     if (done && !write_header()) {
