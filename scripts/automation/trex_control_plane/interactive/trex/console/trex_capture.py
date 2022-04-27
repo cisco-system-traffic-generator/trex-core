@@ -124,7 +124,8 @@ class CaptureMonitorWriterFile(CaptureMonitorWriter):
             self.socket = self.context.socket(zmq.PAIR)
             self.socket.setsockopt(zmq.RCVTIMEO, 100)
             zmq_port = self.socket.bind_to_random_port('tcp://*', min_port=5000)
-            self.endpoint = 'tcp://{0}:{1}'.format(host_ip, zmq_port)
+            cap_fmt = 'pcapng' if filename.lower().endswith('.pcapng') else 'pcap'
+            self.endpoint = 'tcp://{0}:{1}?{2}'.format(host_ip, zmq_port, cap_fmt)
 
             self.fileout = open(filename, "wb")
 
@@ -335,7 +336,7 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         
 # capture monitor - a live capture
 class CaptureMonitor(object):
-    def __init__ (self, client, cmd_lock, tx_port_list, rx_port_list, rate_pps, mon_type, bpf_filter):
+    def __init__ (self, client, cmd_lock, tx_port_list, rx_port_list, rate_pps, mon_type, bpf_filter, snaplen):
         self.client      = client
         self.logger      = client.logger
         self.cmd_lock    = cmd_lock
@@ -350,6 +351,7 @@ class CaptureMonitor(object):
         self.rate_pps     = rate_pps
         self.mon_type     = mon_type
         self.bpf_filter   = bpf_filter
+        self.snaplen      = snaplen
         
         # try to launch
         try:
@@ -376,6 +378,7 @@ class CaptureMonitor(object):
                                              limit = self.rate_pps,
                                              mode = 'cyclic',
                                              endpoint = self.endpoint,
+                                             snaplen = self.snaplen,
                                              bpf_filter = self.bpf_filter)
 
         self.capture_id = data['id']
@@ -717,7 +720,7 @@ class CaptureManager(object):
             self.monitor.stop()
             self.monitor = None
             
-        self.monitor = CaptureMonitor(self.c, self.cmd_lock, opts.tx_port_list, opts.rx_port_list, 100, mon_type, opts.filter)
+        self.monitor = CaptureMonitor(self.c, self.cmd_lock, opts.tx_port_list, opts.rx_port_list, 100, mon_type, opts.filter, opts.snaplen)
         
     
     def parse_monitor_stop (self, opts):
