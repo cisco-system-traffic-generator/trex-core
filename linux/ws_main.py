@@ -719,6 +719,7 @@ class build_option:
         if self.isPIE():
             base_flags.append('-lstdc++')
 
+        base_flags += ['-lrt']
         #platform depended flags
 
         if self.isIntelPlatform():
@@ -726,7 +727,6 @@ class build_option:
                 base_flags += ['-m64']
             else:
                 base_flags += ['-m32']
-                base_flags += ['-lrt']
 
         if self.isPIE():
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
