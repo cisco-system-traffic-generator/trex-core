@@ -2501,7 +2501,7 @@ class TRexClient(object):
             rc = 0
             if endpoint.startswith('file:///'):
                 filepath = endpoint.split('file:///')[1]
-                rc = os.system(f'rsync {user}@{server}:{filepath} {output}')
+                rc = os.system('rsync %s@%s:%s %s' % (user, server, filepath, output))
             return rc
 
         return cb
