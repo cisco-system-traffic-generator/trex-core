@@ -414,6 +414,9 @@ int CGtpuMan::prepend_ipv4_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t in
     /*Fix UDP header length */
     UDPHeader* udp = (UDPHeader *)((uint8_t *)outer_ipv4 + IPV4_HDR_LEN);
     udp->setLength((uint16_t)(outer_ipv4->getTotalLength() - IPV4_HDR_LEN));
+    if (!udp->getSourcePort()) {
+        udp->setSourcePort(tch->getSourcePort());
+    }
     /*Fix GTPU length*/
     GTPUHeader *gtpu = (GTPUHeader *)(udp+1);
     gtpu->setLength(udp->getLength() - UDP_HEADER_LEN - GTPU_V1_HDR_LEN);
@@ -460,6 +463,9 @@ int CGtpuMan::prepend_ipv6_tunnel(rte_mbuf * pkt, uint8_t l4_offset, uint16_t in
     /*Fix UDP length*/
     UDPHeader* udp = (UDPHeader *)((uint8_t *)outer_ipv6 + IPV6_HDR_LEN);
     udp->setLength((uint16_t)(outer_ipv6->getPayloadLen()));
+    if (!udp->getSourcePort()) {
+        udp->setSourcePort(tch->getSourcePort());
+    }
     /*Fix GTPU length*/
     GTPUHeader *gtpu = (GTPUHeader *)(udp+1);
     gtpu->setLength(udp->getLength() - UDP_HEADER_LEN - GTPU_V1_HDR_LEN);

@@ -2924,6 +2924,13 @@ The reasons we added source port to the *update_tunnel_client_record* API were: 
 * GTPU mode runs on software RSS - so HW RSS is not supported in GTPU mode, and in software redistribution the hack of using the the client source port is not needed.
 
 
+[NOTE]
+=====================================================================
+From version above v2.97 we have added the option to use the same source port as the inner L4, in order to get
+a good distribution between the cores more easily, by initializing the tunnel source port to 0 .
+=====================================================================
+
+
 Let's now see an example of how we can see if we have bad distribution, with TRex console, when we are generating GTPU traffic.
 
 *Goal*:: Recognizing a bad distribution between the cores in GTPU mode using TRex console.
@@ -4127,9 +4134,15 @@ You need to disable GTPU mode after you are done using it, because TRex doesn't 
 ===== I can't activate/deactivate GTPU mode.
 In order to active/deactivate GTPU mode the server's state must be idle.
 
+===== I get tcp errors even in low cpu utilization.
+With GTPU mode the packets' size increases by 36/56 bytes, depending on the outer IP header version. +
+So you need to take the new packet's size into consideration and change the MSS in the profile you are using or change the MTU of your DUT.
 
 ===== When I am using GTPU mode there is no traffic after I start my profile.
 You need to update the GTPU info for each client using the *update_tunnel_client_record* API.
+
+===== Trex doesn't generate rst packets in case of error.
+Trex doesn't generate RST packets in case of error with GTPU mode, since there is no tunnel context it can use for the packets.
 
 === Appendix
 

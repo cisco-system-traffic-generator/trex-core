@@ -331,6 +331,7 @@ class TrexTUIAstfTrafficStats(TrexTUIPanel):
 
     def action_dynamic_counters(self):
         self.is_dynamic = (not self.is_dynamic)
+        self.start_row = 0
 
 # ASTF latency stats
 class TrexTUIAstfLatencyStats(TrexTUIPanel):
