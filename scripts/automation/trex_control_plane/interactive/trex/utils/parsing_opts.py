@@ -847,7 +847,9 @@ class OPTIONS_DB_ARGS:
         ['--sport'],
         {'type' : check_valid_port,
          'required': True,
-         'help': "The source port of the tunnel."})
+         'help': '''The source port of the tunnel.
+                    Use --sport 0 if you want to set the same source port as the inner L4 header source port.
+                 '''})
 
     REMOVE = ArgumentPack(
         ['--remove'],

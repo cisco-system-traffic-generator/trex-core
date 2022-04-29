@@ -402,9 +402,10 @@ bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
     } else {    /* no matched template found, now mbuf should be freed */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
         uint8_t mask = 3;
-        bool ignore = false;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
         // black_list is not empty
-        if (m_black_list & mask) {
+        if (m_black_list & mask && !ignore) {
             ignore = ignore_packet(ctx, mbuf, ftuple);
         }
         if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
@@ -819,9 +820,10 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     if ( m_client_side ){
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
         uint8_t mask = 3;
-        bool ignore = false;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
         // black_list is not empty
-        if (m_black_list & mask) {
+        if (m_black_list & mask && !ignore) {
             ignore = ignore_packet(ctx, mbuf, ftuple);
         }
         if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
@@ -859,9 +861,10 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         /* no syn */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
         uint8_t mask = 3;
-        bool ignore = false;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
         // black_list is not empty
-        if (m_black_list & mask) {
+        if (m_black_list & mask && !ignore) {
             ignore = ignore_packet(ctx, mbuf, ftuple);
         }
         if (pctx->m_tunable_ctx.tcp_blackhole != 2 && !ignore) {
@@ -893,9 +896,10 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
             pctx = FALLBACK_PROFILE_CTX(ctx);
         }
         uint8_t mask = 3;
-        bool ignore = false;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
         // black_list is not empty
-        if (m_black_list & mask) {
+        if (m_black_list & mask && !ignore) {
             ignore = ignore_packet(ctx, mbuf, ftuple);
         }
         if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
