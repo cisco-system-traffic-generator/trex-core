@@ -231,7 +231,7 @@ class STLClient_Test(CStlGeneral_Test):
             if expected==0:
                 return
             else:
-                if get_error_in_percentage(expected, got) < 0.5 :
+                if get_error_in_percentage(expected, got) <= 0.5 :
                     return
                 print(' ERROR verify expected: %d  got:%d ' % (expected,got) )
                 assert(0);

@@ -26,6 +26,7 @@ class TaggedPacketGroup_Test(CStlSoftwareGeneral_Test):
         port_info = self.c.get_port_info()[0]
         self.drv_name = port_info['driver']
         self.mlx5 = "net_mlx5" in self.drv_name 
+        self.setup = CTRexScenario.setup_name
 
     def tearDown(self):
         """
