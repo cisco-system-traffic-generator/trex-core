@@ -418,6 +418,10 @@ void operator >> (const YAML::Node& node, CPlatformYamlInfo & plat_info) {
       }
     }
 
+    if(node.FindValue("new_memory")) {
+        node["new_memory"] >> plat_info.m_new_memory;
+    }
+
     if (node.FindValue("interfaces_vdevs") ){
       const YAML::Node &dpdks = node["interfaces_vdevs"];
 
@@ -667,7 +671,9 @@ void CPlatformYamlInfo::Dump(FILE *fd){
     if (m_tx_desc) {
         fprintf(fd," m_tx_desc    :  %d \n",(int)m_tx_desc);
     }
-
+    if (m_new_memory) {
+        fprintf(fd," DPDK new memory is ON");
+    }
     if ( m_mac_info_exist ){
         int i;
         for (i=0; i<(int)m_mac_info.size(); i++) {

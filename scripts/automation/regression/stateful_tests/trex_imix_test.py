@@ -219,39 +219,6 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         self.check_CPU_benchmark(trex_res)
 
 
-    def test_static_routing_imix_asymmetric (self):
-        # test initializtion
-        if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
-            self.router.configure_basic_interfaces()
-
-            # Configure static routing based on benchmark data input
-            stat_route_dict = self.get_benchmark_param('stat_route_dict')
-            stat_route_obj = CStaticRouteConfig(stat_route_dict)
-            self.router.config_static_routing(stat_route_obj, mode = "config")
-
-        mult = self.get_benchmark_param('multiplier')
-        core = self.get_benchmark_param('cores')
-
-        ret = self.trex.start_trex(
-            c = core,
-            m = mult,
-            nc = True,
-            d = 100,
-            f = 'automation/regression/cfg/imix_fast_1g.yaml',
-            l = 1000)
-
-        trex_res = self.trex.sample_until_finish()
-
-        # trex_res is a CTRexResults instance- and contains the summary of the test results
-        # you may see all the results keys by simply calling here for 'print trex_res.result'
-        print("\nLATEST RESULT OBJECT:")
-        print(trex_res)
-
-        self.check_general_scenario_results(trex_res)
-
-        self.check_CPU_benchmark(trex_res, minimal_cpu = 25)
-
-
     def test_jumbo(self, duration = 100, **kwargs):
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces(mtu = 9216)

@@ -197,6 +197,8 @@ public:
 
         m_if_mask_exist=false;
 
+        m_new_memory=false;
+
         m_enable_zmq_pub_exist=false;
         m_enable_zmq_pub=true;
         m_zmq_pub_port=4500;
@@ -256,6 +258,7 @@ public:
     uint16_t                      m_telnet_port;
 
     bool                          m_ezmq_ch_exist;
+    bool                          m_new_memory;
     uint16_t                      m_ezmq_ch_port;
 
     uint16_t                      m_rx_desc;

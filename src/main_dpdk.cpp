@@ -6591,7 +6591,9 @@ COLD_FUNC int  update_dpdk_args(void){
     }
 
 #ifndef DPDK_NEW_MEMORY
-    SET_ARGS("--legacy-mem");
+    if (!cg->m_new_memory) {
+        SET_ARGS("--legacy-mem");
+    }
 #endif
 
     if ( lpop->prefix.length() ) {
