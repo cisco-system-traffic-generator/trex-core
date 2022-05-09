@@ -294,7 +294,7 @@ public:
                         tcp_rx_pkt_action_t & action,
                         tvpid_t port_id=0);
 
-      bool rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
+      COLD_FUNC bool rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                         struct rte_mbuf * mbuf,
                                         flow_hash_ent_t * lpflow,
                                         CSimplePacketParser & parser,
@@ -337,7 +337,7 @@ public:
                         CFlowBase  * flow,
                         bool remove_from_ft);
 
-      bool update_new_template(CTcpPerThreadCtx * ctx,
+      COLD_FUNC bool update_new_template(CTcpPerThreadCtx * ctx,
                               struct rte_mbuf * mbuf,
                               CTcpFlow *  flow,
                               TCPHeader    * lpTcp,
