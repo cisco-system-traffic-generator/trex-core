@@ -98,8 +98,8 @@ public:
 private:
     int prepend(rte_mbuf *pkt, uint8_t dir);
     int adjust(rte_mbuf *pkt, uint8_t dir);
-    int prepend_ipv4_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir);
-    int prepend_ipv6_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir);
+    COLD_FUNC int prepend_ipv4_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir);
+    COLD_FUNC int prepend_ipv6_tunnel(rte_mbuf *pkt, uint8_t l4_offset, uint16_t inner_cs, CGtpuCtx *gtp_context, uint8_t dir);
     int adjust_ipv4_tunnel(rte_mbuf *pkt, void *eth, uint8_t l3_offset, uint8_t dir);
     int adjust_ipv6_tunnel(rte_mbuf *pkt, void *eth, uint8_t l3_offset, uint8_t dir);
     int validate_gtpu_udp(void *udp, uint8_t dir);
