@@ -57,7 +57,7 @@ private:
  */
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration);
+    TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
@@ -66,6 +66,7 @@ private:
     bool m_nc_flow_close;
     double m_establish_timeout;
     double m_terminate_duration;
+    double m_dump_interval;
 };
 
 /**
@@ -277,6 +278,24 @@ private:
     uint8_t m_tunnel_type;
     bool m_loopback_mode;
     MsgReply<std::pair<uint64_t*, uint64_t*>> &m_reply;
+};
+
+/**
+ * a message for sending the clients sts from dp to cp
+ */
+class TrexAstfDpFlowInfo : public TrexDpToCpMsgBase {
+public:
+
+    TrexAstfDpFlowInfo(profile_id_t profile_id, Json::Value& flows) {
+        m_dp_profile_id = profile_id;
+        m_flows = flows;
+    }
+
+    virtual bool handle(void);
+
+private:
+    profile_id_t m_dp_profile_id;
+    Json::Value m_flows;
 };
 
 #endif /* __TREX_STL_MESSAGING_H__ */

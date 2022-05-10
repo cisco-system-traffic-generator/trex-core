@@ -112,6 +112,7 @@ public:
     void dp_core_error(const std::string &err);
 
     void add_dp_profile_ctx(CPerProfileCtx* client, CPerProfileCtx* server);
+    void add_flow_info(Json::Value& flows);
 
     /*
      * publish event for each profile
@@ -136,6 +137,9 @@ public:
     void    set_establish_timeout(double timeout) { m_establish_timeout = timeout; }
     void    set_terminate_duration(double duration) { m_terminate_duration = duration; }
     void    set_factor(double mult) { m_factor = mult; }
+
+    void get_flow_info(Json::Value& flows, uint64_t index);
+    void init_flow_info(double interval);
 
     /*
      * clear statistics counter
@@ -163,6 +167,12 @@ private:
 
     CSTTCp*         m_stt_cp;
     TrexAstf*       m_astf_obj;
+
+    double          m_dump_interval;
+
+    std::vector<Json::Value> m_flows_info;
+    uint64_t        m_flows_limit;
+    uint64_t        m_flows_index;
 };
 
 
@@ -459,6 +469,8 @@ public:
     void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
     void get_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
     int get_ignored_ips_size();
+
+    void add_flows_info(profile_id_t dp_profile_id, Json::Value& flows);
 
 protected:
     void change_state(state_e new_state);

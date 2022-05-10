@@ -397,8 +397,9 @@ bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
     assert(!flow->is_activated());
     if (flow->m_template_info) {
         flow->update_new_template_assoc_info();
-        flow->m_app.start(false);
         assert(flow->is_activated()); /* flow is now activated */
+        flow->m_pctx->set_flow_info(flow);
+        flow->m_app.start(false);
     } else {    /* no matched template found, now mbuf should be freed */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
         uint8_t mask = 3;
@@ -560,6 +561,7 @@ HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
         delete udp_flow;
     }else{
         CTcpFlow * tcp_flow=(CTcpFlow *)flow;
+        flow->m_pctx->clear_flow_info(tcp_flow);
         tcp_flow->Delete();
         delete tcp_flow;
     }
@@ -997,6 +999,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     if (unlikely(temp->has_payload_params())) {
         lptflow->start_identifying_template(pctx, payload_info);
     } else {
+        lptflow->m_pctx->set_flow_info(lptflow);
         app->start(true); /* start the application */
     }
 

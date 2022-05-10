@@ -689,7 +689,7 @@ class ASTFClient(TRexClient):
                 self.logger.info(format_text("Cannot remove a profile: %s is not state IDLE and state LOADED.\n" % profile_id, "bold", "magenta"))
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff, e_duration = 0, t_duration = 0):
+    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff, e_duration = 0, t_duration = 0, dump_interval = 0):
         """
             Start the traffic on loaded profile. Procedure is async.
 
@@ -729,6 +729,10 @@ class ASTFClient(TRexClient):
                     Stop immediately (overrides nc pararmeter) when this time is over.
                     Disabled by default. Enabled by non-zero values.
 
+                dump_interval: float
+                    Interval time for periodic dump of TCP flow information: RTT, CWND, etc.
+                    TCP flow dump enabled by non-zero values.
+
             :raises:
                 + :exc:`TRexError`
         """
@@ -744,6 +748,7 @@ class ASTFClient(TRexClient):
             'client_mask': client_mask,
             'e_duration': e_duration,
             't_duration': t_duration,
+            'dump_interval': dump_interval,
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
@@ -861,6 +866,51 @@ class ASTFClient(TRexClient):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
+
+    @client_api('getter', True)
+    def get_flow_info(self, profile_id = DEFAULT_PROFILE_ID, duration = 0):
+        """
+            Get TCP flow information
+
+            :parameters:
+                profile_id: string
+                    Input profile ID
+
+                duration: float
+                    Requests stacked TCP flow information during duration time
+                    Default value is 0 which means one time request.
+
+            :raises:
+                + :exc:`TRexError`
+
+        """
+        flows = {}
+        index = 0
+
+        timer = PassiveTimer(duration)
+        while True:
+            params = {
+                'profile_id': profile_id,
+                'index': index,
+                }
+            rc = self._transmit('get_flow_info', params = params)
+            if rc:
+                raise TRexError(rc.err())
+
+            for rc_flows in rc.data():
+                for flow_id in rc_flows:
+                    if flow_id == 'index':
+                        index = rc_flows[flow_id] + 1
+                    else:
+                        flows[flow_id] = flows.get(flow_id, [])
+                        flows[flow_id].append(rc_flows[flow_id])
+
+            if not duration or timer.has_expired():
+                break
+
+            time.sleep(min(1.0, duration))
+
+        return flows
 
     @client_api('command', True)
     def wait_on_traffic(self, timeout = None, profile_id = None):
@@ -1569,6 +1619,7 @@ class ASTFClient(TRexClient):
                                          parsing_opts.DURATION,
                                          parsing_opts.ESTABLISH_DURATION,
                                          parsing_opts.TERMINATE_DURATION,
+                                         parsing_opts.DUMP_INTERVAL,
                                          parsing_opts.ARGPARSE_TUNABLES,
                                          parsing_opts.ASTF_NC,
                                          parsing_opts.ASTF_LATENCY,
@@ -1612,7 +1663,11 @@ class ASTFClient(TRexClient):
             elif opts.servers_only:
                 kw['client_mask'] = 0
 
-            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, pid_input = profile_id, e_duration = opts.e_duration, t_duration = opts.t_duration, **kw)
+            kw['e_duration'] = opts.e_duration
+            kw['t_duration'] = opts.t_duration
+            kw['dump_interval'] = opts.dump_interval
+
+            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, pid_input = profile_id, **kw)
 
         return True
 

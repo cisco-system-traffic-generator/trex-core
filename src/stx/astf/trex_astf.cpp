@@ -416,6 +416,8 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
     pid->set_establish_timeout(args.e_duration);
     pid->set_terminate_duration(args.t_duration);
 
+    pid->init_flow_info(args.dump_interval);
+
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
 
@@ -660,6 +662,13 @@ bool TrexAstf::get_clients_info(Json::Value &clients_info) {
     }
     m_clients_info.clear();
     return true;
+}
+
+void TrexAstf::add_flows_info(profile_id_t dp_profile_id, Json::Value& flows) {
+    cp_profile_id_t profile_id = get_profile_id(dp_profile_id);
+    if (!profile_id.empty()) {
+        get_profile(profile_id)->add_flow_info(flows);
+    }
 }
 
 void TrexAstf::insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses) {
@@ -918,6 +927,8 @@ TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj,
     m_stt_cp->Create(dp_profile_id);
 
     m_astf_obj = astf_obj;
+
+    m_flows_limit = 0;
 }
 
 TrexAstfPerProfile::~TrexAstfPerProfile() {
@@ -1091,7 +1102,7 @@ void TrexAstfPerProfile::transmit() {
 
     profile_change_state(STATE_TX);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration);
+    TrexCpToDpMsgBase *msg = new TrexAstfDpStart(m_dp_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration, m_dump_interval);
 
     m_astf_obj->send_message_to_all_dp(msg, true);
 }
@@ -1194,6 +1205,44 @@ void TrexAstfPerProfile::add_dp_profile_ctx(CPerProfileCtx* client, CPerProfileC
     m_stt_cp->AddProfileCtx(TCP_CLIENT_SIDE, client);
     m_stt_cp->AddProfileCtx(TCP_SERVER_SIDE, server);
 }
+
+
+void TrexAstfPerProfile::add_flow_info(Json::Value& flows) {
+    if (m_flows_limit) {
+        uint64_t index = m_flows_index % m_flows_limit;
+        flows["index"] = m_flows_index++;
+        if (m_flows_info.size() < m_flows_limit) {
+            m_flows_info.emplace_back(flows);
+        } else {
+            m_flows_info[index] = flows;
+        }
+    }
+}
+
+void TrexAstfPerProfile::get_flow_info(Json::Value& flows, uint64_t index) {
+    if (m_flows_limit) {
+        uint64_t limit = std::min(m_flows_info.size(), m_flows_limit);
+        if (m_flows_index - index > limit) {
+            index = m_flows_index - limit;
+        }
+        for (; index != m_flows_index; index++) {
+            flows.append(m_flows_info[index % m_flows_limit]);
+        }
+    }
+}
+
+void TrexAstfPerProfile::init_flow_info(double interval) {
+    m_flows_info.clear();
+    m_flows_index = 0;
+    m_flows_limit = 0;
+    m_dump_interval = interval;
+
+    if (interval) {
+        m_dump_interval = interval > 0.01 ? interval: 0.01;
+        m_flows_limit = (10.0 / interval) * get_platform_api().get_dp_core_count();
+    }
+}
+
 
 void TrexAstfPerProfile::publish_astf_profile_state() {
     /* Publish the state change of each profile */

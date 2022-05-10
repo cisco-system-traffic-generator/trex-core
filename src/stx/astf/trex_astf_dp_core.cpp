@@ -110,6 +110,13 @@ void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id, bool stop_all
             tx_node->m_pctx = nullptr;  // trigger stopping generate_flow() safely.
             pctx->m_tx_node = nullptr;  // prevent from unexpected reference.
         }
+
+        CPerProfileCtx* s_pctx = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
+        CPerProfileFlowDump* flow_dump = (CPerProfileFlowDump*)s_pctx->m_flow_dump;
+        if (flow_dump) {
+            delete flow_dump;
+            s_pctx->m_flow_dump = nullptr;
+        }
     }
 }
 
@@ -211,6 +218,7 @@ void TrexAstfDpCore::start_scheduler() {
     bool nc = false;
     double establish_timeout = 0.0;
     double terminate_duration = 0.0;
+    double dump_interval = 0.0;
 
     if (m_state == STATE_STARTING) { /* set by start_transmit function */
         m_state = STATE_TRANSMITTING;
@@ -222,6 +230,7 @@ void TrexAstfDpCore::start_scheduler() {
         nc = it->m_nc_flow_close;
         establish_timeout = it->m_establish_timeout;
         terminate_duration = it->m_terminate_duration;
+        dump_interval = it->m_dump_interval;
 
         m_sched_param.erase(it);
     }
@@ -245,9 +254,9 @@ void TrexAstfDpCore::start_scheduler() {
             duration = m_flow_gen->m_yaml_info.m_duration_sec;
         }
 
-        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration);
+        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration, dump_interval);
         for (auto param: m_sched_param) {
-            start_profile_ctx(param.m_profile_id, param.m_duration, param.m_nc_flow_close, param.m_establish_timeout, param.m_terminate_duration);
+            start_profile_ctx(param.m_profile_id, param.m_duration, param.m_nc_flow_close, param.m_establish_timeout, param.m_terminate_duration, param.m_dump_interval);
         }
 
         node = m_flow_gen->create_node() ;
@@ -293,7 +302,7 @@ void TrexAstfDpCore::start_scheduler() {
     }
 }
 
-void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration) {
+void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
 
     dsec_t d_time_flow;
     bool disable_client = false;
@@ -313,6 +322,13 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
         tx_node->m_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
         tx_node->m_pctx->m_tx_node = tx_node;
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
+    }
+
+    if (dump_interval) {
+        CPerProfileCtx* pctx = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
+
+        auto flow_dump = new CPerProfileFlowDump(dump_interval, pctx, this);
+        pctx->m_flow_dump = flow_dump;
     }
 
     set_profile_active(profile_id);
@@ -516,7 +532,7 @@ void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove, C
     report_finished(profile_id);
 }
 
-void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration) {
+void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
     if (!is_profile(profile_id)) {
         report_error(profile_id, "Start of unknown profile");
         return;
@@ -541,10 +557,10 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bo
         report_dp_state();
         m_sched_param.clear();
     case STATE_STARTING:
-        m_sched_param.push_back({profile_id, duration, nc, establish_timeout, terminate_duration});
+        m_sched_param.push_back({profile_id, duration, nc, establish_timeout, terminate_duration, dump_interval});
         break;
     case STATE_TRANSMITTING:
-        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration);
+        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration, dump_interval);
         break;
     case STATE_STOPPING:
     default:
@@ -744,6 +760,23 @@ void TrexAstfDpCore::get_client_stats(std::vector<uint32_t> &msg_data, bool is_r
     }
     TrexDpToCpMsgBase *msg = new TrexAstfDpSentClientStats(res);
     m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+}
+
+
+void TrexAstfDpCore::dump_profile_flows(profile_id_t profile_id) {
+    Json::Value res = Json::objectValue;
+
+    std::array<CTcpPerThreadCtx*,2> ctxs{ m_flow_gen->m_c_tcp, m_flow_gen->m_s_tcp };
+    for (auto ctx: ctxs) {
+        if (ctx->is_profile_ctx(profile_id)) {
+            ctx->get_profile_ctx(profile_id)->dump_flow_info(res);
+        }
+    }
+
+    if (res.size()) {
+        TrexDpToCpMsgBase *msg = new TrexAstfDpFlowInfo(profile_id, res);
+        m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+    }
 }
 
 
