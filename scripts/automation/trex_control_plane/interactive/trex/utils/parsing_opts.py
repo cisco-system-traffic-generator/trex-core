@@ -773,6 +773,15 @@ class OPTIONS_DB_ARGS:
          'default': 0.0,
          'help': "Set time limit waiting for all the flow to terminate gracefully."})
 
+    DUMP_INTERVAL = ArgumentPack(
+        ['--dump_interval'],
+        {'action': "store",
+         'metavar': 'TIME',
+         'dest': 'dump_interval',
+         'type': match_time_unit,
+         'default': 0.0,
+         'help': "Set interval time for dumping TCP flow information"})
+
     TIMEOUT = ArgumentPack(
         ['-t'],
         {'action': "store",

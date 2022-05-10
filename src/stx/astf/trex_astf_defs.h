@@ -32,6 +32,7 @@ typedef struct {
     uint32_t    client_mask;
     double      e_duration;
     double      t_duration;
+    double      dump_interval;
 } start_params_t;
 
 

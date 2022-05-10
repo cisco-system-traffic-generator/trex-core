@@ -577,6 +577,7 @@ void CFlowGenListPerThread::generate_flow(bool &done, CPerProfileCtx * pctx){
         tcp_flow->set_c_tcp_info(cur, template_id);
 
         /* start connect */
+        tcp_flow->m_pctx->set_flow_info(tcp_flow);
         app_c->start(true);
         tcp_connect(&tcp_flow->m_tcp);
     }

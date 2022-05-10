@@ -37,6 +37,7 @@ struct profile_param {
     bool            m_nc_flow_close;
     double          m_establish_timeout;
     double          m_terminate_duration;
+    double          m_dump_interval;
 };
 
 class TrexAstfDpCore : public TrexDpCore {
@@ -61,7 +62,7 @@ public:
      */
     virtual bool is_port_active(uint8_t port_id);
 
-    void start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration);
+    void start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval);
     void stop_transmit(profile_id_t profile_id, uint32_t stop_id, bool set_nc);
     void stop_transmit(profile_id_t profile_id, bool set_nc);
     void update_rate(profile_id_t profile_id, double ratio);
@@ -80,6 +81,7 @@ public:
     void insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
     void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
     void update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
+    void dump_profile_flows(profile_id_t profile_id);
 
 protected:
     virtual bool rx_for_idle();
@@ -98,7 +100,7 @@ protected:
     void set_profile_stop_id(profile_id_t profile_id, uint32_t stop_id);
 
     void get_scheduler_options(profile_id_t profile_id, bool& disable_client, double& d_time_flow, double& d_phase);
-    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout = 0.0, double terminate_duration = 0.0);
+    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout = 0.0, double terminate_duration = 0.0, double dump_interval = 0.0);
     void stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id);
 
     std::vector<struct profile_param> m_sched_param;

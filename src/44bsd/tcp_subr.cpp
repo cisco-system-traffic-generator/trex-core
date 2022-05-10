@@ -53,6 +53,7 @@
 #include <common/Network/Packet/IPv6Header.h>
 #include <astf/astf_template_db.h>
 #include <astf/astf_db.h>
+#include <astf/trex_astf_dp_core.h>
 #include <cmath>
 #include "utl_counter.h"
 #include "tunnels/tunnel_factory.h"
@@ -505,6 +506,64 @@ void CTcpFlow::Delete(){
 }
 
 
+const std::string CTcpFlow::get_flow_id() const {
+    std::stringstream ss;
+
+    ss << utl_uint32_to_ipv4(m_template.get_src_ipv4()) << ":" << m_template.get_src_port();
+    ss << "-";
+    ss << utl_uint32_to_ipv4(m_template.get_dst_ipv4()) << ":" << m_template.get_dst_port();
+
+    return ss.str();
+}
+
+
+void CTcpFlow::to_json(Json::Value& obj) const {
+    const struct CTcpCb *tp = &m_tcp;
+
+    obj["origin"] = m_pctx->m_ctx->is_client_side() ? "client": "server";
+    if (tp->t_starttime) {
+        obj["duration"] = tcp_timer_ticks_to_msec(tcp_getticks(tp) - tp->t_starttime);
+    } else {
+        obj["duration"] = 0;
+    }
+
+    /* tcp_info */
+    obj["state"] = tp->t_state;
+    {
+        std::stringstream opts;
+        if ((tp->t_flags & TF_REQ_TSTMP) && (tp->t_flags & TF_RCVD_TSTMP))
+            opts << "/timestamps";
+        if (tp->t_flags & TF_SACK_PERMIT)
+            opts << "/sack";
+        if ((tp->t_flags & TF_REQ_SCALE) && (tp->t_flags & TF_RCVD_SCALE)) {
+            opts << "/wscale";
+            obj["snd_wscale"] = tp->snd_scale;
+            obj["rcv_wscale"] = tp->rcv_scale;
+        }
+        obj["options"] = opts.str();
+    }
+
+    obj["rto"] = tcp_timer_ticks_to_msec(tp->t_rxtcur);
+    obj["last_data_recv"] = tcp_timer_ticks_to_msec(tcp_getticks(tp) - tp->t_rcvtime);
+    obj["rtt"] = tcp_timer_ticks_to_msec(tp->t_srtt) >> TCP_RTT_SHIFT;
+    obj["rttvar"] = tcp_timer_ticks_to_msec(tp->t_rttvar) >> TCP_RTTVAR_SHIFT;
+
+    obj["snd_ssthresh"] = tp->snd_ssthresh;
+    obj["snd_cwnd"] = tp->snd_cwnd;
+
+    /* FreeBSD-specific extension fields for tcp_info */
+    obj["rcv_space"] = tp->rcv_wnd;
+    obj["rcv_nxt"] = tp->rcv_nxt - tp->irs;
+    obj["snd_wnd"] = tp->snd_wnd;
+    obj["snd_nxt"] = tp->snd_nxt - tp->iss;
+    obj["snd_mss"] = tp->t_maxseg;
+    obj["rcv_mss"] = tp->t_maxseg;
+    obj["snd_rexmitpack"] = tp->t_sndrexmitpack;
+    obj["rcv_ooopack"] = tp->t_rcvoopack;
+    obj["snd_zerowin"] = tp->t_sndzerowin;
+}
+
+
 #define my_unsafe_container_of(ptr, type, member)              \
     ((type *) ((uint8_t *)(ptr) - offsetof(type, member)))
 
@@ -833,6 +892,35 @@ void CTcpPerThreadCtx::Delete(){
         delete iter.second;
     }
 }
+
+
+CPerProfileFlowDump::CPerProfileFlowDump(double interval, CPerProfileCtx* pctx, TrexAstfDpCore* dp_core) {
+    m_interval = interval;
+    m_pctx = pctx;
+    m_dp_core = dp_core;
+
+    m_ctx = pctx->m_ctx;
+    m_tmr = new CAstfTimerFunctorObj();
+    assert(m_tmr);
+    m_tmr->m_cb = std::bind(&CPerProfileFlowDump::on_timer_update, this, m_tmr);
+    on_timer_update(m_tmr);
+}
+
+CPerProfileFlowDump::~CPerProfileFlowDump() {
+    if (m_tmr) {
+        assert(m_tmr->is_running());
+        m_ctx->m_timer_w.timer_stop(m_tmr);
+        delete m_tmr;
+        m_tmr = nullptr;
+    }
+}
+
+void CPerProfileFlowDump::on_timer_update(CAstfTimerFunctorObj* tmr) {
+    m_ctx->m_timer_w.timer_start(tmr, tw_time_msec_to_ticks(m_interval*1000));
+
+    m_dp_core->dump_profile_flows(m_pctx->m_profile_id);
+}
+
 
 void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
     tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts;

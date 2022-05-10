@@ -115,6 +115,7 @@ TREX_RPC_CMD(TrexRpcCmdAstfDynamicCountersValues, "get_dynamic_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfTotalDynamicCountersValues, "get_total_dynamic_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGNames, "get_tg_names");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGStats, "get_tg_id_stats");
+TREX_RPC_CMD(TrexRpcCmdAstfGetFlowInfo, "get_flow_info");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 
@@ -290,6 +291,7 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
     args.client_mask = parse_uint32(params, "client_mask", result);
     args.e_duration = parse_double(params, "e_duration", result, 0.0);
     args.t_duration = parse_double(params, "t_duration", result, 0.0);
+    args.dump_interval = parse_double(params, "dump_interval", result, 0.0);
 
     try {
         get_astf_object()->start_transmit(profile_id, args);
@@ -759,6 +761,21 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
 }
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetFlowInfo::_run(const Json::Value &params, Json::Value &result) {
+    string profile_id = parse_profile(params, result);
+    uint64_t index = parse_uint64(params, "index", result, 0);
+    TrexAstf *astf = get_astf_object();
+    if (!astf->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
+
+    result["result"] = Json::arrayValue;
+    astf->get_profile(profile_id)->get_flow_info(result["result"], index);
+
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfTopoGet::_run(const Json::Value &params, Json::Value &result) {
     try {
         get_astf_object()->topo_get(result["result"]);
@@ -1183,6 +1200,7 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTotalCountersValues(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetTGNames(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetTGStats(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetFlowInfo(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
