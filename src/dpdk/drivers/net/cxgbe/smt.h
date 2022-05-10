@@ -23,7 +23,7 @@ struct smt_entry {
 	u16 pfvf;
 	u16 hw_idx;
 	u8 src_mac[RTE_ETHER_ADDR_LEN];
-	rte_atomic32_t refcnt;
+	u32 refcnt;
 	rte_spinlock_t lock;
 };
 
@@ -42,4 +42,3 @@ struct smt_entry *cxgbe_smt_alloc_switching(struct rte_eth_dev *dev, u8 *smac);
 void cxgbe_smt_release(struct smt_entry *e);
 
 #endif  /* __CXGBE_SMT_H_ */
-

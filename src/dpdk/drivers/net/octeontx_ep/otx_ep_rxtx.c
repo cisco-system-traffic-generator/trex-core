@@ -27,7 +27,7 @@ otx_ep_dmazone_free(const struct rte_memzone *mz)
 	int ret = 0;
 
 	if (mz == NULL) {
-		otx_ep_err("Memzone %s : NULL\n", mz->name);
+		otx_ep_err("Memzone: NULL\n");
 		return;
 	}
 
@@ -85,7 +85,7 @@ otx_ep_init_instr_queue(struct otx_ep_device *otx_ep, int iq_no, int num_descs,
 	iq = otx_ep->instr_queue[iq_no];
 	q_size = conf->iq.instr_type * num_descs;
 
-	/* IQ memory creation for Instruction submission to OCTEON TX2 */
+	/* IQ memory creation for Instruction submission to OCTEON 9 */
 	iq->iq_mz = rte_eth_dma_zone_reserve(otx_ep->eth_dev,
 					     "instr_queue", iq_no, q_size,
 					     OTX_EP_PCI_RING_ALIGN,
@@ -106,8 +106,8 @@ otx_ep_init_instr_queue(struct otx_ep_device *otx_ep, int iq_no, int num_descs,
 	iq->nb_desc = num_descs;
 
 	/* Create a IQ request list to hold requests that have been
-	 * posted to OCTEON TX2. This list will be used for freeing the IQ
-	 * data buffer(s) later once the OCTEON TX2 fetched the requests.
+	 * posted to OCTEON 9. This list will be used for freeing the IQ
+	 * data buffer(s) later once the OCTEON 9 fetched the requests.
 	 */
 	iq->req_list = rte_zmalloc_socket("request_list",
 			(iq->nb_desc * OTX_EP_IQREQ_LIST_SIZE),
@@ -450,7 +450,7 @@ post_iqcmd(struct otx_ep_instr_queue *iq, uint8_t *iqcmd)
 	uint8_t *iqptr, cmdsize;
 
 	/* This ensures that the read index does not wrap around to
-	 * the same position if queue gets full before OCTEON TX2 could
+	 * the same position if queue gets full before OCTEON 9 could
 	 * fetch any instr.
 	 */
 	if (iq->instr_pending > (iq->nb_desc - 1))
@@ -563,7 +563,7 @@ otx_ep_xmit_pkts(void *tx_queue, struct rte_mbuf **pkts, uint16_t nb_pkts)
 			struct otx_ep_buf_free_info *finfo;
 			int j, frags, num_sg;
 
-			if (!(otx_ep->tx_offloads & DEV_TX_OFFLOAD_MULTI_SEGS))
+			if (!(otx_ep->tx_offloads & RTE_ETH_TX_OFFLOAD_MULTI_SEGS))
 				goto xmit_fail;
 
 			finfo = (struct otx_ep_buf_free_info *)rte_malloc(NULL,
@@ -697,7 +697,7 @@ otx2_ep_xmit_pkts(void *tx_queue, struct rte_mbuf **pkts, uint16_t nb_pkts)
 			struct otx_ep_buf_free_info *finfo;
 			int j, frags, num_sg;
 
-			if (!(otx_ep->tx_offloads & DEV_TX_OFFLOAD_MULTI_SEGS))
+			if (!(otx_ep->tx_offloads & RTE_ETH_TX_OFFLOAD_MULTI_SEGS))
 				goto xmit_fail;
 
 			finfo = (struct otx_ep_buf_free_info *)
@@ -953,14 +953,8 @@ otx_ep_droq_read_packet(struct otx_ep_device *otx_ep,
 	droq_pkt->l3_len = hdr_lens.l3_len;
 	droq_pkt->l4_len = hdr_lens.l4_len;
 
-	if ((droq_pkt->pkt_len > (RTE_ETHER_MAX_LEN + OTX_CUST_DATA_LEN)) &&
-	    !(otx_ep->rx_offloads & DEV_RX_OFFLOAD_JUMBO_FRAME)) {
-		rte_pktmbuf_free(droq_pkt);
-		goto oq_read_fail;
-	}
-
 	if (droq_pkt->nb_segs > 1 &&
-	    !(otx_ep->rx_offloads & DEV_RX_OFFLOAD_SCATTER)) {
+	    !(otx_ep->rx_offloads & RTE_ETH_RX_OFFLOAD_SCATTER)) {
 		rte_pktmbuf_free(droq_pkt);
 		goto oq_read_fail;
 	}
@@ -985,7 +979,7 @@ otx_ep_check_droq_pkts(struct otx_ep_droq *droq)
 	return new_pkts;
 }
 
-/* Check for response arrival from OCTEON TX2
+/* Check for response arrival from OCTEON 9
  * returns number of requests completed
  */
 uint16_t

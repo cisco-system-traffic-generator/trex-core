@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2020-2020 Hisilicon Limited.
+ * Copyright(c) 2020-2021 HiSilicon Limited.
  */
 
 #ifndef _HNS3_TM_H_
@@ -8,6 +8,18 @@
 #include <stdint.h>
 #include <rte_tailq.h>
 #include <rte_tm_driver.h>
+
+struct hns3_port_limit_rate_cmd {
+	uint32_t speed;  /* Unit Mbps */
+	uint32_t rsvd[5];
+};
+
+struct hns3_tc_limit_rate_cmd {
+	uint32_t speed;  /* Unit Mbps */
+	uint8_t tc_id;
+	uint8_t rsvd[3];
+	uint32_t rsvd1[4];
+};
 
 enum hns3_tm_node_type {
 	HNS3_TM_NODE_TYPE_PORT,

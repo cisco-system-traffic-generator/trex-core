@@ -22,8 +22,7 @@ axgbe_rx_queue_release(struct axgbe_rx_queue *rx_queue)
 		sw_ring = rx_queue->sw_ring;
 		if (sw_ring) {
 			for (i = 0; i < rx_queue->nb_desc; i++) {
-				if (sw_ring[i])
-					rte_pktmbuf_free(sw_ring[i]);
+				rte_pktmbuf_free(sw_ring[i]);
 			}
 			rte_free(sw_ring);
 		}
@@ -31,9 +30,9 @@ axgbe_rx_queue_release(struct axgbe_rx_queue *rx_queue)
 	}
 }
 
-void axgbe_dev_rx_queue_release(void *rxq)
+void axgbe_dev_rx_queue_release(struct rte_eth_dev *dev, uint16_t queue_idx)
 {
-	axgbe_rx_queue_release(rxq);
+	axgbe_rx_queue_release(dev->data->rx_queues[queue_idx]);
 }
 
 int axgbe_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
@@ -75,7 +74,7 @@ int axgbe_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
 		(DMA_CH_INC * rxq->queue_id));
 	rxq->dma_tail_reg = (volatile uint32_t *)((uint8_t *)rxq->dma_regs +
 						  DMA_CH_RDTR_LO);
-	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC)
+	if (dev->data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_KEEP_CRC)
 		rxq->crc_len = RTE_ETHER_CRC_LEN;
 	else
 		rxq->crc_len = 0;
@@ -260,17 +259,17 @@ axgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		}
 		if (rxq->pdata->rx_csum_enable) {
 			mbuf->ol_flags = 0;
-			mbuf->ol_flags |= PKT_RX_IP_CKSUM_GOOD;
-			mbuf->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 			if (unlikely(error_status == AXGBE_L3_CSUM_ERR)) {
-				mbuf->ol_flags &= ~PKT_RX_IP_CKSUM_GOOD;
-				mbuf->ol_flags |= PKT_RX_IP_CKSUM_BAD;
-				mbuf->ol_flags &= ~PKT_RX_L4_CKSUM_GOOD;
-				mbuf->ol_flags |= PKT_RX_L4_CKSUM_UNKNOWN;
+				mbuf->ol_flags &= ~RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_BAD;
+				mbuf->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN;
 			} else if (
 				unlikely(error_status == AXGBE_L4_CSUM_ERR)) {
-				mbuf->ol_flags &= ~PKT_RX_L4_CKSUM_GOOD;
-				mbuf->ol_flags |= PKT_RX_L4_CKSUM_BAD;
+				mbuf->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_BAD;
 			}
 		}
 		rte_prefetch1(rte_pktmbuf_mtod(mbuf, void *));
@@ -282,25 +281,24 @@ axgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		offloads = rxq->pdata->eth_dev->data->dev_conf.rxmode.offloads;
 		if (!err || !etlt) {
 			if (etlt == RX_CVLAN_TAG_PRESENT) {
-				mbuf->ol_flags |= PKT_RX_VLAN;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_VLAN;
 				mbuf->vlan_tci =
 					AXGMAC_GET_BITS_LE(desc->write.desc0,
 							RX_NORMAL_DESC0, OVT);
-				if (offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
-					mbuf->ol_flags |= PKT_RX_VLAN_STRIPPED;
+				if (offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+					mbuf->ol_flags |= RTE_MBUF_F_RX_VLAN_STRIPPED;
 				else
-					mbuf->ol_flags &= ~PKT_RX_VLAN_STRIPPED;
-				} else {
-					mbuf->ol_flags &=
-						~(PKT_RX_VLAN
-							| PKT_RX_VLAN_STRIPPED);
-					mbuf->vlan_tci = 0;
-				}
+					mbuf->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
+			} else {
+				mbuf->ol_flags &=
+					~(RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED);
+				mbuf->vlan_tci = 0;
+			}
 		}
 		/* Indicate if a Context Descriptor is next */
 		if (AXGMAC_GET_BITS_LE(desc->write.desc3, RX_NORMAL_DESC3, CDA))
-			mbuf->ol_flags |= PKT_RX_IEEE1588_PTP
-					| PKT_RX_IEEE1588_TMST;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_IEEE1588_PTP
+					| RTE_MBUF_F_RX_IEEE1588_TMST;
 		pkt_len = AXGMAC_GET_BITS_LE(desc->write.desc3, RX_NORMAL_DESC3,
 					     PL) - rxq->crc_len;
 		/* Mbuf populate */
@@ -426,17 +424,17 @@ next_desc:
 		offloads = rxq->pdata->eth_dev->data->dev_conf.rxmode.offloads;
 		if (!err || !etlt) {
 			if (etlt == RX_CVLAN_TAG_PRESENT) {
-				mbuf->ol_flags |= PKT_RX_VLAN;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_VLAN;
 				mbuf->vlan_tci =
 					AXGMAC_GET_BITS_LE(desc->write.desc0,
 							RX_NORMAL_DESC0, OVT);
-				if (offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
-					mbuf->ol_flags |= PKT_RX_VLAN_STRIPPED;
+				if (offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
+					mbuf->ol_flags |= RTE_MBUF_F_RX_VLAN_STRIPPED;
 				else
-					mbuf->ol_flags &= ~PKT_RX_VLAN_STRIPPED;
+					mbuf->ol_flags &= ~RTE_MBUF_F_RX_VLAN_STRIPPED;
 			} else {
 				mbuf->ol_flags &=
-					~(PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED);
+					~(RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED);
 				mbuf->vlan_tci = 0;
 			}
 		}
@@ -465,17 +463,17 @@ err_set:
 		first_seg->port = rxq->port_id;
 		if (rxq->pdata->rx_csum_enable) {
 			mbuf->ol_flags = 0;
-			mbuf->ol_flags |= PKT_RX_IP_CKSUM_GOOD;
-			mbuf->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+			mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 			if (unlikely(error_status == AXGBE_L3_CSUM_ERR)) {
-				mbuf->ol_flags &= ~PKT_RX_IP_CKSUM_GOOD;
-				mbuf->ol_flags |= PKT_RX_IP_CKSUM_BAD;
-				mbuf->ol_flags &= ~PKT_RX_L4_CKSUM_GOOD;
-				mbuf->ol_flags |= PKT_RX_L4_CKSUM_UNKNOWN;
+				mbuf->ol_flags &= ~RTE_MBUF_F_RX_IP_CKSUM_GOOD;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_BAD;
+				mbuf->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN;
 			} else if (unlikely(error_status
 						== AXGBE_L4_CSUM_ERR)) {
-				mbuf->ol_flags &= ~PKT_RX_L4_CKSUM_GOOD;
-				mbuf->ol_flags |= PKT_RX_L4_CKSUM_BAD;
+				mbuf->ol_flags &= ~RTE_MBUF_F_RX_L4_CKSUM_GOOD;
+				mbuf->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_BAD;
 			}
 		}
 
@@ -508,8 +506,7 @@ static void axgbe_tx_queue_release(struct axgbe_tx_queue *tx_queue)
 		sw_ring = tx_queue->sw_ring;
 		if (sw_ring) {
 			for (i = 0; i < tx_queue->nb_desc; i++) {
-				if (sw_ring[i])
-					rte_pktmbuf_free(sw_ring[i]);
+				rte_pktmbuf_free(sw_ring[i]);
 			}
 			rte_free(sw_ring);
 		}
@@ -517,9 +514,9 @@ static void axgbe_tx_queue_release(struct axgbe_tx_queue *tx_queue)
 	}
 }
 
-void axgbe_dev_tx_queue_release(void *txq)
+void axgbe_dev_tx_queue_release(struct rte_eth_dev *dev, uint16_t queue_idx)
 {
-	axgbe_tx_queue_release(txq);
+	axgbe_tx_queue_release(dev->data->tx_queues[queue_idx]);
 }
 
 int axgbe_dev_tx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
@@ -623,9 +620,6 @@ int axgbe_dev_fw_version_get(struct rte_eth_dev *eth_dev,
 	pdata = (struct axgbe_port *)eth_dev->data->dev_private;
 	hw_feat = &pdata->hw_feat;
 
-	if (fw_version == NULL)
-		return -EINVAL;
-
 	ret = snprintf(fw_version, fw_size, "%d.%d.%d",
 			AXGMAC_GET_BITS(hw_feat->version, MAC_VR, USERVER),
 			AXGMAC_GET_BITS(hw_feat->version, MAC_VR, DEVID),
@@ -634,7 +628,6 @@ int axgbe_dev_fw_version_get(struct rte_eth_dev *eth_dev,
 		return -EINVAL;
 
 	ret += 1; /* add the size of '\0' */
-
 	if (fw_size < (size_t)ret)
 		return ret;
 	else
@@ -799,7 +792,7 @@ static int axgbe_xmit_hw(struct axgbe_tx_queue *txq,
 	AXGMAC_SET_BITS_LE(desc->desc3, TX_NORMAL_DESC3, FL,
 			   mbuf->pkt_len);
 	/* Timestamp enablement check */
-	if (mbuf->ol_flags & PKT_TX_IEEE1588_TMST)
+	if (mbuf->ol_flags & RTE_MBUF_F_TX_IEEE1588_TMST)
 		AXGMAC_SET_BITS_LE(desc->desc2, TX_NORMAL_DESC2, TTSE, 1);
 	rte_wmb();
 	/* Mark it as First and Last Descriptor */
@@ -808,14 +801,14 @@ static int axgbe_xmit_hw(struct axgbe_tx_queue *txq,
 	/* Mark it as a NORMAL descriptor */
 	AXGMAC_SET_BITS_LE(desc->desc3, TX_NORMAL_DESC3, CTXT, 0);
 	/* configure h/w Offload */
-	mask = mbuf->ol_flags & PKT_TX_L4_MASK;
-	if ((mask == PKT_TX_TCP_CKSUM) || (mask == PKT_TX_UDP_CKSUM))
+	mask = mbuf->ol_flags & RTE_MBUF_F_TX_L4_MASK;
+	if (mask == RTE_MBUF_F_TX_TCP_CKSUM || mask == RTE_MBUF_F_TX_UDP_CKSUM)
 		AXGMAC_SET_BITS_LE(desc->desc3, TX_NORMAL_DESC3, CIC, 0x3);
-	else if (mbuf->ol_flags & PKT_TX_IP_CKSUM)
+	else if (mbuf->ol_flags & RTE_MBUF_F_TX_IP_CKSUM)
 		AXGMAC_SET_BITS_LE(desc->desc3, TX_NORMAL_DESC3, CIC, 0x1);
 	rte_wmb();
 
-	if (mbuf->ol_flags & (PKT_TX_VLAN_PKT | PKT_TX_QINQ_PKT)) {
+	if (mbuf->ol_flags & (RTE_MBUF_F_TX_VLAN | RTE_MBUF_F_TX_QINQ)) {
 		/* Mark it as a CONTEXT descriptor */
 		AXGMAC_SET_BITS_LE(desc->desc3, TX_CONTEXT_DESC3,
 				  CTXT, 1);

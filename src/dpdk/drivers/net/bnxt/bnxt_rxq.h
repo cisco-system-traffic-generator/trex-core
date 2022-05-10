@@ -30,6 +30,7 @@ struct bnxt_rx_queue {
 	uint8_t			rx_deferred_start; /* not in global dev start */
 	uint8_t			rx_started; /* RX queue is started */
 	uint8_t			drop_en; /* Drop when rx desc not available. */
+	uint8_t			in_reset; /* Rx ring is scheduled for reset */
 
 	struct bnxt		*bp;
 	int			index;
@@ -45,7 +46,7 @@ struct bnxt_rx_queue {
 
 void bnxt_free_rxq_stats(struct bnxt_rx_queue *rxq);
 int bnxt_mq_rx_configure(struct bnxt *bp);
-void bnxt_rx_queue_release_op(void *rx_queue);
+void bnxt_rx_queue_release_op(struct rte_eth_dev *dev, uint16_t queue_idx);
 int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 			       uint16_t queue_idx,
 			       uint16_t nb_desc,
@@ -62,4 +63,6 @@ int bnxt_rx_queue_start(struct rte_eth_dev *dev,
 int bnxt_rx_queue_stop(struct rte_eth_dev *dev,
 		       uint16_t rx_queue_id);
 void bnxt_rx_queue_release_mbufs(struct bnxt_rx_queue *rxq);
+int bnxt_need_agg_ring(struct rte_eth_dev *eth_dev);
+void bnxt_free_rxq_mem(struct bnxt_rx_queue *rxq);
 #endif

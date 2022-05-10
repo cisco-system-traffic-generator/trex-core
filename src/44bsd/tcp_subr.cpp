@@ -1449,9 +1449,9 @@ void CFlowTemplate::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
     /* recalculate */
     if (m_offload_flags & OFFLOAD_TX_CHKSUM){
         if (is_tcp()) {
-            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM));
         }else{
-            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM));
         }
     }else{
         m_l4_pseudo_checksum=0;
@@ -1588,9 +1588,9 @@ void CFlowTemplate::build_template_tcp(CPerProfileCtx * pctx){
        lpTCP->setDestPort(m_dst_port);
        if (m_offload_flags & OFFLOAD_TX_CHKSUM){
            if (m_is_ipv6) {
-               m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+               m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM));
            }else{
-               m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_TCP_CKSUM));
+               m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV4 |RTE_MBUF_F_TX_IP_CKSUM|RTE_MBUF_F_TX_TCP_CKSUM));
            }
        }else{
             m_l4_pseudo_checksum=0;
@@ -1612,9 +1612,9 @@ void CFlowTemplate::build_template_udp(CPerProfileCtx * pctx){
     lpUDP->setDestPort(m_dst_port);
     if (m_offload_flags & OFFLOAD_TX_CHKSUM){
         if (m_is_ipv6) {
-            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM));
         }else{
-            m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_UDP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV4 |RTE_MBUF_F_TX_IP_CKSUM|RTE_MBUF_F_TX_UDP_CKSUM));
         }
     }else{
         m_l4_pseudo_checksum=0;

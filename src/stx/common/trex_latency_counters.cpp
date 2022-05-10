@@ -242,7 +242,7 @@ bool RXLatency::handle_flow_latency_stats_ieee_1588(const rte_mbuf_t *m, uint32_
     uint8_t tmp_buf_ieee_1588[sizeof(struct flow_stat_payload_header_ieee_1588)];
     struct flow_stat_payload_header_ieee_1588 *fsp_head_ieee_1588 = 0;
 
-    if (m->ol_flags & PKT_RX_IEEE1588_TMST) {  /* IEEE-1588 - SYNC Pkt */
+    if (m->ol_flags & RTE_MBUF_F_RX_IEEE1588_TMST) {  /* IEEE-1588 - SYNC Pkt */
         m_is_ieee_ref_cnt_set = true; /* Expect a FUP pkt. Set ref cnt */
         fsp_head_ieee_1588 = (flow_stat_payload_header_ieee_1588 *)utl_rte_pktmbuf_get_last_bytes(
             m, sizeof(struct flow_stat_payload_header_ieee_1588), tmp_buf_ieee_1588);
@@ -328,7 +328,7 @@ void RXLatency::handle_pkt(const rte_mbuf_t *m, int port) {
     if (res == FSTAT_PARSER_E_OK){
         if (is_flow_stat_id(ip_id)) {
             if (is_flow_stat_payload_id(ip_id)) {
-                if (unlikely( (m->ol_flags & PKT_RX_IEEE1588_TMST) || (m_is_ieee_ref_cnt_set == true) )) {
+                if (unlikely( (m->ol_flags & RTE_MBUF_F_RX_IEEE1588_TMST) || (m_is_ieee_ref_cnt_set == true) )) {
                     handle_flow_latency_stats_ieee_1588(m, ip_id, port);
                 } else {
                     handle_flow_latency_stats(m, ip_id,false);

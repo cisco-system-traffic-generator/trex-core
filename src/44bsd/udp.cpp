@@ -97,7 +97,7 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
         if (!ftp->m_is_ipv6) {
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
+            m->ol_flags |= (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM);
             IPHeader * ipv4=(IPHeader *)(p+ftp->m_offset_ip);
             ipv4->ClearCheckSum();
             ipv4->setTotalLength(udp_pyld_bytes+UDP_HEADER_LEN+IPV4_HDR_LEN);
@@ -105,7 +105,7 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
         }else {
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);
+            m->ol_flags |= ( RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM);
             IPv6Header * ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
             ipv6->setPayloadLen(udp_pyld_bytes+UDP_HEADER_LEN);
             udp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(udp_pyld_bytes+UDP_HEADER_LEN)));

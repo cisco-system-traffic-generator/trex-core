@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2018-2019 Hisilicon Limited.
+ * Copyright(c) 2018-2021 HiSilicon Limited.
  */
 
 #include <rte_ethdev.h>
@@ -201,65 +201,6 @@ static const struct hns3_xstats_name_offset hns3_mac_strings[] = {
 		HNS3_MAC_STATS_OFFSET(mac_rx_send_app_bad_pkt_num)}
 };
 
-static const struct hns3_xstats_name_offset hns3_error_int_stats_strings[] = {
-	{"MAC_AFIFO_TNL_INT_R",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(mac_afifo_tnl_int_cnt)},
-	{"PPU_MPF_ABNORMAL_INT_ST2_MSIX",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppu_mpf_abn_int_st2_msix_cnt)},
-	{"SSU_PORT_BASED_ERR_INT_MSIX",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_port_based_pf_int_cnt)},
-	{"PPP_PF_ABNORMAL_INT_ST0",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppp_pf_abnormal_int_cnt)},
-	{"PPU_PF_ABNORMAL_INT_ST_MSIX",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppu_pf_abnormal_int_msix_cnt)},
-	{"IMP_TCM_ECC_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(imp_tcm_ecc_int_cnt)},
-	{"CMDQ_MEM_ECC_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(cmdq_mem_ecc_int_cnt)},
-	{"IMP_RD_POISON_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(imp_rd_poison_int_cnt)},
-	{"TQP_INT_ECC_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(tqp_int_ecc_int_cnt)},
-	{"MSIX_ECC_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(msix_ecc_int_cnt)},
-	{"SSU_ECC_MULTI_BIT_INT_0",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_ecc_multi_bit_int_0_cnt)},
-	{"SSU_ECC_MULTI_BIT_INT_1",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_ecc_multi_bit_int_1_cnt)},
-	{"SSU_COMMON_ERR_INT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_common_ecc_int_cnt)},
-	{"IGU_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(igu_int_cnt)},
-	{"PPP_MPF_ABNORMAL_INT_ST1",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppp_mpf_abnormal_int_st1_cnt)},
-	{"PPP_MPF_ABNORMAL_INT_ST3",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppp_mpf_abnormal_int_st3_cnt)},
-	{"PPU_MPF_ABNORMAL_INT_ST1",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppu_mpf_abnormal_int_st1_cnt)},
-	{"PPU_MPF_ABNORMAL_INT_ST2_RAS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppu_mpf_abn_int_st2_ras_cnt)},
-	{"PPU_MPF_ABNORMAL_INT_ST3",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppu_mpf_abnormal_int_st3_cnt)},
-	{"TM_SCH_RINT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(tm_sch_int_cnt)},
-	{"QCN_FIFO_RINT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(qcn_fifo_int_cnt)},
-	{"QCN_ECC_RINT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(qcn_ecc_int_cnt)},
-	{"NCSI_ECC_INT_RPT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ncsi_ecc_int_cnt)},
-	{"SSU_PORT_BASED_ERR_INT_RAS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_port_based_err_int_cnt)},
-	{"SSU_FIFO_OVERFLOW_INT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_fifo_overflow_int_cnt)},
-	{"SSU_ETS_TCG_INT",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ssu_ets_tcg_int_cnt)},
-	{"IGU_EGU_TNL_INT_STS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(igu_egu_tnl_int_cnt)},
-	{"PPU_PF_ABNORMAL_INT_ST_RAS",
-		HNS3_ERR_INT_STATS_FIELD_OFFSET(ppu_pf_abnormal_int_ras_cnt)},
-};
-
 /* The statistic of reset */
 static const struct hns3_xstats_name_offset hns3_reset_stats_strings[] = {
 	{"REQ_RESET_CNT",
@@ -324,11 +265,16 @@ static const struct hns3_xstats_name_offset hns3_tx_queue_strings[] = {
 	{"TX_QUEUE_FBD", HNS3_RING_TX_FBDNUM_REG}
 };
 
+/* The statistic of imissed packet */
+static const struct hns3_xstats_name_offset hns3_imissed_stats_strings[] = {
+	{"RPU_DROP_CNT",
+		HNS3_IMISSED_STATS_FIELD_OFFSET(rpu_rx_drop_cnt)},
+	{"SSU_DROP_CNT",
+		HNS3_IMISSED_STATS_FIELD_OFFSET(ssu_rx_drop_cnt)},
+};
+
 #define HNS3_NUM_MAC_STATS (sizeof(hns3_mac_strings) / \
 	sizeof(hns3_mac_strings[0]))
-
-#define HNS3_NUM_ERROR_INT_XSTATS (sizeof(hns3_error_int_stats_strings) / \
-	sizeof(hns3_error_int_stats_strings[0]))
 
 #define HNS3_NUM_RESET_XSTATS (sizeof(hns3_reset_stats_strings) / \
 	sizeof(hns3_reset_stats_strings[0]))
@@ -354,29 +300,28 @@ static const struct hns3_xstats_name_offset hns3_tx_queue_strings[] = {
 #define HNS3_NUM_TXQ_BASIC_STATS (sizeof(hns3_txq_basic_stats_strings) / \
 	sizeof(hns3_txq_basic_stats_strings[0]))
 
-#define HNS3_FIX_NUM_STATS (HNS3_NUM_MAC_STATS + HNS3_NUM_ERROR_INT_XSTATS + \
-			    HNS3_NUM_RESET_XSTATS)
+#define HNS3_NUM_IMISSED_XSTATS (sizeof(hns3_imissed_stats_strings) / \
+	sizeof(hns3_imissed_stats_strings[0]))
+
+#define HNS3_FIX_NUM_STATS (HNS3_NUM_MAC_STATS + HNS3_NUM_RESET_XSTATS)
 
 static void hns3_tqp_stats_clear(struct hns3_hw *hw);
 
-/*
- * Query all the MAC statistics data of Network ICL command ,opcode id: 0x0034.
- * This command is used before send 'query_mac_stat command', the descriptor
- * number of 'query_mac_stat command' must match with reg_num in this command.
- * @praram hw
- *   Pointer to structure hns3_hw.
- * @return
- *   0 on success.
- */
 static int
-hns3_update_mac_stats(struct hns3_hw *hw, const uint32_t desc_num)
+hns3_update_mac_stats(struct hns3_hw *hw)
 {
+#define HNS3_MAC_STATS_REG_NUM_PER_DESC	4
+
 	uint64_t *data = (uint64_t *)(&hw->mac_stats);
 	struct hns3_cmd_desc *desc;
+	uint32_t stats_iterms;
 	uint64_t *desc_data;
-	uint16_t i, k, n;
+	uint32_t desc_num;
+	uint16_t i;
 	int ret;
 
+	/* The first desc has a 64-bit header, so need to consider it. */
+	desc_num = hw->mac_stats_reg_num / HNS3_MAC_STATS_REG_NUM_PER_DESC + 1;
 	desc = rte_malloc("hns3_mac_desc",
 			  desc_num * sizeof(struct hns3_cmd_desc), 0);
 	if (desc == NULL) {
@@ -392,65 +337,71 @@ hns3_update_mac_stats(struct hns3_hw *hw, const uint32_t desc_num)
 		return ret;
 	}
 
-	for (i = 0; i < desc_num; i++) {
-		/* For special opcode 0034, only the first desc has the head */
-		if (i == 0) {
-			desc_data = (uint64_t *)(&desc[i].data[0]);
-			n = HNS3_RD_FIRST_STATS_NUM;
-		} else {
-			desc_data = (uint64_t *)(&desc[i]);
-			n = HNS3_RD_OTHER_STATS_NUM;
-		}
-
-		for (k = 0; k < n; k++) {
-			*data += rte_le_to_cpu_64(*desc_data);
-			data++;
-			desc_data++;
-		}
+	stats_iterms = RTE_MIN(sizeof(hw->mac_stats) / sizeof(uint64_t),
+			       hw->mac_stats_reg_num);
+	desc_data = (uint64_t *)(&desc[0].data[0]);
+	for (i = 0; i < stats_iterms; i++) {
+		/*
+		 * Data memory is continuous and only the first descriptor has a
+		 * header in this command.
+		 */
+		*data += rte_le_to_cpu_64(*desc_data);
+		data++;
+		desc_data++;
 	}
 	rte_free(desc);
 
 	return 0;
 }
 
-/*
- * Query Mac stat reg num command ,opcode id: 0x0033.
- * This command is used before send 'query_mac_stat command', the descriptor
- * number of 'query_mac_stat command' must match with reg_num in this command.
- * @praram rte_stats
- *   Pointer to structure rte_eth_stats.
- * @return
- *   0 on success.
- */
 static int
-hns3_mac_query_reg_num(struct rte_eth_dev *dev, uint32_t *desc_num)
+hns3_mac_query_reg_num(struct hns3_hw *hw, uint32_t *reg_num)
 {
-	struct hns3_adapter *hns = dev->data->dev_private;
-	struct hns3_hw *hw = &hns->hw;
+#define HNS3_MAC_STATS_RSV_REG_NUM_ON_HIP08_B	3
 	struct hns3_cmd_desc desc;
-	uint32_t *desc_data;
-	uint32_t reg_num;
 	int ret;
 
 	hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_QUERY_MAC_REG_NUM, true);
 	ret = hns3_cmd_send(hw, &desc, 1);
+	if (ret) {
+		hns3_err(hw, "failed to query MAC statistic reg number, ret = %d",
+			 ret);
+		return ret;
+	}
+
+	/* The number of MAC statistics registers are provided by firmware. */
+	*reg_num = rte_le_to_cpu_32(desc.data[0]);
+	if (*reg_num == 0) {
+		hns3_err(hw, "MAC statistic reg number is invalid!");
+		return -ENODATA;
+	}
+
+	/*
+	 * If driver doesn't request the firmware to report more MAC statistics
+	 * iterms and the total number of MAC statistics registers by using new
+	 * method, firmware will only reports the number of valid statistics
+	 * registers. However, structure hns3_mac_stats in driver contains valid
+	 * and reserved statistics iterms. In this case, the total register
+	 * number must be added to three reserved statistics registers.
+	 */
+	*reg_num += HNS3_MAC_STATS_RSV_REG_NUM_ON_HIP08_B;
+
+	return 0;
+}
+
+int
+hns3_query_mac_stats_reg_num(struct hns3_hw *hw)
+{
+	uint32_t mac_stats_reg_num = 0;
+	int ret;
+
+	ret = hns3_mac_query_reg_num(hw, &mac_stats_reg_num);
 	if (ret)
 		return ret;
 
-	/*
-	 * The num of MAC statistics registers that are provided by IMP in this
-	 * version.
-	 */
-	desc_data = (uint32_t *)(&desc.data[0]);
-	reg_num = rte_le_to_cpu_32(*desc_data);
-
-	/*
-	 * The descriptor number of 'query_additional_mac_stat command' is
-	 * '1 + (reg_num-3)/4 + ((reg_num-3)%4 !=0)';
-	 * This value is 83 in this version
-	 */
-	*desc_num = 1 + ((reg_num - 3) >> 2) +
-		    (uint32_t)(((reg_num - 3) & 0x3) ? 1 : 0);
+	hw->mac_stats_reg_num = mac_stats_reg_num;
+	if (hw->mac_stats_reg_num > sizeof(hw->mac_stats) / sizeof(uint64_t))
+		hns3_warn(hw, "MAC stats reg number from firmware is greater than stats iterms in driver.");
 
 	return 0;
 }
@@ -460,56 +411,175 @@ hns3_query_update_mac_stats(struct rte_eth_dev *dev)
 {
 	struct hns3_adapter *hns = dev->data->dev_private;
 	struct hns3_hw *hw = &hns->hw;
-	uint32_t desc_num;
+
+	return hns3_update_mac_stats(hw);
+}
+
+static int
+hns3_update_port_rpu_drop_stats(struct hns3_hw *hw)
+{
+	struct hns3_rx_missed_stats *stats = &hw->imissed_stats;
+	struct hns3_query_rpu_cmd *req;
+	struct hns3_cmd_desc desc;
+	uint64_t cnt;
+	uint32_t tc_num;
 	int ret;
 
-	ret = hns3_mac_query_reg_num(dev, &desc_num);
-	if (ret == 0)
-		ret = hns3_update_mac_stats(hw, desc_num);
-	else
-		hns3_err(hw, "Query mac reg num fail : %d", ret);
+	hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_DFX_RPU_REG_0, true);
+	req = (struct hns3_query_rpu_cmd *)desc.data;
+
+	/*
+	 * tc_num is 0, means rpu stats of all TC channels will be
+	 * get from firmware
+	 */
+	tc_num = 0;
+	req->tc_queue_num = rte_cpu_to_le_32(tc_num);
+	ret = hns3_cmd_send(hw, &desc, 1);
+	if (ret) {
+		hns3_err(hw, "failed to query RPU stats: %d", ret);
+		return ret;
+	}
+
+	cnt = rte_le_to_cpu_32(req->rpu_rx_pkt_drop_cnt);
+	stats->rpu_rx_drop_cnt += cnt;
+
+	return 0;
+}
+
+static void
+hns3_update_function_rpu_drop_stats(struct hns3_hw *hw)
+{
+	struct hns3_rx_missed_stats *stats = &hw->imissed_stats;
+
+	stats->rpu_rx_drop_cnt += hns3_read_dev(hw, HNS3_RPU_DROP_CNT_REG);
+}
+
+static int
+hns3_update_rpu_drop_stats(struct hns3_hw *hw)
+{
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
+	int ret = 0;
+
+	if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE1 && !hns->is_vf)
+		ret = hns3_update_port_rpu_drop_stats(hw);
+	else if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE2)
+		hns3_update_function_rpu_drop_stats(hw);
+
 	return ret;
 }
 
-/* Get tqp stats from register */
 static int
-hns3_update_tqp_stats(struct hns3_hw *hw)
+hns3_get_ssu_drop_stats(struct hns3_hw *hw, struct hns3_cmd_desc *desc,
+			int bd_num, bool is_rx)
 {
-	struct hns3_tqp_stats *stats = &hw->tqp_stats;
-	struct hns3_cmd_desc desc;
+	struct hns3_query_ssu_cmd *req;
+	int ret;
+	int i;
+
+	for (i = 0; i < bd_num - 1; i++) {
+		hns3_cmd_setup_basic_desc(&desc[i],
+					  HNS3_OPC_SSU_DROP_REG, true);
+		desc[i].flag |= rte_cpu_to_le_16(HNS3_CMD_FLAG_NEXT);
+	}
+	hns3_cmd_setup_basic_desc(&desc[i], HNS3_OPC_SSU_DROP_REG, true);
+	req = (struct hns3_query_ssu_cmd *)desc[0].data;
+	req->rxtx = is_rx ? 0 : 1;
+	ret = hns3_cmd_send(hw, desc, bd_num);
+
+	return ret;
+}
+
+static int
+hns3_update_port_rx_ssu_drop_stats(struct hns3_hw *hw)
+{
+	struct hns3_rx_missed_stats *stats = &hw->imissed_stats;
+	struct hns3_cmd_desc desc[HNS3_OPC_SSU_DROP_REG_NUM];
+	struct hns3_query_ssu_cmd *req;
 	uint64_t cnt;
-	uint16_t i;
 	int ret;
 
-	for (i = 0; i < hw->tqps_num; i++) {
-		hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_QUERY_RX_STATUS,
-					  true);
-
-		desc.data[0] = rte_cpu_to_le_32((uint32_t)i);
-		ret = hns3_cmd_send(hw, &desc, 1);
-		if (ret) {
-			hns3_err(hw, "Failed to query RX No.%u queue stat: %d",
-				 i, ret);
-			return ret;
-		}
-		cnt = rte_le_to_cpu_32(desc.data[1]);
-		stats->rcb_rx_ring_pktnum_rcd += cnt;
-		stats->rcb_rx_ring_pktnum[i] += cnt;
-
-		hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_QUERY_TX_STATUS,
-					  true);
-
-		desc.data[0] = rte_cpu_to_le_32((uint32_t)i);
-		ret = hns3_cmd_send(hw, &desc, 1);
-		if (ret) {
-			hns3_err(hw, "Failed to query TX No.%u queue stat: %d",
-				 i, ret);
-			return ret;
-		}
-		cnt = rte_le_to_cpu_32(desc.data[1]);
-		stats->rcb_tx_ring_pktnum_rcd += cnt;
-		stats->rcb_tx_ring_pktnum[i] += cnt;
+	ret = hns3_get_ssu_drop_stats(hw, desc, HNS3_OPC_SSU_DROP_REG_NUM,
+				      true);
+	if (ret) {
+		hns3_err(hw, "failed to get Rx SSU drop stats, ret = %d", ret);
+		return ret;
 	}
+
+	req = (struct hns3_query_ssu_cmd *)desc[0].data;
+	cnt = rte_le_to_cpu_32(req->oq_drop_cnt) +
+		rte_le_to_cpu_32(req->full_drop_cnt) +
+		rte_le_to_cpu_32(req->part_drop_cnt);
+
+	stats->ssu_rx_drop_cnt += cnt;
+
+	return 0;
+}
+
+static int
+hns3_update_port_tx_ssu_drop_stats(struct hns3_hw *hw)
+{
+	struct hns3_cmd_desc desc[HNS3_OPC_SSU_DROP_REG_NUM];
+	struct hns3_query_ssu_cmd *req;
+	uint64_t cnt;
+	int ret;
+
+	ret = hns3_get_ssu_drop_stats(hw, desc, HNS3_OPC_SSU_DROP_REG_NUM,
+				      false);
+	if (ret) {
+		hns3_err(hw, "failed to get Tx SSU drop stats, ret = %d", ret);
+		return ret;
+	}
+
+	req = (struct hns3_query_ssu_cmd *)desc[0].data;
+	cnt = rte_le_to_cpu_32(req->oq_drop_cnt) +
+		rte_le_to_cpu_32(req->full_drop_cnt) +
+		rte_le_to_cpu_32(req->part_drop_cnt);
+
+	hw->oerror_stats += cnt;
+
+	return 0;
+}
+
+int
+hns3_update_imissed_stats(struct hns3_hw *hw, bool is_clear)
+{
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
+	int ret;
+
+	if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE1 && hns->is_vf)
+		return 0;
+
+	if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE2 && !hns->is_vf) {
+		ret = hns3_update_port_rx_ssu_drop_stats(hw);
+		if (ret)
+			return ret;
+	}
+
+	ret = hns3_update_rpu_drop_stats(hw);
+	if (ret)
+		return ret;
+
+	if (is_clear)
+		memset(&hw->imissed_stats, 0, sizeof(hw->imissed_stats));
+
+	return 0;
+}
+
+static int
+hns3_update_oerror_stats(struct hns3_hw *hw, bool is_clear)
+{
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
+	int ret;
+
+	if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE1 || hns->is_vf)
+		return 0;
+
+	ret = hns3_update_port_tx_ssu_drop_stats(hw);
+	if (ret)
+		return ret;
+
+	if (is_clear)
+		hw->oerror_stats = 0;
 
 	return 0;
 }
@@ -530,30 +600,62 @@ hns3_stats_get(struct rte_eth_dev *eth_dev, struct rte_eth_stats *rte_stats)
 {
 	struct hns3_adapter *hns = eth_dev->data->dev_private;
 	struct hns3_hw *hw = &hns->hw;
+	struct hns3_rx_missed_stats *imissed_stats = &hw->imissed_stats;
 	struct hns3_tqp_stats *stats = &hw->tqp_stats;
 	struct hns3_rx_queue *rxq;
+	struct hns3_tx_queue *txq;
 	uint64_t cnt;
 	uint16_t i;
 	int ret;
 
-	/* Update tqp stats by read register */
-	ret = hns3_update_tqp_stats(hw);
+	/* Update imissed stats */
+	ret = hns3_update_imissed_stats(hw, false);
 	if (ret) {
-		hns3_err(hw, "Update tqp stats fail : %d", ret);
+		hns3_err(hw, "update imissed stats failed, ret = %d",
+			 ret);
 		return ret;
 	}
+	rte_stats->imissed = imissed_stats->rpu_rx_drop_cnt +
+				imissed_stats->ssu_rx_drop_cnt;
 
-	/* Get the error stats of received packets */
+	/* Get the error stats and bytes of received packets */
 	for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
 		rxq = eth_dev->data->rx_queues[i];
-		if (rxq) {
-			cnt = rxq->err_stats.l2_errors +
-				rxq->err_stats.pkt_len_errors;
-			rte_stats->ierrors += cnt;
-		}
+		if (rxq == NULL)
+			continue;
+
+		cnt = hns3_read_dev(rxq, HNS3_RING_RX_PKTNUM_RECORD_REG);
+		/*
+		 * Read hardware and software in adjacent positions to minimize
+		 * the timing variance.
+		 */
+		rte_stats->ierrors += rxq->err_stats.l2_errors +
+				      rxq->err_stats.pkt_len_errors;
+		stats->rcb_rx_ring_pktnum_rcd += cnt;
+		stats->rcb_rx_ring_pktnum[i] += cnt;
+		rte_stats->ibytes += rxq->basic_stats.bytes;
 	}
 
-	rte_stats->oerrors = 0;
+	/* Reads all the stats of a txq in a loop to keep them synchronized */
+	for (i = 0; i < eth_dev->data->nb_tx_queues; i++) {
+		txq = eth_dev->data->tx_queues[i];
+		if (txq == NULL)
+			continue;
+
+		cnt = hns3_read_dev(txq, HNS3_RING_TX_PKTNUM_RECORD_REG);
+		stats->rcb_tx_ring_pktnum_rcd += cnt;
+		stats->rcb_tx_ring_pktnum[i] += cnt;
+		rte_stats->obytes += txq->basic_stats.bytes;
+	}
+
+	ret = hns3_update_oerror_stats(hw, false);
+	if (ret) {
+		hns3_err(hw, "update oerror stats failed, ret = %d",
+			 ret);
+		return ret;
+	}
+	rte_stats->oerrors = hw->oerror_stats;
+
 	/*
 	 * If HW statistics are reset by stats_reset, but a lot of residual
 	 * packets exist in the hardware queue and these packets are error
@@ -574,54 +676,69 @@ hns3_stats_reset(struct rte_eth_dev *eth_dev)
 {
 	struct hns3_adapter *hns = eth_dev->data->dev_private;
 	struct hns3_hw *hw = &hns->hw;
-	struct hns3_cmd_desc desc_reset;
 	struct hns3_rx_queue *rxq;
+	struct hns3_tx_queue *txq;
 	uint16_t i;
 	int ret;
 
 	/*
-	 * Note: Reading hardware statistics of rx/tx queue packet number
-	 * will clear them.
+	 * Note: Reading hardware statistics of imissed registers will
+	 * clear them.
 	 */
-	for (i = 0; i < hw->tqps_num; i++) {
-		hns3_cmd_setup_basic_desc(&desc_reset, HNS3_OPC_QUERY_RX_STATUS,
-					  true);
-		desc_reset.data[0] = rte_cpu_to_le_32((uint32_t)i);
-		ret = hns3_cmd_send(hw, &desc_reset, 1);
-		if (ret) {
-			hns3_err(hw, "Failed to reset RX No.%u queue stat: %d",
-				 i, ret);
-			return ret;
-		}
-
-		hns3_cmd_setup_basic_desc(&desc_reset, HNS3_OPC_QUERY_TX_STATUS,
-					  true);
-		desc_reset.data[0] = rte_cpu_to_le_32((uint32_t)i);
-		ret = hns3_cmd_send(hw, &desc_reset, 1);
-		if (ret) {
-			hns3_err(hw, "Failed to reset TX No.%u queue stat: %d",
-				 i, ret);
-			return ret;
-		}
+	ret = hns3_update_imissed_stats(hw, true);
+	if (ret) {
+		hns3_err(hw, "clear imissed stats failed, ret = %d", ret);
+		return ret;
 	}
 
 	/*
-	 * Clear soft stats of rx error packet which will be dropped
-	 * in driver.
+	 * Note: Reading hardware statistics of oerror registers will
+	 * clear them.
 	 */
+	ret = hns3_update_oerror_stats(hw, true);
+	if (ret) {
+		hns3_err(hw, "clear oerror stats failed, ret = %d",
+			 ret);
+		return ret;
+	}
+
 	for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
 		rxq = eth_dev->data->rx_queues[i];
-		if (rxq) {
-			rxq->err_stats.pkt_len_errors = 0;
-			rxq->err_stats.l2_errors = 0;
-		}
+		if (rxq == NULL)
+			continue;
+
+		rxq->err_stats.pkt_len_errors = 0;
+		rxq->err_stats.l2_errors = 0;
 	}
 
-	/*
-	 * 'packets' in hns3_tx_basic_stats and hns3_rx_basic_stats come
-	 * from hw->tqp_stats. And clearing tqp stats is like clearing
-	 * their source.
-	 */
+	/* Clear all the stats of a rxq in a loop to keep them synchronized */
+	for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
+		rxq = eth_dev->data->rx_queues[i];
+		if (rxq == NULL)
+			continue;
+
+		memset(&rxq->basic_stats, 0,
+				sizeof(struct hns3_rx_basic_stats));
+
+		/* This register is read-clear */
+		(void)hns3_read_dev(rxq, HNS3_RING_RX_PKTNUM_RECORD_REG);
+		rxq->err_stats.pkt_len_errors = 0;
+		rxq->err_stats.l2_errors = 0;
+	}
+
+	/* Clear all the stats of a txq in a loop to keep them synchronized */
+	for (i = 0; i < eth_dev->data->nb_tx_queues; i++) {
+		txq = eth_dev->data->tx_queues[i];
+		if (txq == NULL)
+			continue;
+
+		memset(&txq->basic_stats, 0,
+				sizeof(struct hns3_tx_basic_stats));
+
+		/* This register is read-clear */
+		(void)hns3_read_dev(txq, HNS3_RING_TX_PKTNUM_RECORD_REG);
+	}
+
 	hns3_tqp_stats_clear(hw);
 
 	return 0;
@@ -646,6 +763,22 @@ hns3_mac_stats_reset(__rte_unused struct rte_eth_dev *dev)
 	return 0;
 }
 
+static int
+hns3_get_imissed_stats_num(struct hns3_adapter *hns)
+{
+#define NO_IMISSED_STATS_NUM   0
+#define RPU_STATS_ITEM_NUM     1
+	struct hns3_hw *hw = &hns->hw;
+
+	if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE1 && hns->is_vf)
+		return NO_IMISSED_STATS_NUM;
+
+	if (hw->drop_stats_mode == HNS3_PKTS_DROP_STATS_MODE2 && !hns->is_vf)
+		return HNS3_NUM_IMISSED_XSTATS;
+
+	return RPU_STATS_ITEM_NUM;
+}
+
 /* This function calculates the number of xstats based on the current config */
 static int
 hns3_xstats_calc_num(struct rte_eth_dev *dev)
@@ -663,13 +796,17 @@ hns3_xstats_calc_num(struct rte_eth_dev *dev)
 	uint16_t nb_tx_q = dev->data->nb_tx_queues;
 	int rx_comm_stats_num = nb_rx_q * HNS3_PF_VF_RX_COMM_STATS_NUM;
 	int tx_comm_stats_num = nb_tx_q * HNS3_PF_VF_TX_COMM_STATS_NUM;
+	int stats_num;
+
+	stats_num = rx_comm_stats_num + tx_comm_stats_num;
+	stats_num += hns3_get_imissed_stats_num(hns);
 
 	if (hns->is_vf)
-		return rx_comm_stats_num + tx_comm_stats_num +
-			HNS3_NUM_RESET_XSTATS;
+		stats_num += HNS3_NUM_RESET_XSTATS;
 	else
-		return rx_comm_stats_num + tx_comm_stats_num +
-			HNS3_FIX_NUM_STATS;
+		stats_num += HNS3_FIX_NUM_STATS;
+
+	return stats_num;
 }
 
 static void
@@ -700,23 +837,6 @@ hns3_queue_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 				reg_offset + hns3_tx_queue_strings[i].offset);
 			xstats[*count].id = *count;
 			(*count)++;
-		}
-	}
-}
-
-void
-hns3_error_int_stats_add(struct hns3_adapter *hns, const char *err)
-{
-	struct hns3_pf *pf = &hns->pf;
-	uint16_t i;
-	char *addr;
-
-	for (i = 0; i < HNS3_NUM_ERROR_INT_XSTATS; i++) {
-		if (strcmp(hns3_error_int_stats_strings[i].name, err) == 0) {
-			addr = (char *)&pf->abn_int_stats +
-				hns3_error_int_stats_strings[i].offset;
-			*(uint64_t *)addr += 1;
-			break;
 		}
 	}
 }
@@ -788,6 +908,7 @@ hns3_rxq_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 	struct hns3_rx_basic_stats *rxq_stats;
 	struct hns3_rx_queue *rxq;
 	uint16_t i, j;
+	uint32_t cnt;
 	char *val;
 
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
@@ -795,9 +916,17 @@ hns3_rxq_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 		if (rxq == NULL)
 			continue;
 
+		cnt = hns3_read_dev(rxq, HNS3_RING_RX_PKTNUM_RECORD_REG);
+		/*
+		 * Read hardware and software in adjacent positions to minimize
+		 * the time difference.
+		 */
 		rxq_stats = &rxq->basic_stats;
 		rxq_stats->errors = rxq->err_stats.l2_errors +
 					rxq->err_stats.pkt_len_errors;
+		stats->rcb_rx_ring_pktnum_rcd += cnt;
+		stats->rcb_rx_ring_pktnum[i] += cnt;
+
 		/*
 		 * If HW statistics are reset by stats_reset, but a lot of
 		 * residual packets exist in the hardware queue and these
@@ -807,7 +936,6 @@ hns3_rxq_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 		rxq_stats->packets =
 			stats->rcb_rx_ring_pktnum[i] > rxq_stats->errors ?
 			stats->rcb_rx_ring_pktnum[i] - rxq_stats->errors : 0;
-		rxq_stats->bytes = 0;
 		for (j = 0; j < HNS3_NUM_RXQ_BASIC_STATS; j++) {
 			val = (char *)rxq_stats +
 				hns3_rxq_basic_stats_strings[j].offset;
@@ -827,6 +955,7 @@ hns3_txq_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 	struct hns3_tx_basic_stats *txq_stats;
 	struct hns3_tx_queue *txq;
 	uint16_t i, j;
+	uint32_t cnt;
 	char *val;
 
 	for (i = 0; i < dev->data->nb_tx_queues; i++) {
@@ -834,9 +963,13 @@ hns3_txq_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 		if (txq == NULL)
 			continue;
 
+		cnt = hns3_read_dev(txq, HNS3_RING_TX_PKTNUM_RECORD_REG);
+		stats->rcb_tx_ring_pktnum_rcd += cnt;
+		stats->rcb_tx_ring_pktnum[i] += cnt;
+
 		txq_stats = &txq->basic_stats;
 		txq_stats->packets = stats->rcb_tx_ring_pktnum[i];
-		txq_stats->bytes = 0;
+
 		for (j = 0; j < HNS3_NUM_TXQ_BASIC_STATS; j++) {
 			val = (char *)txq_stats +
 				hns3_txq_basic_stats_strings[j].offset;
@@ -847,54 +980,37 @@ hns3_txq_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 	}
 }
 
-static int
+static void
 hns3_tqp_basic_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 			 int *count)
 {
-	struct hns3_hw *hw = HNS3_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	int ret;
-
-	/* Update tqp stats by read register */
-	ret = hns3_update_tqp_stats(hw);
-	if (ret) {
-		hns3_err(hw, "Update tqp stats fail, ret = %d.", ret);
-		return ret;
-	}
-
 	hns3_rxq_basic_stats_get(dev, xstats, count);
 	hns3_txq_basic_stats_get(dev, xstats, count);
-
-	return 0;
 }
 
-/*
- * The function is only called by hns3_dev_xstats_reset to clear
- * basic stats of per-queue. TQP stats are all cleared in hns3_stats_reset
- * which is called before this function.
- *
- * @param dev
- *   Pointer to Ethernet device.
- */
 static void
-hns3_tqp_basic_stats_clear(struct rte_eth_dev *dev)
+hns3_imissed_stats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
+			  int *count)
 {
-	struct hns3_tx_queue *txq;
-	struct hns3_rx_queue *rxq;
+	struct hns3_adapter *hns = dev->data->dev_private;
+	struct hns3_hw *hw = &hns->hw;
+	struct hns3_rx_missed_stats *imissed_stats = &hw->imissed_stats;
+	int imissed_stats_num;
+	int cnt = *count;
+	char *addr;
 	uint16_t i;
 
-	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxq = dev->data->rx_queues[i];
-		if (rxq)
-			memset(&rxq->basic_stats, 0,
-			       sizeof(struct hns3_rx_basic_stats));
+	imissed_stats_num = hns3_get_imissed_stats_num(hns);
+
+	for (i = 0; i < imissed_stats_num; i++) {
+		addr = (char *)imissed_stats +
+			hns3_imissed_stats_strings[i].offset;
+		xstats[cnt].value = *(uint64_t *)addr;
+		xstats[cnt].id = cnt;
+		cnt++;
 	}
 
-	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		txq = dev->data->tx_queues[i];
-		if (txq)
-			memset(&txq->basic_stats, 0,
-			       sizeof(struct hns3_tx_basic_stats));
-	}
+	*count = cnt;
 }
 
 /*
@@ -915,7 +1031,6 @@ hns3_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 		    unsigned int n)
 {
 	struct hns3_adapter *hns = dev->data->dev_private;
-	struct hns3_pf *pf = &hns->pf;
 	struct hns3_hw *hw = &hns->hw;
 	struct hns3_mac_stats *mac_stats = &hw->mac_stats;
 	struct hns3_reset_stats *reset_stats = &hw->reset.stats;
@@ -935,9 +1050,7 @@ hns3_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 
 	count = 0;
 
-	ret = hns3_tqp_basic_stats_get(dev, xstats, &count);
-	if (ret < 0)
-		return ret;
+	hns3_tqp_basic_stats_get(dev, xstats, &count);
 
 	if (!hns->is_vf) {
 		/* Update Mac stats */
@@ -954,15 +1067,16 @@ hns3_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 			xstats[count].id = count;
 			count++;
 		}
-
-		for (i = 0; i < HNS3_NUM_ERROR_INT_XSTATS; i++) {
-			addr = (char *)&pf->abn_int_stats +
-			       hns3_error_int_stats_strings[i].offset;
-			xstats[count].value = *(uint64_t *)addr;
-			xstats[count].id = count;
-			count++;
-		}
 	}
+
+	ret = hns3_update_imissed_stats(hw, false);
+	if (ret) {
+		hns3_err(hw, "update imissed stats failed, ret = %d",
+			 ret);
+		return ret;
+	}
+
+	hns3_imissed_stats_get(dev, xstats, &count);
 
 	/* Get the reset stat */
 	for (i = 0; i < HNS3_NUM_RESET_XSTATS; i++) {
@@ -1048,6 +1162,28 @@ hns3_tqp_dfx_stats_name_get(struct rte_eth_dev *dev,
 	}
 }
 
+static void
+hns3_imissed_stats_name_get(struct rte_eth_dev *dev,
+			    struct rte_eth_xstat_name *xstats_names,
+			    uint32_t *count)
+{
+	struct hns3_adapter *hns = dev->data->dev_private;
+	uint32_t cnt = *count;
+	int imissed_stats_num;
+	uint16_t i;
+
+	imissed_stats_num = hns3_get_imissed_stats_num(hns);
+
+	for (i = 0; i < imissed_stats_num; i++) {
+		snprintf(xstats_names[cnt].name,
+			 sizeof(xstats_names[cnt].name),
+			 "%s", hns3_imissed_stats_strings[i].name);
+		cnt++;
+	}
+
+	*count = cnt;
+}
+
 /*
  * Retrieve names of extended statistics of an Ethernet device.
  *
@@ -1096,14 +1232,10 @@ hns3_dev_xstats_get_names(struct rte_eth_dev *dev,
 				 "%s", hns3_mac_strings[i].name);
 			count++;
 		}
-
-		for (i = 0; i < HNS3_NUM_ERROR_INT_XSTATS; i++) {
-			snprintf(xstats_names[count].name,
-				 sizeof(xstats_names[count].name),
-				 "%s", hns3_error_int_stats_strings[i].name);
-			count++;
-		}
 	}
+
+	hns3_imissed_stats_name_get(dev, xstats_names, &count);
+
 	for (i = 0; i < HNS3_NUM_RESET_XSTATS; i++) {
 		snprintf(xstats_names[count].name,
 			 sizeof(xstats_names[count].name),
@@ -1153,7 +1285,7 @@ hns3_dev_xstats_get_names(struct rte_eth_dev *dev,
  *   A pointer to an ids array passed by application. This tells which
  *   statistics values function should retrieve. This parameter
  *   can be set to NULL if size is 0. In this case function will retrieve
- *   all avalible statistics.
+ *   all available statistics.
  * @param values
  *   A pointer to a table to be filled with device statistics values.
  * @param size
@@ -1189,7 +1321,7 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 	len = cnt_stats * sizeof(struct rte_eth_xstat);
 	values_copy = rte_zmalloc("hns3_xstats_values", len, 0);
 	if (values_copy == NULL) {
-		hns3_err(hw, "Failed to allocate %" PRIx64 " bytes needed "
+		hns3_err(hw, "Failed to allocate 0x%" PRIx64 " bytes needed "
 			     "to store statistics values", len);
 		return -ENOMEM;
 	}
@@ -1211,7 +1343,7 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 
 	for (i = 0; i < size; i++) {
 		if (ids[i] >= cnt_stats) {
-			hns3_err(hw, "ids[%u] (%" PRIx64 ") is invalid, "
+			hns3_err(hw, "ids[%u] (%" PRIu64 ") is invalid, "
 				     "should < %u", i, ids[i], cnt_stats);
 			rte_free(values_copy);
 			return -EINVAL;
@@ -1229,12 +1361,12 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
  *
  * @param dev
  *   Pointer to Ethernet device.
+ * @param ids
+ *   IDs array given by app to retrieve specific statistics
  * @param xstats_names
  *   An rte_eth_xstat_name array of at least *size* elements to
  *   be filled. If set to NULL, the function returns the required number
  *   of elements.
- * @param ids
- *   IDs array given by app to retrieve specific statistics
  * @param size
  *   The size of the xstats_names array (number of elements).
  * @return
@@ -1247,8 +1379,9 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
  */
 int
 hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
+				const uint64_t *ids,
 				struct rte_eth_xstat_name *xstats_names,
-				const uint64_t *ids, uint32_t size)
+				uint32_t size)
 {
 	const uint32_t cnt_stats = hns3_xstats_calc_num(dev);
 	struct hns3_adapter *hns = dev->data->dev_private;
@@ -1270,7 +1403,7 @@ hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 	len = cnt_stats * sizeof(struct rte_eth_xstat_name);
 	names_copy = rte_zmalloc("hns3_xstats_names", len, 0);
 	if (names_copy == NULL) {
-		hns3_err(hw, "Failed to allocate %" PRIx64 " bytes needed "
+		hns3_err(hw, "Failed to allocate 0x%" PRIx64 " bytes needed "
 			     "to store statistics names", len);
 		return -ENOMEM;
 	}
@@ -1279,7 +1412,7 @@ hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 
 	for (i = 0; i < size; i++) {
 		if (ids[i] >= cnt_stats) {
-			hns3_err(hw, "ids[%u] (%" PRIx64 ") is invalid, "
+			hns3_err(hw, "ids[%u] (%" PRIu64 ") is invalid, "
 				     "should < %u", i, ids[i], cnt_stats);
 			rte_free(names_copy);
 			return -EINVAL;
@@ -1320,7 +1453,6 @@ int
 hns3_dev_xstats_reset(struct rte_eth_dev *dev)
 {
 	struct hns3_adapter *hns = dev->data->dev_private;
-	struct hns3_pf *pf = &hns->pf;
 	int ret;
 
 	/* Clear tqp stats */
@@ -1328,7 +1460,6 @@ hns3_dev_xstats_reset(struct rte_eth_dev *dev)
 	if (ret)
 		return ret;
 
-	hns3_tqp_basic_stats_clear(dev);
 	hns3_tqp_dfx_stats_clear(dev);
 
 	/* Clear reset stats */
@@ -1341,9 +1472,6 @@ hns3_dev_xstats_reset(struct rte_eth_dev *dev)
 	ret = hns3_mac_stats_reset(dev);
 	if (ret)
 		return ret;
-
-	/* Clear error stats */
-	memset(&pf->abn_int_stats, 0, sizeof(struct hns3_err_msix_intr_stats));
 
 	return 0;
 }

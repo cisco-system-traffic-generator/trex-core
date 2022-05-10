@@ -1112,6 +1112,7 @@ Other network devices
             'net_e1000_igb': 'igb',
             'net_i40e': 'i40e',
             'net_i40e_vf': 'i40evf',
+            'net_iavf' : 'iavf',
             'net_e1000_em': 'e1000',
             'net_vmxnet3': 'vmxnet3',
             'net_virtio': 'virtio-pci',

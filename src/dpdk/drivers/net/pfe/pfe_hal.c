@@ -2,6 +2,8 @@
  * Copyright 2018-2019 NXP
  */
 
+#include <arpa/inet.h>
+
 #include "pfe_logs.h"
 #include "pfe_mod.h"
 
@@ -185,7 +187,7 @@ gemac_set_mode(void *base, __rte_unused int mode)
 {
 	u32 val = readl(base + EMAC_RCNTRL_REG);
 
-	/*Remove loopbank*/
+	/* Remove loopback */
 	val &= ~EMAC_RCNTRL_LOOP;
 
 	/*Enable flow control and MII mode*/

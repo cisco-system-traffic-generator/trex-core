@@ -8,7 +8,7 @@ struct rte_eth_link {
     int link_status;
 };
 
-#define ETH_SPEED_NUM_100G    100000 /**< 100 Gbps */
+#define RTE_ETH_SPEED_NUM_100G    100000 /**< 100 Gbps */
 
 /**
  * Force a structure to be packed

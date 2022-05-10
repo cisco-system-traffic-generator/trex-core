@@ -7,7 +7,7 @@
 #include <rte_malloc.h>
 #include <rte_dev.h>
 #include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #include <rte_reorder.h>
 
 #include "scheduler_pmd_private.h"
@@ -181,10 +181,7 @@ scheduler_pmd_start(struct rte_cryptodev *dev)
 	/* start all workers */
 	for (i = 0; i < sched_ctx->nb_workers; i++) {
 		uint8_t worker_dev_id = sched_ctx->workers[i].dev_id;
-		struct rte_cryptodev *worker_dev =
-				rte_cryptodev_pmd_get_dev(worker_dev_id);
-
-		ret = (*worker_dev->dev_ops->dev_start)(worker_dev);
+		ret = rte_cryptodev_start(worker_dev_id);
 		if (ret < 0) {
 			CR_SCHED_LOG(ERR, "Failed to start worker dev %u",
 					worker_dev_id);
@@ -208,10 +205,8 @@ scheduler_pmd_stop(struct rte_cryptodev *dev)
 	/* stop all workers first */
 	for (i = 0; i < sched_ctx->nb_workers; i++) {
 		uint8_t worker_dev_id = sched_ctx->workers[i].dev_id;
-		struct rte_cryptodev *worker_dev =
-				rte_cryptodev_pmd_get_dev(worker_dev_id);
 
-		(*worker_dev->dev_ops->dev_stop)(worker_dev);
+		rte_cryptodev_stop(worker_dev_id);
 	}
 
 	if (*sched_ctx->ops.scheduler_stop)
@@ -376,10 +371,8 @@ scheduler_pmd_qp_release(struct rte_cryptodev *dev, uint16_t qp_id)
 	if (!qp_ctx)
 		return 0;
 
-	if (qp_ctx->order_ring)
-		rte_ring_free(qp_ctx->order_ring);
-	if (qp_ctx->private_qp_ctx)
-		rte_free(qp_ctx->private_qp_ctx);
+	rte_ring_free(qp_ctx->order_ring);
+	rte_free(qp_ctx->private_qp_ctx);
 
 	rte_free(qp_ctx);
 	dev->data->queue_pairs[qp_id] = NULL;

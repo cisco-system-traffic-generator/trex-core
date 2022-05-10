@@ -28,14 +28,15 @@
 #include "conn.h"
 
 #define NAME_SIZE                                            64
+#define SOFTNIC_PATH_MAX                                     4096
 
 /**
  * PMD Parameters
  */
 
 struct pmd_params {
-	const char *name;
-	const char *firmware;
+	char name[NAME_SIZE];
+	char firmware[SOFTNIC_PATH_MAX];
 	uint16_t conn_port;
 	uint32_t cpu_id;
 	int sc; /**< Service cores. */
@@ -83,6 +84,16 @@ struct softnic_mtr_meter_profile {
 
 TAILQ_HEAD(softnic_mtr_meter_profile_list, softnic_mtr_meter_profile);
 
+/* MTR meter policy */
+struct softnic_mtr_meter_policy {
+	TAILQ_ENTRY(softnic_mtr_meter_policy) node;
+	uint32_t meter_policy_id;
+	enum rte_table_action_policer policer[RTE_COLORS];
+	uint32_t n_users;
+};
+
+TAILQ_HEAD(softnic_mtr_meter_policy_list, softnic_mtr_meter_policy);
+
 /* MTR meter object */
 struct softnic_mtr {
 	TAILQ_ENTRY(softnic_mtr) node;
@@ -95,6 +106,7 @@ TAILQ_HEAD(softnic_mtr_list, softnic_mtr);
 
 struct mtr_internals {
 	struct softnic_mtr_meter_profile_list meter_profiles;
+	struct softnic_mtr_meter_policy_list meter_policies;
 	struct softnic_mtr_list mtrs;
 };
 
@@ -678,6 +690,10 @@ struct softnic_mtr_meter_profile *
 softnic_mtr_meter_profile_find(struct pmd_internals *p,
 	uint32_t meter_profile_id);
 
+struct softnic_mtr_meter_policy *
+softnic_mtr_meter_policy_find(struct pmd_internals *p,
+	uint32_t meter_policy_id);
+
 extern const struct rte_mtr_ops pmd_mtr_ops;
 
 /**
@@ -840,9 +856,6 @@ struct softnic_table_action_profile *
 softnic_table_action_profile_create(struct pmd_internals *p,
 	const char *name,
 	struct softnic_table_action_profile_params *params);
-
-enum rte_table_action_policer
-softnic_table_action_policer(enum rte_mtr_policer_action action);
 
 /**
  * Pipeline

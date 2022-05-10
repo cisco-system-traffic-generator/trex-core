@@ -93,7 +93,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
             uint16_t tlen=ftp->m_offset_l4-ftp->m_offset_ip+tcp_h_pyld;
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM);
+            m->ol_flags |= (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM);
             IPHeader * ipv4=(IPHeader *)(p+ftp->m_offset_ip);
             ipv4->ClearCheckSum();
             TCPHeader *  tcp=(TCPHeader *)(p+ftp->m_offset_l4);
@@ -102,7 +102,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
             if ( tp->is_tso() ) {
                 uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
                 if ( dlen>seg_size ){
-                    m->ol_flags |=PKT_TX_TCP_SEG; 
+                    m->ol_flags |=RTE_MBUF_F_TX_TCP_SEG; 
                     m->tso_segsz = seg_size;
                     m->l4_len = pkt.m_optlen+TCP_HEADER_LEN;
                     tso_done=true;
@@ -122,7 +122,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
             uint16_t tlen=tcp_h_pyld;
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
+            m->ol_flags |= ( RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM);
             IPv6Header * ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
             TCPHeader *  tcp=(TCPHeader *)(p+ftp->m_offset_l4);
 
@@ -130,7 +130,7 @@ static inline void tcp_pkt_update_len(CFlowTemplate *ftp,
             if ( tp->is_tso() ) {
                 uint16_t seg_size = tp->t_maxseg - pkt.m_optlen;
                 if ( dlen>seg_size ){
-                    m->ol_flags |=PKT_TX_TCP_SEG; 
+                    m->ol_flags |=RTE_MBUF_F_TX_TCP_SEG; 
                     m->tso_segsz = seg_size;
                     m->l4_len = pkt.m_optlen+TCP_HEADER_LEN;
                     tso_done=true;

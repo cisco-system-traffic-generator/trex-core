@@ -684,7 +684,7 @@ enum ionic_txq_desc_opcode {
  *                   IONIC_TXQ_DESC_OPCODE_CSUM_HW:
  *                      Offload 16-bit checksum computation to hardware.
  *                      If @csum_l3 is set then the packet's L3 checksum is
- *                      updated. Similarly, if @csum_l4 is set the the L4
+ *                      updated. Similarly, if @csum_l4 is set the L4
  *                      checksum is updated. If @encap is set then encap header
  *                      checksums are also updated.
  *
@@ -2068,7 +2068,7 @@ typedef struct ionic_admin_comp ionic_fw_download_comp;
  * enum ionic_fw_control_oper - FW control operations
  * @IONIC_FW_RESET:     Reset firmware
  * @IONIC_FW_INSTALL:   Install firmware
- * @IONIC_FW_ACTIVATE:  Acticate firmware
+ * @IONIC_FW_ACTIVATE:  Activate firmware
  */
 enum ionic_fw_control_oper {
 	IONIC_FW_RESET		= 0,
@@ -2091,7 +2091,7 @@ struct ionic_fw_control_cmd {
 };
 
 /**
- * struct ionic_fw_control_comp - Firmware control copletion
+ * struct ionic_fw_control_comp - Firmware control completion
  * @status:     Status of the command (enum ionic_status_code)
  * @comp_index: Index in the descriptor ring for which this is the completion
  * @slot:       Slot where the firmware was installed
@@ -2878,7 +2878,7 @@ struct ionic_doorbell {
  *                    and @identity->intr_coal_div to convert from
  *                    usecs to device units:
  *
- *                      coal_init = coal_usecs * coal_mutl / coal_div
+ *                      coal_init = coal_usecs * coal_mult / coal_div
  *
  *                    When an interrupt is sent the interrupt
  *                    coalescing timer current value

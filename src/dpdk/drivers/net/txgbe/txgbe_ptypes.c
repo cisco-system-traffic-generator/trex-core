@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2015-2020
+ * Copyright(c) 2015-2020 Beijing WangXun Technology Co., Ltd.
  */
 
 #include <rte_mbuf.h>
@@ -50,6 +50,7 @@
 static u32 txgbe_ptype_lookup[TXGBE_PTID_MAX] __rte_cache_aligned = {
 	/* L2:0-3 L3:4-7 L4:8-11 TUN:12-15 EL2:16-19 EL3:20-23 EL2:24-27 */
 	/* L2: ETH */
+	TPTE(0x10, ETHER,          NONE, NONE, NONE, NONE, NONE, NONE),
 	TPTE(0x11, ETHER,          NONE, NONE, NONE, NONE, NONE, NONE),
 	TPTE(0x12, ETHER_TIMESYNC, NONE, NONE, NONE, NONE, NONE, NONE),
 	TPTE(0x13, ETHER_FIP,      NONE, NONE, NONE, NONE, NONE, NONE),
@@ -67,6 +68,7 @@ static u32 txgbe_ptype_lookup[TXGBE_PTID_MAX] __rte_cache_aligned = {
 	TPTE(0x1E, ETHER_FILTER,   NONE, NONE, NONE, NONE, NONE, NONE),
 	TPTE(0x1F, ETHER_FILTER,   NONE, NONE, NONE, NONE, NONE, NONE),
 	/* L3: IP */
+	TPTE(0x20, ETHER, IPV4, NONFRAG, NONE, NONE, NONE, NONE),
 	TPTE(0x21, ETHER, IPV4, FRAG,    NONE, NONE, NONE, NONE),
 	TPTE(0x22, ETHER, IPV4, NONFRAG, NONE, NONE, NONE, NONE),
 	TPTE(0x23, ETHER, IPV4, UDP,     NONE, NONE, NONE, NONE),
@@ -100,7 +102,7 @@ static u32 txgbe_ptype_lookup[TXGBE_PTID_MAX] __rte_cache_aligned = {
 	TPTE(0x8C, ETHER, IPV4, NONE, IP, NONE, IPV6, TCP),
 	TPTE(0x8D, ETHER, IPV4, NONE, IP, NONE, IPV6, SCTP),
 	/* IPv4 -> GRE/Teredo/VXLAN -> NONE/IPv4/IPv6 */
-	TPTE(0x90, ETHER, IPV4, NONE, GRENAT, NONE, NONE,  NONE),
+	TPTE(0x90, ETHER, IPV4, NONE, GRENAT, NONE, NONE, NONE),
 	TPTE(0x91, ETHER, IPV4, NONE, GRENAT, NONE, IPV4, FRAG),
 	TPTE(0x92, ETHER, IPV4, NONE, GRENAT, NONE, IPV4, NONFRAG),
 	TPTE(0x93, ETHER, IPV4, NONE, GRENAT, NONE, IPV4, UDP),
@@ -339,7 +341,7 @@ txgbe_encode_ptype_tunnel(u32 ptype)
 		break;
 	case RTE_PTYPE_INNER_L2_ETHER_QINQ:
 		ptid |= TXGBE_PTID_TUN_EIGMV;
-		return ptid;
+		break;
 	default:
 		break;
 	}
@@ -670,4 +672,3 @@ txgbe_ptype_table_tn[TXGBE_PTID_MAX] __rte_cache_aligned = {
 		RTE_PTYPE_TUNNEL_VXLAN | RTE_PTYPE_INNER_L2_ETHER |
 		RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_UDP,
 };
-

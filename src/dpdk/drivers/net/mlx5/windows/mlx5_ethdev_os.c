@@ -38,7 +38,7 @@ mlx5_get_mac(struct rte_eth_dev *dev, uint8_t (*mac)[RTE_ETHER_ADDR_LEN])
 		return -rte_errno;
 	}
 	priv = dev->data->dev_private;
-	context_obj = (mlx5_context_st *)priv->sh->ctx;
+	context_obj = (mlx5_context_st *)priv->sh->cdev->ctx;
 	memcpy(mac, context_obj->mlx5_dev.eth_mac, RTE_ETHER_ADDR_LEN);
 	return 0;
 }
@@ -66,7 +66,7 @@ mlx5_get_ifname(const struct rte_eth_dev *dev, char (*ifname)[MLX5_NAMESIZE])
 		return -rte_errno;
 	}
 	priv = dev->data->dev_private;
-	context_obj = (mlx5_context_st *)priv->sh->ctx;
+	context_obj = (mlx5_context_st *)priv->sh->cdev->ctx;
 	strncpy(*ifname, context_obj->mlx5_dev.name, MLX5_NAMESIZE);
 	return 0;
 }
@@ -93,7 +93,7 @@ mlx5_get_mtu(struct rte_eth_dev *dev, uint16_t *mtu)
 		return -rte_errno;
 	}
 	priv = dev->data->dev_private;
-	context_obj = (mlx5_context_st *)priv->sh->ctx;
+	context_obj = (mlx5_context_st *)priv->sh->cdev->ctx;
 	*mtu = context_obj->mlx5_dev.mtu_bytes;
 	return 0;
 }
@@ -203,7 +203,16 @@ mlx5_os_get_stats_n(struct rte_eth_dev *dev)
 void
 mlx5_os_stats_init(struct rte_eth_dev *dev)
 {
-	RTE_SET_USED(dev);
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_stats_ctrl *stats_ctrl = &priv->stats_ctrl;
+	int ret;
+
+	/* Copy to base at first time. */
+	ret = mlx5_os_read_dev_stat(priv, "out_of_buffer", &stats_ctrl->imissed_base);
+	if (ret)
+		DRV_LOG(ERR, "port %u cannot read device counters: %s",
+			dev->data->port_id, strerror(rte_errno));
+	stats_ctrl->imissed = 0;
 }
 
 /**
@@ -253,8 +262,8 @@ mlx5_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 		return -rte_errno;
 	}
 	priv = dev->data->dev_private;
-	context_obj = (mlx5_context_st *)priv->sh->ctx;
-	dev_link.link_speed = context_obj->mlx5_dev.link_speed / (1024 * 1024);
+	context_obj = (mlx5_context_st *)priv->sh->cdev->ctx;
+	dev_link.link_speed = context_obj->mlx5_dev.link_speed / (1000 * 1000);
 	dev_link.link_status =
 	      (context_obj->mlx5_dev.link_state == 1 && !mlx5_is_removed(dev))
 	      ? 1 : 0;
@@ -359,7 +368,7 @@ mlx5_read_clock(struct rte_eth_dev *dev, uint64_t *clock)
 	int err;
 	struct mlx5_devx_clock mlx5_clock;
 	struct mlx5_priv *priv = dev->data->dev_private;
-	mlx5_context_st *context_obj = (mlx5_context_st *)priv->sh->ctx;
+	mlx5_context_st *context_obj = (mlx5_context_st *)priv->sh->cdev->ctx;
 
 	err = mlx5_glue->query_rt_values(context_obj, &mlx5_clock);
 	if (err != 0) {
@@ -383,9 +392,26 @@ int
 mlx5_is_removed(struct rte_eth_dev *dev)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
-	mlx5_context_st *context_obj = (mlx5_context_st *)priv->sh->ctx;
+	mlx5_context_st *context_obj = (mlx5_context_st *)priv->sh->cdev->ctx;
 
 	if (*context_obj->shutdown_event_obj.p_flag)
 		return 1;
 	return 0;
+}
+
+/*
+ * Query dropless_rq private flag value provided by ETHTOOL.
+ *
+ * @param dev
+ *   Pointer to Ethernet device.
+ *
+ * @return
+ *   - 0 on success, flag is not set.
+ *   - 1 on success, flag is set.
+ *   - negative errno value otherwise and rte_errno is set.
+ */
+int mlx5_get_flag_dropless_rq(struct rte_eth_dev *dev)
+{
+	RTE_SET_USED(dev);
+	return -ENOTSUP;
 }

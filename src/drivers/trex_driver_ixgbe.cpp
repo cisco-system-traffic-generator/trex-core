@@ -43,7 +43,7 @@ void CTRexExtendedDriverBase10G::clear_extended_stats(CPhyEthIF * _if){
 
 void CTRexExtendedDriverBase10G::update_global_config_fdir(port_cfg_t * cfg) {
     cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT_MAC_VLAN;
-    cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
+    cfg->m_port_conf.fdir_conf.pballoc = RTE_ETH_FDIR_PBALLOC_64K;
     cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
     /* Offset of flexbytes field in RX packets (in 16-bit word units). */
     /* Note: divide by 2 to convert byte offset to word offset */
@@ -73,8 +73,8 @@ void CTRexExtendedDriverBase10G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
     if ( get_is_tcp_mode() ) {
-        cfg->m_port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_CHECKSUM;
-        cfg->m_port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_TCP_LRO;
+        cfg->m_port_conf.rxmode.offloads |= RTE_ETH_RX_OFFLOAD_CHECKSUM;
+        cfg->m_port_conf.rxmode.offloads |= RTE_ETH_RX_OFFLOAD_TCP_LRO;
     }
 }
 

@@ -9,6 +9,7 @@
 
 #ifdef HAVE_IBV_FLOW_DV_SUPPORT
 extern const struct mlx5_flow_driver_ops mlx5_flow_dv_drv_ops;
+extern const struct mlx5_flow_driver_ops mlx5_flow_hw_drv_ops;
 #endif
 
 /**
@@ -225,7 +226,8 @@ mlx5_flow_os_create_flow_action_modify_header(void *ctx, void *domain,
 			(struct mlx5_flow_dv_modify_hdr_resource *)resource;
 
 	*action = mlx5_glue->dv_create_flow_action_modify_header
-					(ctx, res->ft_type, domain, res->flags,
+					(ctx, res->ft_type, domain, res->root ?
+					 MLX5DV_DR_ACTION_FLAGS_ROOT_LEVEL : 0,
 					 actions_len, (uint64_t *)res->actions);
 	return (*action) ? 0 : -1;
 }

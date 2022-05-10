@@ -11,21 +11,15 @@
 #include <rte_mempool.h>
 #include <ethdev_driver.h>
 
-extern uint64_t ark_timestamp_rx_dynflag;
-extern int ark_timestamp_dynfield_offset;
-
 int eth_ark_dev_rx_queue_setup(struct rte_eth_dev *dev,
 			       uint16_t queue_idx,
 			       uint16_t nb_desc,
 			       unsigned int socket_id,
 			       const struct rte_eth_rxconf *rx_conf,
 			       struct rte_mempool *mp);
-uint32_t eth_ark_dev_rx_queue_count(struct rte_eth_dev *dev,
-				    uint16_t rx_queue_id);
+uint32_t eth_ark_dev_rx_queue_count(void *rx_queue);
 int eth_ark_rx_stop_queue(struct rte_eth_dev *dev, uint16_t queue_id);
 int eth_ark_rx_start_queue(struct rte_eth_dev *dev, uint16_t queue_id);
-uint16_t eth_ark_recv_pkts_noop(void *rx_queue, struct rte_mbuf **rx_pkts,
-				uint16_t nb_pkts);
 uint16_t eth_ark_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 			   uint16_t nb_pkts);
 void eth_ark_dev_rx_queue_release(void *rx_queue);

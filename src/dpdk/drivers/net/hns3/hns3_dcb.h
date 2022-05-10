@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2018-2019 Hisilicon Limited.
+ * Copyright(c) 2018-2021 HiSilicon Limited.
  */
 
 #ifndef _HNS3_DCB_H_
@@ -207,10 +207,8 @@ int hns3_dcb_pfc_enable(struct rte_eth_dev *dev,
 int hns3_queue_to_tc_mapping(struct hns3_hw *hw, uint16_t nb_rx_q,
 			     uint16_t nb_tx_q);
 
-int hns3_dcb_cfg_update(struct hns3_adapter *hns);
-int hns3_dcb_port_shaper_cfg(struct hns3_hw *hw);
-int hns3_pg_shaper_rate_cfg(struct hns3_hw *hw, uint8_t pg_id, uint32_t rate);
-int hns3_pri_shaper_rate_cfg(struct hns3_hw *hw, uint8_t tc_no, uint32_t rate);
+int hns3_update_queue_map_configure(struct hns3_adapter *hns);
+int hns3_port_shaper_update(struct hns3_hw *hw, uint32_t speed);
 uint8_t hns3_txq_mapped_tc_get(struct hns3_hw *hw, uint16_t txq_no);
 
 #endif /* _HNS3_DCB_H_ */

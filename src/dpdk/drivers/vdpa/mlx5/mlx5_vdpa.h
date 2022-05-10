@@ -12,7 +12,7 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <rte_vdpa.h>
-#include <rte_vdpa_dev.h>
+#include <vdpa_driver.h>
 #include <rte_vhost.h>
 #ifdef PEDANTIC
 #pragma GCC diagnostic error "-Wpedantic"
@@ -54,18 +54,15 @@ struct mlx5_vdpa_cq {
 struct mlx5_vdpa_event_qp {
 	struct mlx5_vdpa_cq cq;
 	struct mlx5_devx_obj *fw_qp;
-	struct mlx5_devx_obj *sw_qp;
-	struct mlx5dv_devx_umem *umem_obj;
-	void *umem_buf;
-	volatile uint32_t *db_rec;
+	struct mlx5_devx_qp sw_qp;
 };
 
 struct mlx5_vdpa_query_mr {
 	SLIST_ENTRY(mlx5_vdpa_query_mr) next;
-	void *addr;
-	uint64_t length;
-	struct mlx5dv_devx_umem *umem;
-	struct mlx5_devx_obj *mkey;
+	union {
+		struct ibv_mr *mr;
+		struct mlx5_devx_obj *mkey;
+	};
 	int is_indirect;
 };
 
@@ -92,7 +89,7 @@ struct mlx5_vdpa_virtq {
 		void *buf;
 		uint32_t size;
 	} umems[3];
-	struct rte_intr_handle intr_handle;
+	struct rte_intr_handle *intr_handle;
 	uint64_t err_time[3]; /* RDTSC time of recent errors. */
 	uint32_t n_retry;
 	struct mlx5_devx_virtio_q_couners_attr reset;
@@ -120,34 +117,27 @@ struct mlx5_vdpa_priv {
 	TAILQ_ENTRY(mlx5_vdpa_priv) next;
 	uint8_t configured;
 	pthread_mutex_t vq_config_lock;
-	uint64_t last_traffic_tic;
+	uint64_t no_traffic_counter;
 	pthread_t timer_tid;
-	pthread_mutex_t timer_lock;
-	pthread_cond_t timer_cond;
-	volatile uint8_t timer_on;
 	int event_mode;
 	int event_core; /* Event thread cpu affinity core. */
 	uint32_t event_us;
 	uint32_t timer_delay_us;
-	uint32_t no_traffic_time_s;
+	uint32_t no_traffic_max;
 	uint8_t hw_latency_mode; /* Hardware CQ moderation mode. */
 	uint16_t hw_max_latency_us; /* Hardware CQ moderation period in usec. */
 	uint16_t hw_max_pending_comp; /* Hardware CQ moderation counter. */
 	struct rte_vdpa_device *vdev; /* vDPA device. */
+	struct mlx5_common_device *cdev; /* Backend mlx5 device. */
 	int vid; /* vhost device id. */
-	struct ibv_context *ctx; /* Device context. */
-	struct rte_pci_device *pci_dev;
 	struct mlx5_hca_vdpa_attr caps;
-	uint32_t pdn; /* Protection Domain number. */
-	struct ibv_pd *pd;
 	uint32_t gpa_mkey_index;
 	struct ibv_mr *null_mr;
 	struct rte_vhost_memory *vmem;
 	struct mlx5dv_devx_event_channel *eventc;
 	struct mlx5dv_devx_event_channel *err_chnl;
-	struct mlx5dv_devx_uar *uar;
-	struct rte_intr_handle intr_handle;
-	struct rte_intr_handle err_intr_handle;
+	struct mlx5_uar uar;
+	struct rte_intr_handle *err_intr_handle;
 	struct mlx5_devx_obj *td;
 	struct mlx5_devx_obj *tiss[16]; /* TIS list for each LAG port. */
 	uint16_t nr_virtqs;
@@ -157,6 +147,7 @@ struct mlx5_vdpa_priv {
 	struct mlx5_vdpa_steer steer;
 	struct mlx5dv_var *var;
 	void *virtq_db_addr;
+	struct mlx5_pmd_wrapped_mr lm_mr;
 	SLIST_HEAD(mr_list, mlx5_vdpa_query_mr) mr_list;
 	struct mlx5_vdpa_virtq virtqs[];
 };

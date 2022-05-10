@@ -9,7 +9,7 @@
 
 #include <rte_byteorder.h>
 #include <rte_common.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #include <rte_crypto.h>
 #include <rte_cryptodev.h>
 #include <rte_bus_vdev.h>
@@ -1756,6 +1756,12 @@ caam_jr_set_ipsec_session(__rte_unused struct rte_cryptodev *dev,
 
 	PMD_INIT_FUNC_TRACE();
 
+	if (ipsec_xform->life.bytes_hard_limit != 0 ||
+	    ipsec_xform->life.bytes_soft_limit != 0 ||
+	    ipsec_xform->life.packets_hard_limit != 0 ||
+	    ipsec_xform->life.packets_soft_limit != 0)
+		return -ENOTSUP;
+
 	if (ipsec_xform->direction == RTE_SECURITY_IPSEC_SA_DIR_EGRESS) {
 		cipher_xform = &conf->crypto_xform->cipher;
 		auth_xform = &conf->crypto_xform->next->auth;
@@ -1881,8 +1887,9 @@ caam_jr_set_ipsec_session(__rte_unused struct rte_cryptodev *dev,
 		session->encap_pdb.options =
 			(IPVERSION << PDBNH_ESP_ENCAP_SHIFT) |
 			PDBOPTS_ESP_OIHI_PDB_INL |
-			PDBOPTS_ESP_IVSRC |
-			PDBHMO_ESP_ENCAP_DTTL;
+			PDBOPTS_ESP_IVSRC;
+		if (ipsec_xform->options.dec_ttl)
+			session->encap_pdb.options |= PDBHMO_ESP_ENCAP_DTTL;
 		if (ipsec_xform->options.esn)
 			session->encap_pdb.options |= PDBOPTS_ESP_ESN;
 		session->encap_pdb.spi = ipsec_xform->spi;
@@ -2367,6 +2374,8 @@ caam_jr_dev_init(const char *name,
 	security_instance->ops = &caam_jr_security_ops;
 	security_instance->sess_cnt = 0;
 	dev->security_ctx = security_instance;
+
+	rte_cryptodev_pmd_probing_finish(dev);
 
 	RTE_LOG(INFO, PMD, "%s cryptodev init\n", dev->data->name);
 

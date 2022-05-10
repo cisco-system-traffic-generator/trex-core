@@ -406,7 +406,7 @@ mlx4_tx_burst_tso_get_params(struct rte_mbuf *buf,
 {
 	struct mlx4_sq *sq = &txq->msq;
 	const uint8_t tunneled = txq->priv->hw_csum_l2tun &&
-				 (buf->ol_flags & PKT_TX_TUNNEL_MASK);
+				 (buf->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK);
 
 	tinfo->tso_header_size = buf->l2_len + buf->l3_len + buf->l4_len;
 	if (tunneled)
@@ -915,16 +915,12 @@ mlx4_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			uint16_t flags16[2];
 		} srcrb;
 		uint32_t lkey;
-		bool tso = txq->priv->tso && (buf->ol_flags & PKT_TX_TCP_SEG);
+		bool tso = txq->priv->tso && (buf->ol_flags & RTE_MBUF_F_TX_TCP_SEG);
 
 		/* Clean up old buffer. */
 		if (likely(elt->buf != NULL)) {
 			struct rte_mbuf *tmp = elt->buf;
 
-#ifdef RTE_LIBRTE_MLX4_DEBUG
-			/* Poisoning. */
-			memset(&elt->buf, 0x66, sizeof(struct rte_mbuf *));
-#endif
 			/* Faster than rte_pktmbuf_free(). */
 			do {
 				struct rte_mbuf *next = tmp->next;
@@ -995,15 +991,15 @@ mlx4_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		/* Enable HW checksum offload if requested */
 		if (txq->csum &&
 		    (buf->ol_flags &
-		     (PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM))) {
+		     (RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM))) {
 			const uint64_t is_tunneled = (buf->ol_flags &
-						      (PKT_TX_TUNNEL_GRE |
-						       PKT_TX_TUNNEL_VXLAN));
+						      (RTE_MBUF_F_TX_TUNNEL_GRE |
+						       RTE_MBUF_F_TX_TUNNEL_VXLAN));
 
 			if (is_tunneled && txq->csum_l2tun) {
 				owner_opcode |= MLX4_WQE_CTRL_IIP_HDR_CSUM |
 						MLX4_WQE_CTRL_IL4_HDR_CSUM;
-				if (buf->ol_flags & PKT_TX_OUTER_IP_CKSUM)
+				if (buf->ol_flags & RTE_MBUF_F_TX_OUTER_IP_CKSUM)
 					srcrb.flags |=
 					    RTE_BE32(MLX4_WQE_CTRL_IP_HDR_CSUM);
 			} else {
@@ -1116,18 +1112,18 @@ rxq_cq_to_ol_flags(uint32_t flags, int csum, int csum_l2tun)
 		ol_flags |=
 			mlx4_transpose(flags,
 				       MLX4_CQE_STATUS_IP_HDR_CSUM_OK,
-				       PKT_RX_IP_CKSUM_GOOD) |
+				       RTE_MBUF_F_RX_IP_CKSUM_GOOD) |
 			mlx4_transpose(flags,
 				       MLX4_CQE_STATUS_TCP_UDP_CSUM_OK,
-				       PKT_RX_L4_CKSUM_GOOD);
+				       RTE_MBUF_F_RX_L4_CKSUM_GOOD);
 	if ((flags & MLX4_CQE_L2_TUNNEL) && csum_l2tun)
 		ol_flags |=
 			mlx4_transpose(flags,
 				       MLX4_CQE_L2_TUNNEL_IPOK,
-				       PKT_RX_IP_CKSUM_GOOD) |
+				       RTE_MBUF_F_RX_IP_CKSUM_GOOD) |
 			mlx4_transpose(flags,
 				       MLX4_CQE_L2_TUNNEL_L4_CSUM,
-				       PKT_RX_L4_CKSUM_GOOD);
+				       RTE_MBUF_F_RX_L4_CKSUM_GOOD);
 	return ol_flags;
 }
 
@@ -1278,7 +1274,7 @@ mlx4_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			/* Update packet information. */
 			pkt->packet_type =
 				rxq_cq_to_pkt_type(cqe, rxq->l2tun_offload);
-			pkt->ol_flags = PKT_RX_RSS_HASH;
+			pkt->ol_flags = RTE_MBUF_F_RX_RSS_HASH;
 			pkt->hash.rss = cqe->immed_rss_invalid;
 			if (rxq->crc_present)
 				len -= RTE_ETHER_CRC_LEN;
@@ -1341,56 +1337,4 @@ skip:
 	/* Increment packets counter. */
 	rxq->stats.ipackets += i;
 	return i;
-}
-
-/**
- * Dummy DPDK callback for Tx.
- *
- * This function is used to temporarily replace the real callback during
- * unsafe control operations on the queue, or in case of error.
- *
- * @param dpdk_txq
- *   Generic pointer to Tx queue structure.
- * @param[in] pkts
- *   Packets to transmit.
- * @param pkts_n
- *   Number of packets in array.
- *
- * @return
- *   Number of packets successfully transmitted (<= pkts_n).
- */
-uint16_t
-mlx4_tx_burst_removed(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
-{
-	(void)dpdk_txq;
-	(void)pkts;
-	(void)pkts_n;
-	rte_mb();
-	return 0;
-}
-
-/**
- * Dummy DPDK callback for Rx.
- *
- * This function is used to temporarily replace the real callback during
- * unsafe control operations on the queue, or in case of error.
- *
- * @param dpdk_rxq
- *   Generic pointer to Rx queue structure.
- * @param[out] pkts
- *   Array to store received packets.
- * @param pkts_n
- *   Maximum number of packets in array.
- *
- * @return
- *   Number of packets successfully received (<= pkts_n).
- */
-uint16_t
-mlx4_rx_burst_removed(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
-{
-	(void)dpdk_rxq;
-	(void)pkts;
-	(void)pkts_n;
-	rte_mb();
-	return 0;
 }

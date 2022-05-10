@@ -55,10 +55,10 @@ static const char * const valid_arguments[] = {
 };
 
 static const struct rte_eth_link pmd_link = {
-	.link_speed = ETH_SPEED_NUM_10G,
-	.link_duplex = ETH_LINK_FULL_DUPLEX,
-	.link_status = ETH_LINK_DOWN,
-	.link_autoneg = ETH_LINK_AUTONEG
+	.link_speed = RTE_ETH_SPEED_NUM_10G,
+	.link_duplex = RTE_ETH_LINK_FULL_DUPLEX,
+	.link_status = RTE_ETH_LINK_DOWN,
+	.link_autoneg = RTE_ETH_LINK_AUTONEG
 };
 
 #define MEMIF_MP_SEND_REGION		"memif_mp_send_region"
@@ -88,17 +88,14 @@ memif_mp_send_region(const struct rte_mp_msg *msg, const void *peer)
 	const struct mp_region_msg *msg_param = (const struct mp_region_msg *)msg->param;
 	struct rte_mp_msg reply;
 	struct mp_region_msg *reply_param = (struct mp_region_msg *)reply.param;
-	uint16_t port_id;
-	int ret;
 
 	/* Get requested port */
-	ret = rte_eth_dev_get_port_by_name(msg_param->port_name, &port_id);
-	if (ret) {
+	dev = rte_eth_dev_get_by_name(msg_param->port_name);
+	if (!dev) {
 		MIF_LOG(ERR, "Failed to get port id for %s",
 			msg_param->port_name);
 		return -1;
 	}
-	dev = &rte_eth_devices[port_id];
 	proc_private = dev->process_private;
 
 	memset(&reply, 0, sizeof(reply));
@@ -195,10 +192,11 @@ static int
 memif_dev_info(struct rte_eth_dev *dev __rte_unused, struct rte_eth_dev_info *dev_info)
 {
 	dev_info->max_mac_addrs = 1;
-	dev_info->max_rx_pktlen = (uint32_t)ETH_FRAME_LEN;
+	dev_info->max_rx_pktlen = RTE_ETHER_MAX_LEN;
 	dev_info->max_rx_queues = ETH_MEMIF_MAX_NUM_Q_PAIRS;
 	dev_info->max_tx_queues = ETH_MEMIF_MAX_NUM_Q_PAIRS;
 	dev_info->min_rx_bufsize = 0;
+	dev_info->tx_offload_capa = RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
 	return 0;
 }
@@ -324,8 +322,10 @@ eth_memif_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 	}
 
 	/* consume interrupt */
-	if ((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0)
-		size = read(mq->intr_handle.fd, &b, sizeof(b));
+	if (((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0) &&
+	    (rte_intr_fd_get(mq->intr_handle) >= 0))
+		size = read(rte_intr_fd_get(mq->intr_handle), &b,
+			    sizeof(b));
 
 	ring_size = 1 << mq->log2_ring_size;
 	mask = ring_size - 1;
@@ -383,9 +383,10 @@ next_slot:
 			if (mbuf != mbuf_head)
 				rte_pktmbuf_pkt_len(mbuf_head) += cp_len;
 
-			memcpy(rte_pktmbuf_mtod_offset(mbuf, void *, dst_off),
-			       (uint8_t *)memif_get_buffer(proc_private, d0) + src_off,
-			       cp_len);
+			rte_memcpy(rte_pktmbuf_mtod_offset(mbuf, void *,
+							   dst_off),
+				(uint8_t *)memif_get_buffer(proc_private, d0) +
+				src_off, cp_len);
 
 			src_off += cp_len;
 			dst_off += cp_len;
@@ -457,10 +458,12 @@ eth_memif_rx_zc(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 	}
 
 	/* consume interrupt */
-	if ((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0) {
+	if ((rte_intr_fd_get(mq->intr_handle) >= 0) &&
+	    ((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0)) {
 		uint64_t b;
 		ssize_t size __rte_unused;
-		size = read(mq->intr_handle.fd, &b, sizeof(b));
+		size = read(rte_intr_fd_get(mq->intr_handle), &b,
+			    sizeof(b));
 	}
 
 	ring_size = 1 << mq->log2_ring_size;
@@ -566,7 +569,7 @@ eth_memif_tx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 		rte_eth_devices[mq->in_port].process_private;
 	memif_ring_t *ring = memif_get_ring_from_queue(proc_private, mq);
 	uint16_t slot, saved_slot, n_free, ring_size, mask, n_tx_pkts = 0;
-	uint16_t src_len, src_off, dst_len, dst_off, cp_len;
+	uint16_t src_len, src_off, dst_len, dst_off, cp_len, nb_segs;
 	memif_ring_type_t type = mq->type;
 	memif_desc_t *d0;
 	struct rte_mbuf *mbuf;
@@ -614,6 +617,7 @@ eth_memif_tx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 
 	while (n_tx_pkts < nb_pkts && n_free) {
 		mbuf_head = *bufs++;
+		nb_segs = mbuf_head->nb_segs;
 		mbuf = mbuf_head;
 
 		saved_slot = slot;
@@ -644,9 +648,10 @@ next_in_chain:
 			}
 			cp_len = RTE_MIN(dst_len, src_len);
 
-			memcpy((uint8_t *)memif_get_buffer(proc_private, d0) + dst_off,
-			       rte_pktmbuf_mtod_offset(mbuf, void *, src_off),
-			       cp_len);
+			rte_memcpy((uint8_t *)memif_get_buffer(proc_private,
+							       d0) + dst_off,
+				rte_pktmbuf_mtod_offset(mbuf, void *, src_off),
+				cp_len);
 
 			mq->n_bytes += cp_len;
 			src_off += cp_len;
@@ -657,7 +662,7 @@ next_in_chain:
 			d0->length = dst_off;
 		}
 
-		if (mbuf->next != NULL) {
+		if (--nb_segs > 0) {
 			mbuf = mbuf->next;
 			goto next_in_chain;
 		}
@@ -674,9 +679,11 @@ no_free_slots:
 	else
 		__atomic_store_n(&ring->tail, slot, __ATOMIC_RELEASE);
 
-	if ((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0) {
+	if (((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0) &&
+	    (rte_intr_fd_get(mq->intr_handle) >= 0)) {
 		a = 1;
-		size = write(mq->intr_handle.fd, &a, sizeof(a));
+		size = write(rte_intr_fd_get(mq->intr_handle), &a,
+			     sizeof(a));
 		if (unlikely(size < 0)) {
 			MIF_LOG(WARNING,
 				"Failed to send interrupt. %s", strerror(errno));
@@ -694,6 +701,7 @@ memif_tx_one_zc(struct pmd_process_private *proc_private, struct memif_queue *mq
 		uint16_t slot, uint16_t n_free)
 {
 	memif_desc_t *d0;
+	uint16_t nb_segs = mbuf->nb_segs;
 	int used_slots = 1;
 
 next_in_chain:
@@ -706,6 +714,7 @@ next_in_chain:
 	/* populate descriptor */
 	d0 = &ring->desc[slot & mask];
 	d0->length = rte_pktmbuf_data_len(mbuf);
+	mq->n_bytes += rte_pktmbuf_data_len(mbuf);
 	/* FIXME: get region index */
 	d0->region = 1;
 	d0->offset = rte_pktmbuf_mtod(mbuf, uint8_t *) -
@@ -713,7 +722,7 @@ next_in_chain:
 	d0->flags = 0;
 
 	/* check if buffer is chained */
-	if (mbuf->next != NULL) {
+	if (--nb_segs > 0) {
 		if (n_free < 2)
 			return 0;
 		/* mark buffer as chained */
@@ -826,7 +835,11 @@ no_free_slots:
 	/* Send interrupt, if enabled. */
 	if ((ring->flags & MEMIF_RING_FLAG_MASK_INT) == 0) {
 		uint64_t a = 1;
-		ssize_t size = write(mq->intr_handle.fd, &a, sizeof(a));
+		if (rte_intr_fd_get(mq->intr_handle) < 0)
+			return -1;
+
+		ssize_t size = write(rte_intr_fd_get(mq->intr_handle),
+				     &a, sizeof(a));
 		if (unlikely(size < 0)) {
 			MIF_LOG(WARNING,
 				"Failed to send interrupt. %s", strerror(errno));
@@ -1010,7 +1023,7 @@ memif_regions_init(struct rte_eth_dev *dev)
 		if (ret < 0)
 			return ret;
 	} else {
-		/* create one memory region contaning rings and buffers */
+		/* create one memory region containing rings and buffers */
 		ret = memif_region_init_shm(dev, /* has buffers */ 1);
 		if (ret < 0)
 			return ret;
@@ -1086,8 +1099,10 @@ memif_init_queues(struct rte_eth_dev *dev)
 		mq->ring_offset = memif_get_ring_offset(dev, mq, MEMIF_RING_C2S, i);
 		mq->last_head = 0;
 		mq->last_tail = 0;
-		mq->intr_handle.fd = eventfd(0, EFD_NONBLOCK);
-		if (mq->intr_handle.fd < 0) {
+		if (rte_intr_fd_set(mq->intr_handle, eventfd(0, EFD_NONBLOCK)))
+			return -rte_errno;
+
+		if (rte_intr_fd_get(mq->intr_handle) < 0) {
 			MIF_LOG(WARNING,
 				"Failed to create eventfd for tx queue %d: %s.", i,
 				strerror(errno));
@@ -1109,8 +1124,9 @@ memif_init_queues(struct rte_eth_dev *dev)
 		mq->ring_offset = memif_get_ring_offset(dev, mq, MEMIF_RING_S2C, i);
 		mq->last_head = 0;
 		mq->last_tail = 0;
-		mq->intr_handle.fd = eventfd(0, EFD_NONBLOCK);
-		if (mq->intr_handle.fd < 0) {
+		if (rte_intr_fd_set(mq->intr_handle, eventfd(0, EFD_NONBLOCK)))
+			return -rte_errno;
+		if (rte_intr_fd_get(mq->intr_handle) < 0) {
 			MIF_LOG(WARNING,
 				"Failed to create eventfd for rx queue %d: %s.", i,
 				strerror(errno));
@@ -1213,7 +1229,7 @@ memif_connect(struct rte_eth_dev *dev)
 
 		pmd->flags &= ~ETH_MEMIF_FLAG_CONNECTING;
 		pmd->flags |= ETH_MEMIF_FLAG_CONNECTED;
-		dev->data->dev_link.link_status = ETH_LINK_UP;
+		dev->data->dev_link.link_status = RTE_ETH_LINK_UP;
 	}
 	MIF_LOG(INFO, "Connected.");
 	return 0;
@@ -1242,6 +1258,13 @@ memif_dev_start(struct rte_eth_dev *dev)
 }
 
 static int
+memif_dev_stop(struct rte_eth_dev *dev)
+{
+	memif_disconnect(dev);
+	return 0;
+}
+
+static int
 memif_dev_close(struct rte_eth_dev *dev)
 {
 	struct pmd_internals *pmd = dev->data->dev_private;
@@ -1249,16 +1272,13 @@ memif_dev_close(struct rte_eth_dev *dev)
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 		memif_msg_enq_disconnect(pmd->cc, "Device closed", 0);
-		memif_disconnect(dev);
 
 		for (i = 0; i < dev->data->nb_rx_queues; i++)
-			(*dev->dev_ops->rx_queue_release)(dev->data->rx_queues[i]);
+			(*dev->dev_ops->rx_queue_release)(dev, i);
 		for (i = 0; i < dev->data->nb_tx_queues; i++)
-			(*dev->dev_ops->tx_queue_release)(dev->data->tx_queues[i]);
+			(*dev->dev_ops->tx_queue_release)(dev, i);
 
 		memif_socket_remove_device(dev);
-	} else {
-		memif_disconnect(dev);
 	}
 
 	rte_free(dev->process_private);
@@ -1304,12 +1324,24 @@ memif_tx_queue_setup(struct rte_eth_dev *dev,
 		return -ENOMEM;
 	}
 
+	/* Allocate interrupt instance */
+	mq->intr_handle = rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_SHARED);
+	if (mq->intr_handle == NULL) {
+		MIF_LOG(ERR, "Failed to allocate intr handle");
+		return -ENOMEM;
+	}
+
 	mq->type =
 	    (pmd->role == MEMIF_ROLE_CLIENT) ? MEMIF_RING_C2S : MEMIF_RING_S2C;
 	mq->n_pkts = 0;
 	mq->n_bytes = 0;
-	mq->intr_handle.fd = -1;
-	mq->intr_handle.type = RTE_INTR_HANDLE_EXT;
+
+	if (rte_intr_fd_set(mq->intr_handle, -1))
+		return -rte_errno;
+
+	if (rte_intr_type_set(mq->intr_handle, RTE_INTR_HANDLE_EXT))
+		return -rte_errno;
+
 	mq->in_port = dev->data->port_id;
 	dev->data->tx_queues[qid] = mq;
 
@@ -1333,11 +1365,23 @@ memif_rx_queue_setup(struct rte_eth_dev *dev,
 		return -ENOMEM;
 	}
 
+	/* Allocate interrupt instance */
+	mq->intr_handle = rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_SHARED);
+	if (mq->intr_handle == NULL) {
+		MIF_LOG(ERR, "Failed to allocate intr handle");
+		return -ENOMEM;
+	}
+
 	mq->type = (pmd->role == MEMIF_ROLE_CLIENT) ? MEMIF_RING_S2C : MEMIF_RING_C2S;
 	mq->n_pkts = 0;
 	mq->n_bytes = 0;
-	mq->intr_handle.fd = -1;
-	mq->intr_handle.type = RTE_INTR_HANDLE_EXT;
+
+	if (rte_intr_fd_set(mq->intr_handle, -1))
+		return -rte_errno;
+
+	if (rte_intr_type_set(mq->intr_handle, RTE_INTR_HANDLE_EXT))
+		return -rte_errno;
+
 	mq->mempool = mb_pool;
 	mq->in_port = dev->data->port_id;
 	dev->data->rx_queues[qid] = mq;
@@ -1346,9 +1390,21 @@ memif_rx_queue_setup(struct rte_eth_dev *dev,
 }
 
 static void
-memif_queue_release(void *queue)
+memif_rx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
 {
-	struct memif_queue *mq = (struct memif_queue *)queue;
+	struct memif_queue *mq = dev->data->rx_queues[qid];
+
+	if (!mq)
+		return;
+
+	rte_intr_instance_free(mq->intr_handle);
+	rte_free(mq);
+}
+
+static void
+memif_tx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
+{
+	struct memif_queue *mq = dev->data->tx_queues[qid];
 
 	if (!mq)
 		return;
@@ -1364,10 +1420,10 @@ memif_link_update(struct rte_eth_dev *dev,
 
 	if (rte_eal_process_type() == RTE_PROC_SECONDARY) {
 		proc_private = dev->process_private;
-		if (dev->data->dev_link.link_status == ETH_LINK_UP &&
+		if (dev->data->dev_link.link_status == RTE_ETH_LINK_UP &&
 				proc_private->regions_num == 0) {
 			memif_mp_request_regions(dev);
-		} else if (dev->data->dev_link.link_status == ETH_LINK_DOWN &&
+		} else if (dev->data->dev_link.link_status == RTE_ETH_LINK_DOWN &&
 				proc_private->regions_num > 0) {
 			memif_free_regions(dev);
 		}
@@ -1388,8 +1444,8 @@ memif_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	stats->opackets = 0;
 	stats->obytes = 0;
 
-	tmp = (pmd->role == MEMIF_ROLE_CLIENT) ? pmd->run.num_s2c_rings :
-	    pmd->run.num_c2s_rings;
+	tmp = (pmd->role == MEMIF_ROLE_CLIENT) ? pmd->run.num_c2s_rings :
+	    pmd->run.num_s2c_rings;
 	nq = (tmp < RTE_ETHDEV_QUEUE_STAT_CNTRS) ? tmp :
 	    RTE_ETHDEV_QUEUE_STAT_CNTRS;
 
@@ -1402,8 +1458,8 @@ memif_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		stats->ibytes += mq->n_bytes;
 	}
 
-	tmp = (pmd->role == MEMIF_ROLE_CLIENT) ? pmd->run.num_c2s_rings :
-	    pmd->run.num_s2c_rings;
+	tmp = (pmd->role == MEMIF_ROLE_CLIENT) ? pmd->run.num_s2c_rings :
+	    pmd->run.num_c2s_rings;
 	nq = (tmp < RTE_ETHDEV_QUEUE_STAT_CNTRS) ? tmp :
 	    RTE_ETHDEV_QUEUE_STAT_CNTRS;
 
@@ -1441,34 +1497,16 @@ memif_stats_reset(struct rte_eth_dev *dev)
 	return 0;
 }
 
-static int
-memif_rx_queue_intr_enable(struct rte_eth_dev *dev __rte_unused,
-			   uint16_t qid __rte_unused)
-{
-	MIF_LOG(WARNING, "Interrupt mode not supported.");
-
-	return -1;
-}
-
-static int
-memif_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t qid __rte_unused)
-{
-	struct pmd_internals *pmd __rte_unused = dev->data->dev_private;
-
-	return 0;
-}
-
 static const struct eth_dev_ops ops = {
 	.dev_start = memif_dev_start,
+	.dev_stop = memif_dev_stop,
 	.dev_close = memif_dev_close,
 	.dev_infos_get = memif_dev_info,
 	.dev_configure = memif_dev_configure,
 	.tx_queue_setup = memif_tx_queue_setup,
 	.rx_queue_setup = memif_rx_queue_setup,
-	.rx_queue_release = memif_queue_release,
-	.tx_queue_release = memif_queue_release,
-	.rx_queue_intr_enable = memif_rx_queue_intr_enable,
-	.rx_queue_intr_disable = memif_rx_queue_intr_disable,
+	.rx_queue_release = memif_rx_queue_release,
+	.tx_queue_release = memif_tx_queue_release,
 	.link_update = memif_link_update,
 	.stats_get = memif_stats_get,
 	.stats_reset = memif_stats_reset,
@@ -1671,8 +1709,7 @@ memif_check_socket_filename(const char *filename)
 		ret = -EINVAL;
 	}
 
-	if (dir != NULL)
-		rte_free(dir);
+	rte_free(dir);
 
 	return ret;
 }
@@ -1843,8 +1880,7 @@ rte_pmd_memif_probe(struct rte_vdev_device *vdev)
 			   log2_ring_size, pkt_buffer_size, secret, ether_addr);
 
 exit:
-	if (kvlist != NULL)
-		rte_kvargs_free(kvlist);
+	rte_kvargs_free(kvlist);
 	return ret;
 }
 
@@ -1878,4 +1914,4 @@ RTE_PMD_REGISTER_PARAM_STRING(net_memif,
 			      ETH_MEMIF_ZC_ARG "=yes|no"
 			      ETH_MEMIF_SECRET_ARG "=<string>");
 
-RTE_LOG_REGISTER(memif_logtype, pmd.net.memif, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(memif_logtype, NOTICE);

@@ -122,7 +122,7 @@ ionic_opcode_to_str(enum ionic_cmd_opcode opcode)
 	}
 }
 
-int
+static int
 ionic_adminq_check_err(struct ionic_admin_ctx *ctx, bool timeout)
 {
 	const char *name;
@@ -145,8 +145,89 @@ ionic_adminq_check_err(struct ionic_admin_ctx *ctx, bool timeout)
 	return 0;
 }
 
+static bool
+ionic_adminq_service(struct ionic_cq *cq, uint16_t cq_desc_index,
+		void *cb_arg __rte_unused)
+{
+	struct ionic_admin_comp *cq_desc_base = cq->base;
+	struct ionic_admin_comp *cq_desc = &cq_desc_base[cq_desc_index];
+	struct ionic_qcq *qcq = IONIC_CQ_TO_QCQ(cq);
+	struct ionic_queue *q = &qcq->q;
+	struct ionic_admin_ctx *ctx;
+	uint16_t curr_q_tail_idx;
+	uint16_t stop_index;
+	void **info;
+
+	if (!color_match(cq_desc->color, cq->done_color))
+		return false;
+
+	stop_index = rte_le_to_cpu_16(cq_desc->comp_index);
+
+	do {
+		info = IONIC_INFO_PTR(q, q->tail_idx);
+
+		ctx = info[0];
+		if (ctx) {
+			memcpy(&ctx->comp, cq_desc, sizeof(*cq_desc));
+
+			ctx->pending_work = false; /* done */
+		}
+
+		curr_q_tail_idx = q->tail_idx;
+		q->tail_idx = Q_NEXT_TO_SRVC(q, 1);
+	} while (curr_q_tail_idx != stop_index);
+
+	return true;
+}
+
+/** ionic_adminq_post - Post an admin command.
+ * @lif:                Handle to lif.
+ * @cmd_ctx:            Api admin command context.
+ *
+ * Post the command to an admin queue in the ethernet driver.  If this command
+ * succeeds, then the command has been posted, but that does not indicate a
+ * completion.  If this command returns success, then the completion callback
+ * will eventually be called.
+ *
+ * Return: zero or negative error status.
+ */
 static int
-ionic_wait_ctx_for_completion(struct ionic_lif *lif, struct ionic_qcq *qcq,
+ionic_adminq_post(struct ionic_lif *lif, struct ionic_admin_ctx *ctx)
+{
+	struct ionic_queue *q = &lif->adminqcq->qcq.q;
+	struct ionic_admin_cmd *q_desc_base = q->base;
+	struct ionic_admin_cmd *q_desc;
+	void **info;
+	int err = 0;
+
+	rte_spinlock_lock(&lif->adminq_lock);
+
+	if (ionic_q_space_avail(q) < 1) {
+		err = -ENOSPC;
+		goto err_out;
+	}
+
+	q_desc = &q_desc_base[q->head_idx];
+
+	memcpy(q_desc, &ctx->cmd, sizeof(ctx->cmd));
+
+	info = IONIC_INFO_PTR(q, q->head_idx);
+	info[0] = ctx;
+
+	q->head_idx = Q_NEXT_TO_POST(q, 1);
+
+	/* Ring doorbell */
+	rte_wmb();
+	ionic_q_flush(q);
+
+err_out:
+	rte_spinlock_unlock(&lif->adminq_lock);
+
+	return err;
+}
+
+static int
+ionic_adminq_wait_for_completion(struct ionic_lif *lif,
 		struct ionic_admin_ctx *ctx, unsigned long max_wait)
 {
 	unsigned long step_usec = IONIC_DEVCMD_CHECK_PERIOD_US;
@@ -156,12 +237,13 @@ ionic_wait_ctx_for_completion(struct ionic_lif *lif, struct ionic_qcq *qcq,
 
 	while (ctx->pending_work && elapsed_usec < max_wait_usec) {
 		/*
-		 * Locking here as adminq is served inline (this could be called
-		 * from multiple places)
+		 * Locking here as adminq is served inline and could be
+		 * called from multiple places
 		 */
 		rte_spinlock_lock(&lif->adminq_service_lock);
 
-		ionic_qcq_service(qcq, budget, ionic_adminq_service, NULL);
+		ionic_qcq_service(&lif->adminqcq->qcq, budget,
+				ionic_adminq_service, NULL);
 
 		rte_spinlock_unlock(&lif->adminq_service_lock);
 
@@ -175,7 +257,6 @@ ionic_wait_ctx_for_completion(struct ionic_lif *lif, struct ionic_qcq *qcq,
 int
 ionic_adminq_post_wait(struct ionic_lif *lif, struct ionic_admin_ctx *ctx)
 {
-	struct ionic_qcq *qcq = lif->adminqcq;
 	bool done;
 	int err;
 
@@ -189,7 +270,7 @@ ionic_adminq_post_wait(struct ionic_lif *lif, struct ionic_admin_ctx *ctx)
 		return err;
 	}
 
-	done = ionic_wait_ctx_for_completion(lif, qcq, ctx,
+	done = ionic_adminq_wait_for_completion(lif, ctx,
 		IONIC_DEVCMD_TIMEOUT);
 
 	return ionic_adminq_check_err(ctx, !done /* timed out */);
@@ -375,7 +456,8 @@ ionic_port_init(struct ionic_adapter *adapter)
 	if (idev->port_info)
 		return 0;
 
-	idev->port_info_sz = RTE_ALIGN(sizeof(*idev->port_info), PAGE_SIZE);
+	idev->port_info_sz = RTE_ALIGN(sizeof(*idev->port_info),
+			rte_mem_page_size());
 
 	snprintf(z_name, sizeof(z_name), "%s_port_%s_info",
 		IONIC_DRV_NAME, adapter->name);

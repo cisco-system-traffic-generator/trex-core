@@ -656,7 +656,7 @@ igc_parse_action_rss(struct rte_eth_dev *dev,
  * Return the pointer of the flow, or NULL for failed
  **/
 static inline struct rte_flow *
-igc_alloc_flow(const void *filter, enum igc_filter_type type, uint inbytes)
+igc_alloc_flow(const void *filter, enum igc_filter_type type, size_t inbytes)
 {
 	/* allocate memory, 8 bytes boundary aligned */
 	struct rte_flow *flow = rte_malloc("igc flow filter",
@@ -775,10 +775,7 @@ igc_flow_create(struct rte_eth_dev *dev,
 	}
 
 	if (ret) {
-		/* check and free the memory */
-		if (flow)
-			rte_free(flow);
-
+		rte_free(flow);
 		rte_flow_error_set(error, -ret,
 				RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
 				"Failed to create flow.");

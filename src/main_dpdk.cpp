@@ -1276,12 +1276,12 @@ COLD_FUNC void CPhyEthIF::configure(uint16_t nb_rx_queue,
 
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
         /* check if the device supports TCP and UDP checksum offloading */
-        if ((m_dev_info->tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) == 0) {
+        if ((m_dev_info->tx_offload_capa & RTE_ETH_TX_OFFLOAD_UDP_CKSUM) == 0) {
             rte_exit(EXIT_FAILURE, "Device does not support UDP checksum offload: "
                      "port=%u\n",
                      m_repid);
         }
-        if ((m_dev_info->tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) == 0) {
+        if ((m_dev_info->tx_offload_capa & RTE_ETH_TX_OFFLOAD_TCP_CKSUM) == 0) {
             rte_exit(EXIT_FAILURE, "Device does not support TCP checksum offload: "
                      "port=%u\n",
                      m_repid);
@@ -1354,14 +1354,14 @@ COLD_FUNC void CPhyEthIF::stop(){
     }
 }
 
-#define DEV_OFFLOAD_CAPA    (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
+#define DEV_OFFLOAD_CAPA    (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_UDP_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM)
 
 COLD_FUNC void CPhyEthIF::start(){
 
     const struct rte_eth_dev_info *m_dev_info = m_port_attr->get_dev_info();
 
     if ((m_dev_info->tx_offload_capa & DEV_OFFLOAD_CAPA) != DEV_OFFLOAD_CAPA ){
-        m_dev_tx_offload_needed = DEV_TX_OFFLOAD_VLAN_INSERT; /* make everyting by software, deriver do not report the right capability e.g. vxnet3 does not support TCP/UDP  */
+        m_dev_tx_offload_needed = RTE_ETH_TX_OFFLOAD_VLAN_INSERT; /* make everyting by software, deriver do not report the right capability e.g. vxnet3 does not support TCP/UDP  */
     }else{
         m_dev_tx_offload_needed = 0;
     }
@@ -1410,7 +1410,7 @@ COLD_FUNC void CPhyEthIF::disable_flow_control() {
   // see trex-64 issue with loopback on the same NIC
   struct rte_eth_fc_conf fc_conf;
   memset(&fc_conf, 0, sizeof(fc_conf));
-  fc_conf.mode = RTE_FC_NONE;
+  fc_conf.mode = RTE_ETH_FC_NONE;
   fc_conf.autoneg = 1;
   fc_conf.pause_time = 100;
   int i;
@@ -2063,7 +2063,7 @@ HOT_FUNC int CCoreEthIF::send_ieee_1588_pkt_lat(CCorePerPort *lp_port, rte_mbuf_
         fsp_head_ieee_1588->ptp_message.origin_tstamp.sec_lsb = htonl((uint32_t)(tstamp_tx.tv_sec & UINT32_MAX));
 
 
-        m->ol_flags &= ~PKT_TX_IEEE1588_TMST; /* FUP packet doesnt need to be timestampped */
+        m->ol_flags &= ~RTE_MBUF_F_TX_IEEE1588_TMST; /* FUP packet doesnt need to be timestampped */
 
         ret =  send_one_pkt_lat( lp_port, m, lp_stats);
 
@@ -2212,7 +2212,7 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
             fsp_head_ieee_1588->ptp_message.hdr.seq_id = htons(fsp_head_ieee_1588->fsp_hdr.seq);
             fsp_head_ieee_1588->ptp_message.hdr.log_message_interval = 0;
 
-            mi->ol_flags |= PKT_TX_IEEE1588_TMST;
+            mi->ol_flags |= RTE_MBUF_F_TX_IEEE1588_TMST;
 
             /* Set up clock id. */
             memcpy(&src_mac,(uint8_t *)CGlobalInfo::m_options.get_src_mac_addr(0),6);
@@ -4179,6 +4179,20 @@ COLD_FUNC void  dump_dpdk_devices(void){
 }
 
 
+uint32_t trex_dev_get_overhead_len(uint32_t max_rx_pktlen, uint16_t max_mtu)
+{
+    uint32_t overhead_len;
+
+    if (max_mtu != UINT16_MAX && max_rx_pktlen > max_mtu) {
+        overhead_len = max_rx_pktlen - max_mtu;
+    } else {
+        overhead_len = RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN;
+    }
+
+    return overhead_len;
+}
+
+
 COLD_FUNC int  CGlobalTRex::device_prob_init(void){
 
     if ( isVerbose(0) ) {
@@ -4284,13 +4298,16 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
         }
     }
 
+    /*update mtu based on the dev info*/
+    m_port_cfg.m_port_conf.rxmode.mtu = dev_info.max_rx_pktlen - trex_dev_get_overhead_len(dev_info.max_rx_pktlen, 
+                                                                                      dev_info.max_mtu);
     m_port_cfg.update_var();
 
-    if (m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len > dev_info.max_rx_pktlen ) {
+    if (m_port_cfg.m_port_conf.rxmode.mtu > dev_info.max_rx_pktlen ) {
         printf("WARNING: reduce max packet len from %d to %d \n",
-               (int)m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len,
+               (int)m_port_cfg.m_port_conf.rxmode.mtu,
                (int)dev_info.max_rx_pktlen);
-         m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = dev_info.max_rx_pktlen;
+         m_port_cfg.m_port_conf.rxmode.mtu = dev_info.max_rx_pktlen;
     }
 
     uint16_t tx_queues = get_dpdk_mode()->dp_rx_queues();
@@ -5685,7 +5702,7 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
         return;
     }
 
-    int reta_conf_size = std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE);
+    int reta_conf_size = std::max(1, dev_info.reta_size / RTE_ETH_RETA_GROUP_SIZE);
 
     struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];
 
@@ -5694,7 +5711,7 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
     uint16_t indx=0;
     for (int j = 0; j < reta_conf_size; j++) {
         reta_conf[j].mask = ~0ULL;
-        for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
+        for (int i = 0; i < RTE_ETH_RETA_GROUP_SIZE; i++) {
             while (true) {
                 q=(indx + skip) % numer_of_queues;
                 if (q != skip_queue) {
@@ -5715,8 +5732,8 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
      printf(" RSS port  %d \n",m_tvpid);
      /* verification */
      for (j = 0; j < reta_conf_size; j++) {
-         for (i = 0; i<RTE_RETA_GROUP_SIZE; i++) {
-             printf(" R %d  %d \n",(j*RTE_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
+         for (i = 0; i<RTE_ETH_RETA_GROUP_SIZE; i++) {
+             printf(" R %d  %d \n",(j*RTE_ETH_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
          }
      }
     #endif
@@ -5748,16 +5765,16 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
           hash_key_size = dev_info->hash_key_size;
      }
 
-    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
+    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
 
     struct rte_eth_rss_conf *lp_rss = 
         &g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
 
     if (dev_info->flow_type_rss_offloads){
-        lp_rss->rss_hf = (dev_info->flow_type_rss_offloads & (ETH_RSS_NONFRAG_IPV4_TCP |
-                         ETH_RSS_NONFRAG_IPV4_UDP |
-                         ETH_RSS_NONFRAG_IPV6_TCP |
-                         ETH_RSS_NONFRAG_IPV6_UDP));
+        lp_rss->rss_hf = (dev_info->flow_type_rss_offloads & (RTE_ETH_RSS_NONFRAG_IPV4_TCP |
+                         RTE_ETH_RSS_NONFRAG_IPV4_UDP |
+                         RTE_ETH_RSS_NONFRAG_IPV6_TCP |
+                         RTE_ETH_RSS_NONFRAG_IPV6_UDP));
         lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
     }else{                 
 	lp_rss->rss_hf = 0;
@@ -5792,12 +5809,12 @@ COLD_FUNC void CPhyEthIF::conf_hardware_astf_rss() {
             exit(1);
         }
     }
-    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
+    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
     struct rte_eth_rss_conf *lp_rss =&g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
-    lp_rss->rss_hf = ETH_RSS_NONFRAG_IPV4_TCP |
-                     ETH_RSS_NONFRAG_IPV4_UDP |
-                     ETH_RSS_NONFRAG_IPV6_TCP |
-                     ETH_RSS_NONFRAG_IPV6_UDP;
+    lp_rss->rss_hf = RTE_ETH_RSS_NONFRAG_IPV4_TCP |
+                     RTE_ETH_RSS_NONFRAG_IPV4_UDP |
+                     RTE_ETH_RSS_NONFRAG_IPV6_TCP |
+                     RTE_ETH_RSS_NONFRAG_IPV6_UDP;
 
     bool is_client_side = ((get_tvpid()%2==0)?true:false);
     if (is_client_side) {
@@ -5852,7 +5869,7 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
     /* we don't want to enable this in Stateless as mlx5 will have a big performance effect
     other driver enable this without asking  */
     if (get_mode()->get_opt_mode() != OP_MODE_STL){
-        tx_offloads |= DEV_TX_OFFLOAD_VLAN_INSERT;
+        tx_offloads |= RTE_ETH_TX_OFFLOAD_VLAN_INSERT;
     }
 
     // disable non-supported best-effort offloads
@@ -5863,8 +5880,8 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
 
     if ( CGlobalInfo::m_options.preview.getTsoOffloadDisable() ) {
         tx_offloads &= ~(
-            DEV_TX_OFFLOAD_TCP_TSO | 
-            DEV_TX_OFFLOAD_UDP_TSO);
+            RTE_ETH_TX_OFFLOAD_TCP_TSO | 
+            RTE_ETH_TX_OFFLOAD_UDP_TSO);
     }
 
     /* configure global rte_eth_conf  */
@@ -7007,7 +7024,7 @@ COLD_FUNC void wait_x_sec(int sec, bool dev_flush) {
     fflush(stdout);
 }
 
-#define TCP_UDP_OFFLOAD (DEV_TX_OFFLOAD_IPV4_CKSUM |DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
+#define TCP_UDP_OFFLOAD (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |RTE_ETH_TX_OFFLOAD_UDP_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM)
 
 /* should be called after rte_eal_init() */
 COLD_FUNC void set_driver() {
@@ -7059,12 +7076,12 @@ COLD_FUNC void set_driver() {
         printf(" TCP_UDP_OFFLOAD ");
     }
 
-    if ( (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) == DEV_TX_OFFLOAD_TCP_TSO ){
+    if ( (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_TCP_TSO) == RTE_ETH_TX_OFFLOAD_TCP_TSO ){
         printf(" TSO ");
         lp->set_dev_tso_support(true);
     }
 
-    if ( (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_LRO) == DEV_RX_OFFLOAD_TCP_LRO ){
+    if ( (dev_info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_LRO) == RTE_ETH_RX_OFFLOAD_TCP_LRO ){
         printf(" LRO ");
         lp->set_dev_lro_support(true);
     } else {

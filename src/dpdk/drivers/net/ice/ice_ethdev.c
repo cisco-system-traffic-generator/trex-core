@@ -10,10 +10,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <rte_tailq.h>
+
+#include "eal_firmware.h"
+
 #include "base/ice_sched.h"
 #include "base/ice_flow.h"
 #include "base/ice_dcb.h"
 #include "base/ice_common.h"
+#include "base/ice_ptp_hw.h"
 
 #include "rte_pmd_ice.h"
 #include "ice_ethdev.h"
@@ -24,13 +29,26 @@
 #define ICE_SAFE_MODE_SUPPORT_ARG "safe-mode-support"
 #define ICE_PIPELINE_MODE_SUPPORT_ARG  "pipeline-mode-support"
 #define ICE_PROTO_XTR_ARG         "proto_xtr"
+#define ICE_HW_DEBUG_MASK_ARG     "hw_debug_mask"
+#define ICE_ONE_PPS_OUT_ARG       "pps_out"
+#define ICE_RX_LOW_LATENCY_ARG    "rx_low_latency"
+
+#define ICE_CYCLECOUNTER_MASK  0xffffffffffffffffULL
+
+uint64_t ice_timestamp_dynflag;
+int ice_timestamp_dynfield_offset = -1;
 
 static const char * const ice_valid_args[] = {
 	ICE_SAFE_MODE_SUPPORT_ARG,
 	ICE_PIPELINE_MODE_SUPPORT_ARG,
 	ICE_PROTO_XTR_ARG,
+	ICE_HW_DEBUG_MASK_ARG,
+	ICE_ONE_PPS_OUT_ARG,
+	ICE_RX_LOW_LATENCY_ARG,
 	NULL
 };
+
+#define PPS_OUT_DELAY_NS  1
 
 static const struct rte_mbuf_dynfield ice_proto_xtr_metadata_param = {
 	.name = "intel_pmd_dynfield_proto_xtr_metadata",
@@ -121,6 +139,10 @@ static int ice_vlan_pvid_set(struct rte_eth_dev *dev,
 static int ice_get_eeprom_length(struct rte_eth_dev *dev);
 static int ice_get_eeprom(struct rte_eth_dev *dev,
 			  struct rte_dev_eeprom_info *eeprom);
+static int ice_get_module_info(struct rte_eth_dev *dev,
+			       struct rte_eth_dev_module_info *modinfo);
+static int ice_get_module_eeprom(struct rte_eth_dev *dev,
+				 struct rte_dev_eeprom_info *info);
 static int ice_stats_get(struct rte_eth_dev *dev,
 			 struct rte_eth_stats *stats);
 static int ice_stats_reset(struct rte_eth_dev *dev);
@@ -129,14 +151,24 @@ static int ice_xstats_get(struct rte_eth_dev *dev,
 static int ice_xstats_get_names(struct rte_eth_dev *dev,
 				struct rte_eth_xstat_name *xstats_names,
 				unsigned int limit);
-static int ice_dev_filter_ctrl(struct rte_eth_dev *dev,
-			enum rte_filter_type filter_type,
-			enum rte_filter_op filter_op,
-			void *arg);
+static int ice_dev_flow_ops_get(struct rte_eth_dev *dev,
+				const struct rte_flow_ops **ops);
 static int ice_dev_udp_tunnel_port_add(struct rte_eth_dev *dev,
 			struct rte_eth_udp_tunnel *udp_tunnel);
 static int ice_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
 			struct rte_eth_udp_tunnel *udp_tunnel);
+static int ice_timesync_enable(struct rte_eth_dev *dev);
+static int ice_timesync_read_rx_timestamp(struct rte_eth_dev *dev,
+					  struct timespec *timestamp,
+					  uint32_t flags);
+static int ice_timesync_read_tx_timestamp(struct rte_eth_dev *dev,
+					  struct timespec *timestamp);
+static int ice_timesync_adjust_time(struct rte_eth_dev *dev, int64_t delta);
+static int ice_timesync_read_time(struct rte_eth_dev *dev,
+				  struct timespec *timestamp);
+static int ice_timesync_write_time(struct rte_eth_dev *dev,
+				   const struct timespec *timestamp);
+static int ice_timesync_disable(struct rte_eth_dev *dev);
 
 static const struct rte_pci_id pci_id_ice_map[] = {
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823L_BACKPLANE) },
@@ -164,6 +196,12 @@ static const struct rte_pci_id pci_id_ice_map[] = {
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E822L_SFP) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E822L_10G_BASE_T) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E822L_SGMII) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E824S) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_BACKPLANE) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_QSFP) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_SFP) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_1GBE) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825X) },
 	{ .vendor_id = 0, /* sentinel */ },
 };
 
@@ -180,9 +218,9 @@ static const struct eth_dev_ops ice_eth_dev_ops = {
 	.tx_queue_start               = ice_tx_queue_start,
 	.tx_queue_stop                = ice_tx_queue_stop,
 	.rx_queue_setup               = ice_rx_queue_setup,
-	.rx_queue_release             = ice_rx_queue_release,
+	.rx_queue_release             = ice_dev_rx_queue_release,
 	.tx_queue_setup               = ice_tx_queue_setup,
-	.tx_queue_release             = ice_tx_queue_release,
+	.tx_queue_release             = ice_dev_tx_queue_release,
 	.dev_infos_get                = ice_dev_info_get,
 	.dev_supported_ptypes_get     = ice_dev_supported_ptypes_get,
 	.link_update                  = ice_link_update,
@@ -210,16 +248,25 @@ static const struct eth_dev_ops ice_eth_dev_ops = {
 	.tx_burst_mode_get            = ice_tx_burst_mode_get,
 	.get_eeprom_length            = ice_get_eeprom_length,
 	.get_eeprom                   = ice_get_eeprom,
+	.get_module_info              = ice_get_module_info,
+	.get_module_eeprom            = ice_get_module_eeprom,
 	.stats_get                    = ice_stats_get,
 	.stats_reset                  = ice_stats_reset,
 	.xstats_get                   = ice_xstats_get,
 	.xstats_get_names             = ice_xstats_get_names,
 	.xstats_reset                 = ice_stats_reset,
-	.filter_ctrl                  = ice_dev_filter_ctrl,
+	.flow_ops_get                 = ice_dev_flow_ops_get,
 	.udp_tunnel_port_add          = ice_dev_udp_tunnel_port_add,
 	.udp_tunnel_port_del          = ice_dev_udp_tunnel_port_del,
 	.tx_done_cleanup              = ice_tx_done_cleanup,
 	.get_monitor_addr             = ice_get_monitor_addr,
+	.timesync_enable              = ice_timesync_enable,
+	.timesync_read_rx_timestamp   = ice_timesync_read_rx_timestamp,
+	.timesync_read_tx_timestamp   = ice_timesync_read_tx_timestamp,
+	.timesync_adjust_time         = ice_timesync_adjust_time,
+	.timesync_read_time           = ice_timesync_read_time,
+	.timesync_write_time          = ice_timesync_write_time,
+	.timesync_disable             = ice_timesync_disable,
 };
 
 /* store statistics names and its offset in stats structure */
@@ -315,6 +362,13 @@ ice_init_controlq_parameter(struct ice_hw *hw)
 	hw->mailboxq.num_sq_entries = ICE_MAILBOXQ_LEN;
 	hw->mailboxq.rq_buf_size = ICE_MAILBOXQ_BUF_SZ;
 	hw->mailboxq.sq_buf_size = ICE_MAILBOXQ_BUF_SZ;
+
+	/* fields for sideband queue */
+	hw->sbq.num_rq_entries = ICE_SBQ_LEN;
+	hw->sbq.num_sq_entries = ICE_SBQ_LEN;
+	hw->sbq.rq_buf_size = ICE_SBQ_MAX_BUF_LEN;
+	hw->sbq.sq_buf_size = ICE_SBQ_MAX_BUF_LEN;
+
 }
 
 static int
@@ -809,7 +863,7 @@ ice_init_mac_address(struct rte_eth_dev *dev)
 		(struct rte_ether_addr *)hw->port_info[0].mac.perm_addr);
 
 	dev->data->mac_addrs =
-		rte_zmalloc(NULL, sizeof(struct rte_ether_addr), 0);
+		rte_zmalloc(NULL, sizeof(struct rte_ether_addr) * ICE_NUM_MACADDR_MAX, 0);
 	if (!dev->data->mac_addrs) {
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate memory to store mac address");
@@ -1094,12 +1148,13 @@ ice_remove_all_mac_vlan_filters(struct ice_vsi *vsi)
 {
 	struct ice_mac_filter *m_f;
 	struct ice_vlan_filter *v_f;
+	void *temp;
 	int ret = 0;
 
 	if (!vsi || !vsi->mac_num)
 		return -EINVAL;
 
-	TAILQ_FOREACH(m_f, &vsi->mac_list, next) {
+	RTE_TAILQ_FOREACH_SAFE(m_f, &vsi->mac_list, next, temp) {
 		ret = ice_remove_mac_filter(vsi, &m_f->mac_info.mac_addr);
 		if (ret != ICE_SUCCESS) {
 			ret = -EINVAL;
@@ -1110,7 +1165,7 @@ ice_remove_all_mac_vlan_filters(struct ice_vsi *vsi)
 	if (vsi->vlan_num == 0)
 		return 0;
 
-	TAILQ_FOREACH(v_f, &vsi->vlan_list, next) {
+	RTE_TAILQ_FOREACH_SAFE(v_f, &vsi->vlan_list, next, temp) {
 		ret = ice_remove_vlan_filter(vsi, &v_f->vlan_info.vlan);
 		if (ret != ICE_SUCCESS) {
 			ret = -EINVAL;
@@ -1221,7 +1276,7 @@ ice_handle_aq_msg(struct rte_eth_dev *dev)
  * @param handle
  *  Pointer to interrupt handle.
  * @param param
- *  The address of parameter (struct rte_eth_dev *) regsitered before.
+ *  The address of parameter (struct rte_eth_dev *) registered before.
  *
  * @return
  *  void
@@ -1444,9 +1499,9 @@ ice_setup_vsi(struct ice_pf *pf, enum ice_vsi_type type)
 	TAILQ_INIT(&vsi->mac_list);
 	TAILQ_INIT(&vsi->vlan_list);
 
-	/* Be sync with ETH_RSS_RETA_SIZE_x maximum value definition */
+	/* Be sync with RTE_ETH_RSS_RETA_SIZE_x maximum value definition */
 	pf->hash_lut_size = hw->func_caps.common_cap.rss_table_size >
-			ETH_RSS_RETA_SIZE_512 ? ETH_RSS_RETA_SIZE_512 :
+			RTE_ETH_RSS_RETA_SIZE_512 ? RTE_ETH_RSS_RETA_SIZE_512 :
 			hw->func_caps.common_cap.rss_table_size;
 	pf->flags |= ICE_FLAG_RSS_AQ_CAPABLE;
 
@@ -1584,7 +1639,7 @@ ice_setup_vsi(struct ice_pf *pf, enum ice_vsi_type type)
 	}
 
 	/* At the beginning, only TC0. */
-	/* What we need here is the maximam number of the TX queues.
+	/* What we need here is the maximum number of the TX queues.
 	 * Currently vsi->nb_qps means it.
 	 * Correct it if any change.
 	 */
@@ -1648,49 +1703,7 @@ ice_pf_setup(struct ice_pf *pf)
 	return 0;
 }
 
-/*
- * Extract device serial number from PCIe Configuration Space and
- * determine the pkg file path according to the DSN.
- */
-static int
-ice_pkg_file_search_path(struct rte_pci_device *pci_dev, char *pkg_file)
-{
-	off_t pos;
-	char opt_ddp_filename[ICE_MAX_PKG_FILENAME_SIZE];
-	uint32_t dsn_low, dsn_high;
-	memset(opt_ddp_filename, 0, ICE_MAX_PKG_FILENAME_SIZE);
-
-	pos = rte_pci_find_ext_capability(pci_dev, RTE_PCI_EXT_CAP_ID_DSN);
-
-	if (pos) {
-		rte_pci_read_config(pci_dev, &dsn_low, 4, pos + 4);
-		rte_pci_read_config(pci_dev, &dsn_high, 4, pos + 8);
-		snprintf(opt_ddp_filename, ICE_MAX_PKG_FILENAME_SIZE,
-			 "ice-%08x%08x.pkg", dsn_high, dsn_low);
-	} else {
-		PMD_INIT_LOG(ERR, "Failed to read device serial number\n");
-		goto fail_dsn;
-	}
-
-	strncpy(pkg_file, ICE_PKG_FILE_SEARCH_PATH_UPDATES,
-		ICE_MAX_PKG_FILENAME_SIZE);
-	if (!access(strcat(pkg_file, opt_ddp_filename), 0))
-		return 0;
-
-	strncpy(pkg_file, ICE_PKG_FILE_SEARCH_PATH_DEFAULT,
-		ICE_MAX_PKG_FILENAME_SIZE);
-	if (!access(strcat(pkg_file, opt_ddp_filename), 0))
-		return 0;
-
-fail_dsn:
-	strncpy(pkg_file, ICE_PKG_FILE_UPDATES, ICE_MAX_PKG_FILENAME_SIZE);
-	if (!access(pkg_file, 0))
-		return 0;
-	strncpy(pkg_file, ICE_PKG_FILE_DEFAULT, ICE_MAX_PKG_FILENAME_SIZE);
-	return 0;
-}
-
-enum ice_pkg_type
+static enum ice_pkg_type
 ice_load_pkg_type(struct ice_hw *hw)
 {
 	enum ice_pkg_type package_type;
@@ -1714,75 +1727,58 @@ ice_load_pkg_type(struct ice_hw *hw)
 	return package_type;
 }
 
-static int ice_load_pkg(struct rte_eth_dev *dev)
+int ice_load_pkg(struct ice_adapter *adapter, bool use_dsn, uint64_t dsn)
 {
-	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_hw *hw = &adapter->hw;
 	char pkg_file[ICE_MAX_PKG_FILENAME_SIZE];
+	char opt_ddp_filename[ICE_MAX_PKG_FILENAME_SIZE];
+	void *buf;
+	size_t bufsz;
 	int err;
-	uint8_t *buf;
-	int buf_len;
-	FILE *file;
-	struct stat fstat;
-	struct rte_pci_device *pci_dev = RTE_DEV_TO_PCI(dev->device);
-	struct ice_adapter *ad =
-		ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 
-	ice_pkg_file_search_path(pci_dev, pkg_file);
+	if (!use_dsn)
+		goto no_dsn;
 
-	file = fopen(pkg_file, "rb");
-	if (!file)  {
-		PMD_INIT_LOG(ERR, "failed to open file: %s\n", pkg_file);
+	memset(opt_ddp_filename, 0, ICE_MAX_PKG_FILENAME_SIZE);
+	snprintf(opt_ddp_filename, ICE_MAX_PKG_FILENAME_SIZE,
+		"ice-%016" PRIx64 ".pkg", dsn);
+	strncpy(pkg_file, ICE_PKG_FILE_SEARCH_PATH_UPDATES,
+		ICE_MAX_PKG_FILENAME_SIZE);
+	strcat(pkg_file, opt_ddp_filename);
+	if (rte_firmware_read(pkg_file, &buf, &bufsz) == 0)
+		goto load_fw;
+
+	strncpy(pkg_file, ICE_PKG_FILE_SEARCH_PATH_DEFAULT,
+		ICE_MAX_PKG_FILENAME_SIZE);
+	strcat(pkg_file, opt_ddp_filename);
+	if (rte_firmware_read(pkg_file, &buf, &bufsz) == 0)
+		goto load_fw;
+
+no_dsn:
+	strncpy(pkg_file, ICE_PKG_FILE_UPDATES, ICE_MAX_PKG_FILENAME_SIZE);
+	if (rte_firmware_read(pkg_file, &buf, &bufsz) == 0)
+		goto load_fw;
+
+	strncpy(pkg_file, ICE_PKG_FILE_DEFAULT, ICE_MAX_PKG_FILENAME_SIZE);
+	if (rte_firmware_read(pkg_file, &buf, &bufsz) < 0) {
+		PMD_INIT_LOG(ERR, "failed to search file path\n");
 		return -1;
 	}
 
-	err = stat(pkg_file, &fstat);
-	if (err) {
-		PMD_INIT_LOG(ERR, "failed to get file stats\n");
-		fclose(file);
-		return err;
-	}
+load_fw:
+	PMD_INIT_LOG(DEBUG, "DDP package name: %s", pkg_file);
 
-	buf_len = fstat.st_size;
-	buf = rte_malloc(NULL, buf_len, 0);
-
-	if (!buf) {
-		PMD_INIT_LOG(ERR, "failed to allocate buf of size %d for package\n",
-				buf_len);
-		fclose(file);
-		return -1;
-	}
-
-	err = fread(buf, buf_len, 1, file);
-	if (err != 1) {
-		PMD_INIT_LOG(ERR, "failed to read package data\n");
-		fclose(file);
-		err = -1;
-		goto fail_exit;
-	}
-
-	fclose(file);
-
-	err = ice_copy_and_init_pkg(hw, buf, buf_len);
+	err = ice_copy_and_init_pkg(hw, buf, bufsz);
 	if (err) {
 		PMD_INIT_LOG(ERR, "ice_copy_and_init_hw failed: %d\n", err);
-		goto fail_exit;
+		goto out;
 	}
 
 	/* store the loaded pkg type info */
-	ad->active_pkg_type = ice_load_pkg_type(hw);
+	adapter->active_pkg_type = ice_load_pkg_type(hw);
 
-	err = ice_init_hw_tbls(hw);
-	if (err) {
-		PMD_INIT_LOG(ERR, "ice_init_hw_tbls failed: %d\n", err);
-		goto fail_init_tbls;
-	}
-
-	return 0;
-
-fail_init_tbls:
-	rte_free(hw->pkg_copy);
-fail_exit:
-	rte_free(buf);
+out:
+	free(buf);
 	return err;
 }
 
@@ -1821,6 +1817,144 @@ parse_bool(const char *key, const char *value, void *args)
 	return 0;
 }
 
+static int
+parse_u64(const char *key, const char *value, void *args)
+{
+	u64 *num = (u64 *)args;
+	u64 tmp;
+
+	errno = 0;
+	tmp = strtoull(value, NULL, 16);
+	if (errno) {
+		PMD_DRV_LOG(WARNING, "%s: \"%s\" is not a valid u64",
+			    key, value);
+		return -1;
+	}
+
+	*num = tmp;
+
+	return 0;
+}
+
+static int
+lookup_pps_type(const char *pps_name)
+{
+	static struct {
+		const char *name;
+		enum pps_type type;
+	} pps_type_map[] = {
+		{ "pin",  PPS_PIN  },
+	};
+
+	uint32_t i;
+
+	for (i = 0; i < RTE_DIM(pps_type_map); i++) {
+		if (strcmp(pps_name, pps_type_map[i].name) == 0)
+			return pps_type_map[i].type;
+	}
+
+	return -1;
+}
+
+static int
+parse_pin_set(const char *input, int pps_type, struct ice_devargs *devargs)
+{
+	const char *str = input;
+	char *end = NULL;
+	uint32_t idx;
+
+	while (isblank(*str))
+		str++;
+
+	if (!isdigit(*str))
+		return -1;
+
+	if (pps_type == PPS_PIN) {
+		idx = strtoul(str, &end, 10);
+		if (end == NULL || idx >= ICE_MAX_PIN_NUM)
+			return -1;
+		while (isblank(*end))
+			end++;
+		if (*end != ']')
+			return -1;
+
+		devargs->pin_idx = idx;
+		devargs->pps_out_ena = 1;
+
+		return 0;
+	}
+
+	return -1;
+}
+
+static int
+parse_pps_out_parameter(const char *pins, struct ice_devargs *devargs)
+{
+	const char *pin_start;
+	uint32_t idx;
+	int pps_type;
+	char pps_name[32];
+
+	while (isblank(*pins))
+		pins++;
+
+	pins++;
+	while (isblank(*pins))
+		pins++;
+	if (*pins == '\0')
+		return -1;
+
+	for (idx = 0; ; idx++) {
+		if (isblank(pins[idx]) ||
+		    pins[idx] == ':' ||
+		    pins[idx] == '\0')
+			break;
+
+		pps_name[idx] = pins[idx];
+	}
+	pps_name[idx] = '\0';
+	pps_type = lookup_pps_type(pps_name);
+	if (pps_type < 0)
+		return -1;
+
+	pins += idx;
+
+	pins += strcspn(pins, ":");
+	if (*pins++ != ':')
+		return -1;
+	while (isblank(*pins))
+		pins++;
+
+	pin_start = pins;
+
+	while (isblank(*pins))
+		pins++;
+
+	if (parse_pin_set(pin_start, pps_type, devargs) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int
+handle_pps_out_arg(__rte_unused const char *key, const char *value,
+		   void *extra_args)
+{
+	struct ice_devargs *devargs = extra_args;
+
+	if (value == NULL || extra_args == NULL)
+		return -EINVAL;
+
+	if (parse_pps_out_parameter(value, devargs) < 0) {
+		PMD_DRV_LOG(ERR,
+			    "The GPIO pin parameter is wrong : '%s'",
+			    value);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int ice_parse_devargs(struct rte_eth_dev *dev)
 {
 	struct ice_adapter *ad =
@@ -1856,6 +1990,19 @@ static int ice_parse_devargs(struct rte_eth_dev *dev)
 				 &parse_bool, &ad->devargs.pipe_mode_support);
 	if (ret)
 		goto bail;
+
+	ret = rte_kvargs_process(kvlist, ICE_HW_DEBUG_MASK_ARG,
+				 &parse_u64, &ad->hw.debug_mask);
+	if (ret)
+		goto bail;
+
+	ret = rte_kvargs_process(kvlist, ICE_ONE_PPS_OUT_ARG,
+				 &handle_pps_out_arg, &ad->devargs);
+	if (ret)
+		goto bail;
+
+	ret = rte_kvargs_process(kvlist, ICE_RX_LOW_LATENCY_ARG,
+				 &parse_bool, &ad->devargs.rx_low_latency);
 
 bail:
 	rte_kvargs_free(kvlist);
@@ -2015,6 +2162,12 @@ ice_dev_init(struct rte_eth_dev *dev)
 		ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	struct ice_vsi *vsi;
 	int ret;
+#ifndef RTE_EXEC_ENV_WINDOWS
+	off_t pos;
+	uint32_t dsn_low, dsn_high;
+	uint64_t dsn;
+	bool use_dsn;
+#endif
 
 	dev->dev_ops = &ice_eth_dev_ops;
 	dev->rx_queue_count = ice_rx_queue_count;
@@ -2037,10 +2190,9 @@ ice_dev_init(struct rte_eth_dev *dev)
 
 	ice_set_default_ptype_table(dev);
 	pci_dev = RTE_DEV_TO_PCI(dev->device);
-	intr_handle = &pci_dev->intr_handle;
+	intr_handle = pci_dev->intr_handle;
 
 	pf->adapter = ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
-	pf->adapter->eth_dev = dev;
 	pf->dev_data = dev->data;
 	hw->back = pf->adapter;
 	hw->hw_addr = (uint8_t *)pci_dev->mem_resource[0].addr;
@@ -2065,18 +2217,43 @@ ice_dev_init(struct rte_eth_dev *dev)
 		return -EINVAL;
 	}
 
-	ret = ice_load_pkg(dev);
+#ifndef RTE_EXEC_ENV_WINDOWS
+	use_dsn = false;
+	dsn = 0;
+	pos = rte_pci_find_ext_capability(pci_dev, RTE_PCI_EXT_CAP_ID_DSN);
+	if (pos) {
+		if (rte_pci_read_config(pci_dev, &dsn_low, 4, pos + 4) < 0 ||
+				rte_pci_read_config(pci_dev, &dsn_high, 4, pos + 8) < 0) {
+			PMD_INIT_LOG(ERR, "Failed to read pci config space\n");
+		} else {
+			use_dsn = true;
+			dsn = (uint64_t)dsn_high << 32 | dsn_low;
+		}
+	} else {
+		PMD_INIT_LOG(ERR, "Failed to read device serial number\n");
+	}
+
+	ret = ice_load_pkg(pf->adapter, use_dsn, dsn);
+	if (ret == 0) {
+		ret = ice_init_hw_tbls(hw);
+		if (ret) {
+			PMD_INIT_LOG(ERR, "ice_init_hw_tbls failed: %d\n", ret);
+			rte_free(hw->pkg_copy);
+		}
+	}
+
 	if (ret) {
 		if (ad->devargs.safe_mode_support == 0) {
 			PMD_INIT_LOG(ERR, "Failed to load the DDP package,"
 					"Use safe-mode-support=1 to enter Safe Mode");
-			return ret;
+			goto err_init_fw;
 		}
 
 		PMD_INIT_LOG(WARNING, "Failed to load the DDP package,"
 					"Entering Safe Mode");
 		ad->is_safe_mode = 1;
 	}
+#endif
 
 	PMD_INIT_LOG(INFO, "FW %d.%d.%05d API %d.%d",
 		     hw->fw_maj_ver, hw->fw_min_ver, hw->fw_build,
@@ -2139,30 +2316,37 @@ ice_dev_init(struct rte_eth_dev *dev)
 		ret = ice_flow_init(ad);
 		if (ret) {
 			PMD_INIT_LOG(ERR, "Failed to initialize flow");
-			return ret;
+			goto err_flow_init;
 		}
 	}
 
 	ret = ice_reset_fxp_resource(hw);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "Failed to reset fxp resource");
-		return ret;
+		goto err_flow_init;
 	}
 
 	pf->supported_rxdid = ice_get_supported_rxdid(hw);
 
 	return 0;
 
+err_flow_init:
+	ice_flow_uninit(ad);
+	rte_intr_disable(intr_handle);
+	ice_pf_disable_irq0(hw);
+	rte_intr_callback_unregister(intr_handle,
+				     ice_interrupt_handler, dev);
 err_pf_setup:
 	ice_res_pool_destroy(&pf->msix_pool);
 err_msix_pool_init:
 	rte_free(dev->data->mac_addrs);
 	dev->data->mac_addrs = NULL;
 err_init_mac:
-	ice_sched_cleanup_all(hw);
-	rte_free(hw->port_info);
-	ice_shutdown_all_ctrlq(hw);
 	rte_free(pf->proto_xtr);
+#ifndef RTE_EXEC_ENV_WINDOWS
+err_init_fw:
+#endif
+	ice_deinit_hw(hw);
 
 	return ret;
 }
@@ -2201,9 +2385,9 @@ ice_release_vsi(struct ice_vsi *vsi)
 void
 ice_vsi_disable_queues_intr(struct ice_vsi *vsi)
 {
-	struct rte_eth_dev *dev = vsi->adapter->eth_dev;
+	struct rte_eth_dev *dev = &rte_eth_devices[vsi->adapter->pf.dev_data->port_id];
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	uint16_t msix_intr, i;
 
@@ -2233,7 +2417,7 @@ ice_dev_stop(struct rte_eth_dev *dev)
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_vsi *main_vsi = pf->main_vsi;
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	uint16_t i;
 
 	/* avoid stopping again */
@@ -2258,10 +2442,7 @@ ice_dev_stop(struct rte_eth_dev *dev)
 
 	/* Clean datapath event and queue/vec mapping */
 	rte_intr_efd_disable(intr_handle);
-	if (intr_handle->intr_vec) {
-		rte_free(intr_handle->intr_vec);
-		intr_handle->intr_vec = NULL;
-	}
+	rte_intr_vec_list_free(intr_handle);
 
 	pf->adapter_stopped = true;
 	dev->data->dev_started = 0;
@@ -2275,10 +2456,13 @@ ice_dev_close(struct rte_eth_dev *dev)
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_adapter *ad =
 		ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	int ret;
+	uint32_t val;
+	uint8_t timer = hw->func_caps.ts_func_info.tmr_index_owned;
+	uint32_t pin_idx = ad->devargs.pin_idx;
 
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
@@ -2307,6 +2491,16 @@ ice_dev_close(struct rte_eth_dev *dev)
 	ice_shutdown_all_ctrlq(hw);
 	rte_free(pf->proto_xtr);
 	pf->proto_xtr = NULL;
+
+	if (ad->devargs.pps_out_ena) {
+		ICE_WRITE_REG(hw, GLTSYN_AUX_OUT(pin_idx, timer), 0);
+		ICE_WRITE_REG(hw, GLTSYN_CLKO(pin_idx, timer), 0);
+		ICE_WRITE_REG(hw, GLTSYN_TGT_L(pin_idx, timer), 0);
+		ICE_WRITE_REG(hw, GLTSYN_TGT_H(pin_idx, timer), 0);
+
+		val = GLGEN_GPIO_CTL_PIN_DIR_M;
+		ICE_WRITE_REG(hw, GLGEN_GPIO_CTL(pin_idx), val);
+	}
 
 	/* disable uio intr before callback unregister */
 	rte_intr_disable(intr_handle);
@@ -2338,7 +2532,7 @@ hash_cfg_reset(struct ice_rss_hash_cfg *cfg)
 	cfg->hash_flds = 0;
 	cfg->addl_hdrs = 0;
 	cfg->symm = 0;
-	cfg->hdr_type = ICE_RSS_ANY_HEADERS;
+	cfg->hdr_type = ICE_RSS_OUTER_HEADERS;
 }
 
 static int
@@ -2808,14 +3002,14 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	int ret;
 
 #define ICE_RSS_HF_ALL ( \
-	ETH_RSS_IPV4 | \
-	ETH_RSS_IPV6 | \
-	ETH_RSS_NONFRAG_IPV4_UDP | \
-	ETH_RSS_NONFRAG_IPV6_UDP | \
-	ETH_RSS_NONFRAG_IPV4_TCP | \
-	ETH_RSS_NONFRAG_IPV6_TCP | \
-	ETH_RSS_NONFRAG_IPV4_SCTP | \
-	ETH_RSS_NONFRAG_IPV6_SCTP)
+	RTE_ETH_RSS_IPV4 | \
+	RTE_ETH_RSS_IPV6 | \
+	RTE_ETH_RSS_NONFRAG_IPV4_UDP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_UDP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_SCTP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_SCTP)
 
 	ret = ice_rem_vsi_rss_cfg(hw, vsi->idx);
 	if (ret)
@@ -2823,9 +3017,9 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 			    __func__, ret);
 
 	cfg.symm = 0;
-	cfg.hdr_type = ICE_RSS_ANY_HEADERS;
+	cfg.hdr_type = ICE_RSS_OUTER_HEADERS;
 	/* Configure RSS for IPv4 with src/dst addr as input set */
-	if (rss_hf & ETH_RSS_IPV4) {
+	if (rss_hf & RTE_ETH_RSS_IPV4) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_FLOW_HASH_IPV4;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
@@ -2835,7 +3029,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for IPv6 with src/dst addr as input set */
-	if (rss_hf & ETH_RSS_IPV6) {
+	if (rss_hf & RTE_ETH_RSS_IPV6) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_FLOW_HASH_IPV6;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
@@ -2845,7 +3039,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for udp4 with src/dst addr and port as input set */
-	if (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) {
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV4_UDP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_UDP | ICE_FLOW_SEG_HDR_IPV4 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_HASH_UDP_IPV4;
@@ -2856,7 +3050,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for udp6 with src/dst addr and port as input set */
-	if (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) {
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV6_UDP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_UDP | ICE_FLOW_SEG_HDR_IPV6 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_HASH_UDP_IPV6;
@@ -2867,7 +3061,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for tcp4 with src/dst addr and port as input set */
-	if (rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) {
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV4_TCP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_TCP | ICE_FLOW_SEG_HDR_IPV4 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_HASH_TCP_IPV4;
@@ -2878,7 +3072,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for tcp6 with src/dst addr and port as input set */
-	if (rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) {
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV6_TCP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_TCP | ICE_FLOW_SEG_HDR_IPV6 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_HASH_TCP_IPV6;
@@ -2889,7 +3083,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for sctp4 with src/dst addr and port as input set */
-	if (rss_hf & ETH_RSS_NONFRAG_IPV4_SCTP) {
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV4_SCTP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_SCTP | ICE_FLOW_SEG_HDR_IPV4 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_HASH_SCTP_IPV4;
@@ -2900,7 +3094,7 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	}
 
 	/* Configure RSS for sctp6 with src/dst addr and port as input set */
-	if (rss_hf & ETH_RSS_NONFRAG_IPV6_SCTP) {
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV6_SCTP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_SCTP | ICE_FLOW_SEG_HDR_IPV6 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
 		cfg.hash_flds = ICE_HASH_SCTP_IPV6;
@@ -2910,144 +3104,60 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 				    __func__, ret);
 	}
 
-	if (rss_hf & ETH_RSS_IPV4) {
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_IP | ICE_FLOW_SEG_HDR_IPV4 |
-				ICE_FLOW_SEG_HDR_IPV_OTHER;
-		cfg.hash_flds = ICE_FLOW_HASH_IPV4;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_IPV4 rss flow fail %d",
-				    __func__, ret);
-
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_EH | ICE_FLOW_SEG_HDR_IPV4 |
-				ICE_FLOW_SEG_HDR_IPV_OTHER;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_EH_IPV4 rss flow fail %d",
-				    __func__, ret);
-
+	if (rss_hf & RTE_ETH_RSS_IPV4) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_PPPOE | ICE_FLOW_SEG_HDR_IPV4 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
+		cfg.hash_flds = ICE_FLOW_HASH_IPV4;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
 		if (ret)
 			PMD_DRV_LOG(ERR, "%s PPPoE_IPV4 rss flow fail %d",
 				    __func__, ret);
 	}
 
-	if (rss_hf & ETH_RSS_IPV6) {
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_IP | ICE_FLOW_SEG_HDR_IPV6 |
-				ICE_FLOW_SEG_HDR_IPV_OTHER;
-		cfg.hash_flds = ICE_FLOW_HASH_IPV6;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_IPV6 rss flow fail %d",
-				    __func__, ret);
-
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_EH | ICE_FLOW_SEG_HDR_IPV6 |
-				ICE_FLOW_SEG_HDR_IPV_OTHER;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_EH_IPV6 rss flow fail %d",
-				    __func__, ret);
-
+	if (rss_hf & RTE_ETH_RSS_IPV6) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_PPPOE | ICE_FLOW_SEG_HDR_IPV6 |
 				ICE_FLOW_SEG_HDR_IPV_OTHER;
+		cfg.hash_flds = ICE_FLOW_HASH_IPV6;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
 		if (ret)
 			PMD_DRV_LOG(ERR, "%s PPPoE_IPV6 rss flow fail %d",
 				    __func__, ret);
 	}
 
-	if (rss_hf & ETH_RSS_NONFRAG_IPV4_UDP) {
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_IP | ICE_FLOW_SEG_HDR_UDP |
-				ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		cfg.hash_flds = ICE_HASH_UDP_IPV4;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_IPV4_UDP rss flow fail %d",
-				    __func__, ret);
-
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_EH | ICE_FLOW_SEG_HDR_UDP |
-				ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_EH_IPV4_UDP rss flow fail %d",
-				    __func__, ret);
-
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV4_UDP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_PPPOE | ICE_FLOW_SEG_HDR_UDP |
 				ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
+		cfg.hash_flds = ICE_HASH_UDP_IPV4;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
 		if (ret)
 			PMD_DRV_LOG(ERR, "%s PPPoE_IPV4_UDP rss flow fail %d",
 				    __func__, ret);
 	}
 
-	if (rss_hf & ETH_RSS_NONFRAG_IPV6_UDP) {
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_IP | ICE_FLOW_SEG_HDR_UDP |
-				ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		cfg.hash_flds = ICE_HASH_UDP_IPV6;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_IPV6_UDP rss flow fail %d",
-				    __func__, ret);
-
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_EH | ICE_FLOW_SEG_HDR_UDP |
-				ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_EH_IPV6_UDP rss flow fail %d",
-				    __func__, ret);
-
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV6_UDP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_PPPOE | ICE_FLOW_SEG_HDR_UDP |
 				ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
+		cfg.hash_flds = ICE_HASH_UDP_IPV6;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
 		if (ret)
 			PMD_DRV_LOG(ERR, "%s PPPoE_IPV6_UDP rss flow fail %d",
 				    __func__, ret);
 	}
 
-	if (rss_hf & ETH_RSS_NONFRAG_IPV4_TCP) {
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_IP | ICE_FLOW_SEG_HDR_TCP |
-				ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		cfg.hash_flds = ICE_HASH_TCP_IPV4;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_IPV4_TCP rss flow fail %d",
-				    __func__, ret);
-
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_EH | ICE_FLOW_SEG_HDR_TCP |
-				ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_EH_IPV4_TCP rss flow fail %d",
-				    __func__, ret);
-
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV4_TCP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_PPPOE | ICE_FLOW_SEG_HDR_TCP |
 				ICE_FLOW_SEG_HDR_IPV4 | ICE_FLOW_SEG_HDR_IPV_OTHER;
+		cfg.hash_flds = ICE_HASH_TCP_IPV4;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
 		if (ret)
 			PMD_DRV_LOG(ERR, "%s PPPoE_IPV4_TCP rss flow fail %d",
 				    __func__, ret);
 	}
 
-	if (rss_hf & ETH_RSS_NONFRAG_IPV6_TCP) {
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_IP | ICE_FLOW_SEG_HDR_TCP |
-				ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		cfg.hash_flds = ICE_HASH_TCP_IPV6;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_IPV6_TCP rss flow fail %d",
-				    __func__, ret);
-
-		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_GTPU_EH | ICE_FLOW_SEG_HDR_TCP |
-				ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
-		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
-		if (ret)
-			PMD_DRV_LOG(ERR, "%s GTPU_EH_IPV6_TCP rss flow fail %d",
-				    __func__, ret);
-
+	if (rss_hf & RTE_ETH_RSS_NONFRAG_IPV6_TCP) {
 		cfg.addl_hdrs = ICE_FLOW_SEG_HDR_PPPOE | ICE_FLOW_SEG_HDR_TCP |
 				ICE_FLOW_SEG_HDR_IPV6 | ICE_FLOW_SEG_HDR_IPV_OTHER;
+		cfg.hash_flds = ICE_HASH_TCP_IPV6;
 		ret = ice_add_rss_cfg_wrap(pf, vsi->idx, &cfg);
 		if (ret)
 			PMD_DRV_LOG(ERR, "%s PPPoE_IPV6_TCP rss flow fail %d",
@@ -3057,11 +3167,36 @@ ice_rss_hash_set(struct ice_pf *pf, uint64_t rss_hf)
 	pf->rss_hf = rss_hf & ICE_RSS_HF_ALL;
 }
 
+static void
+ice_get_default_rss_key(uint8_t *rss_key, uint32_t rss_key_size)
+{
+	static struct ice_aqc_get_set_rss_keys default_key;
+	static bool default_key_done;
+	uint8_t *key = (uint8_t *)&default_key;
+	size_t i;
+
+	if (rss_key_size > sizeof(default_key)) {
+		PMD_DRV_LOG(WARNING,
+			    "requested size %u is larger than default %zu, "
+			    "only %zu bytes are gotten for key\n",
+			    rss_key_size, sizeof(default_key),
+			    sizeof(default_key));
+	}
+
+	if (!default_key_done) {
+		/* Calculate the default hash key */
+		for (i = 0; i < sizeof(default_key); i++)
+			key[i] = (uint8_t)rte_rand();
+		default_key_done = true;
+	}
+	rte_memcpy(rss_key, key, RTE_MIN(rss_key_size, sizeof(default_key)));
+}
+
 static int ice_init_rss(struct ice_pf *pf)
 {
 	struct ice_hw *hw = ICE_PF_TO_HW(pf);
 	struct ice_vsi *vsi = pf->main_vsi;
-	struct rte_eth_dev *dev = pf->adapter->eth_dev;
+	struct rte_eth_dev_data *dev_data = pf->dev_data;
 	struct ice_aq_get_set_rss_lut_params lut_params;
 	struct rte_eth_rss_conf *rss_conf;
 	struct ice_aqc_get_set_rss_keys key;
@@ -3070,8 +3205,8 @@ static int ice_init_rss(struct ice_pf *pf)
 	bool is_safe_mode = pf->adapter->is_safe_mode;
 	uint32_t reg;
 
-	rss_conf = &dev->data->dev_conf.rx_adv_conf.rss_conf;
-	nb_q = dev->data->nb_rx_queues;
+	rss_conf = &dev_data->dev_conf.rx_adv_conf.rss_conf;
+	nb_q = dev_data->nb_rx_queues;
 	vsi->rss_key_size = ICE_AQC_GET_SET_RSS_KEY_DATA_RSS_KEY_SIZE;
 	vsi->rss_lut_size = pf->hash_lut_size;
 
@@ -3105,15 +3240,13 @@ static int ice_init_rss(struct ice_pf *pf)
 		}
 	}
 	/* configure RSS key */
-	if (!rss_conf->rss_key) {
-		/* Calculate the default hash key */
-		for (i = 0; i <= vsi->rss_key_size; i++)
-			vsi->rss_key[i] = (uint8_t)rte_rand();
-	} else {
+	if (!rss_conf->rss_key)
+		ice_get_default_rss_key(vsi->rss_key, vsi->rss_key_size);
+	else
 		rte_memcpy(vsi->rss_key, rss_conf->rss_key,
 			   RTE_MIN(rss_conf->rss_key_len,
 				   vsi->rss_key_size));
-	}
+
 	rte_memcpy(key.standard_rss_key, vsi->rss_key, vsi->rss_key_size);
 	ret = ice_aq_set_rss_key(hw, vsi->idx, &key);
 	if (ret)
@@ -3164,8 +3297,8 @@ ice_dev_configure(struct rte_eth_dev *dev)
 	ad->rx_bulk_alloc_allowed = true;
 	ad->tx_simple_allowed = true;
 
-	if (dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		dev->data->dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
+	if (dev->data->dev_conf.rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG)
+		dev->data->dev_conf.rxmode.offloads |= RTE_ETH_RX_OFFLOAD_RSS_HASH;
 
 	if (dev->data->nb_rx_queues) {
 		ret = ice_init_rss(pf);
@@ -3184,8 +3317,9 @@ __vsi_queues_bind_intr(struct ice_vsi *vsi, uint16_t msix_vect,
 {
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	uint32_t val, val_tx;
-	int i;
+	int rx_low_latency, i;
 
+	rx_low_latency = vsi->adapter->devargs.rx_low_latency;
 	for (i = 0; i < nb_queue; i++) {
 		/*do actual bind*/
 		val = (msix_vect & QINT_RQCTL_MSIX_INDX_M) |
@@ -3195,8 +3329,21 @@ __vsi_queues_bind_intr(struct ice_vsi *vsi, uint16_t msix_vect,
 
 		PMD_DRV_LOG(INFO, "queue %d is binding to vect %d",
 			    base_queue + i, msix_vect);
+
 		/* set ITR0 value */
-		ICE_WRITE_REG(hw, GLINT_ITR(0, msix_vect), 0x2);
+		if (rx_low_latency) {
+			/**
+			 * Empirical configuration for optimal real time
+			 * latency reduced interrupt throttling to 2us
+			 */
+			ICE_WRITE_REG(hw, GLINT_ITR(0, msix_vect), 0x1);
+			ICE_WRITE_REG(hw, QRX_ITR(base_queue + i),
+				      QRX_ITR_NO_EXPR_M);
+		} else {
+			ICE_WRITE_REG(hw, GLINT_ITR(0, msix_vect), 0x2);
+			ICE_WRITE_REG(hw, QRX_ITR(base_queue + i), 0);
+		}
+
 		ICE_WRITE_REG(hw, QINT_RQCTL(base_queue + i), val);
 		ICE_WRITE_REG(hw, QINT_TQCTL(base_queue + i), val_tx);
 	}
@@ -3205,12 +3352,13 @@ __vsi_queues_bind_intr(struct ice_vsi *vsi, uint16_t msix_vect,
 void
 ice_vsi_queues_bind_intr(struct ice_vsi *vsi)
 {
-	struct rte_eth_dev *dev = vsi->adapter->eth_dev;
+	struct rte_eth_dev *dev = &rte_eth_devices[vsi->adapter->pf.dev_data->port_id];
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	uint16_t msix_vect = vsi->msix_intr;
-	uint16_t nb_msix = RTE_MIN(vsi->nb_msix, intr_handle->nb_efd);
+	uint16_t nb_msix = RTE_MIN(vsi->nb_msix,
+				   rte_intr_nb_efd_get(intr_handle));
 	uint16_t queue_idx = 0;
 	int record = 0;
 	int i;
@@ -3238,8 +3386,9 @@ ice_vsi_queues_bind_intr(struct ice_vsi *vsi)
 					       vsi->nb_used_qps - i);
 
 			for (; !!record && i < vsi->nb_used_qps; i++)
-				intr_handle->intr_vec[queue_idx + i] =
-					msix_vect;
+				rte_intr_vec_list_index_set(intr_handle,
+						queue_idx + i, msix_vect);
+
 			break;
 		}
 
@@ -3248,7 +3397,9 @@ ice_vsi_queues_bind_intr(struct ice_vsi *vsi)
 				       vsi->base_queue + i, 1);
 
 		if (!!record)
-			intr_handle->intr_vec[queue_idx + i] = msix_vect;
+			rte_intr_vec_list_index_set(intr_handle,
+							   queue_idx + i,
+							   msix_vect);
 
 		msix_vect++;
 		nb_msix--;
@@ -3258,9 +3409,9 @@ ice_vsi_queues_bind_intr(struct ice_vsi *vsi)
 void
 ice_vsi_enable_queues_intr(struct ice_vsi *vsi)
 {
-	struct rte_eth_dev *dev = vsi->adapter->eth_dev;
+	struct rte_eth_dev *dev = &rte_eth_devices[vsi->adapter->pf.dev_data->port_id];
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	uint16_t msix_intr, i;
 
@@ -3286,7 +3437,7 @@ ice_rxq_intr_setup(struct rte_eth_dev *dev)
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_vsi *vsi = pf->main_vsi;
 	uint32_t intr_vector = 0;
 
@@ -3306,11 +3457,9 @@ ice_rxq_intr_setup(struct rte_eth_dev *dev)
 			return -1;
 	}
 
-	if (rte_intr_dp_is_en(intr_handle) && !intr_handle->intr_vec) {
-		intr_handle->intr_vec =
-		rte_zmalloc(NULL, dev->data->nb_rx_queues * sizeof(int),
-			    0);
-		if (!intr_handle->intr_vec) {
+	if (rte_intr_dp_is_en(intr_handle)) {
+		if (rte_intr_vec_list_alloc(intr_handle, NULL,
+						   dev->data->nb_rx_queues)) {
 			PMD_DRV_LOG(ERR,
 				    "Failed to allocate %d rx_queues intr_vec",
 				    dev->data->nb_rx_queues);
@@ -3352,16 +3501,63 @@ ice_get_init_link_status(struct rte_eth_dev *dev)
 }
 
 static int
+ice_pps_out_cfg(struct ice_hw *hw, int idx, int timer)
+{
+	uint64_t current_time, start_time;
+	uint32_t hi, lo, lo2, func, val;
+
+	lo = ICE_READ_REG(hw, GLTSYN_TIME_L(timer));
+	hi = ICE_READ_REG(hw, GLTSYN_TIME_H(timer));
+	lo2 = ICE_READ_REG(hw, GLTSYN_TIME_L(timer));
+
+	if (lo2 < lo) {
+		lo = ICE_READ_REG(hw, GLTSYN_TIME_L(timer));
+		hi = ICE_READ_REG(hw, GLTSYN_TIME_H(timer));
+	}
+
+	current_time = ((uint64_t)hi << 32) | lo;
+
+	start_time = (current_time + NSEC_PER_SEC) /
+			NSEC_PER_SEC * NSEC_PER_SEC;
+	start_time = start_time - PPS_OUT_DELAY_NS;
+
+	func = 8 + idx + timer * 4;
+	val = GLGEN_GPIO_CTL_PIN_DIR_M |
+		((func << GLGEN_GPIO_CTL_PIN_FUNC_S) &
+		GLGEN_GPIO_CTL_PIN_FUNC_M);
+
+	/* Write clkout with half of period value */
+	ICE_WRITE_REG(hw, GLTSYN_CLKO(idx, timer), NSEC_PER_SEC / 2);
+
+	/* Write TARGET time register */
+	ICE_WRITE_REG(hw, GLTSYN_TGT_L(idx, timer), start_time & 0xffffffff);
+	ICE_WRITE_REG(hw, GLTSYN_TGT_H(idx, timer), start_time >> 32);
+
+	/* Write AUX_OUT register */
+	ICE_WRITE_REG(hw, GLTSYN_AUX_OUT(idx, timer),
+		      GLTSYN_AUX_OUT_0_OUT_ENA_M | GLTSYN_AUX_OUT_0_OUTMOD_M);
+
+	/* Write GPIO CTL register */
+	ICE_WRITE_REG(hw, GLGEN_GPIO_CTL(idx), val);
+
+	return 0;
+}
+
+static int
 ice_dev_start(struct rte_eth_dev *dev)
 {
 	struct rte_eth_dev_data *data = dev->data;
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_vsi *vsi = pf->main_vsi;
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	uint16_t nb_rxq = 0;
 	uint16_t nb_txq, i;
 	uint16_t max_frame_size;
 	int mask, ret;
+	uint8_t timer = hw->func_caps.ts_func_info.tmr_index_owned;
+	uint32_t pin_idx = ad->devargs.pin_idx;
 
 	/* program Tx queues' context in hardware */
 	for (nb_txq = 0; nb_txq < data->nb_tx_queues; nb_txq++) {
@@ -3384,15 +3580,15 @@ ice_dev_start(struct rte_eth_dev *dev)
 	ice_set_rx_function(dev);
 	ice_set_tx_function(dev);
 
-	mask = ETH_VLAN_STRIP_MASK | ETH_VLAN_FILTER_MASK |
-			ETH_VLAN_EXTEND_MASK;
+	mask = RTE_ETH_VLAN_STRIP_MASK | RTE_ETH_VLAN_FILTER_MASK |
+			RTE_ETH_VLAN_EXTEND_MASK;
 	ret = ice_vlan_offload_set(dev, mask);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "Unable to set VLAN offload");
 		goto rx_err;
 	}
 
-	/* enable Rx interrput and mapping Rx queue to interrupt vector */
+	/* enable Rx interrupt and mapping Rx queue to interrupt vector */
 	if (ice_rxq_intr_setup(dev))
 		return -EIO;
 
@@ -3419,18 +3615,26 @@ ice_dev_start(struct rte_eth_dev *dev)
 
 	ice_dev_set_link_up(dev);
 
-	/* Call get_link_info aq commond to enable/disable LSE */
-	ice_link_update(dev, 0);
+	/* Call get_link_info aq command to enable/disable LSE */
+	ice_link_update(dev, 1);
 
 	pf->adapter_stopped = false;
 
 	/* Set the max frame size to default value*/
-	max_frame_size = pf->dev_data->dev_conf.rxmode.max_rx_pkt_len ?
-		pf->dev_data->dev_conf.rxmode.max_rx_pkt_len :
+	max_frame_size = pf->dev_data->mtu ?
+		pf->dev_data->mtu + ICE_ETH_OVERHEAD :
 		ICE_FRAME_SIZE_MAX;
 
 	/* Set the max frame size to HW*/
 	ice_aq_set_mac_cfg(hw, max_frame_size, NULL);
+
+	if (ad->devargs.pps_out_ena) {
+		ret = ice_pps_out_cfg(hw, pin_idx, timer);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Fail to configure 1pps out");
+			goto rx_err;
+		}
+	}
 
 	return 0;
 
@@ -3489,40 +3693,40 @@ ice_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->min_mtu = RTE_ETHER_MIN_MTU;
 
 	dev_info->rx_offload_capa =
-		DEV_RX_OFFLOAD_VLAN_STRIP |
-		DEV_RX_OFFLOAD_JUMBO_FRAME |
-		DEV_RX_OFFLOAD_KEEP_CRC |
-		DEV_RX_OFFLOAD_SCATTER |
-		DEV_RX_OFFLOAD_VLAN_FILTER;
+		RTE_ETH_RX_OFFLOAD_VLAN_STRIP |
+		RTE_ETH_RX_OFFLOAD_KEEP_CRC |
+		RTE_ETH_RX_OFFLOAD_SCATTER |
+		RTE_ETH_RX_OFFLOAD_VLAN_FILTER;
 	dev_info->tx_offload_capa =
-		DEV_TX_OFFLOAD_VLAN_INSERT |
-		DEV_TX_OFFLOAD_TCP_TSO |
-		DEV_TX_OFFLOAD_MULTI_SEGS |
-		DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+		RTE_ETH_TX_OFFLOAD_VLAN_INSERT |
+		RTE_ETH_TX_OFFLOAD_TCP_TSO |
+		RTE_ETH_TX_OFFLOAD_MULTI_SEGS |
+		RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
 	dev_info->flow_type_rss_offloads = 0;
 
 	if (!is_safe_mode) {
 		dev_info->rx_offload_capa |=
-			DEV_RX_OFFLOAD_IPV4_CKSUM |
-			DEV_RX_OFFLOAD_UDP_CKSUM |
-			DEV_RX_OFFLOAD_TCP_CKSUM |
-			DEV_RX_OFFLOAD_QINQ_STRIP |
-			DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM |
-			DEV_RX_OFFLOAD_VLAN_EXTEND |
-			DEV_RX_OFFLOAD_RSS_HASH;
+			RTE_ETH_RX_OFFLOAD_IPV4_CKSUM |
+			RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+			RTE_ETH_RX_OFFLOAD_TCP_CKSUM |
+			RTE_ETH_RX_OFFLOAD_QINQ_STRIP |
+			RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM |
+			RTE_ETH_RX_OFFLOAD_VLAN_EXTEND |
+			RTE_ETH_RX_OFFLOAD_RSS_HASH |
+			RTE_ETH_RX_OFFLOAD_TIMESTAMP;
 		dev_info->tx_offload_capa |=
-			DEV_TX_OFFLOAD_QINQ_INSERT |
-			DEV_TX_OFFLOAD_IPV4_CKSUM |
-			DEV_TX_OFFLOAD_UDP_CKSUM |
-			DEV_TX_OFFLOAD_TCP_CKSUM |
-			DEV_TX_OFFLOAD_SCTP_CKSUM |
-			DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-			DEV_TX_OFFLOAD_OUTER_UDP_CKSUM;
+			RTE_ETH_TX_OFFLOAD_QINQ_INSERT |
+			RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
+			RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+			RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
+			RTE_ETH_TX_OFFLOAD_SCTP_CKSUM |
+			RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+			RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM;
 		dev_info->flow_type_rss_offloads |= ICE_RSS_OFFLOAD_ALL;
 	}
 
 	dev_info->rx_queue_offload_capa = 0;
-	dev_info->tx_queue_offload_capa = 0;
+	dev_info->tx_queue_offload_capa = RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
 
 	dev_info->reta_size = pf->hash_lut_size;
 	dev_info->hash_key_size = (VSIQF_HKEY_MAX_INDEX + 1) * sizeof(uint32_t);
@@ -3561,24 +3765,24 @@ ice_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		.nb_align = ICE_ALIGN_RING_DESC,
 	};
 
-	dev_info->speed_capa = ETH_LINK_SPEED_10M |
-			       ETH_LINK_SPEED_100M |
-			       ETH_LINK_SPEED_1G |
-			       ETH_LINK_SPEED_2_5G |
-			       ETH_LINK_SPEED_5G |
-			       ETH_LINK_SPEED_10G |
-			       ETH_LINK_SPEED_20G |
-			       ETH_LINK_SPEED_25G;
+	dev_info->speed_capa = RTE_ETH_LINK_SPEED_10M |
+			       RTE_ETH_LINK_SPEED_100M |
+			       RTE_ETH_LINK_SPEED_1G |
+			       RTE_ETH_LINK_SPEED_2_5G |
+			       RTE_ETH_LINK_SPEED_5G |
+			       RTE_ETH_LINK_SPEED_10G |
+			       RTE_ETH_LINK_SPEED_20G |
+			       RTE_ETH_LINK_SPEED_25G;
 
 	phy_type_low = hw->port_info->phy.phy_type_low;
 	phy_type_high = hw->port_info->phy.phy_type_high;
 
 	if (ICE_PHY_TYPE_SUPPORT_50G(phy_type_low))
-		dev_info->speed_capa |= ETH_LINK_SPEED_50G;
+		dev_info->speed_capa |= RTE_ETH_LINK_SPEED_50G;
 
 	if (ICE_PHY_TYPE_SUPPORT_100G_LOW(phy_type_low) ||
 			ICE_PHY_TYPE_SUPPORT_100G_HIGH(phy_type_high))
-		dev_info->speed_capa |= ETH_LINK_SPEED_100G;
+		dev_info->speed_capa |= RTE_ETH_LINK_SPEED_100G;
 
 	dev_info->nb_rx_queues = dev->data->nb_rx_queues;
 	dev_info->nb_tx_queues = dev->data->nb_tx_queues;
@@ -3643,8 +3847,8 @@ ice_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 		status = ice_aq_get_link_info(hw->port_info, enable_lse,
 					      &link_status, NULL);
 		if (status != ICE_SUCCESS) {
-			link.link_speed = ETH_SPEED_NUM_100M;
-			link.link_duplex = ETH_LINK_FULL_DUPLEX;
+			link.link_speed = RTE_ETH_SPEED_NUM_100M;
+			link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
 			PMD_DRV_LOG(ERR, "Failed to get link info");
 			goto out;
 		}
@@ -3660,55 +3864,55 @@ ice_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 		goto out;
 
 	/* Full-duplex operation at all supported speeds */
-	link.link_duplex = ETH_LINK_FULL_DUPLEX;
+	link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
 
 	/* Parse the link status */
 	switch (link_status.link_speed) {
 	case ICE_AQ_LINK_SPEED_10MB:
-		link.link_speed = ETH_SPEED_NUM_10M;
+		link.link_speed = RTE_ETH_SPEED_NUM_10M;
 		break;
 	case ICE_AQ_LINK_SPEED_100MB:
-		link.link_speed = ETH_SPEED_NUM_100M;
+		link.link_speed = RTE_ETH_SPEED_NUM_100M;
 		break;
 	case ICE_AQ_LINK_SPEED_1000MB:
-		link.link_speed = ETH_SPEED_NUM_1G;
+		link.link_speed = RTE_ETH_SPEED_NUM_1G;
 		break;
 	case ICE_AQ_LINK_SPEED_2500MB:
-		link.link_speed = ETH_SPEED_NUM_2_5G;
+		link.link_speed = RTE_ETH_SPEED_NUM_2_5G;
 		break;
 	case ICE_AQ_LINK_SPEED_5GB:
-		link.link_speed = ETH_SPEED_NUM_5G;
+		link.link_speed = RTE_ETH_SPEED_NUM_5G;
 		break;
 	case ICE_AQ_LINK_SPEED_10GB:
-		link.link_speed = ETH_SPEED_NUM_10G;
+		link.link_speed = RTE_ETH_SPEED_NUM_10G;
 		break;
 	case ICE_AQ_LINK_SPEED_20GB:
-		link.link_speed = ETH_SPEED_NUM_20G;
+		link.link_speed = RTE_ETH_SPEED_NUM_20G;
 		break;
 	case ICE_AQ_LINK_SPEED_25GB:
-		link.link_speed = ETH_SPEED_NUM_25G;
+		link.link_speed = RTE_ETH_SPEED_NUM_25G;
 		break;
 	case ICE_AQ_LINK_SPEED_40GB:
-		link.link_speed = ETH_SPEED_NUM_40G;
+		link.link_speed = RTE_ETH_SPEED_NUM_40G;
 		break;
 	case ICE_AQ_LINK_SPEED_50GB:
-		link.link_speed = ETH_SPEED_NUM_50G;
+		link.link_speed = RTE_ETH_SPEED_NUM_50G;
 		break;
 	case ICE_AQ_LINK_SPEED_100GB:
-		link.link_speed = ETH_SPEED_NUM_100G;
+		link.link_speed = RTE_ETH_SPEED_NUM_100G;
 		break;
 	case ICE_AQ_LINK_SPEED_UNKNOWN:
 		PMD_DRV_LOG(ERR, "Unknown link speed");
-		link.link_speed = ETH_SPEED_NUM_UNKNOWN;
+		link.link_speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 		break;
 	default:
 		PMD_DRV_LOG(ERR, "None link speed");
-		link.link_speed = ETH_SPEED_NUM_NONE;
+		link.link_speed = RTE_ETH_SPEED_NUM_NONE;
 		break;
 	}
 
 	link.link_autoneg = !(dev->data->dev_conf.link_speeds &
-			      ETH_LINK_SPEED_FIXED);
+			      RTE_ETH_LINK_SPEED_FIXED);
 
 out:
 	ice_atomic_write_link_status(dev, &link);
@@ -3787,32 +3991,15 @@ ice_dev_set_link_down(struct rte_eth_dev *dev)
 }
 
 static int
-ice_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
+ice_mtu_set(struct rte_eth_dev *dev, uint16_t mtu __rte_unused)
 {
-	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct rte_eth_dev_data *dev_data = pf->dev_data;
-	uint32_t frame_size = mtu + ICE_ETH_OVERHEAD;
-
-	/* check if mtu is within the allowed range */
-	if (mtu < RTE_ETHER_MIN_MTU || frame_size > ICE_FRAME_SIZE_MAX)
-		return -EINVAL;
-
 	/* mtu setting is forbidden if port is start */
-	if (dev_data->dev_started) {
+	if (dev->data->dev_started != 0) {
 		PMD_DRV_LOG(ERR,
 			    "port %d must be stopped before configuration",
-			    dev_data->port_id);
+			    dev->data->port_id);
 		return -EBUSY;
 	}
-
-	if (frame_size > ICE_ETH_MAX_LEN)
-		dev_data->dev_conf.rxmode.offloads |=
-			DEV_RX_OFFLOAD_JUMBO_FRAME;
-	else
-		dev_data->dev_conf.rxmode.offloads &=
-			~DEV_RX_OFFLOAD_JUMBO_FRAME;
-
-	dev_data->dev_conf.rxmode.max_rx_pkt_len = frame_size;
 
 	return 0;
 }
@@ -4011,20 +4198,16 @@ ice_vsi_config_vlan_filter(struct ice_vsi *vsi, bool on)
 {
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	struct ice_vsi_ctx ctxt;
-	uint8_t sec_flags, sw_flags2;
+	uint8_t sw_flags2;
 	int ret = 0;
 
-	sec_flags = ICE_AQ_VSI_SEC_TX_VLAN_PRUNE_ENA <<
-		    ICE_AQ_VSI_SEC_TX_PRUNE_ENA_S;
 	sw_flags2 = ICE_AQ_VSI_SW_FLAG_RX_VLAN_PRUNE_ENA;
 
-	if (on) {
-		vsi->info.sec_flags |= sec_flags;
+	if (on)
 		vsi->info.sw_flags2 |= sw_flags2;
-	} else {
-		vsi->info.sec_flags &= ~sec_flags;
+	else
 		vsi->info.sw_flags2 &= ~sw_flags2;
-	}
+
 	vsi->info.sw_id = hw->port_info->sw_id;
 	(void)rte_memcpy(&ctxt.info, &vsi->info, sizeof(vsi->info));
 	ctxt.info.valid_sections =
@@ -4205,15 +4388,15 @@ ice_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 	struct rte_eth_rxmode *rxmode;
 
 	rxmode = &dev->data->dev_conf.rxmode;
-	if (mask & ETH_VLAN_FILTER_MASK) {
-		if (rxmode->offloads & DEV_RX_OFFLOAD_VLAN_FILTER)
+	if (mask & RTE_ETH_VLAN_FILTER_MASK) {
+		if (rxmode->offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER)
 			ice_vsi_config_vlan_filter(vsi, true);
 		else
 			ice_vsi_config_vlan_filter(vsi, false);
 	}
 
-	if (mask & ETH_VLAN_STRIP_MASK) {
-		if (rxmode->offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
+	if (mask & RTE_ETH_VLAN_STRIP_MASK) {
+		if (rxmode->offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 			ice_vsi_config_vlan_stripping(vsi, true);
 		else
 			ice_vsi_config_vlan_stripping(vsi, false);
@@ -4328,8 +4511,8 @@ ice_rss_reta_update(struct rte_eth_dev *dev,
 		goto out;
 
 	for (i = 0; i < reta_size; i++) {
-		idx = i / RTE_RETA_GROUP_SIZE;
-		shift = i % RTE_RETA_GROUP_SIZE;
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		if (reta_conf[idx].mask & (1ULL << shift))
 			lut[i] = reta_conf[idx].reta[shift];
 	}
@@ -4378,8 +4561,8 @@ ice_rss_reta_query(struct rte_eth_dev *dev,
 		goto out;
 
 	for (i = 0; i < reta_size; i++) {
-		idx = i / RTE_RETA_GROUP_SIZE;
-		shift = i % RTE_RETA_GROUP_SIZE;
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		if (reta_conf[idx].mask & (1ULL << shift))
 			reta_conf[idx].reta[shift] = lut[i];
 	}
@@ -4451,8 +4634,10 @@ ice_rss_hash_update(struct rte_eth_dev *dev,
 	if (status)
 		return status;
 
-	if (rss_conf->rss_hf == 0)
+	if (rss_conf->rss_hf == 0) {
+		pf->rss_hf = 0;
 		return 0;
+	}
 
 	/* RSS hash configuration */
 	ice_rss_hash_set(pf, rss_conf->rss_hf);
@@ -4511,8 +4696,11 @@ ice_promisc_disable(struct rte_eth_dev *dev)
 	uint8_t pmask;
 	int ret = 0;
 
-	pmask = ICE_PROMISC_UCAST_RX | ICE_PROMISC_UCAST_TX |
-		ICE_PROMISC_MCAST_RX | ICE_PROMISC_MCAST_TX;
+	if (dev->data->all_multicast == 1)
+		pmask = ICE_PROMISC_UCAST_RX | ICE_PROMISC_UCAST_TX;
+	else
+		pmask = ICE_PROMISC_UCAST_RX | ICE_PROMISC_UCAST_TX |
+			ICE_PROMISC_MCAST_RX | ICE_PROMISC_MCAST_TX;
 
 	status = ice_clear_vsi_promisc(hw, vsi->idx, pmask, 0);
 	if (status != ICE_SUCCESS) {
@@ -4578,19 +4766,19 @@ static int ice_rx_queue_intr_enable(struct rte_eth_dev *dev,
 				    uint16_t queue_id)
 {
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	uint32_t val;
 	uint16_t msix_intr;
 
-	msix_intr = intr_handle->intr_vec[queue_id];
+	msix_intr = rte_intr_vec_list_index_get(intr_handle, queue_id);
 
 	val = GLINT_DYN_CTL_INTENA_M | GLINT_DYN_CTL_CLEARPBA_M |
 	      GLINT_DYN_CTL_ITR_INDX_M;
 	val &= ~GLINT_DYN_CTL_WB_ON_ITR_M;
 
 	ICE_WRITE_REG(hw, GLINT_DYN_CTL(msix_intr), val);
-	rte_intr_ack(&pci_dev->intr_handle);
+	rte_intr_ack(pci_dev->intr_handle);
 
 	return 0;
 }
@@ -4599,11 +4787,11 @@ static int ice_rx_queue_intr_disable(struct rte_eth_dev *dev,
 				     uint16_t queue_id)
 {
 	struct rte_pci_device *pci_dev = ICE_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = pci_dev->intr_handle;
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	uint16_t msix_intr;
 
-	msix_intr = intr_handle->intr_vec[queue_id];
+	msix_intr = rte_intr_vec_list_index_get(intr_handle, queue_id);
 
 	ICE_WRITE_REG(hw, GLINT_DYN_CTL(msix_intr), GLINT_DYN_CTL_WB_ON_ITR_M);
 
@@ -4628,10 +4816,12 @@ ice_fw_version_get(struct rte_eth_dev *dev, char *fw_version, size_t fw_size)
 			hw->flash.nvm.minor,
 			hw->flash.nvm.eetrack,
 			ver, build, patch);
+	if (ret < 0)
+		return -EINVAL;
 
 	/* add the size of '\0' */
 	ret += 1;
-	if (fw_size < (u32)ret)
+	if (fw_size < (size_t)ret)
 		return ret;
 	else
 		return 0;
@@ -4751,6 +4941,161 @@ ice_get_eeprom(struct rte_eth_dev *dev,
 	if (status) {
 		PMD_DRV_LOG(ERR, "EEPROM read failed.");
 		return -EIO;
+	}
+
+	return 0;
+}
+
+static int
+ice_get_module_info(struct rte_eth_dev *dev,
+		    struct rte_eth_dev_module_info *modinfo)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	enum ice_status status;
+	u8 sff8472_comp = 0;
+	u8 sff8472_swap = 0;
+	u8 sff8636_rev = 0;
+	u8 value = 0;
+
+	status = ice_aq_sff_eeprom(hw, 0, ICE_I2C_EEPROM_DEV_ADDR, 0x00, 0x00,
+				   0, &value, 1, 0, NULL);
+	if (status)
+		return -EIO;
+
+	switch (value) {
+	case ICE_MODULE_TYPE_SFP:
+		status = ice_aq_sff_eeprom(hw, 0, ICE_I2C_EEPROM_DEV_ADDR,
+					   ICE_MODULE_SFF_8472_COMP, 0x00, 0,
+					   &sff8472_comp, 1, 0, NULL);
+		if (status)
+			return -EIO;
+		status = ice_aq_sff_eeprom(hw, 0, ICE_I2C_EEPROM_DEV_ADDR,
+					   ICE_MODULE_SFF_8472_SWAP, 0x00, 0,
+					   &sff8472_swap, 1, 0, NULL);
+		if (status)
+			return -EIO;
+
+		if (sff8472_swap & ICE_MODULE_SFF_ADDR_MODE) {
+			modinfo->type = ICE_MODULE_SFF_8079;
+			modinfo->eeprom_len = ICE_MODULE_SFF_8079_LEN;
+		} else if (sff8472_comp &&
+			   (sff8472_swap & ICE_MODULE_SFF_DIAG_CAPAB)) {
+			modinfo->type = ICE_MODULE_SFF_8472;
+			modinfo->eeprom_len = ICE_MODULE_SFF_8472_LEN;
+		} else {
+			modinfo->type = ICE_MODULE_SFF_8079;
+			modinfo->eeprom_len = ICE_MODULE_SFF_8079_LEN;
+		}
+		break;
+	case ICE_MODULE_TYPE_QSFP_PLUS:
+	case ICE_MODULE_TYPE_QSFP28:
+		status = ice_aq_sff_eeprom(hw, 0, ICE_I2C_EEPROM_DEV_ADDR,
+					   ICE_MODULE_REVISION_ADDR, 0x00, 0,
+					   &sff8636_rev, 1, 0, NULL);
+		if (status)
+			return -EIO;
+		/* Check revision compliance */
+		if (sff8636_rev > 0x02) {
+			/* Module is SFF-8636 compliant */
+			modinfo->type = ICE_MODULE_SFF_8636;
+			modinfo->eeprom_len = ICE_MODULE_QSFP_MAX_LEN;
+		} else {
+			modinfo->type = ICE_MODULE_SFF_8436;
+			modinfo->eeprom_len = ICE_MODULE_QSFP_MAX_LEN;
+		}
+		break;
+	default:
+		PMD_DRV_LOG(WARNING, "SFF Module Type not recognized.\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int
+ice_get_module_eeprom(struct rte_eth_dev *dev,
+		      struct rte_dev_eeprom_info *info)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+#define SFF_READ_BLOCK_SIZE 8
+#define I2C_BUSY_TRY_TIMES 4
+#define I2C_USLEEP_MIN_TIME 1500
+#define I2C_USLEEP_MAX_TIME 2500
+	uint8_t value[SFF_READ_BLOCK_SIZE] = {0};
+	uint8_t addr = ICE_I2C_EEPROM_DEV_ADDR;
+	uint8_t *data = NULL;
+	enum ice_status status;
+	bool is_sfp = false;
+	uint32_t i, j;
+	uint32_t offset = 0;
+	uint8_t page = 0;
+
+	if (!info || !info->length || !info->data)
+		return -EINVAL;
+
+	status = ice_aq_sff_eeprom(hw, 0, addr, offset, page, 0, value, 1, 0,
+				   NULL);
+	if (status)
+		return -EIO;
+
+	if (value[0] == ICE_MODULE_TYPE_SFP)
+		is_sfp = true;
+
+	data = info->data;
+	memset(data, 0, info->length);
+	for (i = 0; i < info->length; i += SFF_READ_BLOCK_SIZE) {
+		offset = i + info->offset;
+		page = 0;
+
+		/* Check if we need to access the other memory page */
+		if (is_sfp) {
+			if (offset >= ICE_MODULE_SFF_8079_LEN) {
+				offset -= ICE_MODULE_SFF_8079_LEN;
+				addr = ICE_I2C_EEPROM_DEV_ADDR2;
+			}
+		} else {
+			while (offset >= ICE_MODULE_SFF_8436_LEN) {
+				/* Compute memory page number and offset. */
+				offset -= ICE_MODULE_SFF_8436_LEN / 2;
+				page++;
+			}
+		}
+
+		/* Bit 2 of eeprom address 0x02 declares upper
+		 * pages are disabled on QSFP modules.
+		 * SFP modules only ever use page 0.
+		 */
+		if (page == 0 || !(data[0x2] & 0x4)) {
+			/* If i2c bus is busy due to slow page change or
+			 * link management access, call can fail.
+			 * This is normal. So we retry this a few times.
+			 */
+			for (j = 0; j < I2C_BUSY_TRY_TIMES; j++) {
+				status = ice_aq_sff_eeprom(hw, 0, addr, offset,
+							   page, !is_sfp, value,
+							   SFF_READ_BLOCK_SIZE,
+							   0, NULL);
+				PMD_DRV_LOG(DEBUG, "SFF %02X %02X %02X %X = "
+					"%02X%02X%02X%02X."
+					"%02X%02X%02X%02X (%X)\n",
+					addr, offset, page, is_sfp,
+					value[0], value[1],
+					value[2], value[3],
+					value[4], value[5],
+					value[6], value[7],
+					status);
+				if (status) {
+					usleep_range(I2C_USLEEP_MIN_TIME,
+						     I2C_USLEEP_MAX_TIME);
+					memset(value, 0, SFF_READ_BLOCK_SIZE);
+					continue;
+				}
+				break;
+			}
+
+			/* Make sure we have enough room for the new block */
+			if ((i + SFF_READ_BLOCK_SIZE) < info->length)
+				memcpy(data + i, value, SFF_READ_BLOCK_SIZE);
+		}
 	}
 
 	return 0;
@@ -5217,7 +5562,7 @@ ice_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 		count++;
 	}
 
-	/* Get individiual stats from ice_hw_port struct */
+	/* Get individual stats from ice_hw_port struct */
 	for (i = 0; i < ICE_NB_HW_PORT_XSTATS; i++) {
 		xstats[count].value =
 			*(uint64_t *)((char *)hw_stats +
@@ -5248,7 +5593,7 @@ static int ice_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
 		count++;
 	}
 
-	/* Get individiual stats from ice_hw_port struct */
+	/* Get individual stats from ice_hw_port struct */
 	for (i = 0; i < ICE_NB_HW_PORT_XSTATS; i++) {
 		strlcpy(xstats_names[count].name, ice_hw_port_strings[i].name,
 			sizeof(xstats_names[count].name));
@@ -5259,30 +5604,14 @@ static int ice_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
 }
 
 static int
-ice_dev_filter_ctrl(struct rte_eth_dev *dev,
-		     enum rte_filter_type filter_type,
-		     enum rte_filter_op filter_op,
-		     void *arg)
+ice_dev_flow_ops_get(struct rte_eth_dev *dev,
+		     const struct rte_flow_ops **ops)
 {
-	int ret = 0;
-
 	if (!dev)
 		return -EINVAL;
 
-	switch (filter_type) {
-	case RTE_ETH_FILTER_GENERIC:
-		if (filter_op != RTE_ETH_FILTER_GET)
-			return -EINVAL;
-		*(const void **)arg = &ice_flow_ops;
-		break;
-	default:
-		PMD_DRV_LOG(WARNING, "Filter type (%d) not supported",
-					filter_type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
+	*ops = &ice_flow_ops;
+	return 0;
 }
 
 /* Add UDP tunneling port */
@@ -5297,7 +5626,7 @@ ice_dev_udp_tunnel_port_add(struct rte_eth_dev *dev,
 		return -EINVAL;
 
 	switch (udp_tunnel->prot_type) {
-	case RTE_TUNNEL_TYPE_VXLAN:
+	case RTE_ETH_TUNNEL_TYPE_VXLAN:
 		ret = ice_create_tunnel(hw, TNL_VXLAN, udp_tunnel->udp_port);
 		break;
 	default:
@@ -5321,7 +5650,7 @@ ice_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
 		return -EINVAL;
 
 	switch (udp_tunnel->prot_type) {
-	case RTE_TUNNEL_TYPE_VXLAN:
+	case RTE_ETH_TUNNEL_TYPE_VXLAN:
 		ret = ice_destroy_tunnel(hw, udp_tunnel->udp_port, 0);
 		break;
 	default:
@@ -5331,6 +5660,184 @@ ice_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
 	}
 
 	return ret;
+}
+
+static int
+ice_timesync_enable(struct rte_eth_dev *dev)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	int ret;
+
+	if (dev->data->dev_started && !(dev->data->dev_conf.rxmode.offloads &
+	    RTE_ETH_RX_OFFLOAD_TIMESTAMP)) {
+		PMD_DRV_LOG(ERR, "Rx timestamp offload not configured");
+		return -1;
+	}
+
+	if (hw->func_caps.ts_func_info.src_tmr_owned) {
+		ret = ice_ptp_init_phc(hw);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Failed to initialize PHC");
+			return -1;
+		}
+
+		ret = ice_ptp_write_incval(hw, ICE_PTP_NOMINAL_INCVAL_E810);
+		if (ret) {
+			PMD_DRV_LOG(ERR,
+				"Failed to write PHC increment time value");
+			return -1;
+		}
+	}
+
+	/* Initialize cycle counters for system time/RX/TX timestamp */
+	memset(&ad->systime_tc, 0, sizeof(struct rte_timecounter));
+	memset(&ad->rx_tstamp_tc, 0, sizeof(struct rte_timecounter));
+	memset(&ad->tx_tstamp_tc, 0, sizeof(struct rte_timecounter));
+
+	ad->systime_tc.cc_mask = ICE_CYCLECOUNTER_MASK;
+	ad->systime_tc.cc_shift = 0;
+	ad->systime_tc.nsec_mask = 0;
+
+	ad->rx_tstamp_tc.cc_mask = ICE_CYCLECOUNTER_MASK;
+	ad->rx_tstamp_tc.cc_shift = 0;
+	ad->rx_tstamp_tc.nsec_mask = 0;
+
+	ad->tx_tstamp_tc.cc_mask = ICE_CYCLECOUNTER_MASK;
+	ad->tx_tstamp_tc.cc_shift = 0;
+	ad->tx_tstamp_tc.nsec_mask = 0;
+
+	ad->ptp_ena = 1;
+
+	return 0;
+}
+
+static int
+ice_timesync_read_rx_timestamp(struct rte_eth_dev *dev,
+			       struct timespec *timestamp, uint32_t flags)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	struct ice_rx_queue *rxq;
+	uint32_t ts_high;
+	uint64_t ts_ns, ns;
+
+	rxq = dev->data->rx_queues[flags];
+
+	ts_high = rxq->time_high;
+	ts_ns = ice_tstamp_convert_32b_64b(hw, ad, 1, ts_high);
+	ns = rte_timecounter_update(&ad->rx_tstamp_tc, ts_ns);
+	*timestamp = rte_ns_to_timespec(ns);
+
+	return 0;
+}
+
+static int
+ice_timesync_read_tx_timestamp(struct rte_eth_dev *dev,
+			       struct timespec *timestamp)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	uint8_t lport;
+	uint64_t ts_ns, ns, tstamp;
+	const uint64_t mask = 0xFFFFFFFF;
+	int ret;
+
+	lport = hw->port_info->lport;
+
+	ret = ice_read_phy_tstamp(hw, lport, 0, &tstamp);
+	if (ret) {
+		PMD_DRV_LOG(ERR, "Failed to read phy timestamp");
+		return -1;
+	}
+
+	ts_ns = ice_tstamp_convert_32b_64b(hw, ad, 1, (tstamp >> 8) & mask);
+	ns = rte_timecounter_update(&ad->tx_tstamp_tc, ts_ns);
+	*timestamp = rte_ns_to_timespec(ns);
+
+	return 0;
+}
+
+static int
+ice_timesync_adjust_time(struct rte_eth_dev *dev, int64_t delta)
+{
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+
+	ad->systime_tc.nsec += delta;
+	ad->rx_tstamp_tc.nsec += delta;
+	ad->tx_tstamp_tc.nsec += delta;
+
+	return 0;
+}
+
+static int
+ice_timesync_write_time(struct rte_eth_dev *dev, const struct timespec *ts)
+{
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	uint64_t ns;
+
+	ns = rte_timespec_to_ns(ts);
+
+	ad->systime_tc.nsec = ns;
+	ad->rx_tstamp_tc.nsec = ns;
+	ad->tx_tstamp_tc.nsec = ns;
+
+	return 0;
+}
+
+static int
+ice_timesync_read_time(struct rte_eth_dev *dev, struct timespec *ts)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	uint32_t hi, lo, lo2;
+	uint64_t time, ns;
+
+	lo = ICE_READ_REG(hw, GLTSYN_TIME_L(0));
+	hi = ICE_READ_REG(hw, GLTSYN_TIME_H(0));
+	lo2 = ICE_READ_REG(hw, GLTSYN_TIME_L(0));
+
+	if (lo2 < lo) {
+		lo = ICE_READ_REG(hw, GLTSYN_TIME_L(0));
+		hi = ICE_READ_REG(hw, GLTSYN_TIME_H(0));
+	}
+
+	time = ((uint64_t)hi << 32) | lo;
+	ns = rte_timecounter_update(&ad->systime_tc, time);
+	*ts = rte_ns_to_timespec(ns);
+
+	return 0;
+}
+
+static int
+ice_timesync_disable(struct rte_eth_dev *dev)
+{
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_adapter *ad =
+			ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	uint64_t val;
+	uint8_t lport;
+
+	lport = hw->port_info->lport;
+
+	ice_clear_phy_tstamp(hw, lport, 0);
+
+	val = ICE_READ_REG(hw, GLTSYN_ENA(0));
+	val &= ~GLTSYN_ENA_TSYN_ENA_M;
+	ICE_WRITE_REG(hw, GLTSYN_ENA(0), val);
+
+	ICE_WRITE_REG(hw, GLTSYN_INCVAL_L(0), 0);
+	ICE_WRITE_REG(hw, GLTSYN_INCVAL_H(0), 0);
+
+	ad->ptp_ena = 0;
+
+	return 0;
 }
 
 static int
@@ -5364,18 +5871,17 @@ RTE_PMD_REGISTER_PCI(net_ice, rte_ice_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_ice, pci_id_ice_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_ice, "* igb_uio | uio_pci_generic | vfio-pci");
 RTE_PMD_REGISTER_PARAM_STRING(net_ice,
+			      ICE_HW_DEBUG_MASK_ARG "=0xXXX"
 			      ICE_PROTO_XTR_ARG "=[queue:]<vlan|ipv4|ipv6|ipv6_flow|tcp|ip_offset>"
 			      ICE_SAFE_MODE_SUPPORT_ARG "=<0|1>"
-			      ICE_PIPELINE_MODE_SUPPORT_ARG "=<0|1>");
+			      ICE_PIPELINE_MODE_SUPPORT_ARG "=<0|1>"
+			      ICE_RX_LOW_LATENCY_ARG "=<0|1>");
 
-RTE_LOG_REGISTER(ice_logtype_init, pmd.net.ice.init, NOTICE);
-RTE_LOG_REGISTER(ice_logtype_driver, pmd.net.ice.driver, NOTICE);
-#ifdef RTE_LIBRTE_ICE_DEBUG_RX
-RTE_LOG_REGISTER(ice_logtype_rx, pmd.net.ice.rx, DEBUG);
+RTE_LOG_REGISTER_SUFFIX(ice_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(ice_logtype_driver, driver, NOTICE);
+#ifdef RTE_ETHDEV_DEBUG_RX
+RTE_LOG_REGISTER_SUFFIX(ice_logtype_rx, rx, DEBUG);
 #endif
-#ifdef RTE_LIBRTE_ICE_DEBUG_TX
-RTE_LOG_REGISTER(ice_logtype_tx, pmd.net.ice.tx, DEBUG);
-#endif
-#ifdef RTE_LIBRTE_ICE_DEBUG_TX_FREE
-RTE_LOG_REGISTER(ice_logtype_tx_free, pmd.net.ice.tx_free, DEBUG);
+#ifdef RTE_ETHDEV_DEBUG_TX
+RTE_LOG_REGISTER_SUFFIX(ice_logtype_tx, tx, DEBUG);
 #endif

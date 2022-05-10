@@ -370,10 +370,10 @@ uint64_t rte_rand(void){
 
 /* taken from DPDK to simulate hardware checksum calculation */
 
-#define DEV_TX_OFFLOAD_VLAN_INSERT 0x00000001
-#define DEV_TX_OFFLOAD_IPV4_CKSUM  0x00000002
-#define DEV_TX_OFFLOAD_UDP_CKSUM   0x00000004
-#define DEV_TX_OFFLOAD_TCP_CKSUM   0x00000008
+#define RTE_ETH_TX_OFFLOAD_VLAN_INSERT 0x00000001
+#define RTE_ETH_TX_OFFLOAD_IPV4_CKSUM  0x00000002
+#define RTE_ETH_TX_OFFLOAD_UDP_CKSUM   0x00000004
+#define RTE_ETH_TX_OFFLOAD_TCP_CKSUM   0x00000008
 
 struct rte_tcp_hdr {
 	uint16_t src_port;  /**< TCP source port. */
@@ -560,7 +560,7 @@ uint16_t rte_ipv4_phdr_cksum(const struct rte_ipv4_hdr *ipv4_hdr, uint64_t ol_fl
 	psd_hdr.dst_addr = ipv4_hdr->dst_addr;
 	psd_hdr.zero = 0;
 	psd_hdr.proto = ipv4_hdr->next_proto_id;
-	if (ol_flags & PKT_TX_TCP_SEG) {
+	if (ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
 		psd_hdr.len = 0;
 	} else {
 		psd_hdr.len =  PAL_NTOHS(
@@ -579,7 +579,7 @@ uint16_t rte_ipv6_phdr_cksum(const struct rte_ipv6_hdr *ipv6_hdr, uint64_t ol_fl
 	} psd_hdr;
 
 	psd_hdr.proto = (uint32_t)(ipv6_hdr->proto << 24);
-	if (ol_flags & PKT_TX_TCP_SEG) {
+	if (ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
 		psd_hdr.len = 0;
 	} else {
 		psd_hdr.len = ipv6_hdr->payload_len;
@@ -604,35 +604,35 @@ static void tx_offload_csum(struct rte_mbuf *m, uint64_t tx_offload) {
             return;
         csum = (csum != 0xffff) ? ~csum: csum;
 
-        if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) &&
-            !(tx_offload & DEV_TX_OFFLOAD_TCP_CKSUM)) {
+        if (((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_TCP_CKSUM) &&
+            !(tx_offload & RTE_ETH_TX_OFFLOAD_TCP_CKSUM)) {
             struct rte_tcp_hdr * tcp_hdr = rte_pktmbuf_mtod_offset(m, struct rte_tcp_hdr *, csum_start);
 
             tcp_hdr->cksum = csum;
-            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
-        } else if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM) &&
-                    !(tx_offload & DEV_TX_OFFLOAD_UDP_CKSUM)) {
+            m->ol_flags &= ~RTE_MBUF_F_TX_L4_MASK;     /* RTE_MBUF_F_TX_L4_NO_CKSUM is 0 */
+        } else if (((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_UDP_CKSUM) &&
+                    !(tx_offload & RTE_ETH_TX_OFFLOAD_UDP_CKSUM)) {
             struct rte_udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(m, struct rte_udp_hdr *, csum_start);
 
             udp_hdr->dgram_cksum = csum;
-            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
+            m->ol_flags &= ~RTE_MBUF_F_TX_L4_MASK;     /* RTE_MBUF_F_TX_L4_NO_CKSUM is 0 */
         }
 
-        if ((m->ol_flags & PKT_TX_IPV4) && (m->ol_flags & PKT_TX_IP_CKSUM) &&
-            !(tx_offload & DEV_TX_OFFLOAD_IPV4_CKSUM)) {
+        if ((m->ol_flags & RTE_MBUF_F_TX_IPV4) && (m->ol_flags & RTE_MBUF_F_TX_IP_CKSUM) &&
+            !(tx_offload & RTE_ETH_TX_OFFLOAD_IPV4_CKSUM)) {
             struct rte_ipv4_hdr *iph = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, m->l2_len);
 
             if (!iph->hdr_checksum) {
                 iph->hdr_checksum = rte_ipv4_cksum(iph);
-                m->ol_flags &= ~PKT_TX_IP_CKSUM;
+                m->ol_flags &= ~RTE_MBUF_F_TX_IP_CKSUM;
             }
         }
 }
 
 void hw_checksum_sim(struct rte_mbuf *m){
 
-    if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) ||
-        ((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM)) {
+    if (((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_TCP_CKSUM) ||
+        ((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_UDP_CKSUM)) {
         tx_offload_csum(m, 0 );
     }
 }

@@ -492,11 +492,11 @@ bool CCPortLatency::check_packet(rte_mbuf_t * m,CRx_check_header * & rx_p) {
     }
 
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
-        if ( (m->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
+        if ( (m->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) ==  RTE_MBUF_F_RX_IP_CKSUM_BAD ){
             m_l3_cs_err++;
         }
     
-        if ( (m->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD ){
+        if ( (m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_BAD) ==  RTE_MBUF_F_RX_L4_CKSUM_BAD ){
             if ( parser.m_protocol != IPHeader::Protocol::SCTP ){
                 /* in case of SCTP packets we don't fix checksum  for L4 */
                 m_l4_cs_err++;

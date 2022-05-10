@@ -216,6 +216,11 @@ struct ice_adv_lkup_elem {
 	union ice_prot_hdr m_u;	/* Mask of header values to match */
 };
 
+struct ice_prof_type_entry {
+	u16 prof_id;
+	enum ice_sw_tunnel_type type;
+};
+
 struct ice_sw_act_ctrl {
 	/* Source VSI for LOOKUP_TX or source port for LOOKUP_RX */
 	u16 src;
@@ -245,12 +250,23 @@ struct ice_rule_query_data {
 	u16 vsi_handle;
 };
 
+/* This structure allows to pass info about lb_en and lan_en
+ * flags to ice_add_adv_rule. Values in act would be used
+ * only if act_valid was set to true, otherwise dflt
+ * values would be used.
+ */
+struct ice_adv_rule_flags_info {
+	u32 act;
+	u8 act_valid;		/* indicate if flags in act are valid */
+};
+
 struct ice_adv_rule_info {
 	enum ice_sw_tunnel_type tun_type;
 	struct ice_sw_act_ctrl sw_act;
 	u32 priority;
 	u8 rx; /* true means LOOKUP_RX otherwise LOOKUP_TX */
 	u16 fltr_rule_id;
+	struct ice_adv_rule_flags_info flags_info;
 };
 
 /* A collection of one or more four word recipe */
@@ -535,4 +551,5 @@ bool ice_is_prof_rule(enum ice_sw_tunnel_type type);
 enum ice_status
 ice_update_recipe_lkup_idx(struct ice_hw *hw,
 			   struct ice_update_recipe_lkup_idx_params *params);
+void ice_change_proto_id_to_dvm(void);
 #endif /* _ICE_SWITCH_H_ */

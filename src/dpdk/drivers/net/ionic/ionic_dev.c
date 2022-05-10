@@ -358,14 +358,8 @@ ionic_dev_cmd_adminq_init(struct ionic_dev *idev, struct ionic_qcq *qcq)
 }
 
 int
-ionic_cq_init(struct ionic_lif *lif, struct ionic_cq *cq,
-		uint32_t num_descs, size_t desc_size)
+ionic_cq_init(struct ionic_cq *cq, uint16_t num_descs)
 {
-	if (desc_size == 0) {
-		IONIC_PRINT(ERR, "Descriptor size is %zu", desc_size);
-		return -EINVAL;
-	}
-
 	if (!rte_is_power_of_2(num_descs) ||
 	    num_descs < IONIC_MIN_RING_DESC ||
 	    num_descs > IONIC_MAX_RING_DESC) {
@@ -374,9 +368,8 @@ ionic_cq_init(struct ionic_lif *lif, struct ionic_cq *cq,
 		return -EINVAL;
 	}
 
-	cq->lif = lif;
 	cq->num_descs = num_descs;
-	cq->desc_size = desc_size;
+	cq->size_mask = num_descs - 1;
 	cq->tail_idx = 0;
 	cq->done_color = 1;
 
@@ -390,13 +383,6 @@ ionic_cq_map(struct ionic_cq *cq, void *base, rte_iova_t base_pa)
 	cq->base_pa = base_pa;
 }
 
-void
-ionic_cq_bind(struct ionic_cq *cq, struct ionic_queue *q)
-{
-	cq->bound_q = q;
-	q->bound_cq = cq;
-}
-
 uint32_t
 ionic_cq_service(struct ionic_cq *cq, uint32_t work_to_do,
 		 ionic_cq_cb cb, void *cb_arg)
@@ -407,7 +393,7 @@ ionic_cq_service(struct ionic_cq *cq, uint32_t work_to_do,
 		return 0;
 
 	while (cb(cq, cq->tail_idx, cb_arg)) {
-		cq->tail_idx = (cq->tail_idx + 1) & (cq->num_descs - 1);
+		cq->tail_idx = Q_NEXT_TO_SRVC(cq, 1);
 		if (cq->tail_idx == 0)
 			cq->done_color = !cq->done_color;
 
@@ -419,26 +405,20 @@ ionic_cq_service(struct ionic_cq *cq, uint32_t work_to_do,
 }
 
 int
-ionic_q_init(struct ionic_lif *lif, struct ionic_dev *idev,
-	     struct ionic_queue *q, uint32_t index, uint32_t num_descs,
-	     size_t desc_size, size_t sg_desc_size)
+ionic_q_init(struct ionic_queue *q, uint32_t index, uint16_t num_descs)
 {
 	uint32_t ring_size;
 
-	if (desc_size == 0 || !rte_is_power_of_2(num_descs))
+	if (!rte_is_power_of_2(num_descs))
 		return -EINVAL;
 
 	ring_size = rte_log2_u32(num_descs);
-
 	if (ring_size < 2 || ring_size > 16)
 		return -EINVAL;
 
-	q->lif = lif;
-	q->idev = idev;
 	q->index = index;
 	q->num_descs = num_descs;
-	q->desc_size = desc_size;
-	q->sg_desc_size = sg_desc_size;
+	q->size_mask = num_descs - 1;
 	q->head_idx = 0;
 	q->tail_idx = 0;
 
@@ -457,104 +437,4 @@ ionic_q_sg_map(struct ionic_queue *q, void *base, rte_iova_t base_pa)
 {
 	q->sg_base = base;
 	q->sg_base_pa = base_pa;
-}
-
-void
-ionic_q_post(struct ionic_queue *q, bool ring_doorbell, desc_cb cb,
-	     void *cb_arg)
-{
-	struct ionic_desc_info *head = &q->info[q->head_idx];
-
-	head->cb = cb;
-	head->cb_arg = cb_arg;
-
-	q->head_idx = (q->head_idx + 1) & (q->num_descs - 1);
-
-	if (ring_doorbell)
-		ionic_q_flush(q);
-}
-
-void
-ionic_q_service(struct ionic_queue *q, uint32_t cq_desc_index,
-		uint32_t stop_index, void *service_cb_arg)
-{
-	struct ionic_desc_info *desc_info;
-	uint32_t curr_q_tail_idx;
-
-	do {
-		desc_info = &q->info[q->tail_idx];
-
-		if (desc_info->cb)
-			desc_info->cb(q, q->tail_idx, cq_desc_index,
-				desc_info->cb_arg, service_cb_arg);
-
-		desc_info->cb = NULL;
-		desc_info->cb_arg = NULL;
-
-		curr_q_tail_idx = q->tail_idx;
-		q->tail_idx = (q->tail_idx + 1) & (q->num_descs - 1);
-
-	} while (curr_q_tail_idx != stop_index);
-}
-
-static void
-ionic_adminq_cb(struct ionic_queue *q,
-		uint32_t q_desc_index, uint32_t cq_desc_index,
-		void *cb_arg, void *service_cb_arg __rte_unused)
-{
-	struct ionic_admin_ctx *ctx = cb_arg;
-	struct ionic_admin_comp *cq_desc_base = q->bound_cq->base;
-	struct ionic_admin_comp *cq_desc = &cq_desc_base[cq_desc_index];
-	uint16_t comp_index;
-
-	if (!ctx)
-		return;
-
-	comp_index = rte_le_to_cpu_16(cq_desc->comp_index);
-	if (unlikely(comp_index != q_desc_index)) {
-		IONIC_WARN_ON(comp_index != q_desc_index);
-		return;
-	}
-
-	memcpy(&ctx->comp, cq_desc, sizeof(*cq_desc));
-
-	ctx->pending_work = false; /* done */
-}
-
-/** ionic_adminq_post - Post an admin command.
- * @lif:		Handle to lif.
- * @cmd_ctx:		Api admin command context.
- *
- * Post the command to an admin queue in the ethernet driver.  If this command
- * succeeds, then the command has been posted, but that does not indicate a
- * completion.  If this command returns success, then the completion callback
- * will eventually be called.
- *
- * Return: zero or negative error status.
- */
-int
-ionic_adminq_post(struct ionic_lif *lif, struct ionic_admin_ctx *ctx)
-{
-	struct ionic_queue *adminq = &lif->adminqcq->q;
-	struct ionic_admin_cmd *q_desc_base = adminq->base;
-	struct ionic_admin_cmd *q_desc;
-	int err = 0;
-
-	rte_spinlock_lock(&lif->adminq_lock);
-
-	if (ionic_q_space_avail(adminq) < 1) {
-		err = -ENOSPC;
-		goto err_out;
-	}
-
-	q_desc = &q_desc_base[adminq->head_idx];
-
-	memcpy(q_desc, &ctx->cmd, sizeof(ctx->cmd));
-
-	ionic_q_post(adminq, true, ionic_adminq_cb, ctx);
-
-err_out:
-	rte_spinlock_unlock(&lif->adminq_lock);
-
-	return err;
 }

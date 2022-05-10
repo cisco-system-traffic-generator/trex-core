@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2015-2018 Intel Corporation
+ * Copyright(c) 2015-2022 Intel Corporation
  */
 
 #ifndef _QAT_SYM_H_
 #define _QAT_SYM_H_
 
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #ifdef RTE_LIB_SECURITY
 #include <rte_net_crc.h>
 #endif
@@ -15,7 +15,7 @@
 
 #include "qat_common.h"
 #include "qat_sym_session.h"
-#include "qat_sym_pmd.h"
+#include "qat_crypto.h"
 #include "qat_logs.h"
 
 #define BYTE_LENGTH    8
@@ -24,10 +24,74 @@
  */
 #define BPI_MAX_ENCR_IV_LEN ICP_QAT_HW_AES_BLK_SZ
 
+/** Intel(R) QAT Symmetric Crypto PMD name */
+#define CRYPTODEV_NAME_QAT_SYM_PMD	crypto_qat
+
+/* Internal capabilities */
+#define QAT_SYM_CAP_MIXED_CRYPTO	(1 << 0)
+#define QAT_SYM_CAP_VALID		(1 << 31)
+
+/**
+ * Macro to add a sym capability
+ * helper function to add an sym capability
+ * <n: name> <b: block size> <k: key size> <d: digest size>
+ * <a: aad_size> <i: iv_size>
+ **/
+#define QAT_SYM_PLAIN_AUTH_CAP(n, b, d)					\
+	{								\
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,			\
+		{.sym = {						\
+			.xform_type = RTE_CRYPTO_SYM_XFORM_AUTH,	\
+			{.auth = {					\
+				.algo = RTE_CRYPTO_AUTH_##n,		\
+				b, d					\
+			}, }						\
+		}, }							\
+	}
+
+#define QAT_SYM_AUTH_CAP(n, b, k, d, a, i)				\
+	{								\
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,			\
+		{.sym = {						\
+			.xform_type = RTE_CRYPTO_SYM_XFORM_AUTH,	\
+			{.auth = {					\
+				.algo = RTE_CRYPTO_AUTH_##n,		\
+				b, k, d, a, i				\
+			}, }						\
+		}, }							\
+	}
+
+#define QAT_SYM_AEAD_CAP(n, b, k, d, a, i)				\
+	{								\
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,			\
+		{.sym = {						\
+			.xform_type = RTE_CRYPTO_SYM_XFORM_AEAD,	\
+			{.aead = {					\
+				.algo = RTE_CRYPTO_AEAD_##n,		\
+				b, k, d, a, i				\
+			}, }						\
+		}, }							\
+	}
+
+#define QAT_SYM_CIPHER_CAP(n, b, k, i)					\
+	{								\
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,			\
+		{.sym = {						\
+			.xform_type = RTE_CRYPTO_SYM_XFORM_CIPHER,	\
+			{.cipher = {					\
+				.algo = RTE_CRYPTO_CIPHER_##n,		\
+				b, k, i					\
+			}, }						\
+		}, }							\
+	}
+
 /*
  * Maximum number of SGL entries
  */
 #define QAT_SYM_SGL_MAX_NUMBER	16
+
+/* Maximum data length for single pass GMAC: 2^14-1 */
+#define QAT_AES_GMAC_SPC_MAX_SIZE 16383
 
 struct qat_sym_session;
 
@@ -41,12 +105,31 @@ struct qat_sym_op_cookie {
 	struct qat_sym_sgl qat_sgl_dst;
 	phys_addr_t qat_sgl_src_phys_addr;
 	phys_addr_t qat_sgl_dst_phys_addr;
+	union {
+		/* Used for Single-Pass AES-GMAC only */
+		struct {
+			struct icp_qat_hw_cipher_algo_blk cd_cipher
+					__rte_packed __rte_cache_aligned;
+			phys_addr_t cd_phys_addr;
+		} spc_gmac;
+	} opt;
 };
 
-int
-qat_sym_build_request(void *in_op, uint8_t *out_msg,
-		void *op_cookie, enum qat_device_gen qat_dev_gen);
+struct qat_sym_dp_ctx {
+	struct qat_sym_session *session;
+	uint32_t tail;
+	uint32_t head;
+	uint16_t cached_enqueue;
+	uint16_t cached_dequeue;
+};
 
+uint16_t
+qat_sym_enqueue_burst(void *qp, struct rte_crypto_op **ops,
+		uint16_t nb_ops);
+
+uint16_t
+qat_sym_dequeue_burst(void *qp, struct rte_crypto_op **ops,
+		uint16_t nb_ops);
 
 /** Encrypt a single partial block
  *  Depends on openssl libcrypto
@@ -202,28 +285,43 @@ qat_sym_preprocess_requests(void **ops, uint16_t nb_ops)
 		}
 	}
 }
-#else
-
-static inline void
-qat_sym_preprocess_requests(void **ops __rte_unused,
-				uint16_t nb_ops __rte_unused)
-{
-}
 #endif
 
-static inline void
-qat_sym_process_response(void **op, uint8_t *resp)
+static __rte_always_inline int
+qat_sym_process_response(void **op, uint8_t *resp, void *op_cookie,
+		uint64_t *dequeue_err_count __rte_unused)
 {
 	struct icp_qat_fw_comn_resp *resp_msg =
 			(struct icp_qat_fw_comn_resp *)resp;
 	struct rte_crypto_op *rx_op = (struct rte_crypto_op *)(uintptr_t)
 			(resp_msg->opaque_data);
 	struct qat_sym_session *sess;
+	uint8_t is_docsis_sec;
 
 #if RTE_LOG_DP_LEVEL >= RTE_LOG_DEBUG
 	QAT_DP_HEXDUMP_LOG(DEBUG, "qat_response:", (uint8_t *)resp_msg,
 			sizeof(struct icp_qat_fw_comn_resp));
 #endif
+
+#ifdef RTE_LIB_SECURITY
+	if (rx_op->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION) {
+		/*
+		 * Assuming at this point that if it's a security
+		 * op, that this is for DOCSIS
+		 */
+		sess = (struct qat_sym_session *)
+				get_sec_session_private_data(
+				rx_op->sym->sec_session);
+		is_docsis_sec = 1;
+	} else
+#endif
+	{
+		sess = (struct qat_sym_session *)
+				get_sym_session_private_data(
+				rx_op->sym->session,
+				qat_sym_driver_id);
+		is_docsis_sec = 0;
+	}
 
 	if (ICP_QAT_FW_COMN_STATUS_FLAG_OK !=
 			ICP_QAT_FW_COMN_RESP_CRYPTO_STAT_GET(
@@ -231,27 +329,6 @@ qat_sym_process_response(void **op, uint8_t *resp)
 
 		rx_op->status = RTE_CRYPTO_OP_STATUS_AUTH_FAILED;
 	} else {
-#ifdef RTE_LIB_SECURITY
-		uint8_t is_docsis_sec = 0;
-
-		if (rx_op->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION) {
-			/*
-			 * Assuming at this point that if it's a security
-			 * op, that this is for DOCSIS
-			 */
-			sess = (struct qat_sym_session *)
-					get_sec_session_private_data(
-					rx_op->sym->sec_session);
-			is_docsis_sec = 1;
-		} else
-#endif
-		{
-			sess = (struct qat_sym_session *)
-					get_sym_session_private_data(
-					rx_op->sym->session,
-					qat_sym_driver_id);
-		}
-
 		rx_op->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
 
 		if (sess->bpi_ctx) {
@@ -262,7 +339,21 @@ qat_sym_process_response(void **op, uint8_t *resp)
 #endif
 		}
 	}
+
+	if (sess->is_single_pass_gmac) {
+		struct qat_sym_op_cookie *cookie =
+				(struct qat_sym_op_cookie *) op_cookie;
+		memset(cookie->opt.spc_gmac.cd_cipher.key, 0,
+				sess->auth_key_length);
+	}
+
 	*op = (void *)rx_op;
+
+	/*
+	 * return 1 as dequeue op only move on to the next op
+	 * if one was ready to return to API
+	 */
+	return 1;
 }
 
 int
@@ -274,6 +365,52 @@ qat_sym_configure_dp_ctx(struct rte_cryptodev *dev, uint16_t qp_id,
 int
 qat_sym_get_dp_ctx_size(struct rte_cryptodev *dev);
 
+void
+qat_sym_init_op_cookie(void *cookie);
+
+#if RTE_LOG_DP_LEVEL >= RTE_LOG_DEBUG
+static __rte_always_inline void
+qat_sym_debug_log_dump(struct icp_qat_fw_la_bulk_req *qat_req,
+		struct qat_sym_session *ctx,
+		struct rte_crypto_vec *vec, uint32_t vec_len,
+		struct rte_crypto_va_iova_ptr *cipher_iv,
+		struct rte_crypto_va_iova_ptr *auth_iv,
+		struct rte_crypto_va_iova_ptr *aad,
+		struct rte_crypto_va_iova_ptr *digest)
+{
+	uint32_t i;
+
+	QAT_DP_HEXDUMP_LOG(DEBUG, "qat_req:", qat_req,
+			sizeof(struct icp_qat_fw_la_bulk_req));
+	for (i = 0; i < vec_len; i++)
+		QAT_DP_HEXDUMP_LOG(DEBUG, "src_data:", vec[i].base, vec[i].len);
+	if (cipher_iv && ctx->cipher_iv.length > 0)
+		QAT_DP_HEXDUMP_LOG(DEBUG, "cipher iv:", cipher_iv->va,
+				ctx->cipher_iv.length);
+	if (auth_iv && ctx->auth_iv.length > 0)
+		QAT_DP_HEXDUMP_LOG(DEBUG, "auth iv:", auth_iv->va,
+				ctx->auth_iv.length);
+	if (aad && ctx->aad_len > 0)
+		QAT_DP_HEXDUMP_LOG(DEBUG, "aad:", aad->va,
+				ctx->aad_len);
+	if (digest && ctx->digest_length > 0)
+		QAT_DP_HEXDUMP_LOG(DEBUG, "digest:", digest->va,
+				ctx->digest_length);
+}
+#else
+static __rte_always_inline void
+qat_sym_debug_log_dump(struct icp_qat_fw_la_bulk_req *qat_req __rte_unused,
+		struct qat_sym_session *ctx __rte_unused,
+		struct rte_crypto_vec *vec __rte_unused,
+		uint32_t vec_len __rte_unused,
+		struct rte_crypto_va_iova_ptr *cipher_iv __rte_unused,
+		struct rte_crypto_va_iova_ptr *auth_iv __rte_unused,
+		struct rte_crypto_va_iova_ptr *aad __rte_unused,
+		struct rte_crypto_va_iova_ptr *digest __rte_unused)
+{
+}
+#endif
+
 #else
 
 static inline void
@@ -283,9 +420,10 @@ qat_sym_preprocess_requests(void **ops __rte_unused,
 }
 
 static inline void
-qat_sym_process_response(void **op __rte_unused, uint8_t *resp __rte_unused)
+qat_sym_process_response(void **op __rte_unused, uint8_t *resp __rte_unused,
+	void *op_cookie __rte_unused)
 {
 }
 
-#endif
+#endif /* BUILD_QAT_SYM */
 #endif /* _QAT_SYM_H_ */

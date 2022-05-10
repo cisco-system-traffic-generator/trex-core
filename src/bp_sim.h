@@ -2350,17 +2350,17 @@ inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m){
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
 
         if ( unlikely (m_pkt_indication.is_ipv6() ) ) {
-            m->ol_flags |= PKT_TX_IPV6 ;
+            m->ol_flags |= RTE_MBUF_F_TX_IPV6 ;
         }else{
             /* Ipv4*/
-            m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+            m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
         }
 
         if ( m_pkt_indication.m_desc.IsTcp() ) {
-            m->ol_flags |=   PKT_TX_TCP_CKSUM;
+            m->ol_flags |=   RTE_MBUF_F_TX_TCP_CKSUM;
         } else {
             if (m_pkt_indication.m_desc.IsUdp()) {
-                m->ol_flags |= PKT_TX_UDP_CKSUM;
+                m->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
             }
         }
     }
@@ -2373,10 +2373,10 @@ inline void CFlowPktInfo::update_tcp_cs(TCPHeader * tcp,
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
         /* set pseudo-header checksum */
         if ( m_pkt_indication.is_ipv6() ){
-            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4->getPointer(), PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4->getPointer(), RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM));
         }else{
             tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)ipv4->getPointer(),
-                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM));
+                                                             RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM));
         }
     }
 }
@@ -2388,10 +2388,10 @@ inline void CFlowPktInfo::update_udp_cs(UDPHeader * udp,
         /* set pseudo-header checksum */
         if ( m_pkt_indication.is_ipv6() ){
             udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *) ipv4->getPointer(),
-                                                         PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+                                                         RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM));
         }else{
             udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *) ipv4->getPointer(),
-                                                         PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM));
+                                                         RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM));
         }
     } else {
         udp->setChecksum(0);

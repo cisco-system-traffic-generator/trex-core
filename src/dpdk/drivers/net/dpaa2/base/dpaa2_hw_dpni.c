@@ -41,6 +41,17 @@ rte_pmd_dpaa2_set_custom_hash(uint16_t port_id,
 	void *p_params;
 	int ret, tc_index = 0;
 
+	if (!rte_eth_dev_is_valid_port(port_id)) {
+		DPAA2_PMD_WARN("Invalid port id %u", port_id);
+		return -EINVAL;
+	}
+
+	if (strcmp(eth_dev->device->driver->name,
+			RTE_STR(NET_DPAA2_PMD_DRIVER_NAME))) {
+		DPAA2_PMD_WARN("Not a valid dpaa2 port");
+		return -EINVAL;
+	}
+
 	p_params = rte_zmalloc(
 		NULL, DIST_PARAM_IOVA_SIZE, RTE_CACHE_LINE_SIZE);
 	if (!p_params) {
@@ -84,7 +95,7 @@ dpaa2_setup_flow_dist(struct rte_eth_dev *eth_dev,
 	uint64_t req_dist_set, int tc_index)
 {
 	struct dpaa2_dev_priv *priv = eth_dev->data->dev_private;
-	struct fsl_mc_io *dpni = priv->hw;
+	struct fsl_mc_io *dpni = eth_dev->process_private;
 	struct dpni_rx_dist_cfg tc_cfg;
 	struct dpkg_profile_cfg kg_cfg;
 	void *p_params;
@@ -199,14 +210,18 @@ dpaa2_distset_to_dpkg_profile_cfg(
 	int l2_configured = 0, l3_configured = 0;
 	int l4_configured = 0, sctp_configured = 0;
 	int mpls_configured = 0;
+	int vlan_configured = 0;
+	int esp_configured = 0;
+	int ah_configured = 0;
+	int pppoe_configured = 0;
 
 	memset(kg_cfg, 0, sizeof(struct dpkg_profile_cfg));
 	while (req_dist_set) {
 		if (req_dist_set % 2 != 0) {
-			dist_field = 1U << loop;
+			dist_field = 1ULL << loop;
 			switch (dist_field) {
-			case ETH_RSS_L2_PAYLOAD:
-
+			case RTE_ETH_RSS_L2_PAYLOAD:
+			case RTE_ETH_RSS_ETH:
 				if (l2_configured)
 					break;
 				l2_configured = 1;
@@ -220,9 +235,72 @@ dpaa2_distset_to_dpkg_profile_cfg(
 				kg_cfg->extracts[i].extract.from_hdr.type =
 					DPKG_FULL_FIELD;
 				i++;
-			break;
+				break;
 
-			case ETH_RSS_MPLS:
+			case RTE_ETH_RSS_PPPOE:
+				if (pppoe_configured)
+					break;
+				kg_cfg->extracts[i].extract.from_hdr.prot =
+					NET_PROT_PPPOE;
+				kg_cfg->extracts[i].extract.from_hdr.field =
+					NH_FLD_PPPOE_SID;
+				kg_cfg->extracts[i].type =
+					DPKG_EXTRACT_FROM_HDR;
+				kg_cfg->extracts[i].extract.from_hdr.type =
+					DPKG_FULL_FIELD;
+				i++;
+				break;
+
+			case RTE_ETH_RSS_ESP:
+				if (esp_configured)
+					break;
+				esp_configured = 1;
+
+				kg_cfg->extracts[i].extract.from_hdr.prot =
+					NET_PROT_IPSEC_ESP;
+				kg_cfg->extracts[i].extract.from_hdr.field =
+					NH_FLD_IPSEC_ESP_SPI;
+				kg_cfg->extracts[i].type =
+					DPKG_EXTRACT_FROM_HDR;
+				kg_cfg->extracts[i].extract.from_hdr.type =
+					DPKG_FULL_FIELD;
+				i++;
+				break;
+
+			case RTE_ETH_RSS_AH:
+				if (ah_configured)
+					break;
+				ah_configured = 1;
+
+				kg_cfg->extracts[i].extract.from_hdr.prot =
+					NET_PROT_IPSEC_AH;
+				kg_cfg->extracts[i].extract.from_hdr.field =
+					NH_FLD_IPSEC_AH_SPI;
+				kg_cfg->extracts[i].type =
+					DPKG_EXTRACT_FROM_HDR;
+				kg_cfg->extracts[i].extract.from_hdr.type =
+					DPKG_FULL_FIELD;
+				i++;
+				break;
+
+			case RTE_ETH_RSS_C_VLAN:
+			case RTE_ETH_RSS_S_VLAN:
+				if (vlan_configured)
+					break;
+				vlan_configured = 1;
+
+				kg_cfg->extracts[i].extract.from_hdr.prot =
+					NET_PROT_VLAN;
+				kg_cfg->extracts[i].extract.from_hdr.field =
+					NH_FLD_VLAN_TCI;
+				kg_cfg->extracts[i].type =
+					DPKG_EXTRACT_FROM_HDR;
+				kg_cfg->extracts[i].extract.from_hdr.type =
+					DPKG_FULL_FIELD;
+				i++;
+				break;
+
+			case RTE_ETH_RSS_MPLS:
 
 				if (mpls_configured)
 					break;
@@ -259,13 +337,13 @@ dpaa2_distset_to_dpkg_profile_cfg(
 				i++;
 				break;
 
-			case ETH_RSS_IPV4:
-			case ETH_RSS_FRAG_IPV4:
-			case ETH_RSS_NONFRAG_IPV4_OTHER:
-			case ETH_RSS_IPV6:
-			case ETH_RSS_FRAG_IPV6:
-			case ETH_RSS_NONFRAG_IPV6_OTHER:
-			case ETH_RSS_IPV6_EX:
+			case RTE_ETH_RSS_IPV4:
+			case RTE_ETH_RSS_FRAG_IPV4:
+			case RTE_ETH_RSS_NONFRAG_IPV4_OTHER:
+			case RTE_ETH_RSS_IPV6:
+			case RTE_ETH_RSS_FRAG_IPV6:
+			case RTE_ETH_RSS_NONFRAG_IPV6_OTHER:
+			case RTE_ETH_RSS_IPV6_EX:
 
 				if (l3_configured)
 					break;
@@ -303,12 +381,12 @@ dpaa2_distset_to_dpkg_profile_cfg(
 				i++;
 			break;
 
-			case ETH_RSS_NONFRAG_IPV4_TCP:
-			case ETH_RSS_NONFRAG_IPV6_TCP:
-			case ETH_RSS_NONFRAG_IPV4_UDP:
-			case ETH_RSS_NONFRAG_IPV6_UDP:
-			case ETH_RSS_IPV6_TCP_EX:
-			case ETH_RSS_IPV6_UDP_EX:
+			case RTE_ETH_RSS_NONFRAG_IPV4_TCP:
+			case RTE_ETH_RSS_NONFRAG_IPV6_TCP:
+			case RTE_ETH_RSS_NONFRAG_IPV4_UDP:
+			case RTE_ETH_RSS_NONFRAG_IPV6_UDP:
+			case RTE_ETH_RSS_IPV6_TCP_EX:
+			case RTE_ETH_RSS_IPV6_UDP_EX:
 
 				if (l4_configured)
 					break;
@@ -335,8 +413,8 @@ dpaa2_distset_to_dpkg_profile_cfg(
 				i++;
 				break;
 
-			case ETH_RSS_NONFRAG_IPV4_SCTP:
-			case ETH_RSS_NONFRAG_IPV6_SCTP:
+			case RTE_ETH_RSS_NONFRAG_IPV4_SCTP:
+			case RTE_ETH_RSS_NONFRAG_IPV6_SCTP:
 
 				if (sctp_configured)
 					break;
@@ -379,13 +457,12 @@ dpaa2_distset_to_dpkg_profile_cfg(
 
 int
 dpaa2_attach_bp_list(struct dpaa2_dev_priv *priv,
-		     void *blist)
+	struct fsl_mc_io *dpni, void *blist)
 {
 	/* Function to attach a DPNI with a buffer pool list. Buffer pool list
 	 * handle is passed in blist.
 	 */
 	int32_t retcode;
-	struct fsl_mc_io *dpni = priv->hw;
 	struct dpni_pools_cfg bpool_cfg;
 	struct dpaa2_bp_list *bp_list = (struct dpaa2_bp_list *)blist;
 	struct dpni_buffer_layout layout;

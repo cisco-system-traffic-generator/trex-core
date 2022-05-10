@@ -78,11 +78,26 @@ struct mlx5dv_devx_async_cmd_hdr;
 enum  mlx5dv_dr_domain_type { unused, };
 struct mlx5dv_dr_domain;
 struct mlx5dv_dr_action;
+#define MLX5DV_DR_ACTION_FLAGS_ROOT_LEVEL 1
 #endif
 
 #ifndef HAVE_MLX5DV_DR_DEVX_PORT
 struct mlx5dv_devx_port;
 #endif
+
+#ifndef HAVE_MLX5DV_DR_DEVX_PORT_V35
+struct mlx5dv_port;
+#endif
+
+#define MLX5_PORT_QUERY_VPORT (1u << 0)
+#define MLX5_PORT_QUERY_REG_C0 (1u << 1)
+
+struct mlx5_port_info {
+	uint16_t query_flags;
+	uint16_t vport_id; /* Associated VF vport index (if any). */
+	uint32_t vport_meta_tag; /* Used for vport index match ove VF LAG. */
+	uint32_t vport_meta_mask; /* Used for vport index field match mask. */
+};
 
 #ifndef HAVE_MLX5_DR_CREATE_ACTION_FLOW_METER
 struct mlx5dv_dr_flow_meter_attr;
@@ -136,9 +151,13 @@ struct mlx5_glue {
 	int (*fork_init)(void);
 	struct ibv_pd *(*alloc_pd)(struct ibv_context *context);
 	int (*dealloc_pd)(struct ibv_pd *pd);
+	struct ibv_pd *(*import_pd)(struct ibv_context *context,
+				    uint32_t pd_handle);
+	int (*unimport_pd)(struct ibv_pd *pd);
 	struct ibv_device **(*get_device_list)(int *num_devices);
 	void (*free_device_list)(struct ibv_device **list);
 	struct ibv_context *(*open_device)(struct ibv_device *device);
+	struct ibv_context *(*import_device)(int cmd_fd);
 	int (*close_device)(struct ibv_context *context);
 	int (*query_device)(struct ibv_context *context,
 			    struct ibv_device_attr *device_attr);
@@ -182,6 +201,9 @@ struct mlx5_glue {
 			 int attr_mask);
 	struct ibv_mr *(*reg_mr)(struct ibv_pd *pd, void *addr,
 				 size_t length, int access);
+	struct ibv_mr *(*reg_mr_iova)(struct ibv_pd *pd, void *addr,
+				      size_t length, uint64_t iova,
+				      int access);
 	struct ibv_mr *(*alloc_null_mr)(struct ibv_pd *pd);
 	int (*dereg_mr)(struct ibv_mr *mr);
 	struct ibv_counter_set *(*create_counter_set)
@@ -311,8 +333,9 @@ struct mlx5_glue {
 			     void *out, size_t outlen);
 	int (*devx_port_query)(struct ibv_context *ctx,
 			       uint32_t port_num,
-			       struct mlx5dv_devx_port *mlx5_devx_port);
+			       struct mlx5_port_info *info);
 	int (*dr_dump_domain)(FILE *file, void *domain);
+	int (*dr_dump_rule)(FILE *file, void *rule);
 	int (*devx_query_eqn)(struct ibv_context *context, uint32_t cpus,
 			      uint32_t *eqn);
 	struct mlx5dv_devx_event_channel *(*devx_create_event_channel)
@@ -335,6 +358,7 @@ struct mlx5_glue {
 			 struct mlx5dv_devx_async_event_hdr *event_data,
 			 size_t event_resp_len);
 	void (*dr_reclaim_domain_memory)(void *domain, uint32_t enable);
+	void (*dr_allow_duplicate_rules)(void *domain, uint32_t allow);
 	struct mlx5dv_pp *(*dv_alloc_pp)(struct ibv_context *context,
 					 size_t pp_context_sz,
 					 const void *pp_context,

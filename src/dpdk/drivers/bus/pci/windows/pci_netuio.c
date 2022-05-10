@@ -2,6 +2,8 @@
  * Copyright(c) 2020 Intel Corporation.
  */
 
+#include <sys/queue.h>
+
 #include <rte_windows.h>
 #include <rte_errno.h>
 #include <rte_log.h>
@@ -178,8 +180,7 @@ end:
 			CloseHandle(netuio);
 	}
 
-	if (dev_ifx_detail)
-		free(dev_ifx_detail);
+	free(dev_ifx_detail);
 
 	if (di_set != INVALID_HANDLE_VALUE)
 		SetupDiDestroyDeviceInfoList(di_set);

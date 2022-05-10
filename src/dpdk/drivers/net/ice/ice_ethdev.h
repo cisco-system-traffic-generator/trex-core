@@ -6,6 +6,7 @@
 #define _ICE_ETHDEV_H_
 
 #include <rte_kvargs.h>
+#include <rte_time.h>
 
 #include <ethdev_driver.h>
 
@@ -13,11 +14,10 @@
 #include "base/ice_adminq_cmd.h"
 #include "base/ice_flow.h"
 
-#define ICE_VLAN_TAG_SIZE        4
-
 #define ICE_ADMINQ_LEN               32
 #define ICE_SBIOQ_LEN                32
 #define ICE_MAILBOXQ_LEN             32
+#define ICE_SBQ_LEN                  64
 #define ICE_ADMINQ_BUF_SZ            4096
 #define ICE_SBIOQ_BUF_SZ             4096
 #define ICE_MAILBOXQ_BUF_SZ          4096
@@ -50,7 +50,7 @@
 #define ICE_PKG_FILE_SEARCH_PATH_UPDATES "/lib/firmware/updates/intel/ice/ddp/"
 #define ICE_MAX_PKG_FILENAME_SIZE   256
 
-#define MAX_ACL_ENTRIES    512
+#define MAX_ACL_NORMAL_ENTRIES    256
 
 /**
  * vlan_id is a 12 bit number.
@@ -115,26 +115,26 @@
 		       ICE_FLAG_VF_MAC_BY_PF)
 
 #define ICE_RSS_OFFLOAD_ALL ( \
-	ETH_RSS_IPV4 | \
-	ETH_RSS_FRAG_IPV4 | \
-	ETH_RSS_NONFRAG_IPV4_TCP | \
-	ETH_RSS_NONFRAG_IPV4_UDP | \
-	ETH_RSS_NONFRAG_IPV4_SCTP | \
-	ETH_RSS_NONFRAG_IPV4_OTHER | \
-	ETH_RSS_IPV6 | \
-	ETH_RSS_FRAG_IPV6 | \
-	ETH_RSS_NONFRAG_IPV6_TCP | \
-	ETH_RSS_NONFRAG_IPV6_UDP | \
-	ETH_RSS_NONFRAG_IPV6_SCTP | \
-	ETH_RSS_NONFRAG_IPV6_OTHER | \
-	ETH_RSS_L2_PAYLOAD)
+	RTE_ETH_RSS_IPV4 | \
+	RTE_ETH_RSS_FRAG_IPV4 | \
+	RTE_ETH_RSS_NONFRAG_IPV4_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_UDP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_SCTP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_OTHER | \
+	RTE_ETH_RSS_IPV6 | \
+	RTE_ETH_RSS_FRAG_IPV6 | \
+	RTE_ETH_RSS_NONFRAG_IPV6_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_UDP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_SCTP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_OTHER | \
+	RTE_ETH_RSS_L2_PAYLOAD)
 
 /**
  * The overhead from MTU to max frame size.
  * Considering QinQ packet, the VLAN tag needs to be counted twice.
  */
 #define ICE_ETH_OVERHEAD \
-	(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + ICE_VLAN_TAG_SIZE * 2)
+	(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + RTE_VLAN_HLEN * 2)
 #define ICE_ETH_MAX_LEN (RTE_ETHER_MTU + ICE_ETH_OVERHEAD)
 
 #define ICE_RXTX_BYTES_HIGH(bytes) ((bytes) & ~ICE_40_BIT_MASK)
@@ -143,11 +143,48 @@
 /* Max number of flexible descriptor rxdid */
 #define ICE_FLEX_DESC_RXDID_MAX_NUM 64
 
+#define ICE_I2C_EEPROM_DEV_ADDR		0xA0
+#define ICE_I2C_EEPROM_DEV_ADDR2	0xA2
+#define ICE_MODULE_TYPE_SFP		0x03
+#define ICE_MODULE_TYPE_QSFP_PLUS	0x0D
+#define ICE_MODULE_TYPE_QSFP28		0x11
+#define ICE_MODULE_SFF_ADDR_MODE	0x04
+#define ICE_MODULE_SFF_DIAG_CAPAB	0x40
+#define ICE_MODULE_REVISION_ADDR	0x01
+#define ICE_MODULE_SFF_8472_COMP	0x5E
+#define ICE_MODULE_SFF_8472_SWAP	0x5C
+#define ICE_MODULE_QSFP_MAX_LEN		640
+
+/* EEPROM Standards for plug in modules */
+#define ICE_MODULE_SFF_8079		0x1
+#define ICE_MODULE_SFF_8079_LEN		256
+#define ICE_MODULE_SFF_8472		0x2
+#define ICE_MODULE_SFF_8472_LEN		512
+#define ICE_MODULE_SFF_8636		0x3
+#define ICE_MODULE_SFF_8636_LEN		256
+#define ICE_MODULE_SFF_8636_MAX_LEN     640
+#define ICE_MODULE_SFF_8436		0x4
+#define ICE_MODULE_SFF_8436_LEN		256
+#define ICE_MODULE_SFF_8436_MAX_LEN     640
+
+
+/* Per-channel register definitions */
+#define GLTSYN_AUX_OUT(_chan, _idx)     (GLTSYN_AUX_OUT_0(_idx) + ((_chan) * 8))
+#define GLTSYN_CLKO(_chan, _idx)        (GLTSYN_CLKO_0(_idx) + ((_chan) * 8))
+#define GLTSYN_TGT_L(_chan, _idx)       (GLTSYN_TGT_L_0(_idx) + ((_chan) * 16))
+#define GLTSYN_TGT_H(_chan, _idx)       (GLTSYN_TGT_H_0(_idx) + ((_chan) * 16))
+
 /* DDP package type */
 enum ice_pkg_type {
 	ICE_PKG_TYPE_UNKNOWN,
 	ICE_PKG_TYPE_OS_DEFAULT,
 	ICE_PKG_TYPE_COMMS,
+};
+
+enum pps_type {
+	PPS_NONE,
+	PPS_PIN,
+	PPS_MAX,
 };
 
 struct ice_adapter;
@@ -230,7 +267,7 @@ struct ice_vsi {
 	 * needs to add, HW needs to know the layout that VSIs are organized.
 	 * Besides that, VSI isan element and can't switch packets, which needs
 	 * to add new component VEB to perform switching. So, a new VSI needs
-	 * to specify the the uplink VSI (Parent VSI) before created. The
+	 * to specify the uplink VSI (Parent VSI) before created. The
 	 * uplink VSI will check whether it had a VEB to switch packets. If no,
 	 * it will try to create one. Then, uplink VSI will move the new VSI
 	 * into its' sib_vsi_list to manage all the downlink VSI.
@@ -301,9 +338,14 @@ struct ice_fdir_filter_conf {
 	struct ice_fdir_counter *counter; /* flow specific counter context */
 	struct rte_flow_action_count act_count;
 
-	uint64_t input_set;
-	uint64_t outer_input_set; /* only for tunnel packets outer fields */
+	uint64_t input_set_o; /* used for non-tunnel or tunnel outer fields */
+	uint64_t input_set_i; /* only for tunnel inner fields */
 	uint32_t mark_flag;
+
+	struct ice_parser_profile *prof;
+	bool parser_ena;
+	u8 *pkt_buf;
+	u8 pkt_len;
 };
 
 #define ICE_MAX_FDIR_FILTER_NUM		(1024 * 16)
@@ -408,7 +450,7 @@ struct ice_acl_conf {
 struct ice_acl_info {
 	struct ice_acl_conf conf;
 	struct rte_bitmap *slots;
-	uint64_t hw_entry_id[MAX_ACL_ENTRIES];
+	uint64_t hw_entry_id[MAX_ACL_NORMAL_ENTRIES];
 };
 
 struct ice_pf {
@@ -458,15 +500,35 @@ struct ice_pf {
 };
 
 #define ICE_MAX_QUEUE_NUM  2048
+#define ICE_MAX_PIN_NUM   4
 
 /**
  * Cache devargs parse result.
  */
 struct ice_devargs {
+	int rx_low_latency;
 	int safe_mode_support;
 	uint8_t proto_xtr_dflt;
 	int pipe_mode_support;
 	uint8_t proto_xtr[ICE_MAX_QUEUE_NUM];
+	uint8_t pin_idx;
+	uint8_t pps_out_ena;
+};
+
+/**
+ * Structure to store fdir fv entry.
+ */
+struct ice_fdir_prof_info {
+	struct ice_parser_profile prof;
+	u64 fdir_actived_cnt;
+};
+
+/**
+ * Structure to store rss fv entry.
+ */
+struct ice_rss_prof_info {
+	struct ice_parser_profile prof;
+	bool symm;
 };
 
 /**
@@ -475,7 +537,6 @@ struct ice_devargs {
 struct ice_adapter {
 	/* Common for both PF and VF */
 	struct ice_hw hw;
-	struct rte_eth_dev *eth_dev;
 	struct ice_pf pf;
 	bool rx_bulk_alloc_allowed;
 	bool rx_vec_allowed;
@@ -487,6 +548,23 @@ struct ice_adapter {
 	struct ice_devargs devargs;
 	enum ice_pkg_type active_pkg_type; /* loaded ddp package type */
 	uint16_t fdir_ref_cnt;
+	/* For PTP */
+	struct rte_timecounter systime_tc;
+	struct rte_timecounter rx_tstamp_tc;
+	struct rte_timecounter tx_tstamp_tc;
+	bool ptp_ena;
+	uint64_t time_hw;
+	struct ice_fdir_prof_info fdir_prof_info[ICE_MAX_PTGS];
+	struct ice_rss_prof_info rss_prof_info[ICE_MAX_PTGS];
+	/* True if DCF state of the associated PF is on */
+	bool dcf_state_on;
+#ifdef RTE_ARCH_X86
+	bool rx_use_avx2;
+	bool rx_use_avx512;
+	bool tx_use_avx2;
+	bool tx_use_avx512;
+	bool rx_vec_offload_support;
+#endif
 };
 
 struct ice_vsi_vlan_pvid_info {
@@ -520,8 +598,6 @@ struct ice_vsi_vlan_pvid_info {
 	(&(((struct ice_vsi *)vsi)->adapter->hw))
 #define ICE_VSI_TO_PF(vsi) \
 	(&(((struct ice_vsi *)vsi)->adapter->pf))
-#define ICE_VSI_TO_ETH_DEV(vsi) \
-	(((struct ice_vsi *)vsi)->adapter->eth_dev)
 
 /* ICE_PF_TO */
 #define ICE_PF_TO_HW(pf) \
@@ -531,7 +607,8 @@ struct ice_vsi_vlan_pvid_info {
 #define ICE_PF_TO_ETH_DEV(pf) \
 	(((struct ice_pf *)pf)->adapter->eth_dev)
 
-enum ice_pkg_type ice_load_pkg_type(struct ice_hw *hw);
+int
+ice_load_pkg(struct ice_adapter *adapter, bool use_dsn, uint64_t dsn);
 struct ice_vsi *
 ice_setup_vsi(struct ice_pf *pf, enum ice_vsi_type type);
 int

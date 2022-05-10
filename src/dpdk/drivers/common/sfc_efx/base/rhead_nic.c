@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2018-2019 Solarflare Communications Inc.
  */
 
@@ -28,7 +28,6 @@ rhead_board_cfg(
 	 */
 	encp->enc_tunnel_encapsulations_supported =
 	    (1u << EFX_TUNNEL_PROTOCOL_VXLAN) |
-	    (1u << EFX_TUNNEL_PROTOCOL_GENEVE) |
 	    (1u << EFX_TUNNEL_PROTOCOL_NVGRE);
 
 	/*

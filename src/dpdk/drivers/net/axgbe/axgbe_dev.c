@@ -51,7 +51,7 @@ static int get_lastbit_set(int x)
 static inline unsigned int axgbe_get_max_frame(struct axgbe_port *pdata)
 {
 	return pdata->eth_dev->data->mtu + RTE_ETHER_HDR_LEN +
-		RTE_ETHER_CRC_LEN + VLAN_HLEN;
+		RTE_ETHER_CRC_LEN + RTE_VLAN_HLEN;
 }
 
 /* query busy bit */
@@ -840,11 +840,11 @@ static void axgbe_rss_options(struct axgbe_port *pdata)
 	pdata->rss_hf = rss_conf->rss_hf;
 	rss_hf = rss_conf->rss_hf;
 
-	if (rss_hf & (ETH_RSS_IPV4 | ETH_RSS_IPV6))
+	if (rss_hf & (RTE_ETH_RSS_IPV4 | RTE_ETH_RSS_IPV6))
 		AXGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, IP2TE, 1);
-	if (rss_hf & (ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV6_TCP))
+	if (rss_hf & (RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_NONFRAG_IPV6_TCP))
 		AXGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, TCP4TE, 1);
-	if (rss_hf & (ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_NONFRAG_IPV6_UDP))
+	if (rss_hf & (RTE_ETH_RSS_NONFRAG_IPV4_UDP | RTE_ETH_RSS_NONFRAG_IPV6_UDP))
 		AXGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, UDP4TE, 1);
 }
 
@@ -950,7 +950,7 @@ static int wrapper_rx_desc_init(struct axgbe_port *pdata)
 			if (mbuf == NULL) {
 				PMD_DRV_LOG(ERR, "RX mbuf alloc failed queue_id = %u, idx = %d\n",
 					    (unsigned int)rxq->queue_id, j);
-				axgbe_dev_rx_queue_release(rxq);
+				axgbe_dev_rx_queue_release(pdata->eth_dev, i);
 				return -ENOMEM;
 			}
 			rxq->sw_ring[j] = mbuf;
@@ -1046,7 +1046,7 @@ static int axgbe_config_rx_threshold(struct axgbe_port *pdata,
 	return 0;
 }
 
-/*Distrubting fifo size  */
+/* Distributing FIFO size */
 static void axgbe_config_rx_fifo_size(struct axgbe_port *pdata)
 {
 	unsigned int fifo_size;

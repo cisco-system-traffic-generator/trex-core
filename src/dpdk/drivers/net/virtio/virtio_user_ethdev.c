@@ -60,12 +60,15 @@ virtio_user_write_dev_config(struct virtio_hw *hw, size_t offset,
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
 	if ((offset == offsetof(struct virtio_net_config, mac)) &&
-	    (length == RTE_ETHER_ADDR_LEN))
+	    (length == RTE_ETHER_ADDR_LEN)) {
 		for (i = 0; i < RTE_ETHER_ADDR_LEN; ++i)
 			dev->mac_addr[i] = ((const uint8_t *)src)[i];
-	else
+		virtio_user_dev_set_mac(dev);
+		virtio_user_dev_get_mac(dev);
+	} else {
 		PMD_DRV_LOG(ERR, "not supported offset=%zu, len=%d",
 			    offset, length);
+	}
 }
 
 static void
@@ -110,7 +113,8 @@ virtio_user_get_features(struct virtio_hw *hw)
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
 	/* unmask feature bits defined in vhost user protocol */
-	return dev->device_features & VIRTIO_PMD_SUPPORTED_GUEST_FEATURES;
+	return (dev->device_features | dev->frontend_features) &
+		VIRTIO_PMD_SUPPORTED_GUEST_FEATURES;
 }
 
 static void
@@ -118,7 +122,7 @@ virtio_user_set_features(struct virtio_hw *hw, uint64_t features)
 {
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
-	dev->features = features & dev->device_features;
+	dev->features = features & (dev->device_features | dev->frontend_features);
 }
 
 static int
@@ -249,7 +253,7 @@ virtio_user_notify_queue(struct virtio_hw *hw, struct virtqueue *vq)
 	uint64_t buf = 1;
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
-	if (hw->cvq && (hw->cvq->vq == vq)) {
+	if (hw->cvq && (virtnet_cq_to_vq(hw->cvq) == vq)) {
 		if (virtio_with_packed_queue(vq->hw))
 			virtio_user_handle_cq_packed(dev, vq->vq_queue_index);
 		else
@@ -360,7 +364,7 @@ vdpa_dynamic_major_num(void)
 {
 	FILE *fp;
 	char *line = NULL;
-	size_t size;
+	size_t size = 0;
 	char name[11];
 	bool found = false;
 	uint32_t num;
@@ -380,6 +384,7 @@ vdpa_dynamic_major_num(void)
 			break;
 		}
 	}
+	free(line);
 	fclose(fp);
 	return found ? num : UNNAMED_MAJOR;
 }
@@ -393,7 +398,7 @@ virtio_user_backend_type(const char *path)
 		if (errno == ENOENT)
 			return VIRTIO_USER_BACKEND_VHOST_USER;
 
-		PMD_INIT_LOG(ERR, "Stat fails: %s (%s)\n", path,
+		PMD_INIT_LOG(ERR, "Stat fails: %s (%s)", path,
 			     strerror(errno));
 		return VIRTIO_USER_BACKEND_UNKNOWN;
 	}
@@ -428,7 +433,6 @@ virtio_user_eth_dev_alloc(struct rte_vdev_device *vdev)
 	hw = &dev->hw;
 
 	hw->port_id = data->port_id;
-	dev->port_id = data->port_id;
 	VIRTIO_OPS(hw) = &virtio_user_ops;
 
 	hw->intr_lsc = 1;
@@ -653,9 +657,16 @@ virtio_user_pmd_probe(struct rte_vdev_device *vdev)
 		goto end;
 	}
 
+	/*
+	 * Virtio-user requires using virtual addresses for the descriptors
+	 * buffers, whatever other devices require
+	 */
+	hw->use_va = true;
+
 	/* previously called by pci probing for physical dev */
 	if (eth_virtio_dev_init(eth_dev) < 0) {
 		PMD_INIT_LOG(ERR, "eth_virtio_dev_init fails");
+		virtio_user_dev_uninit(dev);
 		virtio_user_eth_dev_free(eth_dev);
 		goto end;
 	}
@@ -678,14 +689,10 @@ virtio_user_pmd_probe(struct rte_vdev_device *vdev)
 	ret = 0;
 
 end:
-	if (kvlist)
-		rte_kvargs_free(kvlist);
-	if (path)
-		free(path);
-	if (mac_addr)
-		free(mac_addr);
-	if (ifname)
-		free(ifname);
+	rte_kvargs_free(kvlist);
+	free(path);
+	free(mac_addr);
+	free(ifname);
 	return ret;
 }
 
@@ -765,7 +772,6 @@ static struct rte_vdev_driver virtio_user_driver = {
 	.remove = virtio_user_pmd_remove,
 	.dma_map = virtio_user_pmd_dma_map,
 	.dma_unmap = virtio_user_pmd_dma_unmap,
-	.drv_flags = RTE_VDEV_DRV_NEED_IOVA_AS_VA,
 };
 
 RTE_PMD_REGISTER_VDEV(net_virtio_user, virtio_user_driver);

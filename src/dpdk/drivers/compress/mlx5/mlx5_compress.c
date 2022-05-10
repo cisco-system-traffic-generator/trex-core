@@ -5,7 +5,7 @@
 #include <rte_malloc.h>
 #include <rte_log.h>
 #include <rte_errno.h>
-#include <rte_pci.h>
+#include <rte_bus_pci.h>
 #include <rte_spinlock.h>
 #include <rte_comp.h>
 #include <rte_compressdev.h>
@@ -13,7 +13,6 @@
 
 #include <mlx5_glue.h>
 #include <mlx5_common.h>
-#include <mlx5_common_pci.h>
 #include <mlx5_devx_cmds.h>
 #include <mlx5_common_os.h>
 #include <mlx5_common_devx.h>
@@ -23,9 +22,12 @@
 #include "mlx5_compress_utils.h"
 
 #define MLX5_COMPRESS_DRIVER_NAME mlx5_compress
-#define MLX5_COMPRESS_LOG_NAME    pmd.compress.mlx5
 #define MLX5_COMPRESS_MAX_QPS 1024
 #define MLX5_COMP_MAX_WIN_SIZE_CONF 6u
+
+struct mlx5_compress_devarg_params {
+	uint32_t log_block_sz;
+};
 
 struct mlx5_compress_xform {
 	LIST_ENTRY(mlx5_compress_xform) next;
@@ -37,22 +39,22 @@ struct mlx5_compress_xform {
 
 struct mlx5_compress_priv {
 	TAILQ_ENTRY(mlx5_compress_priv) next;
-	struct ibv_context *ctx; /* Device context. */
-	struct rte_pci_device *pci_dev;
-	struct rte_compressdev *cdev;
-	void *uar;
-	uint32_t pdn; /* Protection Domain number. */
+	struct rte_compressdev *compressdev;
+	struct mlx5_common_device *cdev; /* Backend mlx5 device. */
+	struct mlx5_uar uar;
 	uint8_t min_block_size;
 	/* Minimum huffman block size supported by the device. */
-	struct ibv_pd *pd;
 	struct rte_compressdev_config dev_config;
 	LIST_HEAD(xform_list, mlx5_compress_xform) xform_list;
 	rte_spinlock_t xform_sl;
-	struct mlx5_mr_share_cache mr_scache; /* Global shared MR cache. */
-	volatile uint64_t *uar_addr;
-#ifndef RTE_ARCH_64
-	rte_spinlock_t uar32_sl;
-#endif /* RTE_ARCH_64 */
+	/* HCA caps */
+	uint32_t mmo_decomp_sq:1;
+	uint32_t mmo_decomp_qp:1;
+	uint32_t mmo_comp_sq:1;
+	uint32_t mmo_comp_qp:1;
+	uint32_t mmo_dma_sq:1;
+	uint32_t mmo_dma_qp:1;
+	uint32_t log_block_sz;
 };
 
 struct mlx5_compress_qp {
@@ -63,7 +65,7 @@ struct mlx5_compress_qp {
 	struct mlx5_mr_ctrl mr_ctrl;
 	int socket_id;
 	struct mlx5_devx_cq cq;
-	struct mlx5_devx_sq sq;
+	struct mlx5_devx_qp qp;
 	struct mlx5_pmd_mr opaque_mr;
 	struct rte_comp_op **ops;
 	struct mlx5_compress_priv *priv;
@@ -136,16 +138,15 @@ mlx5_compress_qp_release(struct rte_compressdev *dev, uint16_t qp_id)
 {
 	struct mlx5_compress_qp *qp = dev->data->queue_pairs[qp_id];
 
-	if (qp->sq.sq != NULL)
-		mlx5_devx_sq_destroy(&qp->sq);
+	if (qp->qp.qp != NULL)
+		mlx5_devx_qp_destroy(&qp->qp);
 	if (qp->cq.cq != NULL)
 		mlx5_devx_cq_destroy(&qp->cq);
 	if (qp->opaque_mr.obj != NULL) {
 		void *opaq = qp->opaque_mr.addr;
 
 		mlx5_common_verbs_dereg_mr(&qp->opaque_mr);
-		if (opaq != NULL)
-			rte_free(opaq);
+		rte_free(opaq);
 	}
 	mlx5_mr_btree_free(&qp->mr_ctrl.cache_bh);
 	rte_free(qp);
@@ -154,12 +155,12 @@ mlx5_compress_qp_release(struct rte_compressdev *dev, uint16_t qp_id)
 }
 
 static void
-mlx5_compress_init_sq(struct mlx5_compress_qp *qp)
+mlx5_compress_init_qp(struct mlx5_compress_qp *qp)
 {
 	volatile struct mlx5_gga_wqe *restrict wqe =
-				    (volatile struct mlx5_gga_wqe *)qp->sq.wqes;
+				    (volatile struct mlx5_gga_wqe *)qp->qp.wqes;
 	volatile struct mlx5_gga_compress_opaque *opaq = qp->opaque_mr.addr;
-	const uint32_t sq_ds = rte_cpu_to_be_32((qp->sq.sq->id << 8) | 4u);
+	const uint32_t sq_ds = rte_cpu_to_be_32((qp->qp.qp->id << 8) | 4u);
 	const uint32_t flags = RTE_BE32(MLX5_COMP_ALWAYS <<
 					MLX5_COMP_MODE_OFFSET);
 	const uint32_t opaq_lkey = rte_cpu_to_be_32(qp->opaque_mr.lkey);
@@ -182,17 +183,12 @@ mlx5_compress_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 	struct mlx5_compress_priv *priv = dev->data->dev_private;
 	struct mlx5_compress_qp *qp;
 	struct mlx5_devx_cq_attr cq_attr = {
-		.uar_page_id = mlx5_os_get_devx_uar_page_id(priv->uar),
+		.uar_page_id = mlx5_os_get_devx_uar_page_id(priv->uar.obj),
 	};
-	struct mlx5_devx_create_sq_attr sq_attr = {
+	struct mlx5_devx_qp_attr qp_attr = {
+		.pd = priv->cdev->pdn,
+		.uar_index = mlx5_os_get_devx_uar_page_id(priv->uar.obj),
 		.user_index = qp_id,
-		.wq_attr = (struct mlx5_devx_wq_attr){
-			.pd = priv->pdn,
-			.uar_page = mlx5_os_get_devx_uar_page_id(priv->uar),
-		},
-	};
-	struct mlx5_devx_modify_sq_attr modify_attr = {
-		.state = MLX5_SQC_STATE_RDY,
 	};
 	uint32_t log_ops_n = rte_log2_u32(max_inflight_ops);
 	uint32_t alloc_size = sizeof(*qp);
@@ -209,18 +205,18 @@ mlx5_compress_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 		return -rte_errno;
 	}
 	dev->data->queue_pairs[qp_id] = qp;
-	opaq_buf = rte_calloc(__func__, 1u << log_ops_n,
+	if (mlx5_mr_ctrl_init(&qp->mr_ctrl, &priv->cdev->mr_scache.dev_gen,
+			      priv->dev_config.socket_id)) {
+		DRV_LOG(ERR, "Cannot allocate MR Btree for qp %u.",
+			(uint32_t)qp_id);
+		rte_errno = ENOMEM;
+		goto err;
+	}
+	opaq_buf = rte_calloc(__func__, (size_t)1 << log_ops_n,
 			      sizeof(struct mlx5_gga_compress_opaque),
 			      sizeof(struct mlx5_gga_compress_opaque));
 	if (opaq_buf == NULL) {
 		DRV_LOG(ERR, "Failed to allocate opaque memory.");
-		rte_errno = ENOMEM;
-		goto err;
-	}
-	if (mlx5_mr_btree_init(&qp->mr_ctrl.cache_bh, MLX5_MR_BTREE_CACHE_N,
-			       priv->dev_config.socket_id)) {
-		DRV_LOG(ERR, "Cannot allocate MR Btree for qp %u.",
-			(uint32_t)qp_id);
 		rte_errno = ENOMEM;
 		goto err;
 	}
@@ -230,7 +226,7 @@ mlx5_compress_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 	qp->priv = priv;
 	qp->ops = (struct rte_comp_op **)RTE_ALIGN((uintptr_t)(qp + 1),
 						   RTE_CACHE_LINE_SIZE);
-	if (mlx5_common_verbs_reg_mr(priv->pd, opaq_buf, qp->entries_n *
+	if (mlx5_common_verbs_reg_mr(priv->cdev->pd, opaq_buf, qp->entries_n *
 					sizeof(struct mlx5_gga_compress_opaque),
 							 &qp->opaque_mr) != 0) {
 		rte_free(opaq_buf);
@@ -238,27 +234,32 @@ mlx5_compress_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 		rte_errno = ENOMEM;
 		goto err;
 	}
-	ret = mlx5_devx_cq_create(priv->ctx, &qp->cq, log_ops_n, &cq_attr,
+	ret = mlx5_devx_cq_create(priv->cdev->ctx, &qp->cq, log_ops_n, &cq_attr,
 				  socket_id);
 	if (ret != 0) {
 		DRV_LOG(ERR, "Failed to create CQ.");
 		goto err;
 	}
-	sq_attr.cqn = qp->cq.cq->id;
-	ret = mlx5_devx_sq_create(priv->ctx, &qp->sq, log_ops_n, &sq_attr,
-				  socket_id);
+	qp_attr.cqn = qp->cq.cq->id;
+	qp_attr.ts_format =
+		mlx5_ts_format_conv(priv->cdev->config.hca_attr.qp_ts_format);
+	qp_attr.num_of_receive_wqes = 0;
+	qp_attr.num_of_send_wqbbs = RTE_BIT32(log_ops_n);
+	qp_attr.mmo = priv->mmo_decomp_qp && priv->mmo_comp_qp
+			&& priv->mmo_dma_qp;
+	ret = mlx5_devx_qp_create(priv->cdev->ctx, &qp->qp,
+					qp_attr.num_of_send_wqbbs *
+					MLX5_WQE_SIZE, &qp_attr, socket_id);
 	if (ret != 0) {
-		DRV_LOG(ERR, "Failed to create SQ.");
+		DRV_LOG(ERR, "Failed to create QP.");
 		goto err;
 	}
-	mlx5_compress_init_sq(qp);
-	ret = mlx5_devx_cmd_modify_sq(qp->sq.sq, &modify_attr);
-	if (ret != 0) {
-		DRV_LOG(ERR, "Can't change SQ state to ready.");
+	mlx5_compress_init_qp(qp);
+	ret = mlx5_devx_qp2rts(&qp->qp, 0);
+	if (ret)
 		goto err;
-	}
-	DRV_LOG(INFO, "QP %u: SQN=0x%X CQN=0x%X entries num = %u\n",
-		(uint32_t)qp_id, qp->sq.sq->id, qp->cq.cq->id, qp->entries_n);
+	DRV_LOG(INFO, "QP %u: SQN=0x%X CQN=0x%X entries num = %u",
+		(uint32_t)qp_id, qp->qp.qp->id, qp->cq.cq->id, qp->entries_n);
 	return 0;
 err:
 	mlx5_compress_qp_release(dev, qp_id);
@@ -286,17 +287,44 @@ mlx5_compress_xform_create(struct rte_compressdev *dev,
 	struct mlx5_compress_xform *xfrm;
 	uint32_t size;
 
-	if (xform->type == RTE_COMP_COMPRESS && xform->compress.level ==
-							  RTE_COMP_LEVEL_NONE) {
-		DRV_LOG(ERR, "Non-compressed block is not supported.");
+	switch (xform->type) {
+	case RTE_COMP_COMPRESS:
+		if (xform->compress.algo == RTE_COMP_ALGO_NULL &&
+				!priv->mmo_dma_qp && !priv->mmo_dma_sq) {
+			DRV_LOG(ERR, "Not enough capabilities to support DMA operation, maybe old FW/OFED version?");
+			return -ENOTSUP;
+		} else if (!priv->mmo_comp_qp && !priv->mmo_comp_sq) {
+			DRV_LOG(ERR, "Not enough capabilities to support compress operation, maybe old FW/OFED version?");
+			return -ENOTSUP;
+		}
+		if (xform->compress.level == RTE_COMP_LEVEL_NONE) {
+			DRV_LOG(ERR, "Non-compressed block is not supported.");
+			return -ENOTSUP;
+		}
+		if (xform->compress.hash_algo != RTE_COMP_HASH_ALGO_NONE) {
+			DRV_LOG(ERR, "SHA is not supported.");
+			return -ENOTSUP;
+		}
+		break;
+	case RTE_COMP_DECOMPRESS:
+		if (xform->decompress.algo == RTE_COMP_ALGO_NULL &&
+				!priv->mmo_dma_qp && !priv->mmo_dma_sq) {
+			DRV_LOG(ERR, "Not enough capabilities to support DMA operation, maybe old FW/OFED version?");
+			return -ENOTSUP;
+		} else if (!priv->mmo_decomp_qp && !priv->mmo_decomp_sq) {
+			DRV_LOG(ERR, "Not enough capabilities to support decompress operation, maybe old FW/OFED version?");
+			return -ENOTSUP;
+		}
+		if (xform->compress.hash_algo != RTE_COMP_HASH_ALGO_NONE) {
+			DRV_LOG(ERR, "SHA is not supported.");
+			return -ENOTSUP;
+		}
+		break;
+	default:
+		DRV_LOG(ERR, "Xform type should be compress/decompress");
 		return -ENOTSUP;
 	}
-	if ((xform->type == RTE_COMP_COMPRESS && xform->compress.hash_algo !=
-	     RTE_COMP_HASH_ALGO_NONE) || (xform->type == RTE_COMP_DECOMPRESS &&
-		      xform->decompress.hash_algo != RTE_COMP_HASH_ALGO_NONE)) {
-		DRV_LOG(ERR, "SHA is not supported.");
-		return -ENOTSUP;
-	}
+
 	xfrm = rte_zmalloc_socket(__func__, sizeof(*xfrm), 0,
 						    priv->dev_config.socket_id);
 	if (xfrm == NULL)
@@ -315,15 +343,10 @@ mlx5_compress_xform_create(struct rte_compressdev *dev,
 			size /= MLX5_GGA_COMP_WIN_SIZE_UNITS;
 			xfrm->gga_ctrl1 += RTE_MIN(rte_log2_u32(size),
 					 MLX5_COMP_MAX_WIN_SIZE_CONF) <<
-					   WQE_GGA_COMP_WIN_SIZE_OFFSET;
-			if (xform->compress.level == RTE_COMP_LEVEL_PMD_DEFAULT)
-				size = MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX;
-			else
-				size = priv->min_block_size - 1 +
-							  xform->compress.level;
-			xfrm->gga_ctrl1 += RTE_MIN(size,
-					    MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX) <<
-						 WQE_GGA_COMP_BLOCK_SIZE_OFFSET;
+						WQE_GGA_COMP_WIN_SIZE_OFFSET;
+			size = priv->log_block_sz;
+			xfrm->gga_ctrl1 += size <<
+						WQE_GGA_COMP_BLOCK_SIZE_OFFSET;
 			xfrm->opcode += MLX5_OPC_MOD_MMO_COMP <<
 							WQE_CSEG_OPC_MOD_OFFSET;
 			size = xform->compress.deflate.huffman ==
@@ -379,8 +402,9 @@ mlx5_compress_dev_stop(struct rte_compressdev *dev)
 static int
 mlx5_compress_dev_start(struct rte_compressdev *dev)
 {
-	RTE_SET_USED(dev);
-	return 0;
+	struct mlx5_compress_priv *priv = dev->data->dev_private;
+
+	return mlx5_dev_mempool_subscribe(priv->cdev);
 }
 
 static void
@@ -436,29 +460,9 @@ mlx5_compress_dseg_set(struct mlx5_compress_qp *qp,
 	uintptr_t addr = rte_pktmbuf_mtod_offset(mbuf, uintptr_t, offset);
 
 	dseg->bcount = rte_cpu_to_be_32(len);
-	dseg->lkey = mlx5_mr_addr2mr_bh(qp->priv->pd, 0, &qp->priv->mr_scache,
-					&qp->mr_ctrl, addr,
-					!!(mbuf->ol_flags & EXT_ATTACHED_MBUF));
+	dseg->lkey = mlx5_mr_mb2mr(&qp->mr_ctrl, mbuf);
 	dseg->pbuf = rte_cpu_to_be_64(addr);
 	return dseg->lkey;
-}
-
-/*
- * Provide safe 64bit store operation to mlx5 UAR region for both 32bit and
- * 64bit architectures.
- */
-static __rte_always_inline void
-mlx5_compress_uar_write(uint64_t val, struct mlx5_compress_priv *priv)
-{
-#ifdef RTE_ARCH_64
-	*priv->uar_addr = val;
-#else /* !RTE_ARCH_64 */
-	rte_spinlock_lock(&priv->uar32_sl);
-	*(volatile uint32_t *)priv->uar_addr = val;
-	rte_io_wmb();
-	*((volatile uint32_t *)priv->uar_addr + 1) = val >> 32;
-	rte_spinlock_unlock(&priv->uar32_sl);
-#endif
 }
 
 static uint16_t
@@ -467,7 +471,7 @@ mlx5_compress_enqueue_burst(void *queue_pair, struct rte_comp_op **ops,
 {
 	struct mlx5_compress_qp *qp = queue_pair;
 	volatile struct mlx5_gga_wqe *wqes = (volatile struct mlx5_gga_wqe *)
-							      qp->sq.wqes, *wqe;
+							      qp->qp.wqes, *wqe;
 	struct mlx5_compress_xform *xform;
 	struct rte_comp_op *op;
 	uint16_t mask = qp->entries_n - 1;
@@ -521,11 +525,9 @@ mlx5_compress_enqueue_burst(void *queue_pair, struct rte_comp_op **ops,
 		qp->pi++;
 	} while (--remain);
 	qp->stats.enqueued_count += nb_ops;
-	rte_io_wmb();
-	qp->sq.db_rec[MLX5_SND_DBR] = rte_cpu_to_be_32(qp->pi);
-	rte_wmb();
-	mlx5_compress_uar_write(*(volatile uint64_t *)wqe, qp->priv);
-	rte_wmb();
+	mlx5_doorbell_ring(&qp->priv->uar.bf_db, *(volatile uint64_t *)wqe,
+			   qp->pi, &qp->qp.db_rec[MLX5_SND_DBR],
+			   !qp->priv->uar.dbnc);
 	return nb_ops;
 }
 
@@ -557,10 +559,21 @@ mlx5_compress_cqe_err_handle(struct mlx5_compress_qp *qp,
 	volatile struct mlx5_err_cqe *cqe = (volatile struct mlx5_err_cqe *)
 							      &qp->cq.cqes[idx];
 	volatile struct mlx5_gga_wqe *wqes = (volatile struct mlx5_gga_wqe *)
-								    qp->sq.wqes;
+								    qp->qp.wqes;
 	volatile struct mlx5_gga_compress_opaque *opaq = qp->opaque_mr.addr;
 
-	op->status = RTE_COMP_OP_STATUS_ERROR;
+	volatile uint32_t *synd_word = RTE_PTR_ADD(cqe, MLX5_ERROR_CQE_SYNDROME_OFFSET);
+	switch (*synd_word) {
+	case MLX5_GGA_COMP_OUT_OF_SPACE_SYNDROME_BE:
+		op->status = RTE_COMP_OP_STATUS_OUT_OF_SPACE_TERMINATED;
+		DRV_LOG(DEBUG, "OUT OF SPACE error, output is bigger than dst buffer.");
+		break;
+	case MLX5_GGA_COMP_MISSING_BFINAL_SYNDROME_BE:
+		DRV_LOG(DEBUG, "The last compressed block missed the B-final flag; maybe the compressed data is not complete or garbaged?");
+		/* fallthrough */
+	default:
+		op->status = RTE_COMP_OP_STATUS_ERROR;
+	}
 	op->consumed = 0;
 	op->produced = 0;
 	op->output_chksum = 0;
@@ -645,225 +658,129 @@ mlx5_compress_dequeue_burst(void *queue_pair, struct rte_comp_op **ops,
 	return i;
 }
 
-static struct ibv_device *
-mlx5_compress_get_ib_device_match(struct rte_pci_addr *addr)
-{
-	int n;
-	struct ibv_device **ibv_list = mlx5_glue->get_device_list(&n);
-	struct ibv_device *ibv_match = NULL;
-
-	if (ibv_list == NULL) {
-		rte_errno = ENOSYS;
-		return NULL;
-	}
-	while (n-- > 0) {
-		struct rte_pci_addr paddr;
-
-		DRV_LOG(DEBUG, "Checking device \"%s\"..", ibv_list[n]->name);
-		if (mlx5_dev_to_pci_addr(ibv_list[n]->ibdev_path, &paddr) != 0)
-			continue;
-		if (rte_pci_addr_cmp(addr, &paddr) != 0)
-			continue;
-		ibv_match = ibv_list[n];
-		break;
-	}
-	if (ibv_match == NULL)
-		rte_errno = ENOENT;
-	mlx5_glue->free_device_list(ibv_list);
-	return ibv_match;
-}
-
-static void
-mlx5_compress_hw_global_release(struct mlx5_compress_priv *priv)
-{
-	if (priv->pd != NULL) {
-		claim_zero(mlx5_glue->dealloc_pd(priv->pd));
-		priv->pd = NULL;
-	}
-	if (priv->uar != NULL) {
-		mlx5_glue->devx_free_uar(priv->uar);
-		priv->uar = NULL;
-	}
-}
-
 static int
-mlx5_compress_pd_create(struct mlx5_compress_priv *priv)
+mlx5_compress_args_check_handler(const char *key, const char *val, void *opaque)
 {
-#ifdef HAVE_IBV_FLOW_DV_SUPPORT
-	struct mlx5dv_obj obj;
-	struct mlx5dv_pd pd_info;
-	int ret;
+	struct mlx5_compress_devarg_params *devarg_prms = opaque;
 
-	priv->pd = mlx5_glue->alloc_pd(priv->ctx);
-	if (priv->pd == NULL) {
-		DRV_LOG(ERR, "Failed to allocate PD.");
-		return errno ? -errno : -ENOMEM;
+	if (strcmp(key, "log-block-size") == 0) {
+		errno = 0;
+		devarg_prms->log_block_sz = (uint32_t)strtoul(val, NULL, 10);
+		if (errno) {
+			DRV_LOG(WARNING, "%s: \"%s\" is an invalid integer.",
+				key, val);
+			return -errno;
+		}
 	}
-	obj.pd.in = priv->pd;
-	obj.pd.out = &pd_info;
-	ret = mlx5_glue->dv_init_obj(&obj, MLX5DV_OBJ_PD);
-	if (ret != 0) {
-		DRV_LOG(ERR, "Fail to get PD object info.");
-		mlx5_glue->dealloc_pd(priv->pd);
-		priv->pd = NULL;
-		return -errno;
-	}
-	priv->pdn = pd_info.pdn;
-	return 0;
-#else
-	(void)priv;
-	DRV_LOG(ERR, "Cannot get pdn - no DV support.");
-	return -ENOTSUP;
-#endif /* HAVE_IBV_FLOW_DV_SUPPORT */
-}
-
-static int
-mlx5_compress_hw_global_prepare(struct mlx5_compress_priv *priv)
-{
-	if (mlx5_compress_pd_create(priv) != 0)
-		return -1;
-	priv->uar = mlx5_devx_alloc_uar(priv->ctx, -1);
-	if (priv->uar == NULL || mlx5_os_get_devx_uar_reg_addr(priv->uar) ==
-	    NULL) {
-		rte_errno = errno;
-		claim_zero(mlx5_glue->dealloc_pd(priv->pd));
-		DRV_LOG(ERR, "Failed to allocate UAR.");
-		return -1;
-	}
-	priv->uar_addr = mlx5_os_get_devx_uar_reg_addr(priv->uar);
-	MLX5_ASSERT(priv->uar_addr);
-#ifndef RTE_ARCH_64
-	rte_spinlock_init(&priv->uar32_sl);
-#endif /* RTE_ARCH_64 */
 	return 0;
 }
 
-/**
- * DPDK callback to register a PCI device.
- *
- * This function spawns compress device out of a given PCI device.
- *
- * @param[in] pci_drv
- *   PCI driver structure (mlx5_compress_driver).
- * @param[in] pci_dev
- *   PCI device information.
- *
- * @return
- *   0 on success, 1 to skip this driver, a negative errno value otherwise
- *   and rte_errno is set.
- */
 static int
-mlx5_compress_pci_probe(struct rte_pci_driver *pci_drv,
-			struct rte_pci_device *pci_dev)
+mlx5_compress_handle_devargs(struct mlx5_kvargs_ctrl *mkvlist,
+			     struct mlx5_compress_devarg_params *devarg_prms,
+			     struct mlx5_hca_attr *att)
 {
-	struct ibv_device *ibv;
-	struct rte_compressdev *cdev;
-	struct ibv_context *ctx;
-	struct mlx5_compress_priv *priv;
-	struct mlx5_hca_attr att = { 0 };
-	struct rte_compressdev_pmd_init_params init_params = {
-		.name = "",
-		.socket_id = pci_dev->device.numa_node,
+	const char **params = (const char *[]){
+		"log-block-size",
+		NULL,
 	};
 
-	RTE_SET_USED(pci_drv);
+	devarg_prms->log_block_sz = MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX;
+	if (mkvlist == NULL)
+		return 0;
+	if (mlx5_kvargs_process(mkvlist, params,
+				mlx5_compress_args_check_handler,
+				devarg_prms) != 0) {
+		DRV_LOG(ERR, "Devargs handler function Failed.");
+		rte_errno = EINVAL;
+		return -1;
+	}
+	if (devarg_prms->log_block_sz > MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX ||
+	    devarg_prms->log_block_sz < att->compress_min_block_size) {
+		DRV_LOG(WARNING, "Log block size provided is out of range("
+			"%u); default it to %u.",
+			devarg_prms->log_block_sz,
+			MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX);
+		devarg_prms->log_block_sz = MLX5_GGA_COMP_LOG_BLOCK_SIZE_MAX;
+	}
+	return 0;
+}
+
+static int
+mlx5_compress_dev_probe(struct mlx5_common_device *cdev,
+			struct mlx5_kvargs_ctrl *mkvlist)
+{
+	struct rte_compressdev *compressdev;
+	struct mlx5_compress_priv *priv;
+	struct mlx5_hca_attr *attr = &cdev->config.hca_attr;
+	struct mlx5_compress_devarg_params devarg_prms = {0};
+	struct rte_compressdev_pmd_init_params init_params = {
+		.name = "",
+		.socket_id = cdev->dev->numa_node,
+	};
+	const char *ibdev_name = mlx5_os_get_ctx_device_name(cdev->ctx);
+
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
 		DRV_LOG(ERR, "Non-primary process type is not supported.");
 		rte_errno = ENOTSUP;
 		return -rte_errno;
 	}
-	ibv = mlx5_compress_get_ib_device_match(&pci_dev->addr);
-	if (ibv == NULL) {
-		DRV_LOG(ERR, "No matching IB device for PCI slot "
-			PCI_PRI_FMT ".", pci_dev->addr.domain,
-			pci_dev->addr.bus, pci_dev->addr.devid,
-			pci_dev->addr.function);
-		return -rte_errno;
-	}
-	DRV_LOG(INFO, "PCI information matches for device \"%s\".", ibv->name);
-	ctx = mlx5_glue->dv_open_device(ibv);
-	if (ctx == NULL) {
-		DRV_LOG(ERR, "Failed to open IB device \"%s\".", ibv->name);
-		rte_errno = ENODEV;
-		return -rte_errno;
-	}
-	if (mlx5_devx_cmd_query_hca_attr(ctx, &att) != 0 ||
-	    att.mmo_compress_en == 0 || att.mmo_decompress_en == 0 ||
-	    att.mmo_dma_en == 0) {
-		DRV_LOG(ERR, "Not enough capabilities to support compress "
-			"operations, maybe old FW/OFED version?");
-		claim_zero(mlx5_glue->close_device(ctx));
+	if (!attr->mmo_decompress_qp_en && !attr->mmo_decompress_sq_en
+		&& !attr->mmo_compress_qp_en && !attr->mmo_compress_sq_en
+		&& !attr->mmo_dma_qp_en && !attr->mmo_dma_sq_en) {
+		DRV_LOG(ERR, "Not enough capabilities to support compress operations, maybe old FW/OFED version?");
 		rte_errno = ENOTSUP;
 		return -ENOTSUP;
 	}
-	cdev = rte_compressdev_pmd_create(ibv->name, &pci_dev->device,
-					  sizeof(*priv), &init_params);
-	if (cdev == NULL) {
-		DRV_LOG(ERR, "Failed to create device \"%s\".", ibv->name);
-		claim_zero(mlx5_glue->close_device(ctx));
+	mlx5_compress_handle_devargs(mkvlist, &devarg_prms, attr);
+	compressdev = rte_compressdev_pmd_create(ibdev_name, cdev->dev,
+						 sizeof(*priv), &init_params);
+	if (compressdev == NULL) {
+		DRV_LOG(ERR, "Failed to create device \"%s\".", ibdev_name);
 		return -ENODEV;
 	}
 	DRV_LOG(INFO,
-		"Compress device %s was created successfully.", ibv->name);
-	cdev->dev_ops = &mlx5_compress_ops;
-	cdev->dequeue_burst = mlx5_compress_dequeue_burst;
-	cdev->enqueue_burst = mlx5_compress_enqueue_burst;
-	cdev->feature_flags = RTE_COMPDEV_FF_HW_ACCELERATED;
-	priv = cdev->data->dev_private;
-	priv->ctx = ctx;
-	priv->pci_dev = pci_dev;
+		"Compress device %s was created successfully.", ibdev_name);
+	compressdev->dev_ops = &mlx5_compress_ops;
+	compressdev->dequeue_burst = mlx5_compress_dequeue_burst;
+	compressdev->enqueue_burst = mlx5_compress_enqueue_burst;
+	compressdev->feature_flags = RTE_COMPDEV_FF_HW_ACCELERATED;
+	priv = compressdev->data->dev_private;
+	priv->log_block_sz = devarg_prms.log_block_sz;
+	priv->mmo_decomp_sq = attr->mmo_decompress_sq_en;
+	priv->mmo_decomp_qp = attr->mmo_decompress_qp_en;
+	priv->mmo_comp_sq = attr->mmo_compress_sq_en;
+	priv->mmo_comp_qp = attr->mmo_compress_qp_en;
+	priv->mmo_dma_sq = attr->mmo_dma_sq_en;
+	priv->mmo_dma_qp = attr->mmo_dma_qp_en;
 	priv->cdev = cdev;
-	priv->min_block_size = att.compress_min_block_size;
-	if (mlx5_compress_hw_global_prepare(priv) != 0) {
-		rte_compressdev_pmd_destroy(priv->cdev);
-		claim_zero(mlx5_glue->close_device(priv->ctx));
+	priv->compressdev = compressdev;
+	priv->min_block_size = attr->compress_min_block_size;
+	if (mlx5_devx_uar_prepare(cdev, &priv->uar) != 0) {
+		rte_compressdev_pmd_destroy(priv->compressdev);
 		return -1;
 	}
-	if (mlx5_mr_btree_init(&priv->mr_scache.cache,
-			     MLX5_MR_BTREE_CACHE_N * 2, rte_socket_id()) != 0) {
-		DRV_LOG(ERR, "Failed to allocate shared cache MR memory.");
-		mlx5_compress_hw_global_release(priv);
-		rte_compressdev_pmd_destroy(priv->cdev);
-		claim_zero(mlx5_glue->close_device(priv->ctx));
-		rte_errno = ENOMEM;
-		return -rte_errno;
-	}
-	priv->mr_scache.reg_mr_cb = mlx5_common_verbs_reg_mr;
-	priv->mr_scache.dereg_mr_cb = mlx5_common_verbs_dereg_mr;
 	pthread_mutex_lock(&priv_list_lock);
 	TAILQ_INSERT_TAIL(&mlx5_compress_priv_list, priv, next);
 	pthread_mutex_unlock(&priv_list_lock);
 	return 0;
 }
 
-/**
- * DPDK callback to remove a PCI device.
- *
- * This function removes all compress devices belong to a given PCI device.
- *
- * @param[in] pci_dev
- *   Pointer to the PCI device.
- *
- * @return
- *   0 on success, the function cannot fail.
- */
 static int
-mlx5_compress_pci_remove(struct rte_pci_device *pdev)
+mlx5_compress_dev_remove(struct mlx5_common_device *cdev)
 {
 	struct mlx5_compress_priv *priv = NULL;
 
 	pthread_mutex_lock(&priv_list_lock);
 	TAILQ_FOREACH(priv, &mlx5_compress_priv_list, next)
-		if (rte_pci_addr_cmp(&priv->pci_dev->addr, &pdev->addr) != 0)
+		if (priv->compressdev->device == cdev->dev)
 			break;
 	if (priv)
 		TAILQ_REMOVE(&mlx5_compress_priv_list, priv, next);
 	pthread_mutex_unlock(&priv_list_lock);
 	if (priv) {
-		mlx5_mr_release_cache(&priv->mr_scache);
-		mlx5_compress_hw_global_release(priv);
-		rte_compressdev_pmd_destroy(priv->cdev);
-		claim_zero(mlx5_glue->close_device(priv->ctx));
+		mlx5_devx_uar_release(&priv->uar);
+		rte_compressdev_pmd_destroy(priv->compressdev);
 	}
 	return 0;
 }
@@ -878,27 +795,22 @@ static const struct rte_pci_id mlx5_compress_pci_id_map[] = {
 	}
 };
 
-static struct mlx5_pci_driver mlx5_compress_driver = {
-	.driver_class = MLX5_CLASS_COMPRESS,
-	.pci_driver = {
-		.driver = {
-			.name = RTE_STR(MLX5_COMPRESS_DRIVER_NAME),
-		},
-		.id_table = mlx5_compress_pci_id_map,
-		.probe = mlx5_compress_pci_probe,
-		.remove = mlx5_compress_pci_remove,
-		.drv_flags = 0,
-	},
+static struct mlx5_class_driver mlx5_compress_driver = {
+	.drv_class = MLX5_CLASS_COMPRESS,
+	.name = RTE_STR(MLX5_COMPRESS_DRIVER_NAME),
+	.id_table = mlx5_compress_pci_id_map,
+	.probe = mlx5_compress_dev_probe,
+	.remove = mlx5_compress_dev_remove,
 };
 
 RTE_INIT(rte_mlx5_compress_init)
 {
 	mlx5_common_init();
 	if (mlx5_glue != NULL)
-		mlx5_pci_driver_register(&mlx5_compress_driver);
+		mlx5_class_driver_register(&mlx5_compress_driver);
 }
 
-RTE_LOG_REGISTER(mlx5_compress_logtype, MLX5_COMPRESS_LOG_NAME, NOTICE)
+RTE_LOG_REGISTER_DEFAULT(mlx5_compress_logtype, NOTICE)
 RTE_PMD_EXPORT_NAME(MLX5_COMPRESS_DRIVER_NAME, __COUNTER__);
 RTE_PMD_REGISTER_PCI_TABLE(MLX5_COMPRESS_DRIVER_NAME, mlx5_compress_pci_id_map);
 RTE_PMD_REGISTER_KMOD_DEP(MLX5_COMPRESS_DRIVER_NAME, "* ib_uverbs & mlx5_core & mlx5_ib");

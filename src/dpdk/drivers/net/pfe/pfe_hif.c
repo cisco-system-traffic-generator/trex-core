@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2018-2019 NXP
+ * Copyright 2018-2021 NXP
  */
 
 #include "pfe_logs.h"
@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include <arpa/inet.h>
 
 static int
 pfe_hif_alloc_descr(struct pfe_hif *hif)
@@ -113,9 +114,9 @@ pfe_hif_init_buffers(struct pfe_hif *hif)
 		 * results, eth id, queue id from PFE block along with data.
 		 * so we have to provide additional memory for each packet to
 		 * HIF rx rings so that PFE block can write its headers.
-		 * so, we are giving the data pointor to HIF rings whose
+		 * so, we are giving the data pointer to HIF rings whose
 		 * calculation is as below:
-		 * mbuf->data_pointor - Required_header_size
+		 * mbuf->data_pointer - Required_header_size
 		 *
 		 * We are utilizing the HEADROOM area to receive the PFE
 		 * block headers. On packet reception, HIF driver will use
@@ -765,7 +766,7 @@ pfe_hif_rx_idle(struct pfe_hif *hif)
 		if (rx_status & BDP_CSR_RX_DMA_ACTV)
 			send_dummy_pkt_to_hif();
 
-		sleep(1);
+		rte_delay_ms(1);
 	} while (--hif_stop_loop);
 
 	if (readl(HIF_RX_STATUS) & BDP_CSR_RX_DMA_ACTV)

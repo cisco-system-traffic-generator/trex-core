@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2015-2020
+ * Copyright(c) 2015-2020 Beijing WangXun Technology Co., Ltd.
+ * Copyright(c) 2010-2017 Intel Corporation
  */
 
 #ifndef _TXGBE_TYPE_H_
@@ -10,6 +11,9 @@
 #define TXGBE_DCB_BWG_MAX	TXGBE_MAX_UP
 #define TXGBE_LINK_UP_TIME	90 /* 9.0 Seconds */
 #define TXGBE_AUTO_NEG_TIME	45 /* 4.5 Seconds */
+
+#define TXGBE_RX_HDR_SIZE	256
+#define TXGBE_RX_BUF_SIZE	2048
 
 #define TXGBE_FRAME_SIZE_MAX	(9728) /* Maximum frame size, +FCS */
 #define TXGBE_FRAME_SIZE_DFT	(1518) /* Default frame size, +FCS */
@@ -23,6 +27,7 @@
 
 #define TXGBE_FDIR_INIT_DONE_POLL		10
 #define TXGBE_FDIRCMD_CMD_POLL			10
+#define TXGBE_VF_INIT_TIMEOUT	200 /* Number of retries to clear RSTI */
 
 #define TXGBE_ALIGN		128 /* as intel did */
 
@@ -349,6 +354,7 @@ struct txgbe_hw_stats {
 	u64 rx_management_packets;
 	u64 tx_management_packets;
 	u64 rx_management_dropped;
+	u64 rx_dma_drop;
 	u64 rx_drop_packets;
 
 	/* Basic Error */
@@ -595,6 +601,9 @@ struct txgbe_mac_info {
 	s32 (*dmac_config)(struct txgbe_hw *hw);
 	s32 (*setup_eee)(struct txgbe_hw *hw, bool enable_eee);
 
+	s32 (*kr_handle)(struct txgbe_hw *hw);
+	void (*bp_down_event)(struct txgbe_hw *hw);
+
 	enum txgbe_mac_type type;
 	u8 addr[ETH_ADDR_LEN];
 	u8 perm_addr[ETH_ADDR_LEN];
@@ -612,9 +621,10 @@ struct txgbe_mac_info {
 	u32 rx_pb_size;
 	u32 max_tx_queues;
 	u32 max_rx_queues;
+	u64 autoc;
+	u64 orig_autoc;  /* cached value of AUTOC */
 	u8  san_mac_rar_index;
 	bool get_link_status;
-	u64 orig_autoc;  /* cached value of AUTOC */
 	bool orig_link_settings_stored;
 	bool autotry_restart;
 	u8 flags;
@@ -642,6 +652,7 @@ struct txgbe_phy_info {
 	s32 (*setup_link_speed)(struct txgbe_hw *hw, u32 speed,
 				bool autoneg_wait_to_complete);
 	s32 (*check_link)(struct txgbe_hw *hw, u32 *speed, bool *link_up);
+	s32 (*get_fw_version)(struct txgbe_hw *hw, u32 *fw_version);
 	s32 (*read_i2c_byte)(struct txgbe_hw *hw, u8 byte_offset,
 				u8 dev_addr, u8 *data);
 	s32 (*write_i2c_byte)(struct txgbe_hw *hw, u8 byte_offset,
@@ -677,6 +688,33 @@ struct txgbe_phy_info {
 	bool qsfp_shared_i2c_bus;
 	u32 nw_mng_if_sel;
 	u32 link_mode;
+
+	/* Some features need tri-state capability */
+	u16 ffe_set;
+	u16 ffe_main;
+	u16 ffe_pre;
+	u16 ffe_post;
+};
+
+#define TXGBE_DEVARG_BP_AUTO		"auto_neg"
+#define TXGBE_DEVARG_KR_POLL		"poll"
+#define TXGBE_DEVARG_KR_PRESENT		"present"
+#define TXGBE_DEVARG_KX_SGMII		"sgmii"
+#define TXGBE_DEVARG_FFE_SET		"ffe_set"
+#define TXGBE_DEVARG_FFE_MAIN		"ffe_main"
+#define TXGBE_DEVARG_FFE_PRE		"ffe_pre"
+#define TXGBE_DEVARG_FFE_POST		"ffe_post"
+
+static const char * const txgbe_valid_arguments[] = {
+	TXGBE_DEVARG_BP_AUTO,
+	TXGBE_DEVARG_KR_POLL,
+	TXGBE_DEVARG_KR_PRESENT,
+	TXGBE_DEVARG_KX_SGMII,
+	TXGBE_DEVARG_FFE_SET,
+	TXGBE_DEVARG_FFE_MAIN,
+	TXGBE_DEVARG_FFE_PRE,
+	TXGBE_DEVARG_FFE_POST,
+	NULL
 };
 
 struct txgbe_mbx_stats {
@@ -703,6 +741,7 @@ struct txgbe_mbx_info {
 	struct txgbe_mbx_stats stats;
 	u32 timeout;
 	u32 usec_delay;
+	u32 v2p_mailbox;
 	u16 size;
 };
 
@@ -712,6 +751,13 @@ enum txgbe_isb_idx {
 	TXGBE_ISB_VEC0,
 	TXGBE_ISB_VEC1,
 	TXGBE_ISB_MAX
+};
+
+struct txgbe_devargs {
+	u16 auto_neg;
+	u16 poll;
+	u16 present;
+	u16 sgmii;
 };
 
 struct txgbe_hw {
@@ -732,14 +778,18 @@ struct txgbe_hw {
 	u16 subsystem_vendor_id;
 	u8 revision_id;
 	bool adapter_stopped;
+	int api_version;
 	bool allow_unsupported_sfp;
 	bool need_crosstalk_fix;
+	bool dev_start;
+	struct txgbe_devargs devarg;
 
 	uint64_t isb_dma;
 	void IOMEM *isb_mem;
 	u16 nb_rx_queues;
 	u16 nb_tx_queues;
 
+	u32 fw_version;
 	u32 mode;
 	enum txgbe_link_status {
 		TXGBE_LINK_STATUS_NONE = 0,
@@ -755,6 +805,7 @@ struct txgbe_hw {
 	u32 q_rx_regs[128 * 4];
 	u32 q_tx_regs[128 * 4];
 	bool offset_loaded;
+	bool rx_loaded;
 	struct {
 		u64 rx_qp_packets;
 		u64 tx_qp_packets;
@@ -762,6 +813,13 @@ struct txgbe_hw {
 		u64 tx_qp_bytes;
 		u64 rx_qp_mc_packets;
 	} qp_last[TXGBE_MAX_QP];
+};
+
+struct txgbe_backplane_ability {
+	u32 next_page;	  /* Next Page (bit0) */
+	u32 link_ability; /* Link Ability (bit[7:0]) */
+	u32 fec_ability;  /* FEC Request (bit1), FEC Enable (bit0) */
+	u32 current_link_mode; /* current link mode for local device */
 };
 
 #include "txgbe_regs.h"

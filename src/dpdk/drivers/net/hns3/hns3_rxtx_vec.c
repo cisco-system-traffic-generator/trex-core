@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2020 Hisilicon Limited.
+ * Copyright(c) 2020-2021 HiSilicon Limited.
  */
 
 #include <rte_io.h>
@@ -17,9 +17,15 @@ int
 hns3_tx_check_vec_support(struct rte_eth_dev *dev)
 {
 	struct rte_eth_txmode *txmode = &dev->data->dev_conf.txmode;
+	struct hns3_adapter *hns = dev->data->dev_private;
+	struct hns3_pf *pf = &hns->pf;
 
-	/* Only support DEV_TX_OFFLOAD_MBUF_FAST_FREE */
-	if (txmode->offloads != DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+	/* Only support RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE */
+	if (txmode->offloads != RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE)
+		return -ENOTSUP;
+
+	/* Vec is not supported when PTP enabled */
+	if (pf->ptp_enable)
 		return -ENOTSUP;
 
 	return 0;
@@ -104,13 +110,12 @@ hns3_recv_pkts_vec(void *__restrict rx_queue,
 {
 	struct hns3_rx_queue *rxq = rx_queue;
 	struct hns3_desc *rxdp = &rxq->rx_ring[rxq->next_to_use];
-	uint64_t bd_err_mask;  /* bit mask indicate whick pkts is error */
+	uint64_t pkt_err_mask;  /* bit mask indicate whick pkts is error */
 	uint16_t nb_rx;
 
-	nb_pkts = RTE_MIN(nb_pkts, HNS3_DEFAULT_RX_BURST);
-	nb_pkts = RTE_ALIGN_FLOOR(nb_pkts, HNS3_DEFAULT_DESCS_PER_LOOP);
-
 	rte_prefetch_non_temporal(rxdp);
+
+	nb_pkts = RTE_ALIGN_FLOOR(nb_pkts, HNS3_DEFAULT_DESCS_PER_LOOP);
 
 	if (rxq->rx_rearm_nb > HNS3_DEFAULT_RXQ_REARM_THRESH)
 		hns3_rxq_rearm_mbuf(rxq);
@@ -124,10 +129,31 @@ hns3_recv_pkts_vec(void *__restrict rx_queue,
 	rte_prefetch0(rxq->sw_ring[rxq->next_to_use + 2].mbuf);
 	rte_prefetch0(rxq->sw_ring[rxq->next_to_use + 3].mbuf);
 
-	bd_err_mask = 0;
-	nb_rx = hns3_recv_burst_vec(rxq, rx_pkts, nb_pkts, &bd_err_mask);
-	if (unlikely(bd_err_mask))
-		nb_rx = hns3_rx_reassemble_pkts(rx_pkts, nb_rx, bd_err_mask);
+	if (likely(nb_pkts <= HNS3_DEFAULT_RX_BURST)) {
+		pkt_err_mask = 0;
+		nb_rx = hns3_recv_burst_vec(rxq, rx_pkts, nb_pkts,
+					    &pkt_err_mask);
+		nb_rx = hns3_rx_reassemble_pkts(rx_pkts, nb_rx, pkt_err_mask);
+		return nb_rx;
+	}
+
+	nb_rx = 0;
+	while (nb_pkts > 0) {
+		uint16_t ret, n;
+
+		n = RTE_MIN(nb_pkts, HNS3_DEFAULT_RX_BURST);
+		pkt_err_mask = 0;
+		ret = hns3_recv_burst_vec(rxq, &rx_pkts[nb_rx], n,
+					  &pkt_err_mask);
+		nb_pkts -= ret;
+		nb_rx += hns3_rx_reassemble_pkts(&rx_pkts[nb_rx], ret,
+						 pkt_err_mask);
+		if (ret < n)
+			break;
+
+		if (rxq->rx_rearm_nb > HNS3_DEFAULT_RXQ_REARM_THRESH)
+			hns3_rxq_rearm_mbuf(rxq);
+	}
 
 	return nb_rx;
 }
@@ -142,6 +168,24 @@ hns3_rxq_vec_setup_rearm_data(struct hns3_rx_queue *rxq)
 	mb_def.data_off = RTE_PKTMBUF_HEADROOM;
 	mb_def.port = rxq->port_id;
 	rte_mbuf_refcnt_set(&mb_def, 1);
+
+	/* compile-time verifies the rearm_data first 8bytes */
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, data_off) <
+			 offsetof(struct rte_mbuf, rearm_data));
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, refcnt) <
+			 offsetof(struct rte_mbuf, rearm_data));
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, nb_segs) <
+			 offsetof(struct rte_mbuf, rearm_data));
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, port) <
+			 offsetof(struct rte_mbuf, rearm_data));
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, data_off) -
+			 offsetof(struct rte_mbuf, rearm_data) > 6);
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, refcnt) -
+			 offsetof(struct rte_mbuf, rearm_data) > 6);
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, nb_segs) -
+			 offsetof(struct rte_mbuf, rearm_data) > 6);
+	RTE_BUILD_BUG_ON(offsetof(struct rte_mbuf, port) -
+			 offsetof(struct rte_mbuf, rearm_data) > 6);
 
 	/* prevent compiler reordering: rearm_data covers previous fields */
 	rte_compiler_barrier();
@@ -167,7 +211,6 @@ hns3_rxq_vec_setup(struct hns3_rx_queue *rxq)
 	memset(rxq->offset_table, 0, sizeof(rxq->offset_table));
 }
 
-#ifndef RTE_LIBRTE_IEEE1588
 static int
 hns3_rxq_vec_check(struct hns3_rx_queue *rxq, void *arg)
 {
@@ -183,16 +226,16 @@ hns3_rxq_vec_check(struct hns3_rx_queue *rxq, void *arg)
 	RTE_SET_USED(arg);
 	return 0;
 }
-#endif
 
 int
 hns3_rx_check_vec_support(struct rte_eth_dev *dev)
 {
-#ifndef RTE_LIBRTE_IEEE1588
-	struct rte_fdir_conf *fconf = &dev->data->dev_conf.fdir_conf;
+	struct rte_eth_fdir_conf *fconf = &dev->data->dev_conf.fdir_conf;
 	struct rte_eth_rxmode *rxmode = &dev->data->dev_conf.rxmode;
-	uint64_t offloads_mask = DEV_RX_OFFLOAD_TCP_LRO |
-				 DEV_RX_OFFLOAD_VLAN;
+	uint64_t offloads_mask = RTE_ETH_RX_OFFLOAD_TCP_LRO |
+				 RTE_ETH_RX_OFFLOAD_VLAN;
+	struct hns3_adapter *hns = dev->data->dev_private;
+	struct hns3_pf *pf = &hns->pf;
 
 	if (dev->data->scattered_rx)
 		return -ENOTSUP;
@@ -206,9 +249,9 @@ hns3_rx_check_vec_support(struct rte_eth_dev *dev)
 	if (hns3_rxq_iterate(dev, hns3_rxq_vec_check, NULL) != 0)
 		return -ENOTSUP;
 
+	/* Vec is not supported when PTP enabled */
+	if (pf->ptp_enable)
+		return -ENOTSUP;
+
 	return 0;
-#else
-	RTE_SET_USED(dev);
-	return -ENOTSUP;
-#endif
 }
