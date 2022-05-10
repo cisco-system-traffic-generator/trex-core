@@ -248,6 +248,7 @@ int CTcpReass::pre_tcp_reass(CPerProfileCtx * pctx,
     uint16_t tg_id = tp->m_flow->m_tg_id;
     INC_STAT(pctx, tg_id, tcps_rcvoopack);
     INC_STAT_CNT(pctx, tg_id, tcps_rcvoobyte, ti->ti_len);
+    tp->t_rcvoopack++;
 
     CTcpReassBlock cur{ti->ti_seq, ti->ti_len, !!(ti->ti_flags & TH_FIN)};
     CTcpSeqKey cur_seq{cur.m_seq};

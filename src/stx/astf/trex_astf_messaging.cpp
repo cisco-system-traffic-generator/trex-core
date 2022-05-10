@@ -35,22 +35,23 @@ TrexAstfDpCore* astf_core(TrexDpCore *dp_core) {
 /*************************
   start traffic message
  ************************/
-TrexAstfDpStart::TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration) {
+TrexAstfDpStart::TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
     m_profile_id = profile_id;
     m_duration = duration;
     m_nc_flow_close = nc;
     m_establish_timeout = establish_timeout;
     m_terminate_duration = terminate_duration;
+    m_dump_interval = dump_interval;
 }
 
 
 bool TrexAstfDpStart::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->start_transmit(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration);
+    astf_core(dp_core)->start_transmit(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration, m_dump_interval);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpStart::clone() {
-    return new TrexAstfDpStart(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration);
+    return new TrexAstfDpStart(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration, m_dump_interval);
 }
 
 /*************************
@@ -307,4 +308,13 @@ bool TrexAstfDpInitTunnelHandler::handle(TrexDpCore *dp_core) {
 
 TrexCpToDpMsgBase* TrexAstfDpInitTunnelHandler::clone() {
     return new TrexAstfDpInitTunnelHandler(m_activate, m_tunnel_type, m_loopback_mode, m_reply);
+}
+
+/*************************
++  Report flows per profile
++ ************************/
+
+bool TrexAstfDpFlowInfo::handle(void) {
+    ((TrexAstf*)get_stx())->add_flows_info(m_dp_profile_id, m_flows);
+    return true;
 }

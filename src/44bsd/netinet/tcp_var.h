@@ -217,6 +217,7 @@ struct tcpcb {
     struct sackhint	sackhint;	/* SACK scoreboard hint */
     int	t_rttlow;		/* smallest observerved RTT */
     int	t_sndrexmitpack;	/* retransmit packets sent */
+    int	t_rcvoopack;		/* out-of-order packets received */
     struct cc_algo	*cc_algo;	/* congestion control algorithm */
     struct cc_var	*ccv;		/* congestion control specific vars */
     int	t_bytes_acked;		/* # bytes acked during current RTT */

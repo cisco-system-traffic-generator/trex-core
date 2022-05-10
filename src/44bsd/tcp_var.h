@@ -336,17 +336,17 @@ public:
 
     inline bool is_tcp_tso();
 
-    uint32_t get_src_ipv4(){
+    uint32_t get_src_ipv4() const {
         return(m_src_ipv4);
     }
-    uint32_t get_dst_ipv4(){
+    uint32_t get_dst_ipv4() const {
         return(m_dst_ipv4);
     }
 
-    uint16_t get_src_port(){
+    uint16_t get_src_port() const {
         return(m_src_port);
     }
-    uint16_t get_dst_port(){
+    uint16_t get_dst_port() const {
         return(m_dst_port);
     }
 
@@ -611,11 +611,11 @@ public:
     inline void on_tick();
 
 
-    HOT_FUNC bool is_can_close(){
+    HOT_FUNC bool is_can_close() const {
         return (m_tcp.t_state == TCPS_CLOSED ?true:false);
     }
 
-    bool is_close_was_called(){
+    bool is_close_was_called() const {
         return ((m_tcp.t_state > TCPS_CLOSE_WAIT) ?true:false);
     }
 
@@ -634,6 +634,9 @@ public:
 
     bool check_template_assoc_by_l7_data(uint8_t* l7_data, uint16_t l7_len);
     void update_new_template_assoc_info();
+
+    const std::string get_flow_id() const;
+    void to_json(Json::Value& obj) const;
 
 public:
     CHTimerObj        m_timer; /* 32 bytes */ 
@@ -773,7 +776,10 @@ public:
     on_stopped_cb_t     m_on_stopped_cb;
     void              * m_cb_data;
 
-    void              * m_tx_node;  /* to make CGenNodeTXFIF stop safe */
+    union {
+        void          * m_tx_node;  /* to make CGenNodeTXFIF stop safe */
+        void          * m_flow_dump;
+    };
 
     CTcpTunableCtx      m_tunable_ctx;
 
@@ -838,6 +844,27 @@ public:
             last_time = os_get_hr_tick_64();
         }
         return m_base_time ? ptime_convert_hr_dsec(last_time - m_base_time): 0.0;
+    }
+
+private:
+    CTcpFlow* m_tcp_flow;
+
+public:
+    void set_flow_info(CTcpFlow* flow) {
+        if (m_tcp_flow == nullptr) {
+            m_tcp_flow = flow;
+        }
+    }
+    void clear_flow_info(CTcpFlow* flow) {
+        if (m_tcp_flow == flow) {
+            m_tcp_flow = nullptr;
+        }
+    }
+    void dump_flow_info(Json::Value& result) {
+        if (m_tcp_flow) {
+            std::string flow_id = m_tcp_flow->get_flow_id();
+            m_tcp_flow->to_json(result[flow_id]);
+        }
     }
 };
 
@@ -1295,6 +1322,23 @@ public:
 
     struct CTcpStats* get_tcpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_tcpstat; }
     struct CUdpStats* get_udpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_udpstat; }
+};
+
+
+class TrexAstfDpCore;
+
+class CPerProfileFlowDump {
+    double m_interval;
+    CPerProfileCtx* m_pctx;
+    TrexAstfDpCore* m_dp_core;
+
+    CTcpPerThreadCtx* m_ctx;
+    CAstfTimerFunctorObj* m_tmr;
+public:
+    CPerProfileFlowDump(double interval, CPerProfileCtx* pctx, TrexAstfDpCore* dp_core);
+    ~CPerProfileFlowDump();
+
+    void on_timer_update(CAstfTimerFunctorObj* tmr);
 };
 
 
