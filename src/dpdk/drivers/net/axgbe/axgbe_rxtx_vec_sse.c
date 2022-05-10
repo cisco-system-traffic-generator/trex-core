@@ -11,7 +11,7 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 
-/* Useful to avoid shifting for every descriptor prepration*/
+/* Useful to avoid shifting for every descriptor preparation */
 #define TX_DESC_CTRL_FLAGS 0xb000000000000000
 #define TX_DESC_CTRL_FLAG_TMST 0x40000000
 #define TX_FREE_BULK	   8
@@ -23,7 +23,7 @@ axgbe_vec_tx(volatile struct axgbe_tx_desc *desc,
 {
 	uint64_t tmst_en = 0;
 	/* Timestamp enablement check */
-	if (mbuf->ol_flags & PKT_TX_IEEE1588_TMST)
+	if (mbuf->ol_flags & RTE_MBUF_F_TX_IEEE1588_TMST)
 		tmst_en = TX_DESC_CTRL_FLAG_TMST;
 	__m128i descriptor = _mm_set_epi64x((uint64_t)mbuf->pkt_len << 32 |
 					    TX_DESC_CTRL_FLAGS | mbuf->data_len

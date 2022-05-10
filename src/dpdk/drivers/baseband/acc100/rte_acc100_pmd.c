@@ -24,9 +24,9 @@
 #include "rte_acc100_pmd.h"
 
 #ifdef RTE_LIBRTE_BBDEV_DEBUG
-RTE_LOG_REGISTER(acc100_logtype, pmd.bb.acc100, DEBUG);
+RTE_LOG_REGISTER_DEFAULT(acc100_logtype, DEBUG);
 #else
-RTE_LOG_REGISTER(acc100_logtype, pmd.bb.acc100, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(acc100_logtype, NOTICE);
 #endif
 
 /* Write to MMIO register address */
@@ -720,8 +720,8 @@ acc100_intr_enable(struct rte_bbdev *dev)
 	struct acc100_device *d = dev->data->dev_private;
 
 	/* Only MSI are currently supported */
-	if (dev->intr_handle->type == RTE_INTR_HANDLE_VFIO_MSI ||
-			dev->intr_handle->type == RTE_INTR_HANDLE_UIO) {
+	if (rte_intr_type_get(dev->intr_handle) == RTE_INTR_HANDLE_VFIO_MSI ||
+			rte_intr_type_get(dev->intr_handle) == RTE_INTR_HANDLE_UIO) {
 
 		ret = allocate_info_ring(dev);
 		if (ret < 0) {
@@ -980,6 +980,7 @@ acc100_dev_info_get(struct rte_bbdev *dev,
 					RTE_BBDEV_TURBO_NEG_LLR_1_BIT_IN |
 					RTE_BBDEV_TURBO_MAP_DEC |
 					RTE_BBDEV_TURBO_DEC_TB_CRC_24B_KEEP |
+					RTE_BBDEV_TURBO_DEC_CRC_24B_DROP |
 					RTE_BBDEV_TURBO_DEC_SCATTER_GATHER,
 				.max_llr_modulus = INT8_MAX,
 				.num_buffers_src =
@@ -1088,6 +1089,7 @@ acc100_dev_info_get(struct rte_bbdev *dev,
 #else
 	dev_info->harq_buffer_size = 0;
 #endif
+	dev_info->data_endianness = RTE_LITTLE_ENDIAN;
 	acc100_check_ir(d);
 }
 
@@ -1096,8 +1098,8 @@ acc100_queue_intr_enable(struct rte_bbdev *dev, uint16_t queue_id)
 {
 	struct acc100_queue *q = dev->data->queues[queue_id].queue_private;
 
-	if (dev->intr_handle->type != RTE_INTR_HANDLE_VFIO_MSI &&
-			dev->intr_handle->type != RTE_INTR_HANDLE_UIO)
+	if (rte_intr_type_get(dev->intr_handle) != RTE_INTR_HANDLE_VFIO_MSI &&
+			rte_intr_type_get(dev->intr_handle) != RTE_INTR_HANDLE_UIO)
 		return -ENOTSUP;
 
 	q->irq_enable = 1;
@@ -1109,8 +1111,8 @@ acc100_queue_intr_disable(struct rte_bbdev *dev, uint16_t queue_id)
 {
 	struct acc100_queue *q = dev->data->queues[queue_id].queue_private;
 
-	if (dev->intr_handle->type != RTE_INTR_HANDLE_VFIO_MSI &&
-			dev->intr_handle->type != RTE_INTR_HANDLE_UIO)
+	if (rte_intr_type_get(dev->intr_handle) != RTE_INTR_HANDLE_VFIO_MSI &&
+			rte_intr_type_get(dev->intr_handle) != RTE_INTR_HANDLE_UIO)
 		return -ENOTSUP;
 
 	q->irq_enable = 0;
@@ -1168,7 +1170,7 @@ static inline void
 acc100_fcw_te_fill(const struct rte_bbdev_enc_op *op, struct acc100_fcw_te *fcw)
 {
 	fcw->code_block_mode = op->turbo_enc.code_block_mode;
-	if (fcw->code_block_mode == 0) { /* For TB mode */
+	if (fcw->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 		fcw->k_neg = op->turbo_enc.tb_params.k_neg;
 		fcw->k_pos = op->turbo_enc.tb_params.k_pos;
 		fcw->c_neg = op->turbo_enc.tb_params.c_neg;
@@ -1271,7 +1273,7 @@ acc100_fcw_td_fill(const struct rte_bbdev_dec_op *op, struct acc100_fcw_td *fcw)
 {
 	/* Note : Early termination is always enabled for 4GUL */
 	fcw->fcw_ver = 1;
-	if (op->turbo_dec.code_block_mode == 0)
+	if (op->turbo_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 		fcw->k_pos = op->turbo_dec.tb_params.k_pos;
 	else
 		fcw->k_pos = op->turbo_dec.cb_params.k;
@@ -1301,7 +1303,7 @@ acc100_fcw_ld_fill(const struct rte_bbdev_dec_op *op, struct acc100_fcw_ld *fcw,
 	fcw->ncb = op->ldpc_dec.n_cb;
 	fcw->k0 = get_k0(fcw->ncb, fcw->Zc, op->ldpc_dec.basegraph,
 			op->ldpc_dec.rv_index);
-	if (op->ldpc_dec.code_block_mode == 1)
+	if (op->ldpc_dec.code_block_mode == RTE_BBDEV_CODE_BLOCK)
 		fcw->rm_e = op->ldpc_dec.cb_params.e;
 	else
 		fcw->rm_e = (op->ldpc_dec.tb_params.r <
@@ -1458,8 +1460,7 @@ acc100_dma_fill_blk_type_in(struct acc100_dma_req_desc *desc,
 	next_triplet++;
 
 	while (cb_len > 0) {
-		if (next_triplet < ACC100_DMA_MAX_NUM_POINTERS &&
-				m->next != NULL) {
+		if (next_triplet < ACC100_DMA_MAX_NUM_POINTERS_IN && m->next != NULL) {
 
 			m = m->next;
 			*seg_total_left = rte_pktmbuf_data_len(m);
@@ -1554,7 +1555,7 @@ acc100_dma_desc_te_fill(struct rte_bbdev_enc_op *op,
 	desc->word3 = 0;
 	desc->numCBs = 1;
 
-	if (op->turbo_enc.code_block_mode == 0) {
+	if (op->turbo_enc.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 		ea = op->turbo_enc.tb_params.ea;
 		eb = op->turbo_enc.tb_params.eb;
 		cab = op->turbo_enc.tb_params.cab;
@@ -1695,7 +1696,7 @@ acc100_dma_desc_td_fill(struct rte_bbdev_dec_op *op,
 	desc->word3 = 0;
 	desc->numCBs = 1;
 
-	if (op->turbo_dec.code_block_mode == 0) {
+	if (op->turbo_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 		k = (r < op->turbo_dec.tb_params.c_neg)
 			? op->turbo_dec.tb_params.k_neg
 			: op->turbo_dec.tb_params.k_pos;
@@ -1707,9 +1708,13 @@ acc100_dma_desc_td_fill(struct rte_bbdev_dec_op *op,
 		e = op->turbo_dec.cb_params.e;
 	}
 
-	if ((op->turbo_dec.code_block_mode == 0)
-		&& !check_bit(op->turbo_dec.op_flags,
-		RTE_BBDEV_TURBO_DEC_TB_CRC_24B_KEEP))
+	if ((op->turbo_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
+			&& !check_bit(op->turbo_dec.op_flags,
+			RTE_BBDEV_TURBO_DEC_TB_CRC_24B_KEEP))
+		crc24_overlap = 24;
+	if ((op->turbo_dec.code_block_mode == RTE_BBDEV_CODE_BLOCK)
+			&& check_bit(op->turbo_dec.op_flags,
+			RTE_BBDEV_TURBO_DEC_CRC_24B_DROP))
 		crc24_overlap = 24;
 
 	/* Calculates circular buffer size.
@@ -1744,7 +1749,8 @@ acc100_dma_desc_td_fill(struct rte_bbdev_dec_op *op,
 
 	next_triplet = acc100_dma_fill_blk_type_out(
 			desc, h_output, *h_out_offset,
-			k >> 3, next_triplet, ACC100_DMA_BLKID_OUT_HARD);
+			(k - crc24_overlap) >> 3, next_triplet,
+			ACC100_DMA_BLKID_OUT_HARD);
 	if (unlikely(next_triplet < 0)) {
 		rte_bbdev_log(ERR,
 				"Mismatch between data to process and mbuf data length in bbdev_op: %p",
@@ -2066,15 +2072,15 @@ validate_enc_op(struct rte_bbdev_enc_op *op)
 				turbo_enc->rv_index);
 		return -1;
 	}
-	if (turbo_enc->code_block_mode != 0 &&
-			turbo_enc->code_block_mode != 1) {
+	if (turbo_enc->code_block_mode != RTE_BBDEV_TRANSPORT_BLOCK &&
+			turbo_enc->code_block_mode != RTE_BBDEV_CODE_BLOCK) {
 		rte_bbdev_log(ERR,
 				"code_block_mode (%u) is out of range 0 <= value <= 1",
 				turbo_enc->code_block_mode);
 		return -1;
 	}
 
-	if (turbo_enc->code_block_mode == 0) {
+	if (turbo_enc->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 		tb = &turbo_enc->tb_params;
 		if ((tb->k_neg < RTE_BBDEV_TURBO_MIN_CB_SIZE
 				|| tb->k_neg > RTE_BBDEV_TURBO_MAX_CB_SIZE)
@@ -2214,7 +2220,7 @@ validate_ldpc_enc_op(struct rte_bbdev_enc_op *op)
 				ldpc_enc->rv_index);
 		return -1;
 	}
-	if (ldpc_enc->code_block_mode > 1) {
+	if (ldpc_enc->code_block_mode > RTE_BBDEV_CODE_BLOCK) {
 		rte_bbdev_log(ERR,
 				"code_block_mode (%u) is out of range 0 <= value <= 1",
 				ldpc_enc->code_block_mode);
@@ -2258,7 +2264,7 @@ validate_ldpc_dec_op(struct rte_bbdev_dec_op *op)
 				ldpc_dec->rv_index);
 		return -1;
 	}
-	if (ldpc_dec->code_block_mode > 1) {
+	if (ldpc_dec->code_block_mode > RTE_BBDEV_CODE_BLOCK) {
 		rte_bbdev_log(ERR,
 				"code_block_mode (%u) is out of range 0 <= value <= 1",
 				ldpc_dec->code_block_mode);
@@ -2581,15 +2587,15 @@ validate_dec_op(struct rte_bbdev_dec_op *op)
 				turbo_dec->iter_min, turbo_dec->iter_max);
 		return -1;
 	}
-	if (turbo_dec->code_block_mode != 0 &&
-			turbo_dec->code_block_mode != 1) {
+	if (turbo_dec->code_block_mode != RTE_BBDEV_TRANSPORT_BLOCK &&
+			turbo_dec->code_block_mode != RTE_BBDEV_CODE_BLOCK) {
 		rte_bbdev_log(ERR,
 				"code_block_mode (%u) is out of range 0 <= value <= 1",
 				turbo_dec->code_block_mode);
 		return -1;
 	}
 
-	if (turbo_dec->code_block_mode == 0) {
+	if (turbo_dec->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 		tb = &turbo_dec->tb_params;
 		if ((tb->k_neg < RTE_BBDEV_TURBO_MIN_CB_SIZE
 				|| tb->k_neg > RTE_BBDEV_TURBO_MAX_CB_SIZE)
@@ -3411,7 +3417,7 @@ acc100_enqueue_enc(struct rte_bbdev_queue_data *q_data,
 {
 	if (unlikely(num == 0))
 		return 0;
-	if (ops[0]->turbo_enc.code_block_mode == 0)
+	if (ops[0]->turbo_enc.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 		return acc100_enqueue_enc_tb(q_data, ops, num);
 	else
 		return acc100_enqueue_enc_cb(q_data, ops, num);
@@ -3424,7 +3430,7 @@ acc100_enqueue_ldpc_enc(struct rte_bbdev_queue_data *q_data,
 {
 	if (unlikely(num == 0))
 		return 0;
-	if (ops[0]->ldpc_enc.code_block_mode == 0)
+	if (ops[0]->ldpc_enc.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 		return acc100_enqueue_enc_tb(q_data, ops, num);
 	else
 		return acc100_enqueue_ldpc_enc_cb(q_data, ops, num);
@@ -3607,7 +3613,7 @@ acc100_enqueue_dec(struct rte_bbdev_queue_data *q_data,
 {
 	if (unlikely(num == 0))
 		return 0;
-	if (ops[0]->turbo_dec.code_block_mode == 0)
+	if (ops[0]->turbo_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 		return acc100_enqueue_dec_tb(q_data, ops, num);
 	else
 		return acc100_enqueue_dec_cb(q_data, ops, num);
@@ -3625,7 +3631,7 @@ acc100_enqueue_ldpc_dec(struct rte_bbdev_queue_data *q_data,
 	if (unlikely((aq_avail == 0) || (num == 0)))
 		return 0;
 
-	if (ops[0]->ldpc_dec.code_block_mode == 0)
+	if (ops[0]->ldpc_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 		return acc100_enqueue_ldpc_dec_tb(q_data, ops, num);
 	else
 		return acc100_enqueue_ldpc_dec_cb(q_data, ops, num);
@@ -3966,7 +3972,7 @@ acc100_dequeue_enc(struct rte_bbdev_queue_data *q_data,
 	for (i = 0; i < dequeue_num; ++i) {
 		op = (q->ring_addr + ((q->sw_ring_tail + dequeued_cbs)
 			& q->sw_ring_wrap_mask))->req.op_addr;
-		if (op->turbo_enc.code_block_mode == 0)
+		if (op->turbo_enc.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 			ret = dequeue_enc_one_op_tb(q, &ops[i], dequeued_cbs,
 					&aq_dequeued);
 		else
@@ -4050,7 +4056,7 @@ acc100_dequeue_dec(struct rte_bbdev_queue_data *q_data,
 	for (i = 0; i < dequeue_num; ++i) {
 		op = (q->ring_addr + ((q->sw_ring_tail + dequeued_cbs)
 			& q->sw_ring_wrap_mask))->req.op_addr;
-		if (op->turbo_dec.code_block_mode == 0)
+		if (op->turbo_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 			ret = dequeue_dec_one_op_tb(q, &ops[i], dequeued_cbs,
 					&aq_dequeued);
 		else
@@ -4095,7 +4101,7 @@ acc100_dequeue_ldpc_dec(struct rte_bbdev_queue_data *q_data,
 	for (i = 0; i < dequeue_num; ++i) {
 		op = (q->ring_addr + ((q->sw_ring_tail + dequeued_cbs)
 			& q->sw_ring_wrap_mask))->req.op_addr;
-		if (op->ldpc_dec.code_block_mode == 0)
+		if (op->ldpc_dec.code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK)
 			ret = dequeue_dec_one_op_tb(q, &ops[i], dequeued_cbs,
 					&aq_dequeued);
 		else
@@ -4178,7 +4184,7 @@ static int acc100_pci_probe(struct rte_pci_driver *pci_drv,
 
 	/* Fill HW specific part of device structure */
 	bbdev->device = &pci_dev->device;
-	bbdev->intr_handle = &pci_dev->intr_handle;
+	bbdev->intr_handle = pci_dev->intr_handle;
 	bbdev->data->socket_id = pci_dev->device.numa_node;
 
 	/* Invoke ACC100 device initialization function */
@@ -4395,8 +4401,7 @@ poweron_cleanup(struct rte_bbdev *bbdev, struct acc100_device *d,
 	}
 	printf("Number of 5GUL engines %d\n", numEngines);
 
-	if (d->sw_rings_base != NULL)
-		rte_free(d->sw_rings_base);
+	rte_free(d->sw_rings_base);
 	usleep(ACC100_LONG_WAIT);
 }
 

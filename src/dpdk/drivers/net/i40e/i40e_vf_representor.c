@@ -19,18 +19,23 @@ i40e_vf_representor_link_update(struct rte_eth_dev *ethdev,
 	int wait_to_complete)
 {
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
+	struct rte_eth_dev *dev =
+		&rte_eth_devices[representor->adapter->pf.dev_data->port_id];
 
-	return i40e_dev_link_update(representor->adapter->eth_dev,
-		wait_to_complete);
+	return i40e_dev_link_update(dev, wait_to_complete);
 }
 static int
 i40e_vf_representor_dev_infos_get(struct rte_eth_dev *ethdev,
 	struct rte_eth_dev_info *dev_info)
 {
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
+	struct rte_eth_dev_data *pf_dev_data =
+		representor->adapter->pf.dev_data;
 
 	/* get dev info for the vdev */
 	dev_info->device = ethdev->device;
+
+	dev_info->dev_capa &= ~RTE_ETH_DEV_CAPA_FLOW_RULE_KEEP;
 
 	dev_info->max_rx_queues = ethdev->data->nb_rx_queues;
 	dev_info->max_tx_queues = ethdev->data->nb_tx_queues;
@@ -39,30 +44,30 @@ i40e_vf_representor_dev_infos_get(struct rte_eth_dev *ethdev,
 	dev_info->max_rx_pktlen = I40E_FRAME_SIZE_MAX;
 	dev_info->hash_key_size = (I40E_VFQF_HKEY_MAX_INDEX + 1) *
 		sizeof(uint32_t);
-	dev_info->reta_size = ETH_RSS_RETA_SIZE_64;
+	dev_info->reta_size = RTE_ETH_RSS_RETA_SIZE_64;
 	dev_info->flow_type_rss_offloads = I40E_RSS_OFFLOAD_ALL;
 	dev_info->max_mac_addrs = I40E_NUM_MACADDR_MAX;
 	dev_info->rx_offload_capa =
-		DEV_RX_OFFLOAD_VLAN_STRIP |
-		DEV_RX_OFFLOAD_QINQ_STRIP |
-		DEV_RX_OFFLOAD_IPV4_CKSUM |
-		DEV_RX_OFFLOAD_UDP_CKSUM |
-		DEV_RX_OFFLOAD_TCP_CKSUM |
-		DEV_RX_OFFLOAD_VLAN_FILTER;
+		RTE_ETH_RX_OFFLOAD_VLAN_STRIP |
+		RTE_ETH_RX_OFFLOAD_QINQ_STRIP |
+		RTE_ETH_RX_OFFLOAD_IPV4_CKSUM |
+		RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+		RTE_ETH_RX_OFFLOAD_TCP_CKSUM |
+		RTE_ETH_RX_OFFLOAD_VLAN_FILTER;
 	dev_info->tx_offload_capa =
-		DEV_TX_OFFLOAD_MULTI_SEGS  |
-		DEV_TX_OFFLOAD_VLAN_INSERT |
-		DEV_TX_OFFLOAD_QINQ_INSERT |
-		DEV_TX_OFFLOAD_IPV4_CKSUM |
-		DEV_TX_OFFLOAD_UDP_CKSUM |
-		DEV_TX_OFFLOAD_TCP_CKSUM |
-		DEV_TX_OFFLOAD_SCTP_CKSUM |
-		DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-		DEV_TX_OFFLOAD_TCP_TSO |
-		DEV_TX_OFFLOAD_VXLAN_TNL_TSO |
-		DEV_TX_OFFLOAD_GRE_TNL_TSO |
-		DEV_TX_OFFLOAD_IPIP_TNL_TSO |
-		DEV_TX_OFFLOAD_GENEVE_TNL_TSO;
+		RTE_ETH_TX_OFFLOAD_MULTI_SEGS  |
+		RTE_ETH_TX_OFFLOAD_VLAN_INSERT |
+		RTE_ETH_TX_OFFLOAD_QINQ_INSERT |
+		RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
+		RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_SCTP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+		RTE_ETH_TX_OFFLOAD_TCP_TSO |
+		RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_GRE_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO;
 
 	dev_info->default_rxconf = (struct rte_eth_rxconf) {
 		.rx_thresh = {
@@ -99,7 +104,7 @@ i40e_vf_representor_dev_infos_get(struct rte_eth_dev *ethdev,
 	};
 
 	dev_info->switch_info.name =
-		representor->adapter->eth_dev->device->name;
+		rte_eth_devices[pf_dev_data->port_id].device->name;
 	dev_info->switch_info.domain_id = representor->switch_domain_id;
 	dev_info->switch_info.port_id = representor->vf_id;
 
@@ -213,7 +218,7 @@ i40e_vf_representor_stats_get(struct rte_eth_dev *ethdev,
 	int ret;
 
 	ret = rte_pmd_i40e_get_vf_native_stats(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, &native_stats);
 	if (ret == 0) {
 		i40evf_stat_update_48(
@@ -273,7 +278,7 @@ i40e_vf_representor_stats_reset(struct rte_eth_dev *ethdev)
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_get_vf_native_stats(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, &representor->stats_offset);
 }
 
@@ -283,7 +288,7 @@ i40e_vf_representor_promiscuous_enable(struct rte_eth_dev *ethdev)
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_set_vf_unicast_promisc(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, 1);
 }
 
@@ -293,7 +298,7 @@ i40e_vf_representor_promiscuous_disable(struct rte_eth_dev *ethdev)
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_set_vf_unicast_promisc(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, 0);
 }
 
@@ -303,7 +308,7 @@ i40e_vf_representor_allmulticast_enable(struct rte_eth_dev *ethdev)
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_set_vf_multicast_promisc(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id,  1);
 }
 
@@ -313,7 +318,7 @@ i40e_vf_representor_allmulticast_disable(struct rte_eth_dev *ethdev)
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_set_vf_multicast_promisc(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id,  0);
 }
 
@@ -323,7 +328,7 @@ i40e_vf_representor_mac_addr_remove(struct rte_eth_dev *ethdev, uint32_t index)
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	rte_pmd_i40e_remove_vf_mac_addr(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, &ethdev->data->mac_addrs[index]);
 }
 
@@ -334,7 +339,7 @@ i40e_vf_representor_mac_addr_set(struct rte_eth_dev *ethdev,
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_set_vf_mac_addr(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, mac_addr);
 }
 
@@ -346,7 +351,7 @@ i40e_vf_representor_vlan_filter_set(struct rte_eth_dev *ethdev,
 	uint64_t vf_mask = 1ULL << representor->vf_id;
 
 	return rte_pmd_i40e_set_vf_vlan_filter(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		vlan_id, vf_mask, on);
 }
 
@@ -360,7 +365,7 @@ i40e_vf_representor_vlan_offload_set(struct rte_eth_dev *ethdev, int mask)
 	struct i40e_pf *pf;
 	uint32_t vfid;
 
-	pdev = representor->adapter->eth_dev;
+	pdev = &rte_eth_devices[representor->adapter->pf.dev_data->port_id];
 	vfid = representor->vf_id;
 
 	if (!is_i40e_supported(pdev)) {
@@ -382,19 +387,19 @@ i40e_vf_representor_vlan_offload_set(struct rte_eth_dev *ethdev, int mask)
 		return -EINVAL;
 	}
 
-	if (mask & ETH_VLAN_FILTER_MASK) {
+	if (mask & RTE_ETH_VLAN_FILTER_MASK) {
 		/* Enable or disable VLAN filtering offload */
 		if (ethdev->data->dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_VLAN_FILTER)
+		    RTE_ETH_RX_OFFLOAD_VLAN_FILTER)
 			return i40e_vsi_config_vlan_filter(vsi, TRUE);
 		else
 			return i40e_vsi_config_vlan_filter(vsi, FALSE);
 	}
 
-	if (mask & ETH_VLAN_STRIP_MASK) {
+	if (mask & RTE_ETH_VLAN_STRIP_MASK) {
 		/* Enable or disable VLAN stripping offload */
 		if (ethdev->data->dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_VLAN_STRIP)
+		    RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 			return i40e_vsi_config_vlan_stripping(vsi, TRUE);
 		else
 			return i40e_vsi_config_vlan_stripping(vsi, FALSE);
@@ -410,7 +415,7 @@ i40e_vf_representor_vlan_strip_queue_set(struct rte_eth_dev *ethdev,
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	rte_pmd_i40e_set_vf_vlan_stripq(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, on);
 }
 
@@ -421,7 +426,7 @@ i40e_vf_representor_vlan_pvid_set(struct rte_eth_dev *ethdev, uint16_t vlan_id,
 	struct i40e_vf_representor *representor = ethdev->data->dev_private;
 
 	return rte_pmd_i40e_set_vf_vlan_insert(
-		representor->adapter->eth_dev->data->port_id,
+		representor->adapter->pf.dev_data->port_id,
 		representor->vf_id, vlan_id);
 }
 
@@ -487,7 +492,7 @@ i40e_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 		((struct i40e_vf_representor *)init_params)->adapter;
 
 	pf = I40E_DEV_PRIVATE_TO_PF(
-		representor->adapter->eth_dev->data->dev_private);
+		representor->adapter->pf.dev_data->dev_private);
 
 	if (representor->vf_id >= pf->vf_num)
 		return -ENODEV;
@@ -508,9 +513,9 @@ i40e_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 		return -ENODEV;
 	}
 
-	ethdev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR |
-					RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS;
+	ethdev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
 	ethdev->data->representor_id = representor->vf_id;
+	ethdev->data->backer_port_id = pf->dev_data->port_id;
 
 	/* Setting the number queues allocated to the VF */
 	ethdev->data->nb_rx_queues = vf->vsi->nb_qps;
@@ -519,7 +524,7 @@ i40e_vf_representor_init(struct rte_eth_dev *ethdev, void *init_params)
 	ethdev->data->mac_addrs = &vf->mac_addr;
 
 	/* Link state. Inherited from PF */
-	link = &representor->adapter->eth_dev->data->dev_link;
+	link = &representor->adapter->pf.dev_data->dev_link;
 
 	ethdev->data->dev_link.link_speed = link->link_speed;
 	ethdev->data->dev_link.link_duplex = link->link_duplex;

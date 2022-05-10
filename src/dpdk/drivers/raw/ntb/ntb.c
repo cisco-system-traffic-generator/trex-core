@@ -923,6 +923,11 @@ ntb_dev_start(struct rte_rawdev *dev)
 
 	hw->peer_mw_base = rte_zmalloc("ntb_peer_mw_base", hw->mw_cnt *
 					sizeof(uint64_t), 0);
+	if (hw->peer_mw_base == NULL) {
+		NTB_LOG(ERR, "Cannot allocate memory for peer mw base.");
+		ret = -ENOMEM;
+		goto err_q_init;
+	}
 
 	if (hw->ntb_ops->spad_read == NULL) {
 		ret = -ENOTSUP;
@@ -1039,13 +1044,10 @@ ntb_dev_close(struct rte_rawdev *dev)
 		ntb_queue_release(dev, i);
 	hw->queue_pairs = 0;
 
-	intr_handle = &hw->pci_dev->intr_handle;
+	intr_handle = hw->pci_dev->intr_handle;
 	/* Clean datapath event and vec mapping */
 	rte_intr_efd_disable(intr_handle);
-	if (intr_handle->intr_vec) {
-		rte_free(intr_handle->intr_vec);
-		intr_handle->intr_vec = NULL;
-	}
+	rte_intr_vec_list_free(intr_handle);
 	/* Disable uio intr before callback unregister */
 	rte_intr_disable(intr_handle);
 
@@ -1080,6 +1082,10 @@ ntb_attr_set(struct rte_rawdev *dev, const char *attr_name,
 		if (hw->ntb_ops->spad_write == NULL)
 			return -ENOTSUP;
 		index = atoi(&attr_name[NTB_SPAD_USER_LEN]);
+		if (index < 0 || index >= NTB_SPAD_USER_MAX_NUM) {
+			NTB_LOG(ERR, "Invalid attribute (%s)", attr_name);
+			return -EINVAL;
+		}
 		(*hw->ntb_ops->spad_write)(dev, hw->spad_user_list[index],
 					   1, attr_value);
 		NTB_LOG(DEBUG, "Set attribute (%s) Value (%" PRIu64 ")",
@@ -1174,6 +1180,10 @@ ntb_attr_get(struct rte_rawdev *dev, const char *attr_name,
 		if (hw->ntb_ops->spad_read == NULL)
 			return -ENOTSUP;
 		index = atoi(&attr_name[NTB_SPAD_USER_LEN]);
+		if (index < 0 || index >= NTB_SPAD_USER_MAX_NUM) {
+			NTB_LOG(ERR, "Attribute (%s) out of range", attr_name);
+			return -EINVAL;
+		}
 		*attr_value = (*hw->ntb_ops->spad_read)(dev,
 				hw->spad_user_list[index], 0);
 		NTB_LOG(DEBUG, "Attribute (%s) Value (%" PRIu64 ")",
@@ -1388,8 +1398,12 @@ ntb_init_hw(struct rte_rawdev *dev, struct rte_pci_device *pci_dev)
 
 	/* Init doorbell. */
 	hw->db_valid_mask = RTE_LEN2MASK(hw->db_cnt, uint64_t);
+	/* Clear all valid doorbell bits before registering intr handler */
+	if (hw->ntb_ops->db_clear == NULL)
+		return -ENOTSUP;
+	(*hw->ntb_ops->db_clear)(dev, hw->db_valid_mask);
 
-	intr_handle = &pci_dev->intr_handle;
+	intr_handle = pci_dev->intr_handle;
 	/* Register callback func to eal lib */
 	rte_intr_callback_register(intr_handle,
 				   ntb_dev_intr_handler, dev);
@@ -1534,4 +1548,4 @@ static struct rte_pci_driver rte_ntb_pmd = {
 RTE_PMD_REGISTER_PCI(raw_ntb, rte_ntb_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(raw_ntb, pci_id_ntb_map);
 RTE_PMD_REGISTER_KMOD_DEP(raw_ntb, "* igb_uio | uio_pci_generic | vfio-pci");
-RTE_LOG_REGISTER(ntb_logtype, pmd.raw.ntb, INFO);
+RTE_LOG_REGISTER_DEFAULT(ntb_logtype, INFO);

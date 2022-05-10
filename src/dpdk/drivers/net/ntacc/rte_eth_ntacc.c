@@ -1209,8 +1209,8 @@ static int eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_in
                                      ETH_RSS_IPV6_EX;
   dev_info->hash_key_size = 0;
 
-  dev_info->tx_offload_capa = DEV_TX_OFFLOAD_MULTI_SEGS;
-  dev_info->tx_queue_offload_capa = DEV_TX_OFFLOAD_MULTI_SEGS;
+  dev_info->tx_offload_capa = RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
+  dev_info->tx_queue_offload_capa = RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
   pInfo = (NtInfo_t *)rte_malloc(internals->name, sizeof(NtInfo_t), 0);
   if (!pInfo) {

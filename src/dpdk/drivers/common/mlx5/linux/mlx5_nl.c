@@ -20,9 +20,8 @@
 #include <rte_errno.h>
 
 #include "mlx5_nl.h"
-#include "mlx5_common_utils.h"
+#include "../mlx5_common_log.h"
 #include "mlx5_malloc.h"
-
 #ifdef HAVE_DEVLINK
 #ifdef HAVE_DEVLINK_DUMMY
 #include <linux_devlink/devlink.h>
@@ -39,6 +38,8 @@
 #define MLX5_SEND_BUF_SIZE 32768
 /* Receive buffer size for the Netlink socket */
 #define MLX5_RECV_BUF_SIZE 32768
+/* Maximal physical port name length. */
+#define MLX5_PHYS_PORT_NAME_MAX 128
 
 /** Parameters of VLAN devices created by driver. */
 #define MLX5_VMWA_VLAN_DEVICE_PFX "evmlx"
@@ -81,6 +82,9 @@
 #endif
 #ifndef HAVE_RDMA_NLDEV_ATTR_PORT_INDEX
 #define RDMA_NLDEV_ATTR_PORT_INDEX 3
+#endif
+#ifndef HAVE_RDMA_NLDEV_ATTR_PORT_STATE
+#define RDMA_NLDEV_ATTR_PORT_STATE 12
 #endif
 #ifndef HAVE_RDMA_NLDEV_ATTR_NDEV_INDEX
 #define RDMA_NLDEV_ATTR_NDEV_INDEX 50
@@ -164,14 +168,16 @@ struct mlx5_nl_mac_addr {
 #define MLX5_NL_CMD_GET_IB_INDEX (1 << 1)
 #define MLX5_NL_CMD_GET_NET_INDEX (1 << 2)
 #define MLX5_NL_CMD_GET_PORT_INDEX (1 << 3)
+#define MLX5_NL_CMD_GET_PORT_STATE (1 << 4)
 
 /** Data structure used by mlx5_nl_cmdget_cb(). */
-struct mlx5_nl_ifindex_data {
+struct mlx5_nl_port_info {
 	const char *name; /**< IB device name (in). */
 	uint32_t flags; /**< found attribute flags (out). */
 	uint32_t ibindex; /**< IB device index (out). */
 	uint32_t ifindex; /**< Network interface index (out). */
 	uint32_t portnum; /**< IB device max port number (out). */
+	uint16_t state; /**< IB device port state (out). */
 };
 
 uint32_t atomic_sn;
@@ -184,19 +190,22 @@ uint32_t atomic_sn;
  *
  * @param protocol
  *   Netlink protocol (e.g. NETLINK_ROUTE, NETLINK_RDMA).
+ * @param groups
+ *   Groups to listen (e.g. RTMGRP_LINK), can be 0.
  *
  * @return
  *   A file descriptor on success, a negative errno value otherwise and
  *   rte_errno is set.
  */
 int
-mlx5_nl_init(int protocol)
+mlx5_nl_init(int protocol, int groups)
 {
 	int fd;
-	int sndbuf_size = MLX5_SEND_BUF_SIZE;
-	int rcvbuf_size = MLX5_RECV_BUF_SIZE;
+	int buf_size;
+	socklen_t opt_size;
 	struct sockaddr_nl local = {
 		.nl_family = AF_NETLINK,
+		.nl_groups = groups,
 	};
 	int ret;
 
@@ -205,15 +214,35 @@ mlx5_nl_init(int protocol)
 		rte_errno = errno;
 		return -rte_errno;
 	}
-	ret = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf_size, sizeof(int));
+	opt_size = sizeof(buf_size);
+	ret = getsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buf_size, &opt_size);
 	if (ret == -1) {
 		rte_errno = errno;
 		goto error;
 	}
-	ret = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf_size, sizeof(int));
+	DRV_LOG(DEBUG, "Netlink socket send buffer: %d", buf_size);
+	if (buf_size < MLX5_SEND_BUF_SIZE) {
+		ret = setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+				 &buf_size, sizeof(buf_size));
+		if (ret == -1) {
+			rte_errno = errno;
+			goto error;
+		}
+	}
+	opt_size = sizeof(buf_size);
+	ret = getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &buf_size, &opt_size);
 	if (ret == -1) {
 		rte_errno = errno;
 		goto error;
+	}
+	DRV_LOG(DEBUG, "Netlink socket recv buffer: %d", buf_size);
+	if (buf_size < MLX5_RECV_BUF_SIZE) {
+		ret = setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+				 &buf_size, sizeof(buf_size));
+		if (ret == -1) {
+			rte_errno = errno;
+			goto error;
+		}
 	}
 	ret = bind(fd, (struct sockaddr *)&local, sizeof(local));
 	if (ret == -1) {
@@ -336,11 +365,7 @@ mlx5_nl_recv(int nlsk_fd, uint32_t sn, int (*cb)(struct nlmsghdr *, void *arg),
 	     void *arg)
 {
 	struct sockaddr_nl sa;
-	void *buf = mlx5_malloc(0, MLX5_RECV_BUF_SIZE, 0, SOCKET_ID_ANY);
-	struct iovec iov = {
-		.iov_base = buf,
-		.iov_len = MLX5_RECV_BUF_SIZE,
-	};
+	struct iovec iov;
 	struct msghdr msg = {
 		.msg_name = &sa,
 		.msg_namelen = sizeof(sa),
@@ -348,18 +373,43 @@ mlx5_nl_recv(int nlsk_fd, uint32_t sn, int (*cb)(struct nlmsghdr *, void *arg),
 		/* One message at a time */
 		.msg_iovlen = 1,
 	};
+	void *buf = NULL;
 	int multipart = 0;
 	int ret = 0;
 
-	if (!buf) {
-		rte_errno = ENOMEM;
-		return -rte_errno;
-	}
 	do {
 		struct nlmsghdr *nh;
-		int recv_bytes = 0;
+		int recv_bytes;
 
 		do {
+			/* Query length of incoming message. */
+			iov.iov_base = NULL;
+			iov.iov_len = 0;
+			recv_bytes = recvmsg(nlsk_fd, &msg,
+					     MSG_PEEK | MSG_TRUNC);
+			if (recv_bytes < 0) {
+				rte_errno = errno;
+				ret = -rte_errno;
+				goto exit;
+			}
+			if (recv_bytes == 0) {
+				rte_errno = ENODATA;
+				ret = -rte_errno;
+				goto exit;
+			}
+			/* Allocate buffer to fetch the message. */
+			if (recv_bytes < MLX5_RECV_BUF_SIZE)
+				recv_bytes = MLX5_RECV_BUF_SIZE;
+			mlx5_free(buf);
+			buf = mlx5_malloc(0, recv_bytes, 0, SOCKET_ID_ANY);
+			if (!buf) {
+				rte_errno = ENOMEM;
+				ret = -rte_errno;
+				goto exit;
+			}
+			/* Fetch the message. */
+			iov.iov_base = buf;
+			iov.iov_len = recv_bytes;
 			recv_bytes = recvmsg(nlsk_fd, &msg, 0);
 			if (recv_bytes == -1) {
 				rte_errno = errno;
@@ -656,11 +706,9 @@ mlx5_nl_vf_mac_addr_modify(int nlsk_fd, unsigned int iface_idx,
 error:
 	DRV_LOG(ERR,
 		"representor %u cannot set VF MAC address "
-		"%02X:%02X:%02X:%02X:%02X:%02X : %s",
+		RTE_ETHER_ADDR_PRT_FMT " : %s",
 		vf_index,
-		mac->addr_bytes[0], mac->addr_bytes[1],
-		mac->addr_bytes[2], mac->addr_bytes[3],
-		mac->addr_bytes[4], mac->addr_bytes[5],
+		RTE_ETHER_ADDR_BYTES(mac),
 		strerror(rte_errno));
 	return -rte_errno;
 }
@@ -752,6 +800,7 @@ mlx5_nl_mac_addr_sync(int nlsk_fd, unsigned int iface_idx,
 	int i;
 	int ret;
 
+	memset(macs, 0, n * sizeof(macs[0]));
 	ret = mlx5_nl_mac_addr_list(nlsk_fd, iface_idx, &macs, &macs_n);
 	if (ret)
 		return;
@@ -930,8 +979,8 @@ mlx5_nl_allmulti(int nlsk_fd, unsigned int iface_idx, int enable)
 static int
 mlx5_nl_cmdget_cb(struct nlmsghdr *nh, void *arg)
 {
-	struct mlx5_nl_ifindex_data *data = arg;
-	struct mlx5_nl_ifindex_data local = {
+	struct mlx5_nl_port_info *data = arg;
+	struct mlx5_nl_port_info local = {
 		.flags = 0,
 	};
 	size_t off = NLMSG_HDRLEN;
@@ -964,6 +1013,10 @@ mlx5_nl_cmdget_cb(struct nlmsghdr *nh, void *arg)
 			local.portnum = *(uint32_t *)payload;
 			local.flags |= MLX5_NL_CMD_GET_PORT_INDEX;
 			break;
+		case RDMA_NLDEV_ATTR_PORT_STATE:
+			local.state = *(uint8_t *)payload;
+			local.flags |= MLX5_NL_CMD_GET_PORT_STATE;
+			break;
 		default:
 			break;
 		}
@@ -980,10 +1033,89 @@ mlx5_nl_cmdget_cb(struct nlmsghdr *nh, void *arg)
 		data->ibindex = local.ibindex;
 		data->ifindex = local.ifindex;
 		data->portnum = local.portnum;
+		data->state = local.state;
 	}
 	return 0;
 error:
 	rte_errno = EINVAL;
+	return -rte_errno;
+}
+
+/**
+ * Get port info of network interface associated with some IB device.
+ *
+ * This is the only somewhat safe method to avoid resorting to heuristics
+ * when faced with port representors. Unfortunately it requires at least
+ * Linux 4.17.
+ *
+ * @param nl
+ *   Netlink socket of the RDMA kind (NETLINK_RDMA).
+ * @param[in] pindex
+ *   IB device port index, starting from 1
+ * @param[out] data
+ *   Pointer to port info.
+ * @return
+ *   0 on success, negative on error and rte_errno is set.
+ */
+static int
+mlx5_nl_port_info(int nl, uint32_t pindex, struct mlx5_nl_port_info *data)
+{
+	union {
+		struct nlmsghdr nh;
+		uint8_t buf[NLMSG_HDRLEN +
+			    NLA_HDRLEN + NLA_ALIGN(sizeof(data->ibindex)) +
+			    NLA_HDRLEN + NLA_ALIGN(sizeof(pindex))];
+	} req = {
+		.nh = {
+			.nlmsg_len = NLMSG_LENGTH(0),
+			.nlmsg_type = RDMA_NL_GET_TYPE(RDMA_NL_NLDEV,
+						       RDMA_NLDEV_CMD_GET),
+			.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP,
+		},
+	};
+	struct nlattr *na;
+	uint32_t sn = MLX5_NL_SN_GENERATE;
+	int ret;
+
+	ret = mlx5_nl_send(nl, &req.nh, sn);
+	if (ret < 0)
+		return ret;
+	ret = mlx5_nl_recv(nl, sn, mlx5_nl_cmdget_cb, data);
+	if (ret < 0)
+		return ret;
+	if (!(data->flags & MLX5_NL_CMD_GET_IB_NAME) ||
+	    !(data->flags & MLX5_NL_CMD_GET_IB_INDEX))
+		goto error;
+	data->flags = 0;
+	sn = MLX5_NL_SN_GENERATE;
+	req.nh.nlmsg_type = RDMA_NL_GET_TYPE(RDMA_NL_NLDEV,
+					     RDMA_NLDEV_CMD_PORT_GET);
+	req.nh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	req.nh.nlmsg_len = NLMSG_LENGTH(sizeof(req.buf) - NLMSG_HDRLEN);
+	na = (void *)((uintptr_t)req.buf + NLMSG_HDRLEN);
+	na->nla_len = NLA_HDRLEN + sizeof(data->ibindex);
+	na->nla_type = RDMA_NLDEV_ATTR_DEV_INDEX;
+	memcpy((void *)((uintptr_t)na + NLA_HDRLEN),
+	       &data->ibindex, sizeof(data->ibindex));
+	na = (void *)((uintptr_t)na + NLA_ALIGN(na->nla_len));
+	na->nla_len = NLA_HDRLEN + sizeof(pindex);
+	na->nla_type = RDMA_NLDEV_ATTR_PORT_INDEX;
+	memcpy((void *)((uintptr_t)na + NLA_HDRLEN),
+	       &pindex, sizeof(pindex));
+	ret = mlx5_nl_send(nl, &req.nh, sn);
+	if (ret < 0)
+		return ret;
+	ret = mlx5_nl_recv(nl, sn, mlx5_nl_cmdget_cb, data);
+	if (ret < 0)
+		return ret;
+	if (!(data->flags & MLX5_NL_CMD_GET_IB_NAME) ||
+	    !(data->flags & MLX5_NL_CMD_GET_IB_INDEX) ||
+	    !(data->flags & MLX5_NL_CMD_GET_NET_INDEX) ||
+	    !data->ifindex)
+		goto error;
+	return 1;
+error:
+	rte_errno = ENODEV;
 	return -rte_errno;
 }
 
@@ -1007,69 +1139,47 @@ error:
 unsigned int
 mlx5_nl_ifindex(int nl, const char *name, uint32_t pindex)
 {
-	struct mlx5_nl_ifindex_data data = {
-		.name = name,
-		.flags = 0,
-		.ibindex = 0, /* Determined during first pass. */
-		.ifindex = 0, /* Determined during second pass. */
+	struct mlx5_nl_port_info data = {
+			.ifindex = 0,
+			.name = name,
 	};
-	union {
-		struct nlmsghdr nh;
-		uint8_t buf[NLMSG_HDRLEN +
-			    NLA_HDRLEN + NLA_ALIGN(sizeof(data.ibindex)) +
-			    NLA_HDRLEN + NLA_ALIGN(sizeof(pindex))];
-	} req = {
-		.nh = {
-			.nlmsg_len = NLMSG_LENGTH(0),
-			.nlmsg_type = RDMA_NL_GET_TYPE(RDMA_NL_NLDEV,
-						       RDMA_NLDEV_CMD_GET),
-			.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP,
-		},
-	};
-	struct nlattr *na;
-	uint32_t sn = MLX5_NL_SN_GENERATE;
-	int ret;
 
-	ret = mlx5_nl_send(nl, &req.nh, sn);
-	if (ret < 0)
+	if (mlx5_nl_port_info(nl, pindex, &data) < 0)
 		return 0;
-	ret = mlx5_nl_recv(nl, sn, mlx5_nl_cmdget_cb, &data);
-	if (ret < 0)
-		return 0;
-	if (!(data.flags & MLX5_NL_CMD_GET_IB_NAME) ||
-	    !(data.flags & MLX5_NL_CMD_GET_IB_INDEX))
-		goto error;
-	data.flags = 0;
-	sn = MLX5_NL_SN_GENERATE;
-	req.nh.nlmsg_type = RDMA_NL_GET_TYPE(RDMA_NL_NLDEV,
-					     RDMA_NLDEV_CMD_PORT_GET);
-	req.nh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
-	req.nh.nlmsg_len = NLMSG_LENGTH(sizeof(req.buf) - NLMSG_HDRLEN);
-	na = (void *)((uintptr_t)req.buf + NLMSG_HDRLEN);
-	na->nla_len = NLA_HDRLEN + sizeof(data.ibindex);
-	na->nla_type = RDMA_NLDEV_ATTR_DEV_INDEX;
-	memcpy((void *)((uintptr_t)na + NLA_HDRLEN),
-	       &data.ibindex, sizeof(data.ibindex));
-	na = (void *)((uintptr_t)na + NLA_ALIGN(na->nla_len));
-	na->nla_len = NLA_HDRLEN + sizeof(pindex);
-	na->nla_type = RDMA_NLDEV_ATTR_PORT_INDEX;
-	memcpy((void *)((uintptr_t)na + NLA_HDRLEN),
-	       &pindex, sizeof(pindex));
-	ret = mlx5_nl_send(nl, &req.nh, sn);
-	if (ret < 0)
-		return 0;
-	ret = mlx5_nl_recv(nl, sn, mlx5_nl_cmdget_cb, &data);
-	if (ret < 0)
-		return 0;
-	if (!(data.flags & MLX5_NL_CMD_GET_IB_NAME) ||
-	    !(data.flags & MLX5_NL_CMD_GET_IB_INDEX) ||
-	    !(data.flags & MLX5_NL_CMD_GET_NET_INDEX) ||
-	    !data.ifindex)
-		goto error;
 	return data.ifindex;
-error:
-	rte_errno = ENODEV;
-	return 0;
+}
+
+/**
+ * Get IB device port state.
+ *
+ * This is the only somewhat safe method to get info for port number >= 255.
+ * Unfortunately it requires at least Linux 4.17.
+ *
+ * @param nl
+ *   Netlink socket of the RDMA kind (NETLINK_RDMA).
+ * @param[in] name
+ *   IB device name.
+ * @param[in] pindex
+ *   IB device port index, starting from 1
+ * @return
+ *   Port state (ibv_port_state) on success, negative on error
+ *   and rte_errno is set.
+ */
+int
+mlx5_nl_port_state(int nl, const char *name, uint32_t pindex)
+{
+	struct mlx5_nl_port_info data = {
+			.state = 0,
+			.name = name,
+	};
+
+	if (mlx5_nl_port_info(nl, pindex, &data) < 0)
+		return -rte_errno;
+	if ((data.flags & MLX5_NL_CMD_GET_PORT_STATE) == 0) {
+		rte_errno = ENOTSUP;
+		return -rte_errno;
+	}
+	return (int)data.state;
 }
 
 /**
@@ -1087,7 +1197,7 @@ error:
 unsigned int
 mlx5_nl_portnum(int nl, const char *name)
 {
-	struct mlx5_nl_ifindex_data data = {
+	struct mlx5_nl_port_info data = {
 		.flags = 0,
 		.name = name,
 		.ifindex = 0,
@@ -1164,6 +1274,8 @@ mlx5_nl_check_switch_info(bool num_vf_set,
 	case MLX5_PHYS_PORT_NAME_TYPE_PFHPF:
 		/* Fallthrough */
 	case MLX5_PHYS_PORT_NAME_TYPE_PFVF:
+		/* Fallthrough */
+	case MLX5_PHYS_PORT_NAME_TYPE_PFSF:
 		/* New representors naming schema. */
 		switch_info->representor = 1;
 		break;
@@ -1194,6 +1306,7 @@ mlx5_nl_switch_info_cb(struct nlmsghdr *nh, void *arg)
 	size_t off = NLMSG_LENGTH(sizeof(struct ifinfomsg));
 	bool switch_id_set = false;
 	bool num_vf_set = false;
+	int len;
 
 	if (nh->nlmsg_type != RTM_NEWLINK)
 		goto error;
@@ -1209,7 +1322,24 @@ mlx5_nl_switch_info_cb(struct nlmsghdr *nh, void *arg)
 			num_vf_set = true;
 			break;
 		case IFLA_PHYS_PORT_NAME:
-			mlx5_translate_port_name((char *)payload, &info);
+			len = RTA_PAYLOAD(ra);
+			/* Some kernels do not pad attributes with zero. */
+			if (len > 0 && len < MLX5_PHYS_PORT_NAME_MAX) {
+				char name[MLX5_PHYS_PORT_NAME_MAX];
+
+				/*
+				 * We can't just patch the message with padding
+				 * zero - it might corrupt the following items
+				 * in the message, we have to copy the string
+				 * by attribute length and pad the copied one.
+				 */
+				memcpy(name, payload, len);
+				name[len] = 0;
+				mlx5_translate_port_name(name, &info);
+			} else {
+				info.name_type =
+					MLX5_PHYS_PORT_NAME_TYPE_UNKNOWN;
+			}
 			break;
 		case IFLA_PHYS_SWITCH_ID:
 			info.switch_id = 0;
@@ -1644,7 +1774,7 @@ mlx5_nl_enable_roce_get(int nlsk_fd, int family_id, const char *pci_addr,
  * @return
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-int
+static int
 mlx5_nl_driver_reload(int nlsk_fd, int family_id, const char *pci_addr)
 {
 	struct nlmsghdr *nlh;
@@ -1739,4 +1869,101 @@ mlx5_nl_enable_roce_set(int nlsk_fd, int family_id, const char *pci_addr,
 		pci_addr, enable ? "en" : "dis");
 	/* Now, need to reload the driver. */
 	return mlx5_nl_driver_reload(nlsk_fd, family_id, pci_addr);
+}
+
+/**
+ * Try to parse a Netlink message as a link status update.
+ *
+ * @param hdr
+ *  Netlink message header.
+ * @param[out] ifindex
+ *  Index of the updated interface.
+ *
+ * @return
+ *  0 on success, negative on failure.
+ */
+int
+mlx5_nl_parse_link_status_update(struct nlmsghdr *hdr, uint32_t *ifindex)
+{
+	struct ifinfomsg *info;
+
+	switch (hdr->nlmsg_type) {
+	case RTM_NEWLINK:
+	case RTM_DELLINK:
+	case RTM_GETLINK:
+	case RTM_SETLINK:
+		info = NLMSG_DATA(hdr);
+		*ifindex = info->ifi_index;
+		return 0;
+	}
+	return -1;
+}
+
+/**
+ * Read pending events from a Netlink socket.
+ *
+ * @param nlsk_fd
+ *  Netlink socket.
+ * @param cb
+ *  Callback invoked for each of the events.
+ * @param cb_arg
+ *  User data for the callback.
+ *
+ * @return
+ *  0 on success, including the case when there are no events.
+ *  Negative on failure and rte_errno is set.
+ */
+int
+mlx5_nl_read_events(int nlsk_fd, mlx5_nl_event_cb *cb, void *cb_arg)
+{
+	char buf[8192];
+	struct sockaddr_nl addr;
+	struct iovec iov = {
+		.iov_base = buf,
+		.iov_len = sizeof(buf),
+	};
+	struct msghdr msg = {
+		.msg_name = &addr,
+		.msg_namelen = sizeof(addr),
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+	};
+	struct nlmsghdr *hdr;
+	ssize_t size;
+
+	while (1) {
+		size = recvmsg(nlsk_fd, &msg, MSG_DONTWAIT);
+		if (size < 0) {
+			if (errno == EAGAIN)
+				return 0;
+			if (errno == EINTR)
+				continue;
+			DRV_LOG(DEBUG, "Failed to receive netlink message: %s",
+				strerror(errno));
+			rte_errno = errno;
+			return -rte_errno;
+		}
+		hdr = (struct nlmsghdr *)buf;
+		while (size >= (ssize_t)sizeof(*hdr)) {
+			ssize_t msg_len = hdr->nlmsg_len;
+			ssize_t data_len = msg_len - sizeof(*hdr);
+			ssize_t aligned_len;
+
+			if (data_len < 0) {
+				DRV_LOG(DEBUG, "Netlink message too short");
+				rte_errno = EINVAL;
+				return -rte_errno;
+			}
+			aligned_len = NLMSG_ALIGN(msg_len);
+			if (aligned_len > size) {
+				DRV_LOG(DEBUG, "Netlink message too long");
+				rte_errno = EINVAL;
+				return -rte_errno;
+			}
+			cb(hdr, cb_arg);
+			hdr = RTE_PTR_ADD(hdr, aligned_len);
+			size -= aligned_len;
+		}
+	}
+	return 0;
 }

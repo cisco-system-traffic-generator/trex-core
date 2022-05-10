@@ -261,7 +261,7 @@ dpaax_iova_table_depopulate(void)
 	rte_free(dpaax_iova_table_p->entries);
 	dpaax_iova_table_p = NULL;
 
-	DPAAX_DEBUG("IOVA Table cleanedup");
+	DPAAX_DEBUG("IOVA Table cleaned");
 }
 
 int
@@ -366,8 +366,10 @@ dpaax_iova_table_dump(void)
 	}
 
 	DPAAX_DEBUG(" === Start of PA->VA Translation Table ===");
-	if (dpaax_iova_table_p == NULL)
+	if (dpaax_iova_table_p == NULL) {
 		DPAAX_DEBUG("\tNULL");
+		return;
+	}
 
 	entry = dpaax_iova_table_p->entries;
 	for (i = 0; i < dpaax_iova_table_p->count; i++) {
@@ -460,4 +462,4 @@ dpaax_handle_memevents(void)
 					       dpaax_memevent_cb, NULL);
 }
 
-RTE_LOG_REGISTER(dpaax_logger, pmd.common.dpaax, ERR);
+RTE_LOG_REGISTER_DEFAULT(dpaax_logger, ERR);

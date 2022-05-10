@@ -276,7 +276,7 @@ int CGtpuMan::prepend(rte_mbuf *pkt, uint8_t dir) {
             inner_cs = ~ips.inetChecksum();
         }
         else {
-            pkt->ol_flags &= ~(PKT_TX_IPV4 | PKT_TX_IP_CKSUM);
+            pkt->ol_flags &= ~(RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM);
             ((IPHeader *)iph)->updateCheckSumFast();
         }
     } else {

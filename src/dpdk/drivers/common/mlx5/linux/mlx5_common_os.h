@@ -9,6 +9,7 @@
 #include <malloc.h>
 
 #include <rte_pci.h>
+#include <rte_bus_pci.h>
 #include <rte_debug.h>
 #include <rte_atomic.h>
 #include <rte_log.h>
@@ -203,24 +204,14 @@ mlx5_os_get_devx_uar_page_id(void *uar)
 #endif
 }
 
-static inline void *
-mlx5_os_alloc_pd(void *ctx)
-{
-	return mlx5_glue->alloc_pd(ctx);
-}
-
-static inline int
-mlx5_os_dealloc_pd(void *pd)
-{
-	return mlx5_glue->dealloc_pd(pd);
-}
-
+__rte_internal
 static inline void *
 mlx5_os_umem_reg(void *ctx, void *addr, size_t size, uint32_t access)
 {
 	return mlx5_glue->devx_umem_reg(ctx, addr, size, access);
 }
 
+__rte_internal
 static inline int
 mlx5_os_umem_dereg(void *pumem)
 {
@@ -284,4 +275,28 @@ mlx5_os_free(void *addr)
 {
 	free(addr);
 }
+
+void
+mlx5_set_context_attr(struct rte_device *dev, struct ibv_context *ctx);
+
+/**
+ * This is used to query system_image_guid as describing in PRM.
+ *
+ * @param dev[in]
+ *  Pointer to a device instance as PCIe id.
+ * @param guid[out]
+ *  Pointer to the buffer to hold device guid.
+ *  Guid is uint64_t and corresponding to 17 bytes string.
+ * @param len[in]
+ *  Guid buffer length, 17 bytes at least.
+ *
+ * @return
+ *  -1 if internal failure.
+ *  0 if OFED doesn't support.
+ *  >0 if success.
+ */
+__rte_internal
+int
+mlx5_get_device_guid(const struct rte_pci_addr *dev, uint8_t *guid, size_t len);
+
 #endif /* RTE_PMD_MLX5_COMMON_OS_H_ */

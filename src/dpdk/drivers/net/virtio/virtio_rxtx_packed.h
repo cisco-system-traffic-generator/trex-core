@@ -104,7 +104,7 @@ static inline int
 virtqueue_enqueue_single_packed_vec(struct virtnet_tx *txvq,
 				    struct rte_mbuf *txm)
 {
-	struct virtqueue *vq = txvq->vq;
+	struct virtqueue *vq = virtnet_txq_to_vq(txvq);
 	struct virtio_hw *hw = vq->hw;
 	uint16_t hdr_size = hw->vtnet_hdr_size;
 	uint16_t slots, can_push = 0, use_indirect = 0;
@@ -125,13 +125,12 @@ virtqueue_enqueue_single_packed_vec(struct virtnet_tx *txvq,
 	 * any_layout => number of segments
 	 * default    => number of segments + 1
 	 */
-	slots = use_indirect ? 1 : (txm->nb_segs + !can_push);
 	can_push = rte_mbuf_refcnt_read(txm) == 1 &&
 		   RTE_MBUF_DIRECT(txm) &&
 		   txm->nb_segs == 1 &&
 		   rte_pktmbuf_headroom(txm) >= hdr_size;
 
-	slots = txm->nb_segs + !can_push;
+	slots = use_indirect ? 1 : (txm->nb_segs + !can_push);
 	need = slots - vq->vq_free_cnt;
 
 	/* Positive value indicates it need free vring descriptors */
@@ -166,7 +165,7 @@ virtio_vec_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 		return 0;
 
 	/* GSO not support in vec path, skip check */
-	m->ol_flags |= PKT_RX_IP_CKSUM_UNKNOWN;
+	m->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_UNKNOWN;
 
 	ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
 	m->packet_type = ptype;
@@ -178,7 +177,7 @@ virtio_vec_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 	if (hdr->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM) {
 		hdrlen = hdr_lens.l2_len + hdr_lens.l3_len + hdr_lens.l4_len;
 		if (hdr->csum_start <= hdrlen && l4_supported) {
-			m->ol_flags |= PKT_RX_L4_CKSUM_NONE;
+			m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_NONE;
 		} else {
 			/* Unknown proto or tunnel, do sw cksum. We can assume
 			 * the cksum field is in the first segment since the
@@ -200,7 +199,7 @@ virtio_vec_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 					off) = csum;
 		}
 	} else if (hdr->flags & VIRTIO_NET_HDR_F_DATA_VALID && l4_supported) {
-		m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
+		m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 	}
 
 	return 0;
@@ -212,7 +211,7 @@ virtqueue_dequeue_single_packed_vec(struct virtnet_rx *rxvq,
 {
 	uint16_t used_idx, id;
 	uint32_t len;
-	struct virtqueue *vq = rxvq->vq;
+	struct virtqueue *vq = virtnet_rxq_to_vq(rxvq);
 	struct virtio_hw *hw = vq->hw;
 	uint32_t hdr_size = hw->vtnet_hdr_size;
 	struct virtio_net_hdr *hdr;
@@ -264,7 +263,7 @@ virtio_recv_refill_packed_vec(struct virtnet_rx *rxvq,
 			      struct rte_mbuf **cookie,
 			      uint16_t num)
 {
-	struct virtqueue *vq = rxvq->vq;
+	struct virtqueue *vq = virtnet_rxq_to_vq(rxvq);
 	struct vring_packed_desc *start_dp = vq->vq_packed.ring.desc;
 	uint16_t flags = vq->vq_packed.cached_flags;
 	struct virtio_hw *hw = vq->hw;
@@ -288,7 +287,7 @@ virtio_recv_refill_packed_vec(struct virtnet_rx *rxvq,
 			dxp = &vq->vq_descx[idx + i];
 			dxp->cookie = (void *)cookie[total_num + i];
 
-			addr = cookie[total_num + i]->buf_iova +
+			addr = VIRTIO_MBUF_ADDR(cookie[total_num + i], vq) +
 				RTE_PKTMBUF_HEADROOM - hw->vtnet_hdr_size;
 			start_dp[idx + i].addr = addr;
 			start_dp[idx + i].len = cookie[total_num + i]->buf_len

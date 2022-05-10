@@ -125,11 +125,11 @@ int CRxAstfCore::_do_start(void){
         bool restart=true;
         /* wait for event */
         while ( true ) {
+            do_background();
             double dt = now_sec() - n_time ;
             if (dt> (0.0)) {
                 break;
             }
-            do_background();
         }
         m_cpu_dp_u.start_work1();
         // re-read it as background might add new nodes 
@@ -365,7 +365,7 @@ void CRxAstfCore::start_latency(const lat_start_params_t &args, CTunnelsTopo* tu
     CGenNode * node;
     node = new CGenNode();
     node->m_type = CGenNode::FLOW_PKT;   /* general stuff */
-    node->m_time = now_sec()+0.01;
+    node->m_time = now_sec()+0.5;
     node->m_pad2 = m_epoc;
     m_p_queue.push(node);
 

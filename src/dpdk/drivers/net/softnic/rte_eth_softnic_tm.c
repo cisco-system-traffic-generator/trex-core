@@ -420,7 +420,7 @@ pmd_tm_node_type_get(struct rte_eth_dev *dev,
 	return 0;
 }
 
-#ifdef RTE_SCHED_RED
+#ifdef RTE_SCHED_CMAN
 #define WRED_SUPPORTED						1
 #else
 #define WRED_SUPPORTED						0
@@ -595,15 +595,9 @@ static const struct rte_tm_level_capabilities tm_level_cap[] = {
 			.sched_sp_n_priorities_max = 1,
 			.sched_wfq_n_children_per_group_max = UINT32_MAX,
 			.sched_wfq_n_groups_max = 1,
-#ifdef RTE_SCHED_SUBPORT_TC_OV
 			.sched_wfq_weight_max = UINT32_MAX,
 			.sched_wfq_packet_mode_supported = 0,
 			.sched_wfq_byte_mode_supported = 1,
-#else
-			.sched_wfq_weight_max = 1,
-			.sched_wfq_packet_mode_supported = 0,
-			.sched_wfq_byte_mode_supported = 1,
-#endif
 
 			.stats_mask = STATS_MASK_DEFAULT,
 		} },
@@ -2306,7 +2300,7 @@ tm_tc_wred_profile_get(struct rte_eth_dev *dev, uint32_t tc_id)
 	return NULL;
 }
 
-#ifdef RTE_SCHED_RED
+#ifdef RTE_SCHED_CMAN
 
 static void
 wred_profiles_set(struct rte_eth_dev *dev, uint32_t subport_id)
@@ -2321,7 +2315,7 @@ wred_profiles_set(struct rte_eth_dev *dev, uint32_t subport_id)
 	for (tc_id = 0; tc_id < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; tc_id++)
 		for (color = RTE_COLOR_GREEN; color < RTE_COLORS; color++) {
 			struct rte_red_params *dst =
-				&pp->red_params[tc_id][color];
+				&pp->cman_params->red_params[tc_id][color];
 			struct tm_wred_profile *src_wp =
 				tm_tc_wred_profile_get(dev, tc_id);
 			struct rte_tm_red_params *src =
@@ -2828,8 +2822,6 @@ pmd_tm_hierarchy_commit(struct rte_eth_dev *dev,
 	return 0;
 }
 
-#ifdef RTE_SCHED_SUBPORT_TC_OV
-
 static int
 update_pipe_weight(struct rte_eth_dev *dev, struct tm_node *np, uint32_t weight)
 {
@@ -2866,8 +2858,6 @@ update_pipe_weight(struct rte_eth_dev *dev, struct tm_node *np, uint32_t weight)
 
 	return 0;
 }
-
-#endif
 
 static int
 update_queue_weight(struct rte_eth_dev *dev,
@@ -2983,7 +2973,6 @@ pmd_tm_node_parent_update(struct rte_eth_dev *dev,
 			rte_strerror(EINVAL));
 		/* fall-through */
 	case TM_NODE_LEVEL_PIPE:
-#ifdef RTE_SCHED_SUBPORT_TC_OV
 		if (update_pipe_weight(dev, n, weight))
 			return -rte_tm_error_set(error,
 				EINVAL,
@@ -2991,13 +2980,6 @@ pmd_tm_node_parent_update(struct rte_eth_dev *dev,
 				NULL,
 				rte_strerror(EINVAL));
 		return 0;
-#else
-		return -rte_tm_error_set(error,
-			EINVAL,
-			RTE_TM_ERROR_TYPE_NODE_WEIGHT,
-			NULL,
-			rte_strerror(EINVAL));
-#endif
 		/* fall-through */
 	case TM_NODE_LEVEL_TC:
 		return -rte_tm_error_set(error,

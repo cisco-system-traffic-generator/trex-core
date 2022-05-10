@@ -1263,6 +1263,18 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 'drivers/net/ice/base/ice_flow.c',
                 'drivers/net/ice/base/ice_dcb.c',
                 'drivers/net/ice/base/ice_fdir.c',
+                'drivers/net/ice/base/ice_ptp_hw.c',
+                'drivers/net/ice/base/ice_parser.c',
+                'drivers/net/ice/base/ice_parser_rt.c',
+                'drivers/net/ice/base/ice_pg_cam.c',
+                'drivers/net/ice/base/ice_xlt_kb.c',
+                'drivers/net/ice/base/ice_flg_rd.c',
+                'drivers/net/ice/base/ice_ptype_mk.c',
+                'drivers/net/ice/base/ice_bst_tcam.c',
+                'drivers/net/ice/base/ice_proto_grp.c',
+                'drivers/net/ice/base/ice_mk_grp.c',
+                'drivers/net/ice/base/ice_imem.c',
+                'drivers/net/ice/base/ice_metainit.c',
 
                 'drivers/net/ice/ice_dcf_vf_representor.c',
                 'drivers/net/ice/ice_acl_filter.c',
@@ -1278,6 +1290,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 #'drivers/net/ice/ice_rxtx_vec_avx2.c',
                 #'drivers/net/ice/ice_rxtx_vec_avx512.c',
                 'drivers/net/ice/ice_generic_flow.c',
+                'drivers/net/ice/ice_dcf_sched.c',
 
                  #ixgbe
                  'drivers/net/ixgbe/base/ixgbe_82598.c',
@@ -1307,26 +1320,28 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  #i40e
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
 
-                 #virtio
-                 'drivers/net/virtio/virtio_rxtx_simple_sse.c',
 
-                 #vmxnet3
+                #  #virtio
+                  'drivers/net/virtio/virtio_rxtx_simple_sse.c',
+
+                #  #vmxnet3
                  'drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  'drivers/net/vmxnet3/vmxnet3_rxtx.c',
 
-                 #af_packet
+                #  #af_packet
                  'drivers/net/af_packet/rte_eth_af_packet.c',
 
-                 #Amazone ENA
+                #  #Amazone ENA
                  'drivers/net/ena/ena_ethdev.c',
+                 'drivers/net/ena/ena_rss.c',
                  'drivers/net/ena/base/ena_com.c',
                  'drivers/net/ena/base/ena_eth_com.c',
 
                  #libs
-                 'lib/librte_eal/x86/rte_cpuflags.c',
-                 'lib/librte_eal/x86/rte_spinlock.c',
-                 'lib/librte_eal/x86/rte_cycles.c',
-                 'lib/librte_eal/x86/rte_hypervisor.c',
+                 'lib/eal/x86/rte_cpuflags.c',
+                 'lib/eal/x86/rte_spinlock.c',
+                 'lib/eal/x86/rte_cycles.c',
+                 'lib/eal/x86/rte_hypervisor.c',
                  
                  #'lib/librte_security/rte_security.c',
 
@@ -1353,14 +1368,14 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/netvsc/hn_vf.c',
 
                  #ip_frag
-                 'lib/librte_ip_frag/rte_ipv4_fragmentation.c',
-                 'lib/librte_ip_frag/rte_ipv6_fragmentation.c',
-                 'lib/librte_ip_frag/rte_ipv4_reassembly.c',
-                 'lib/librte_ip_frag/rte_ipv6_reassembly.c',
-                 'lib/librte_ip_frag/rte_ip_frag_common.c',
-                 'lib/librte_ip_frag/ip_frag_internal.c',
+                 'lib/ip_frag/rte_ipv4_fragmentation.c',
+                 'lib/ip_frag/rte_ipv6_fragmentation.c',
+                 'lib/ip_frag/rte_ipv4_reassembly.c',
+                 'lib/ip_frag/rte_ipv6_reassembly.c',
+                 'lib/ip_frag/rte_ip_frag_common.c',
+                 'lib/ip_frag/ip_frag_internal.c',
 
-                 #bonding
+                #  #bonding
                  'drivers/net/bonding/rte_eth_bond_api.c',
                  'drivers/net/bonding/rte_eth_bond_pmd.c',
                  'drivers/net/bonding/rte_eth_bond_flow.c',
@@ -1372,7 +1387,8 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
 
 dpdk_src_x86_64_ext = SrcGroup(dir='src',
         src_list=['drivers/trex_ixgbe_fdir.c',
-                  'drivers/trex_i40e_fdir.c']
+                  'drivers/trex_i40e_fdir.c'
+                  ]
 )
 
 
@@ -1390,31 +1406,33 @@ dpdk_src_x86_64_tap = SrcGroup(dir='src/dpdk/',
 
 dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
         src_list=[
-                 #virtio
+                #  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_neon.c',
 
-                 #libs
-                 'lib/librte_eal/common/arch/arm/rte_cpuflags.c',
-                 'lib/librte_eal/common/arch/arm/rte_cycles.c',
+                #  #libs
+                 'lib/eal/common/arch/arm/rte_cpuflags.c',
+                 'lib/eal/common/arch/arm/rte_cycles.c',
 
                  ])
 
 
 dpdk_src_ppc64le = SrcGroup(dir='src/dpdk/',
         src_list=[
-                 #i40e
+                #  #i40e
                  'drivers/net/i40e/i40e_rxtx_vec_altivec.c',
 
                  #libs
-                 'lib/librte_eal/common/arch/ppc_64/rte_cpuflags.c',
-                 'lib/librte_eal/common/arch/ppc_64/rte_cycles.c',
+                 'lib/eal/common/arch/ppc_64/rte_cpuflags.c',
+                 'lib/eal/common/arch/ppc_64/rte_cycles.c',
 
                  ])
 
 
 dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
-                 '../dpdk_funcs.c',
+                '../dpdk_funcs.c',
+                 'drivers/bus/auxiliary/auxiliary_common.c',
+                 'drivers/bus/auxiliary/auxiliary_params.c',
                  'drivers/bus/pci/pci_common.c',
                  'drivers/bus/pci/pci_common_uio.c',
                  'drivers/bus/pci/pci_params.c',
@@ -1429,9 +1447,8 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/bus/vmbus/vmbus_common_uio.c',
                  'drivers/bus/vmbus/linux/vmbus_bus.c',
                  'drivers/bus/vmbus/linux/vmbus_uio.c',
-
-                 'drivers/mempool/ring/rte_mempool_ring.c',
-                 #'drivers/mempool/stack/rte_mempool_stack.c', # requires dpdk/lib/librte_stack/rte_stack.h
+                'drivers/mempool/ring/rte_mempool_ring.c',
+                 ##'drivers/mempool/stack/rte_mempool_stack.c', # requires dpdk/lib/librte_stack/rte_stack.h
 
 
                  # drivers
@@ -1467,8 +1484,8 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/tf_core/tf_session.c',
                  'drivers/net/bnxt/tf_core/tf_device.c',
                  'drivers/net/bnxt/tf_core/tf_device_p4.c',
+                 'drivers/net/bnxt/tf_core/tf_device_p58.c',
                  'drivers/net/bnxt/tf_core/tf_identifier.c',
-                 'drivers/net/bnxt/tf_core/tf_shadow_tbl.c',
                  'drivers/net/bnxt/tf_core/tf_shadow_tcam.c',
                  'drivers/net/bnxt/tf_core/tf_tcam.c',
                  'drivers/net/bnxt/tf_core/tf_util.c',
@@ -1478,15 +1495,24 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/tf_core/tf_em_host.c',
                  'drivers/net/bnxt/tf_core/tf_shadow_identifier.c',
                  'drivers/net/bnxt/tf_core/tf_hash.c',
+                 'drivers/net/bnxt/tf_core/dpool.c',
+                 'drivers/net/bnxt/tf_core/tf_tcam_shared.c',
+                 'drivers/net/bnxt/tf_core/tf_tbl_sram.c',
+                 'drivers/net/bnxt/tf_core/tf_sram_mgr.c',
+                 'drivers/net/bnxt/tf_core/tf_em_hash_internal.c',
 
-                 'drivers/net/bnxt/hcapi/hcapi_cfa_p4.c',
+                 'drivers/net/bnxt/hcapi/cfa/hcapi_cfa_p4.c',
+                 'drivers/net/bnxt/hcapi/cfa/hcapi_cfa_p58.c',
+                 'drivers/net/bnxt/hcapi/cfa/hcapi_cfa_common.c',
 
                  'drivers/net/bnxt/tf_ulp/bnxt_ulp.c',
                  'drivers/net/bnxt/tf_ulp/ulp_mark_mgr.c',
                  'drivers/net/bnxt/tf_ulp/ulp_flow_db.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_tbl.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_class.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_act.c',
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_tbl.c',
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_class.c',
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_act.c',
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_thor_act.c',
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_thor_class.c',
                  'drivers/net/bnxt/tf_ulp/ulp_utils.c',
                  'drivers/net/bnxt/tf_ulp/ulp_mapper.c',
                  'drivers/net/bnxt/tf_ulp/ulp_matcher.c',
@@ -1496,10 +1522,13 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/tf_ulp/ulp_def_rules.c',
                  'drivers/net/bnxt/tf_ulp/ulp_fc_mgr.c',
                  'drivers/net/bnxt/tf_ulp/ulp_tun.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_wh_plus_act.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_wh_plus_class.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_stingray_act.c',
-                 'drivers/net/bnxt/tf_ulp/ulp_template_db_stingray_class.c',
+                 'drivers/net/bnxt/tf_ulp/ulp_ha_mgr.c',
+                 "drivers/net/bnxt/tf_ulp/bnxt_tf_pmd_shim.c",
+                 "drivers/net/bnxt/tf_ulp/ulp_gen_tbl.c",
+                 "drivers/net/bnxt/tf_ulp/ulp_gen_hash.c",
+                 "drivers/net/bnxt/tf_ulp/ulp_rte_handler_tbl.c",
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_wh_plus_act.c',
+                 'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_wh_plus_class.c',
 
                  #e1000
                  'drivers/net/e1000/base/e1000_base.c',
@@ -1551,116 +1580,130 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_user/vhost_user.c',
                  'drivers/net/virtio/virtio_user/virtio_user_dev.c',
 
+                 'drivers/net/iavf/iavf_ethdev.c',
+                 'drivers/net/iavf/iavf_rxtx.c',
+                 'drivers/net/iavf/iavf_vchnl.c',
+                 'drivers/net/iavf/iavf_tm.c',
+                 'drivers/net/iavf/iavf_generic_flow.c',
+                 'drivers/net/iavf/iavf_hash.c',
+                 'drivers/net/iavf/iavf_fdir.c',
+                 'drivers/net/iavf/iavf_rxtx_vec_sse.c',
+
                  'drivers/common/iavf/iavf_adminq.c',
                  'drivers/common/iavf/iavf_common.c',
                  'drivers/common/iavf/iavf_impl.c',
 
                  #libs
-                'lib/librte_rcu/rte_rcu_qsbr.c',
+                'lib/rcu/rte_rcu_qsbr.c',
 
-                 'lib/librte_cfgfile/rte_cfgfile.c',
+                 'lib/cfgfile/rte_cfgfile.c',
 
-                 'lib/librte_eal/common/eal_common_hypervisor.c',
-                 'lib/librte_eal/common/eal_common_dynmem.c',
-                 'lib/librte_eal/common/eal_common_bus.c',
-                 'lib/librte_eal/common/eal_common_class.c',
-                 'lib/librte_eal/common/eal_common_cpuflags.c',
-                 'lib/librte_eal/common/eal_common_debug.c',
-                 'lib/librte_eal/common/eal_common_dev.c',
-                 'lib/librte_eal/common/eal_common_devargs.c',
-                 'lib/librte_eal/common/eal_common_errno.c',
-                 'lib/librte_eal/common/eal_common_fbarray.c',
-                 'lib/librte_eal/common/eal_common_hexdump.c',
-                 'lib/librte_eal/common/eal_common_launch.c',
-                 'lib/librte_eal/common/eal_common_lcore.c',
-                 'lib/librte_eal/common/eal_common_log.c',
-                 'lib/librte_eal/common/eal_common_memalloc.c',
-                 'lib/librte_eal/common/eal_common_memory.c',
-                 'lib/librte_eal/common/eal_common_memzone.c',
-                 'lib/librte_eal/common/eal_common_mcfg.c',
-                 'lib/librte_eal/common/eal_common_options.c',
-                 'lib/librte_eal/common/eal_common_proc.c',
-                 'lib/librte_eal/common/eal_common_string_fns.c',
-                 'lib/librte_eal/common/eal_common_tailqs.c',
-                 'lib/librte_eal/common/eal_common_thread.c',
-                 'lib/librte_eal/common/eal_common_timer.c',
-                 'lib/librte_eal/common/eal_common_config.c',
-                 'lib/librte_eal/common/eal_common_trace.c',
-                 'lib/librte_eal/common/eal_common_trace_ctf.c',
-                 'lib/librte_eal/common/eal_common_trace_points.c',
-                 'lib/librte_eal/common/eal_common_trace_utils.c',
-                 'lib/librte_eal/common/eal_common_uuid.c',
-                 'lib/librte_eal/common/rte_reciprocal.c',
+                 'lib/eal/common/eal_common_hypervisor.c',
+                 'lib/eal/common/eal_common_interrupts.c',
+                 'lib/eal/common/rte_version.c',
+                 'lib/eal/common/eal_common_dynmem.c',
+                 'lib/eal/common/eal_common_bus.c',
+                 'lib/eal/common/eal_common_class.c',
+                 'lib/eal/common/eal_common_cpuflags.c',
+                 'lib/eal/common/eal_common_debug.c',
+                 'lib/eal/common/eal_common_dev.c',
+                 'lib/eal/common/eal_common_devargs.c',
+                 'lib/eal/common/eal_common_errno.c',
+                 'lib/eal/common/eal_common_fbarray.c',
+                 'lib/eal/common/eal_common_hexdump.c',
+                 'lib/eal/common/eal_common_launch.c',
+                 'lib/eal/common/eal_common_lcore.c',
+                 'lib/eal/common/eal_common_log.c',
+                 'lib/eal/common/eal_common_memalloc.c',
+                 'lib/eal/common/eal_common_memory.c',
+                 'lib/eal/common/eal_common_memzone.c',
+                 'lib/eal/common/eal_common_mcfg.c',
+                 'lib/eal/common/eal_common_options.c',
+                 'lib/eal/common/eal_common_proc.c',
+                 'lib/eal/common/eal_common_string_fns.c',
+                 'lib/eal/common/eal_common_tailqs.c',
+                 'lib/eal/common/eal_common_thread.c',
+                 'lib/eal/common/eal_common_timer.c',
+                 'lib/eal/common/eal_common_config.c',
+                 'lib/eal/common/eal_common_trace.c',
+                 'lib/eal/common/eal_common_trace_ctf.c',
+                 'lib/eal/common/eal_common_trace_points.c',
+                 'lib/eal/common/eal_common_trace_utils.c',
+                 'lib/eal/common/eal_common_uuid.c',
+                 'lib/eal/common/rte_reciprocal.c',
 
-                 'lib/librte_eal/common/hotplug_mp.c',
-                 'lib/librte_eal/common/malloc_elem.c',
-                 'lib/librte_eal/common/malloc_heap.c',
-                 'lib/librte_eal/common/malloc_mp.c',
-                 'lib/librte_eal/common/rte_keepalive.c',
-                 'lib/librte_eal/common/rte_malloc.c',
-                 'lib/librte_eal/common/rte_service.c',
-                 'lib/librte_eal/common/rte_random.c',
+                 'lib/eal/common/hotplug_mp.c',
+                 'lib/eal/common/malloc_elem.c',
+                 'lib/eal/common/malloc_heap.c',
+                 'lib/eal/common/malloc_mp.c',
+                 'lib/eal/common/rte_keepalive.c',
+                 'lib/eal/common/rte_malloc.c',
+                 'lib/eal/common/rte_service.c',
+                 'lib/eal/common/rte_random.c',
 
-                'lib/librte_eal/unix/eal_unix_timer.c',
-                'lib/librte_eal/unix/eal_unix_memory.c',
-                'lib/librte_eal/unix/eal_file.c',
-                'lib/librte_eal/unix/rte_thread.c',
+                'lib/eal/unix/eal_unix_timer.c',
+                'lib/eal/unix/eal_unix_memory.c',
+                'lib/eal/unix/eal_file.c',
+                'lib/eal/unix/rte_thread.c',
+                'lib/eal/unix/eal_filesystem.c',
+                'lib/eal/unix/eal_firmware.c',
 
-                 'lib/librte_eal/linux/eal.c',
-                 'lib/librte_eal/linux/eal_alarm.c',
-                 'lib/librte_eal/linux/eal_cpuflags.c',
-                 'lib/librte_eal/linux/eal_debug.c',
-                 'lib/librte_eal/linux/eal_hugepage_info.c',
-                 'lib/librte_eal/linux/eal_interrupts.c',
-                 'lib/librte_eal/linux/eal_lcore.c',
-                 'lib/librte_eal/linux/eal_log.c',
-                 'lib/librte_eal/linux/eal_memalloc.c',
-                 'lib/librte_eal/linux/eal_memory.c',
-                 'lib/librte_eal/linux/eal_thread.c',
-                 'lib/librte_eal/linux/eal_timer.c',
-                 'lib/librte_eal/linux/eal_vfio_mp_sync.c',
-                 'lib/librte_eal/linux/eal_vfio.c',
-                 'lib/librte_eal/linux/eal_dev.c',
+                 'lib/eal/linux/eal.c',
+                 'lib/eal/linux/eal_alarm.c',
+                 'lib/eal/linux/eal_cpuflags.c',
+                 'lib/eal/linux/eal_debug.c',
+                 'lib/eal/linux/eal_hugepage_info.c',
+                 'lib/eal/linux/eal_interrupts.c',
+                 'lib/eal/linux/eal_lcore.c',
+                 'lib/eal/linux/eal_log.c',
+                 'lib/eal/linux/eal_memalloc.c',
+                 'lib/eal/linux/eal_memory.c',
+                 'lib/eal/linux/eal_thread.c',
+                 'lib/eal/linux/eal_timer.c',
+                 'lib/eal/linux/eal_vfio_mp_sync.c',
+                 'lib/eal/linux/eal_vfio.c',
+                 'lib/eal/linux/eal_dev.c',
 
-                 'lib/librte_ethdev/rte_ethdev.c',
-                 'lib/librte_ethdev/rte_flow.c',
+                 'lib/ethdev/rte_ethdev.c',
+                 'lib/ethdev/rte_flow.c',
 
-                 'lib/librte_ethdev/ethdev_trace_points.c',
-                 'lib/librte_ethdev/ethdev_private.c',
-                 'lib/librte_ethdev/rte_class_eth.c',
-                 'lib/librte_ethdev/ethdev_profile.c',
-                 'lib/librte_ethdev/rte_mtr.c',
-                 'lib/librte_ethdev/rte_tm.c',
+                 'lib/ethdev/ethdev_trace_points.c',
+                 'lib/ethdev/ethdev_private.c',
+                 'lib/ethdev/rte_class_eth.c',
+                 'lib/ethdev/ethdev_profile.c',
+                 'lib/ethdev/rte_mtr.c',
+                 'lib/ethdev/rte_tm.c',
+                 'lib/ethdev/ethdev_driver.c',
                                   
-                 'lib/librte_telemetry/telemetry.c',
-                 'lib/librte_telemetry/telemetry_data.c',
-                 'lib/librte_telemetry/telemetry_legacy.c',
+                 'lib/telemetry/telemetry.c',
+                 'lib/telemetry/telemetry_data.c',
+                 'lib/telemetry/telemetry_legacy.c',
 
 
-                 'lib/librte_hash/rte_cuckoo_hash.c',
-                 'lib/librte_kvargs/rte_kvargs.c',
-                 'lib/librte_mbuf/rte_mbuf.c',
-                 'lib/librte_mbuf/rte_mbuf_dyn.c',
-                 'lib/librte_mbuf/rte_mbuf_ptype.c',
-                 'lib/librte_mbuf/rte_mbuf_pool_ops.c',
-                 'lib/librte_mempool/rte_mempool.c',
-                 'lib/librte_mempool/rte_mempool_ops.c',
-                 'lib/librte_mempool/rte_mempool_ops_default.c',
-                 'lib/librte_mempool/mempool_trace_points.c',
+                 'lib/hash/rte_cuckoo_hash.c',
+                 'lib/kvargs/rte_kvargs.c',
+                 'lib/mbuf/rte_mbuf.c',
+                 'lib/mbuf/rte_mbuf_dyn.c',
+                 'lib/mbuf/rte_mbuf_ptype.c',
+                 'lib/mbuf/rte_mbuf_pool_ops.c',
+                 'lib/mempool/rte_mempool.c',
+                 'lib/mempool/rte_mempool_ops.c',
+                 'lib/mempool/rte_mempool_ops_default.c',
+                 'lib/mempool/mempool_trace_points.c',
 
-                 'lib/librte_net/rte_ether.c',
-                 'lib/librte_net/rte_net.c',
-                 'lib/librte_net/rte_net_crc.c',
-                 'lib/librte_net/rte_arp.c',
-                 'lib/librte_pci/rte_pci.c',
-                 'lib/librte_ring/rte_ring.c',
-                 'lib/librte_timer/rte_timer.c',
-                 'lib/librte_gso/rte_gso.c',
-                 'lib/librte_gso/gso_tunnel_udp4.c',
-                 'lib/librte_gso/gso_common.c',
-                 'lib/librte_gso/gso_tcp4.c',
-                 'lib/librte_gso/gso_tunnel_tcp4.c',
-                 'lib/librte_gso/gso_udp4.c',
+                 'lib/net/rte_ether.c',
+                 'lib/net/rte_net.c',
+                 'lib/net/rte_net_crc.c',
+                 'lib/net/rte_arp.c',
+                 'lib/pci/rte_pci.c',
+                 'lib/ring/rte_ring.c',
+                 'lib/timer/rte_timer.c',
+                 'lib/gso/rte_gso.c',
+                 'lib/gso/gso_tunnel_udp4.c',
+                 'lib/gso/gso_common.c',
+                 'lib/gso/gso_tcp4.c',
+                 'lib/gso/gso_tunnel_tcp4.c',
+                 'lib/gso/gso_udp4.c',
 
             ])
 
@@ -1692,7 +1735,7 @@ i40e_dpdk_src = SrcGroup(
         'base/i40e_nvm.c',
         'i40e_hash.c',
         'i40e_ethdev.c',
-        'i40e_ethdev_vf.c',
+        #'i40e_ethdev_vf.c',
         'i40e_fdir.c',
         'i40e_flow.c',
         'i40e_pf.c',
@@ -1712,18 +1755,29 @@ mlx5_x86_64_dpdk_src = SrcGroup(
         'common/mlx5/mlx5_common_devx.c',
         'common/mlx5/mlx5_common_mp.c',
         'common/mlx5/mlx5_devx_cmds.c',
+        'common/mlx5/mlx5_common_utils.c',
 
         'common/mlx5/linux/mlx5_common_verbs.c',
         'common/mlx5/linux/mlx5_common_os.c',
         'common/mlx5/linux/mlx5_glue.c',
         'common/mlx5/linux/mlx5_nl.c',
+        'common/mlx5/linux/mlx5_common_auxiliary.c',
 
 
         'net/mlx5/mlx5_rxq.c',
+        'net/mlx5/mlx5_dr.c',
+        'net/mlx5/mlx5_flow_hw.c',
+        'net/mlx5/mlx5_flow_aso.c',
+        'net/mlx5/mlx5_flow_flex.c',
+        'net/mlx5/mlx5_rx.c',
+        'net/mlx5/mlx5_tx.c',
+        'net/mlx5/mlx5_tx_empw.c',
+        'net/mlx5/mlx5_tx_mpw.c',
+        'net/mlx5/mlx5_tx_nompw.c',
+        'net/mlx5/mlx5_tx_txpp.c',
         'net/mlx5/mlx5.c',
         'net/mlx5/mlx5_flow_dv.c',
         'net/mlx5/mlx5_ethdev.c',
-        'net/mlx5/mlx5_mr.c',
         'net/mlx5/mlx5_trigger.c',
         'net/mlx5/mlx5_flow_verbs.c',
         'net/mlx5/mlx5_devx.c',
@@ -1745,7 +1799,6 @@ mlx5_x86_64_dpdk_src = SrcGroup(
         'net/mlx5/mlx5_utils.c',
         'net/mlx5/mlx5_rxtx.c',
         'net/mlx5/mlx5_vlan.c',
-        'net/mlx5/mlx5_flow_age.c',
         'net/mlx5/mlx5_rxtx_vec.c',
         'net/mlx5/mlx5_rxmode.c',
 
@@ -1882,7 +1935,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-D__STDC_CONSTANT_MACROS',
                 '-D_GNU_SOURCE',
                 '-DALLOW_INTERNAL_API',
-                '-DABI_VERSION="21.1"',
+                '-DABI_VERSION="22.1"',
                 '-DALLOW_EXPERIMENTAL_API',
                 #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
                 #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
@@ -1908,8 +1961,9 @@ if march == 'x86_64':
                     '-DTREX_USE_BPFJIT',
                     '-D_GNU_SOURCE',
                     '-DALLOW_INTERNAL_API',
-                    '-DABI_VERSION="21.1"',
+                    '-DABI_VERSION="22.1"',
                     '-DALLOW_EXPERIMENTAL_API',
+                    '-DSUPPORT_CFA_HW_ALL=1',
 
                    ]
 
@@ -1922,7 +1976,8 @@ if march == 'x86_64':
                       '-DTREX_USE_BPFJIT',
                       '-DALLOW_INTERNAL_API',
                       '-DALLOW_EXPERIMENTAL_API',
-                      '-DABI_VERSION="21.1"',
+                      '-DABI_VERSION="22.1"',
+                      '-DSUPPORT_CFA_HW_ALL=1',
 
                       ]
 
@@ -1976,20 +2031,20 @@ elif march == 'ppc64le':
                        ]
 
 dpdk_includes_path_x86_64 ='''
-                        ../src/dpdk/lib/librte_eal/x86/include/
+                        ../src/dpdk/lib/eal/x86/include/
                        '''
 
 dpdk_includes_path_aarch64 ='''
-                        ../src/dpdk/lib/librte_eal/arm/include/
+                        ../src/dpdk/lib/eal/arm/include/
                        '''
 
 dpdk_includes_path_ppc64le ='''
-                        ../src/dpdk/lib/librte_eal/ppc_64/include/
+                        ../src/dpdk/lib/eal/ppc_64/include/
                        '''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk_2102_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk_2203_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/common/mlx5/
                         ../src/dpdk/drivers/common/mlx5/linux/
@@ -2016,8 +2071,10 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/vmxnet3/base
                         ../src/dpdk/drivers/net/bnxt/
                         ../src/dpdk/drivers/net/bnxt/hcapi/
+                        ../src/dpdk/drivers/net/bnxt/hcapi/cfa/
                         ../src/dpdk/drivers/net/bnxt/tf_core/
                         ../src/dpdk/drivers/net/bnxt/tf_ulp/
+                        ../src/dpdk/drivers/net/bnxt/tf_ulp/generic_templates/
                         ../src/dpdk/drivers/net/memif/
                         ../src/dpdk//drivers/common/iavf/                        
 
@@ -2025,43 +2082,46 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/ena/base/
                         ../src/dpdk/drivers/net/ena/base/ena_defs/
                          
-                        ../src/dpdk/lib/librte_telemetry/
-                        ../src/dpdk/lib/librte_rcu/
+                        ../src/dpdk/lib/telemetry/
+                        ../src/dpdk/lib/rcu/
 
                         ../src/dpdk/lib/
-                        ../src/dpdk/lib/librte_cfgfile/
-                        ../src/dpdk/lib/librte_compat/
-                        ../src/dpdk/lib/librte_eal/
-                        ../src/dpdk/lib/librte_eal/include/                        
-                        ../src/dpdk/lib/librte_eal/common/
-                        ../src/dpdk/lib/librte_eal/common/include/
-                        ../src/dpdk/lib/librte_eal/common/include/arch/
 
-                        ../src/dpdk/lib/librte_eal/common/include/generic/
-                        ../src/dpdk/lib/librte_eal/linux/
-                        ../src/dpdk/lib/librte_eal/linux/eal/
-                        ../src/dpdk/lib/librte_eal/linux/include/
-                        ../src/dpdk/lib/librte_eal/linux/eal/include/
-                        ../src/dpdk/lib/librte_eal/linux/eal/include/exec-env/
-                        ../src/dpdk/lib/librte_ethdev/
-                        ../src/dpdk/lib/librte_hash/
-                        ../src/dpdk/lib/librte_gso/
-                        ../src/dpdk/lib/librte_kvargs/
-                        ../src/dpdk/lib/librte_mbuf/
-                        ../src/dpdk/lib/librte_mempool/
-                        ../src/dpdk/lib/librte_meter/
-                        ../src/dpdk/lib/librte_net/
-                        ../src/dpdk/lib/librte_pci/
-                        ../src/dpdk/lib/librte_port/
-                        ../src/dpdk/lib/librte_ring/
-                        ../src/dpdk/lib/librte_timer/
-                        ../src/dpdk/lib/librte_ip_frag/
-                        ../src/dpdk/lib/librte_pcapng/
+                        ../src/dpdk/lib/cfgfile/
+                        ../src/dpdk/lib/compat/
+                        ../src/dpdk/lib/eal/
+                        ../src/dpdk/lib/eal/include/                        
+                        ../src/dpdk/lib/eal/common/
+                        ../src/dpdk/lib/eal/common/include/
+                        ../src/dpdk/lib/eal/common/include/arch/
+
+                        ../src/dpdk/lib/eal/common/include/generic/
+                        ../src/dpdk/lib/eal/linux/
+                        ../src/dpdk/lib/eal/linux/eal/
+                        ../src/dpdk/lib/eal/linux/include/
+                        ../src/dpdk/lib/eal/linux/eal/include/
+                        ../src/dpdk/lib/eal/linux/eal/include/exec-env/
+                        ../src/dpdk/lib/ethdev/
+                        ../src/dpdk/lib/hash/
+                        ../src/dpdk/lib/gso/
+                        ../src/dpdk/lib/kvargs/
+                        ../src/dpdk/lib/mbuf/
+                        ../src/dpdk/lib/mempool/
+                        ../src/dpdk/lib/meter/
+                        ../src/dpdk/lib/net/
+                        ../src/dpdk/lib/pci/
+                        ../src/dpdk/lib/port/
+                        ../src/dpdk/lib/ring/
+                        ../src/dpdk/lib/timer/
+                        ../src/dpdk/lib/ip_frag/
+                        ../src/dpdk/lib/pcapng/
+
                         ../src/dpdk/
                         
-                        ../src/dpdk/lib/librte_security/
+                        ../src/dpdk/lib/security/
 
                         ../src/dpdk/drivers/bus/pci/
+                        ../src/dpdk/drivers/bus/auxiliary/
                         ../src/dpdk/drivers/bus/vdev/
                         ../src/dpdk/drivers/bus/vmbus/
                         ../src/dpdk/drivers/bus/pci/linux/
@@ -2103,11 +2163,11 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march == 'x86_64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="21.1"']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2203_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="22.1"']
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2102_aarch64/rte_config.h']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2203_x86_64_aarch64/rte_config.h']
 elif march == 'ppc64le':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2102_ppc64le/rte_config.h']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2203_x86_64_ppc64le/rte_config.h']
 
 client_external_libs = [
         'simple_enum',

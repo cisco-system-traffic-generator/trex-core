@@ -113,6 +113,25 @@ virtqueue_store_flags_packed(struct vring_packed_desc *dp,
 
 #define VIRTQUEUE_MAX_NAME_SZ 32
 
+/**
+ * Return the IOVA (or virtual address in case of virtio-user) of mbuf
+ * data buffer.
+ *
+ * The address is firstly casted to the word size (sizeof(uintptr_t))
+ * before casting it to uint64_t. This is to make it work with different
+ * combination of word size (64 bit and 32 bit) and virtio device
+ * (virtio-pci and virtio-user).
+ */
+#define VIRTIO_MBUF_ADDR(mb, vq) \
+	((uint64_t)(*(uintptr_t *)((uintptr_t)(mb) + (vq)->mbuf_addr_offset)))
+
+/**
+ * Return the physical address (or virtual address in case of
+ * virtio-user) of mbuf data buffer, taking care of mbuf data offset
+ */
+#define VIRTIO_MBUF_DATA_DMA_ADDR(mb, vq) \
+	(VIRTIO_MBUF_ADDR(mb, vq) + (mb)->data_off)
+
 #define VTNET_SQ_RQ_QUEUE_IDX 0
 #define VTNET_SQ_TQ_QUEUE_IDX 1
 #define VTNET_SQ_CQ_QUEUE_IDX 2
@@ -182,11 +201,33 @@ struct virtio_net_ctrl_mac {
 #define VIRTIO_NET_CTRL_VLAN_ADD 0
 #define VIRTIO_NET_CTRL_VLAN_DEL 1
 
+/**
+ * RSS control
+ *
+ * The RSS feature configuration message is sent by the driver when
+ * VIRTIO_NET_F_RSS has been negotiated. It provides the device with
+ * hash types to use, hash key and indirection table. In this
+ * implementation, the driver only supports fixed key length (40B)
+ * and indirection table size (128 entries).
+ */
+#define VIRTIO_NET_RSS_RETA_SIZE 128
+#define VIRTIO_NET_RSS_KEY_SIZE 40
+
+struct virtio_net_ctrl_rss {
+	uint32_t hash_types;
+	uint16_t indirection_table_mask;
+	uint16_t unclassified_queue;
+	uint16_t indirection_table[VIRTIO_NET_RSS_RETA_SIZE];
+	uint16_t max_tx_vq;
+	uint8_t hash_key_length;
+	uint8_t hash_key_data[VIRTIO_NET_RSS_KEY_SIZE];
+};
+
 /*
  * Control link announce acknowledgement
  *
  * The command VIRTIO_NET_CTRL_ANNOUNCE_ACK is used to indicate that
- * driver has recevied the notification; device would clear the
+ * driver has received the notification; device would clear the
  * VIRTIO_NET_S_ANNOUNCE bit in the status field after it receives
  * this command.
  */
@@ -217,6 +258,10 @@ struct vq_desc_extra {
 	uint16_t next;
 };
 
+#define virtnet_rxq_to_vq(rxvq) container_of(rxvq, struct virtqueue, rxq)
+#define virtnet_txq_to_vq(txvq) container_of(txvq, struct virtqueue, txq)
+#define virtnet_cq_to_vq(cvq) container_of(cvq, struct virtqueue, cq)
+
 struct virtqueue {
 	struct virtio_hw  *hw; /**< virtio_hw structure pointer. */
 	union {
@@ -240,8 +285,18 @@ struct virtqueue {
 	uint16_t vq_avail_idx; /**< sync until needed */
 	uint16_t vq_free_thresh; /**< free threshold */
 
+	/**
+	 * Head of the free chain in the descriptor table. If
+	 * there are no free descriptors, this will be set to
+	 * VQ_RING_DESC_CHAIN_END.
+	 */
+	uint16_t  vq_desc_head_idx;
+	uint16_t  vq_desc_tail_idx;
+	uint16_t  vq_queue_index;   /**< PCI queue index */
+
 	void *vq_ring_virt_mem;  /**< linear address of vring*/
 	unsigned int vq_ring_size;
+	uint16_t mbuf_addr_offset;
 
 	union {
 		struct virtnet_rx rxq;
@@ -252,23 +307,17 @@ struct virtqueue {
 	rte_iova_t vq_ring_mem; /**< physical address of vring,
 	                         * or virtual address for virtio_user. */
 
-	/**
-	 * Head of the free chain in the descriptor table. If
-	 * there are no free descriptors, this will be set to
-	 * VQ_RING_DESC_CHAIN_END.
-	 */
-	uint16_t  vq_desc_head_idx;
-	uint16_t  vq_desc_tail_idx;
-	uint16_t  vq_queue_index;
-	uint16_t offset; /**< relative offset to obtain addr in mbuf */
 	uint16_t  *notify_addr;
 	struct rte_mbuf **sw_ring;  /**< RX software ring. */
 	struct vq_desc_extra vq_descx[0];
 };
 
-/* If multiqueue is provided by host, then we suppport it. */
+/* If multiqueue is provided by host, then we support it. */
 #define VIRTIO_NET_CTRL_MQ   4
+
 #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET        0
+#define VIRTIO_NET_CTRL_MQ_RSS_CONFIG          1
+
 #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MIN        1
 #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MAX        0x8000
 
@@ -613,50 +662,47 @@ virtqueue_notify(struct virtqueue *vq)
 } while (0)
 
 static inline void
-virtqueue_xmit_offload(struct virtio_net_hdr *hdr,
-			struct rte_mbuf *cookie,
-			uint8_t offload)
+virtqueue_xmit_offload(struct virtio_net_hdr *hdr, struct rte_mbuf *cookie)
 {
-	if (offload) {
-		if (cookie->ol_flags & PKT_TX_TCP_SEG)
-			cookie->ol_flags |= PKT_TX_TCP_CKSUM;
+	uint64_t csum_l4 = cookie->ol_flags & RTE_MBUF_F_TX_L4_MASK;
+	uint16_t o_l23_len = (cookie->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) ?
+			     cookie->outer_l2_len + cookie->outer_l3_len : 0;
 
-		switch (cookie->ol_flags & PKT_TX_L4_MASK) {
-		case PKT_TX_UDP_CKSUM:
-			hdr->csum_start = cookie->l2_len + cookie->l3_len;
-			hdr->csum_offset = offsetof(struct rte_udp_hdr,
-				dgram_cksum);
-			hdr->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-			break;
+	if (cookie->ol_flags & RTE_MBUF_F_TX_TCP_SEG)
+		csum_l4 |= RTE_MBUF_F_TX_TCP_CKSUM;
 
-		case PKT_TX_TCP_CKSUM:
-			hdr->csum_start = cookie->l2_len + cookie->l3_len;
-			hdr->csum_offset = offsetof(struct rte_tcp_hdr, cksum);
-			hdr->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-			break;
+	switch (csum_l4) {
+	case RTE_MBUF_F_TX_UDP_CKSUM:
+		hdr->csum_start = o_l23_len + cookie->l2_len + cookie->l3_len;
+		hdr->csum_offset = offsetof(struct rte_udp_hdr, dgram_cksum);
+		hdr->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+		break;
 
-		default:
-			ASSIGN_UNLESS_EQUAL(hdr->csum_start, 0);
-			ASSIGN_UNLESS_EQUAL(hdr->csum_offset, 0);
-			ASSIGN_UNLESS_EQUAL(hdr->flags, 0);
-			break;
-		}
+	case RTE_MBUF_F_TX_TCP_CKSUM:
+		hdr->csum_start = o_l23_len + cookie->l2_len + cookie->l3_len;
+		hdr->csum_offset = offsetof(struct rte_tcp_hdr, cksum);
+		hdr->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
+		break;
 
-		/* TCP Segmentation Offload */
-		if (cookie->ol_flags & PKT_TX_TCP_SEG) {
-			hdr->gso_type = (cookie->ol_flags & PKT_TX_IPV6) ?
-				VIRTIO_NET_HDR_GSO_TCPV6 :
-				VIRTIO_NET_HDR_GSO_TCPV4;
-			hdr->gso_size = cookie->tso_segsz;
-			hdr->hdr_len =
-				cookie->l2_len +
-				cookie->l3_len +
-				cookie->l4_len;
-		} else {
-			ASSIGN_UNLESS_EQUAL(hdr->gso_type, 0);
-			ASSIGN_UNLESS_EQUAL(hdr->gso_size, 0);
-			ASSIGN_UNLESS_EQUAL(hdr->hdr_len, 0);
-		}
+	default:
+		ASSIGN_UNLESS_EQUAL(hdr->csum_start, 0);
+		ASSIGN_UNLESS_EQUAL(hdr->csum_offset, 0);
+		ASSIGN_UNLESS_EQUAL(hdr->flags, 0);
+		break;
+	}
+
+	/* TCP Segmentation Offload */
+	if (cookie->ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
+		hdr->gso_type = (cookie->ol_flags & RTE_MBUF_F_TX_IPV6) ?
+			VIRTIO_NET_HDR_GSO_TCPV6 :
+			VIRTIO_NET_HDR_GSO_TCPV4;
+		hdr->gso_size = cookie->tso_segsz;
+		hdr->hdr_len = o_l23_len + cookie->l2_len + cookie->l3_len +
+			       cookie->l4_len;
+	} else {
+		ASSIGN_UNLESS_EQUAL(hdr->gso_type, 0);
+		ASSIGN_UNLESS_EQUAL(hdr->gso_size, 0);
+		ASSIGN_UNLESS_EQUAL(hdr->hdr_len, 0);
 	}
 }
 
@@ -667,7 +713,7 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 {
 	struct virtio_tx_region *txr = txvq->virtio_net_hdr_mz->addr;
 	struct vq_desc_extra *dxp;
-	struct virtqueue *vq = txvq->vq;
+	struct virtqueue *vq = virtnet_txq_to_vq(txvq);
 	struct vring_packed_desc *start_dp, *head_dp;
 	uint16_t idx, id, head_idx, head_flags;
 	int16_t head_size = vq->hw->vtnet_hdr_size;
@@ -711,6 +757,9 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 			RTE_PTR_DIFF(&txr[idx].tx_packed_indir, txr);
 		start_dp[idx].len   = (seg_num + 1) *
 			sizeof(struct vring_packed_desc);
+		/* Packed descriptor id needs to be restored when inorder. */
+		if (in_order)
+			start_dp[idx].id = idx;
 		/* reset flags for indirect desc */
 		head_flags = VRING_DESC_F_INDIRECT;
 		head_flags |= vq->vq_packed.cached_flags;
@@ -735,12 +784,13 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 		}
 	}
 
-	virtqueue_xmit_offload(hdr, cookie, vq->hw->has_tx_offload);
+	if (vq->hw->has_tx_offload)
+		virtqueue_xmit_offload(hdr, cookie);
 
 	do {
 		uint16_t flags;
 
-		start_dp[idx].addr = rte_mbuf_data_iova(cookie);
+		start_dp[idx].addr = VIRTIO_MBUF_DATA_DMA_ADDR(cookie, vq);
 		start_dp[idx].len  = cookie->data_len;
 		if (prepend_header) {
 			start_dp[idx].addr -= head_size;
@@ -804,25 +854,26 @@ vq_ring_free_id_packed(struct virtqueue *vq, uint16_t id)
 }
 
 static void
-virtio_xmit_cleanup_inorder_packed(struct virtqueue *vq, int num)
+virtio_xmit_cleanup_inorder_packed(struct virtqueue *vq, uint16_t num)
 {
 	uint16_t used_idx, id, curr_id, free_cnt = 0;
 	uint16_t size = vq->vq_nentries;
 	struct vring_packed_desc *desc = vq->vq_packed.ring.desc;
 	struct vq_desc_extra *dxp;
+	int nb = num;
 
 	used_idx = vq->vq_used_cons_idx;
 	/* desc_is_used has a load-acquire or rte_io_rmb inside
 	 * and wait for used desc in virtqueue.
 	 */
-	while (num > 0 && desc_is_used(&desc[used_idx], vq)) {
+	while (nb > 0 && desc_is_used(&desc[used_idx], vq)) {
 		id = desc[used_idx].id;
 		do {
 			curr_id = used_idx;
 			dxp = &vq->vq_descx[used_idx];
 			used_idx += dxp->ndescs;
 			free_cnt += dxp->ndescs;
-			num -= dxp->ndescs;
+			nb -= dxp->ndescs;
 			if (used_idx >= size) {
 				used_idx -= size;
 				vq->vq_packed.used_wrap_counter ^= 1;
@@ -838,7 +889,7 @@ virtio_xmit_cleanup_inorder_packed(struct virtqueue *vq, int num)
 }
 
 static void
-virtio_xmit_cleanup_normal_packed(struct virtqueue *vq, int num)
+virtio_xmit_cleanup_normal_packed(struct virtqueue *vq, uint16_t num)
 {
 	uint16_t used_idx, id;
 	uint16_t size = vq->vq_nentries;
@@ -868,7 +919,7 @@ virtio_xmit_cleanup_normal_packed(struct virtqueue *vq, int num)
 
 /* Cleanup from completed transmits. */
 static inline void
-virtio_xmit_cleanup_packed(struct virtqueue *vq, int num, int in_order)
+virtio_xmit_cleanup_packed(struct virtqueue *vq, uint16_t num, int in_order)
 {
 	if (in_order)
 		virtio_xmit_cleanup_inorder_packed(vq, num);

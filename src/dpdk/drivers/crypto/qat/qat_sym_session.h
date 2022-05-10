@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2015-2019 Intel Corporation
+ * Copyright(c) 2015-2022 Intel Corporation
  */
 #ifndef _QAT_SYM_SESSION_H_
 #define _QAT_SYM_SESSION_H_
 
 #include <rte_crypto.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #ifdef RTE_LIB_SECURITY
 #include <rte_security.h>
 #endif
@@ -36,7 +36,6 @@
 /* 96-bit case of IV for CCP/GCM single pass algorithm */
 #define QAT_AES_GCM_SPC_IV_SIZE 12
 
-
 #define QAT_AES_HW_CONFIG_CBC_ENC(alg) \
 	ICP_QAT_HW_CIPHER_CONFIG_BUILD(ICP_QAT_HW_CIPHER_CBC_MODE, alg, \
 					ICP_QAT_HW_CIPHER_NO_CONVERT, \
@@ -49,6 +48,13 @@
 
 #define QAT_AES_CMAC_CONST_RB 0x87
 
+#define QAT_CRYPTO_SLICE_SPC	1
+#define QAT_CRYPTO_SLICE_UCS	2
+#define QAT_CRYPTO_SLICE_WCP	4
+
+#define QAT_SESSION_IS_SLICE_SET(flags, flag)	\
+	(!!((flags) & (flag)))
+
 enum qat_sym_proto_flag {
 	QAT_CRYPTO_PROTO_FLAG_NONE = 0,
 	QAT_CRYPTO_PROTO_FLAG_CCM = 1,
@@ -56,6 +62,16 @@ enum qat_sym_proto_flag {
 	QAT_CRYPTO_PROTO_FLAG_SNOW3G = 3,
 	QAT_CRYPTO_PROTO_FLAG_ZUC = 4
 };
+
+struct qat_sym_session;
+
+/*
+ * typedef qat_op_build_request_t function pointer, passed in as argument
+ * in enqueue op burst, where a build request assigned base on the type of
+ * crypto op.
+ */
+typedef int (*qat_sym_build_request_t)(void *in_op, struct qat_sym_session *ctx,
+		uint8_t *out_msg, void *op_cookie);
 
 /* Common content descriptor */
 struct qat_sym_cd {
@@ -86,11 +102,22 @@ struct qat_sym_session {
 		uint16_t offset;
 		uint16_t length;
 	} auth_iv;
+	uint16_t auth_key_length;
 	uint16_t digest_length;
 	rte_spinlock_t lock;	/* protects this struct */
-	enum qat_device_gen min_qat_dev_gen;
+	uint16_t dev_id;
 	uint8_t aes_cmac;
 	uint8_t is_single_pass;
+	uint8_t is_single_pass_gmac;
+	uint8_t is_ucs;
+	uint8_t is_iv12B;
+	uint8_t is_gmac;
+	uint8_t is_auth;
+	uint8_t is_cnt_zero;
+	/* Some generations need different setup of counter */
+	uint32_t slice_types;
+	enum qat_sym_proto_flag qat_proto_flag;
+	qat_sym_build_request_t build_request[2];
 };
 
 int
@@ -118,19 +145,6 @@ qat_sym_session_configure_auth(struct rte_cryptodev *dev,
 				struct rte_crypto_sym_xform *xform,
 				struct qat_sym_session *session);
 
-int
-qat_sym_session_aead_create_cd_cipher(struct qat_sym_session *cd,
-						const uint8_t *enckey,
-						uint32_t enckeylen);
-
-int
-qat_sym_session_aead_create_cd_auth(struct qat_sym_session *cdesc,
-						const uint8_t *authkey,
-						uint32_t authkeylen,
-						uint32_t aad_length,
-						uint32_t digestsize,
-						unsigned int operation);
-
 void
 qat_sym_session_clear(struct rte_cryptodev *dev,
 		struct rte_cryptodev_sym_session *session);
@@ -139,7 +153,8 @@ unsigned int
 qat_sym_session_get_private_size(struct rte_cryptodev *dev);
 
 void
-qat_sym_sesssion_init_common_hdr(struct icp_qat_fw_comn_req_hdr *header,
+qat_sym_sesssion_init_common_hdr(struct qat_sym_session *session,
+					struct icp_qat_fw_comn_req_hdr *header,
 					enum qat_sym_proto_flag proto_flags);
 int
 qat_sym_validate_aes_key(int key_len, enum icp_qat_hw_cipher_algo *alg);

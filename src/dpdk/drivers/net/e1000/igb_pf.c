@@ -88,7 +88,7 @@ void igb_pf_host_init(struct rte_eth_dev *eth_dev)
 	if (*vfinfo == NULL)
 		rte_panic("Cannot allocate memory for private VF data\n");
 
-	RTE_ETH_DEV_SRIOV(eth_dev).active = ETH_8_POOLS;
+	RTE_ETH_DEV_SRIOV(eth_dev).active = RTE_ETH_8_POOLS;
 	RTE_ETH_DEV_SRIOV(eth_dev).nb_q_per_pool = nb_queue;
 	RTE_ETH_DEV_SRIOV(eth_dev).def_vmdq_idx = vf_num;
 	RTE_ETH_DEV_SRIOV(eth_dev).def_pool_q_idx = (uint16_t)(vf_num * nb_queue);
@@ -155,7 +155,7 @@ int igb_pf_host_configure(struct rte_eth_dev *eth_dev)
 	else
 		E1000_WRITE_REG(hw, E1000_DTXSWC, E1000_DTXSWC_VMDQ_LOOPBACK_EN);
 
-	/* clear VMDq map to perment rar 0 */
+	/* clear VMDq map to permanent rar 0 */
 	rah = E1000_READ_REG(hw, E1000_RAH(0));
 	rah &= ~ (0xFF << E1000_RAH_POOLSEL_SHIFT);
 	E1000_WRITE_REG(hw, E1000_RAH(0), rah);

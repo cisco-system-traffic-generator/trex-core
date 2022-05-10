@@ -9,6 +9,8 @@
 #include <ethdev_driver.h>
 #include <rte_vxlan.h>
 
+#include <mlx5_common_defs.h>
+
 #include "mlx5_autoconf.h"
 
 /* Maximum number of simultaneous VLAN filters. */
@@ -33,13 +35,6 @@
  */
 #define MLX5_TX_COMP_MAX_CQE 2u
 
-
-/* Size of per-queue MR cache array for linear search. */
-#define MLX5_MR_CACHE_N 8
-
-/* Size of MR cache table for binary search. */
-#define MLX5_MR_BTREE_CACHE_N 256
-
 /*
  * If defined, only use software counters. The PMD will never ask the hardware
  * for these, and many of them won't be available.
@@ -48,10 +43,6 @@
 #define MLX5_PMD_SOFT_COUNTERS 1
 #endif
 
-/* Switch port ID parameters for bonding configurations. */
-#define MLX5_PORT_ID_BONDING_PF_MASK 0xf
-#define MLX5_PORT_ID_BONDING_PF_SHIFT 12
-
 /* Alarm timeout. */
 #define MLX5_ALARM_TIMEOUT_US 100000
 
@@ -59,7 +50,7 @@
 #define MLX5_MAX_XSTATS 32
 
 /* Maximum Packet headers size (L2+L3+L4) for TSO. */
-#define MLX5_MAX_TSO_HEADER (128u + 34u)
+#define MLX5_MAX_TSO_HEADER 192U
 
 /* Inline data size required by NICs. */
 #define MLX5_INLINE_HSIZE_NONE 0
@@ -94,11 +85,11 @@
 #define MLX5_VPMD_DESCS_PER_LOOP      4
 
 /* Mask of RSS on source only or destination only. */
-#define MLX5_RSS_SRC_DST_ONLY (ETH_RSS_L3_SRC_ONLY | ETH_RSS_L3_DST_ONLY | \
-			       ETH_RSS_L4_SRC_ONLY | ETH_RSS_L4_DST_ONLY)
+#define MLX5_RSS_SRC_DST_ONLY (RTE_ETH_RSS_L3_SRC_ONLY | RTE_ETH_RSS_L3_DST_ONLY | \
+			       RTE_ETH_RSS_L4_SRC_ONLY | RTE_ETH_RSS_L4_DST_ONLY)
 
 /* Supported RSS */
-#define MLX5_RSS_HF_MASK (~(ETH_RSS_IP | ETH_RSS_UDP | ETH_RSS_TCP | \
+#define MLX5_RSS_HF_MASK (~(RTE_ETH_RSS_IP | RTE_ETH_RSS_UDP | RTE_ETH_RSS_TCP | \
 			    MLX5_RSS_SRC_DST_ONLY))
 
 /* Timeout in seconds to get a valid link status. */
@@ -121,27 +112,11 @@
 #define MLX5_UAR_PAGE_NUM_MAX 64
 #define MLX5_UAR_PAGE_NUM_MASK ((MLX5_UAR_PAGE_NUM_MAX) - 1)
 
-/* Fields of memory mapping type in offset parameter of mmap() */
-#define MLX5_UAR_MMAP_CMD_SHIFT 8
-#define MLX5_UAR_MMAP_CMD_MASK 0xff
-
-/* Environment variable to control the doorbell register mapping. */
-#define MLX5_SHUT_UP_BF "MLX5_SHUT_UP_BF"
-#if defined(RTE_ARCH_ARM64)
-#define MLX5_SHUT_UP_BF_DEFAULT "0"
-#else
-#define MLX5_SHUT_UP_BF_DEFAULT "1"
-#endif
-
-//#ifndef HAVE_MLX5DV_MMAP_GET_NC_PAGES_CMD
-//#define MLX5_MMAP_GET_NC_PAGES_CMD 3
-//#endif
-
 /* Log 2 of the default number of strides per WQE for Multi-Packet RQ. */
-#define MLX5_MPRQ_STRIDE_NUM_N 6U
+#define MLX5_MPRQ_DEFAULT_LOG_STRIDE_NUM 6U
 
 /* Log 2 of the default size of a stride per WQE for Multi-Packet RQ. */
-#define MLX5_MPRQ_STRIDE_SIZE_N 11U
+#define MLX5_MPRQ_DEFAULT_LOG_STRIDE_SIZE 11U
 
 /* Two-byte shift is disabled for Multi-Packet RQ. */
 #define MLX5_MPRQ_TWO_BYTE_SHIFT 0
@@ -165,11 +140,6 @@
 /* Provide info on patrial hw miss. Implies MLX5_XMETA_MODE_META16 */
 #define MLX5_XMETA_MODE_MISS_INFO 3
 
-/* MLX5_TX_DB_NC supported values. */
-#define MLX5_TXDB_CACHED 0
-#define MLX5_TXDB_NCACHED 1
-#define MLX5_TXDB_HEURISTIC 2
-
 /* Tx accurate scheduling on timestamps parameters. */
 #define MLX5_TXPP_WAIT_INIT_TS 1000ul /* How long to wait timestamp. */
 #define MLX5_TXPP_CLKQ_SIZE 1
@@ -182,22 +152,31 @@
 				 sizeof(struct rte_ipv4_hdr))
 
 /* Size of the simple hash table for metadata register table. */
-#define MLX5_FLOW_MREG_HTABLE_SZ 4096
+#define MLX5_FLOW_MREG_HTABLE_SZ 64
 #define MLX5_FLOW_MREG_HNAME "MARK_COPY_TABLE"
 #define MLX5_DEFAULT_COPY_ID UINT32_MAX
 
 /* Size of the simple hash table for header modify table. */
-#define MLX5_FLOW_HDR_MODIFY_HTABLE_SZ (1 << 16)
+#define MLX5_FLOW_HDR_MODIFY_HTABLE_SZ (1 << 15)
 
 /* Size of the simple hash table for encap decap table. */
-#define MLX5_FLOW_ENCAP_DECAP_HTABLE_SZ (1 << 16)
+#define MLX5_FLOW_ENCAP_DECAP_HTABLE_SZ (1 << 12)
+
+/* Size of the hash table for tag table. */
+#define MLX5_TAGS_HLIST_ARRAY_SIZE	(1 << 15)
+
+/* Size fo the hash table for SFT table. */
+#define MLX5_FLOW_SFT_HLIST_ARRAY_SIZE	4096
 
 /* Hairpin TX/RX queue configuration parameters. */
 #define MLX5_HAIRPIN_QUEUE_STRIDE 6
 #define MLX5_HAIRPIN_JUMBO_LOG_SIZE (14 + 2)
 
-/* Maximum number of shared actions supported by rte_flow */
-#define MLX5_MAX_SHARED_ACTIONS 2
+/* Maximum number of indirect actions supported by rte_flow */
+#define MLX5_MAX_INDIRECT_ACTIONS 3
+
+/* Maximum number of external Rx queues supported by rte_flow */
+#define MLX5_MAX_EXT_RX_QUEUES (UINT16_MAX - MLX5_EXTERNAL_RX_QUEUE_ID_MIN + 1)
 
 /*
  * Linux definition of static_assert is found in /usr/include/assert.h.

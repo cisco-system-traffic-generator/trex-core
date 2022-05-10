@@ -6,7 +6,7 @@
 
 #include <rte_common.h>
 #include <rte_malloc.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 
 #include "armv8_pmd_private.h"
 
@@ -251,8 +251,7 @@ armv8_crypto_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 	return 0;
 
 qp_setup_cleanup:
-	if (qp)
-		rte_free(qp);
+	rte_free(qp);
 
 	return -1;
 }

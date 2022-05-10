@@ -73,14 +73,13 @@ void CTRexExtendedDriverBaseNtAcc::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
-    cfg->m_port_conf.rxmode.max_rx_pkt_len =9000;
     // Napatech does not claim as supporting multi-segment send.
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required &= ~RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 }
 
 CTRexExtendedDriverBaseNtAcc::~CTRexExtendedDriverBaseNtAcc() {
     struct fid_s *fid, *tfid;
-    TAILQ_FOREACH_SAFE(fid, &lh_fid, leTQ, tfid) {
+    RTE_TAILQ_FOREACH_SAFE(fid, &lh_fid, leTQ, tfid) {
         TAILQ_REMOVE(&lh_fid, fid, leTQ);
         ntacc_del_rules(fid->port_id, fid->rte_flow);
         free(fid);
@@ -107,7 +106,7 @@ void CTRexExtendedDriverBaseNtAcc::add_del_rules(enum trex_rte_filter_op op, uin
         TAILQ_INSERT_TAIL(&lh_fid, fid, leTQ);
     } else {
         fid_s *fid, *tfid;
-        TAILQ_FOREACH_SAFE(fid, &lh_fid, leTQ, tfid) {
+        RTE_TAILQ_FOREACH_SAFE(fid, &lh_fid, leTQ, tfid) {
             if ((fid->id == f_id) && (fid->port_id == port_id)){
                 TAILQ_REMOVE(&lh_fid, fid, leTQ);
                 ntacc_del_rules(port_id, fid->rte_flow);

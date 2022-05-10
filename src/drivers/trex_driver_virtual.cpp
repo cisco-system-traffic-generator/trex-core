@@ -33,7 +33,7 @@ TRexPortAttr* CTRexExtendedDriverVirtBase::create_port_attr(tvpid_t tvpid, repid
     return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, true);
 }
 
-TRexPortAttr* CTRexExtendedDriverI40evf::create_port_attr(tvpid_t tvpid, repid_t repid) {
+TRexPortAttr* CTRexExtendedDriverIavf::create_port_attr(tvpid_t tvpid, repid_t repid) {
     return new DpdkTRexPortAttr(tvpid, repid, true, true, false, false, true);
 }
 
@@ -118,9 +118,10 @@ CTRexExtendedDriverVirtio::CTRexExtendedDriverVirtio() {
 void CTRexExtendedDriverVirtio::update_configuration(port_cfg_t * cfg) {
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     rte_eth_rxmode *rxmode = &cfg->m_port_conf.rxmode;
-    rxmode->offloads &= ~DEV_RX_OFFLOAD_SCATTER;
+    rxmode->mtu = 2018;
+    rxmode->offloads &= ~RTE_ETH_RX_OFFLOAD_SCATTER;
     if ( get_is_tcp_mode() ) {
-        rxmode->offloads |= DEV_RX_OFFLOAD_TCP_LRO;
+        rxmode->offloads |= RTE_ETH_RX_OFFLOAD_TCP_LRO;
     }
 }
 
@@ -156,7 +157,7 @@ void CTRexExtendedDriverBaseE1000::update_configuration(port_cfg_t * cfg) {
     // If configuring "hardware" to remove CRC, due to bug in ESXI e1000 emulation, we got packets with CRC.
     //cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
     // E1000 does not claim as supporting multi-segment send.
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required &= ~RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 }
 
 void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
@@ -165,7 +166,7 @@ void CTRexExtendedDriverVmxnet3::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = 0;
     if ( get_is_tcp_mode() ) {
-        cfg->m_port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_TCP_LRO;
+        cfg->m_port_conf.rxmode.offloads |= RTE_ETH_RX_OFFLOAD_TCP_LRO;
     }
 }
 
@@ -175,10 +176,9 @@ CTRexExtendedDriverAfPacket::CTRexExtendedDriverAfPacket(){
 
 void CTRexExtendedDriverAfPacket::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
-    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
     // AF Packet does not claim as supporting multi-segment send.
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required &= ~RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 }
 
 CTRexExtendedDriverMemif::CTRexExtendedDriverMemif() {
@@ -197,16 +197,16 @@ void CTRexExtendedDriverMemif::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.offloads = 0;
     // Memif does not claim as supporting multi-segment send.
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required &= ~RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 }
 
 ///////////////////////////////////////////////////////// VF
 
-CTRexExtendedDriverI40evf::CTRexExtendedDriverI40evf() {
+CTRexExtendedDriverIavf::CTRexExtendedDriverIavf() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
 
-void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
+void CTRexExtendedDriverIavf::update_configuration(port_cfg_t * cfg) {
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
@@ -231,10 +231,9 @@ bool CTRexExtendedDriverNetvsc::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
 
 void CTRexExtendedDriverNetvsc::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
-    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
-    cfg->tx_offloads.common_required |= DEV_TX_OFFLOAD_MULTI_SEGS;
-    cfg->tx_offloads.common_required |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+    cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
     cfg->tx_offloads.common_best_effort = 0;
 }
 
@@ -253,16 +252,15 @@ bool CTRexExtendedDriverAzure::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats
 
 void CTRexExtendedDriverAzure::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
-    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
-    cfg->tx_offloads.common_required &= ~DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required &= ~RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 #if 0
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
-    cfg->m_port_conf.rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
+    cfg->m_port_conf.rxmode.offloads |= RTE_ETH_RX_OFFLOAD_SCATTER;
     cfg->m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_JUMBO_FRAME;
-    cfg->tx_offloads.common_required |= DEV_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 #endif
     cfg->tx_offloads.common_best_effort = 0;
 }

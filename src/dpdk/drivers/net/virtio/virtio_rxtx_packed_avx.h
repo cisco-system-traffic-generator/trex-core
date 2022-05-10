@@ -20,7 +20,7 @@ static inline int
 virtqueue_enqueue_batch_packed_vec(struct virtnet_tx *txvq,
 				   struct rte_mbuf **tx_pkts)
 {
-	struct virtqueue *vq = txvq->vq;
+	struct virtqueue *vq = virtnet_txq_to_vq(txvq);
 	uint16_t head_size = vq->hw->vtnet_hdr_size;
 	uint16_t idx = vq->vq_avail_idx;
 	struct virtio_net_hdr *hdr;
@@ -71,13 +71,13 @@ virtqueue_enqueue_batch_packed_vec(struct virtnet_tx *txvq,
 	}
 
 	__m512i descs_base = _mm512_set_epi64(tx_pkts[3]->data_len,
-			tx_pkts[3]->buf_iova,
+			VIRTIO_MBUF_ADDR(tx_pkts[3], vq),
 			tx_pkts[2]->data_len,
-			tx_pkts[2]->buf_iova,
+			VIRTIO_MBUF_ADDR(tx_pkts[2], vq),
 			tx_pkts[1]->data_len,
-			tx_pkts[1]->buf_iova,
+			VIRTIO_MBUF_ADDR(tx_pkts[1], vq),
 			tx_pkts[0]->data_len,
-			tx_pkts[0]->buf_iova);
+			VIRTIO_MBUF_ADDR(tx_pkts[0], vq));
 
 	/* id offset and data offset */
 	__m512i data_offsets = _mm512_set_epi64((uint64_t)3 << ID_BITS_OFFSET,
@@ -115,7 +115,7 @@ virtqueue_enqueue_batch_packed_vec(struct virtnet_tx *txvq,
 		virtio_for_each_try_unroll(i, 0, PACKED_BATCH_SIZE) {
 			hdr = rte_pktmbuf_mtod_offset(tx_pkts[i],
 					struct virtio_net_hdr *, -head_size);
-			virtqueue_xmit_offload(hdr, tx_pkts[i], true);
+			virtqueue_xmit_offload(hdr, tx_pkts[i]);
 		}
 	}
 
@@ -142,7 +142,7 @@ static inline uint16_t
 virtqueue_dequeue_batch_packed_vec(struct virtnet_rx *rxvq,
 				   struct rte_mbuf **rx_pkts)
 {
-	struct virtqueue *vq = rxvq->vq;
+	struct virtqueue *vq = virtnet_rxq_to_vq(rxvq);
 	struct virtio_hw *hw = vq->hw;
 	uint16_t hdr_size = hw->vtnet_hdr_size;
 	uint64_t addrs[PACKED_BATCH_SIZE];
@@ -192,7 +192,7 @@ virtqueue_dequeue_batch_packed_vec(struct virtnet_rx *rxvq,
 
 	/*
 	 * load len from desc, store into mbuf pkt_len and data_len
-	 * len limiated by l6bit buf_len, pkt_len[16:31] can be ignored
+	 * len limited by l6bit buf_len, pkt_len[16:31] can be ignored
 	 */
 	const __mmask16 mask = 0x6 | 0x6 << 4 | 0x6 << 8 | 0x6 << 12;
 	__m512i values = _mm512_maskz_shuffle_epi32(mask, v_desc, 0xAA);

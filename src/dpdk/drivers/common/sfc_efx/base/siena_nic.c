@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2009-2019 Solarflare Communications Inc.
  */
 
@@ -119,6 +119,11 @@ siena_board_cfg(
 	encp->enc_rx_push_align = 1;
 
 #if EFSYS_OPT_RX_SCALE
+	encp->enc_rx_scale_indirection_max_nqueues = EFX_MAXRSS;
+
+	/* There is no support for the even spread contexts. */
+	encp->enc_rx_scale_even_spread_max_nqueues = 0;
+
 	/* There is one RSS context per function */
 	encp->enc_rx_scale_max_exclusive_contexts = 1;
 
@@ -197,6 +202,9 @@ siena_board_cfg(
 	encp->enc_filter_action_mark_max = 0;
 
 	encp->enc_mae_supported = B_FALSE;
+	encp->enc_mae_admin = B_FALSE;
+
+	encp->enc_dma_mapping = EFX_NIC_DMA_MAPPING_FLAT;
 
 	return (0);
 

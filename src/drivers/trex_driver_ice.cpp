@@ -70,11 +70,10 @@ void CTRexExtendedDriverIce::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
     cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT;
-    cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
+    cfg->m_port_conf.fdir_conf.pballoc = RTE_ETH_FDIR_PBALLOC_64K;
     cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
-    cfg->m_port_conf.rxmode.max_rx_pkt_len = 1514;
     cfg->m_port_conf.rxmode.offloads = 0;
-    cfg->tx_offloads.common_required = DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+    cfg->tx_offloads.common_required = RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
 }
 
 void CTRexExtendedDriverIce::reset_rx_stats(CPhyEthIF * _if, uint32_t *stats, int min, int len) {

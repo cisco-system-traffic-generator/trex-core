@@ -21,8 +21,8 @@
 #include <rte_errno.h>
 #include <rte_cpuflags.h>
 #include <rte_vect.h>
-
 #include <rte_memory.h>
+#include <rte_eal_paging.h>
 #include <rte_eal.h>
 #include <rte_dev.h>
 #include <rte_cycles.h>
@@ -33,6 +33,7 @@
 #include "virtio_logs.h"
 #include "virtqueue.h"
 #include "virtio_rxtx.h"
+#include "virtio_rxtx_simple.h"
 #include "virtio_user/virtio_user_dev.h"
 
 static int  virtio_dev_configure(struct rte_eth_dev *dev);
@@ -50,6 +51,16 @@ static int virtio_dev_info_get(struct rte_eth_dev *dev,
 static int virtio_dev_link_update(struct rte_eth_dev *dev,
 	int wait_to_complete);
 static int virtio_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask);
+static int virtio_dev_rss_hash_update(struct rte_eth_dev *dev,
+		struct rte_eth_rss_conf *rss_conf);
+static int virtio_dev_rss_hash_conf_get(struct rte_eth_dev *dev,
+		struct rte_eth_rss_conf *rss_conf);
+static int virtio_dev_rss_reta_update(struct rte_eth_dev *dev,
+			 struct rte_eth_rss_reta_entry64 *reta_conf,
+			 uint16_t reta_size);
+static int virtio_dev_rss_reta_query(struct rte_eth_dev *dev,
+			 struct rte_eth_rss_reta_entry64 *reta_conf,
+			 uint16_t reta_size);
 
 static void virtio_set_hwaddr(struct virtio_hw *hw);
 static void virtio_get_hwaddr(struct virtio_hw *hw);
@@ -73,6 +84,8 @@ static int virtio_mac_addr_set(struct rte_eth_dev *dev,
 				struct rte_ether_addr *mac_addr);
 
 static int virtio_intr_disable(struct rte_eth_dev *dev);
+static int virtio_get_monitor_addr(void *rx_queue,
+				struct rte_power_monitor_cond *pmc);
 
 static int virtio_dev_queue_stats_mapping_set(
 	struct rte_eth_dev *eth_dev,
@@ -133,7 +146,7 @@ virtio_send_command_packed(struct virtnet_ctl *cvq,
 			   struct virtio_pmd_ctrl *ctrl,
 			   int *dlen, int pkt_num)
 {
-	struct virtqueue *vq = cvq->vq;
+	struct virtqueue *vq = virtnet_cq_to_vq(cvq);
 	int head;
 	struct vring_packed_desc *desc = vq->vq_packed.ring.desc;
 	struct virtio_pmd_ctrl *result;
@@ -212,7 +225,7 @@ virtio_send_command_packed(struct virtnet_ctl *cvq,
 			"vq->vq_avail_idx=%d\n"
 			"vq->vq_used_cons_idx=%d\n"
 			"vq->vq_packed.cached_flags=0x%x\n"
-			"vq->vq_packed.used_wrap_counter=%d\n",
+			"vq->vq_packed.used_wrap_counter=%d",
 			vq->vq_free_cnt,
 			vq->vq_avail_idx,
 			vq->vq_used_cons_idx,
@@ -229,7 +242,7 @@ virtio_send_command_split(struct virtnet_ctl *cvq,
 			  int *dlen, int pkt_num)
 {
 	struct virtio_pmd_ctrl *result;
-	struct virtqueue *vq = cvq->vq;
+	struct virtqueue *vq = virtnet_cq_to_vq(cvq);
 	uint32_t head, i;
 	int k, sum = 0;
 
@@ -316,13 +329,13 @@ virtio_send_command(struct virtnet_ctl *cvq, struct virtio_pmd_ctrl *ctrl,
 
 	ctrl->status = status;
 
-	if (!cvq || !cvq->vq) {
+	if (!cvq) {
 		PMD_INIT_LOG(ERR, "Control queue is not supported.");
 		return -1;
 	}
 
 	rte_spinlock_lock(&cvq->lock);
-	vq = cvq->vq;
+	vq = virtnet_cq_to_vq(cvq);
 
 	PMD_INIT_LOG(DEBUG, "vq->vq_desc_head_idx = %d, status = %d, "
 		"vq->hw->cvq = %p vq = %p",
@@ -346,20 +359,52 @@ virtio_send_command(struct virtnet_ctl *cvq, struct virtio_pmd_ctrl *ctrl,
 }
 
 static int
-virtio_set_multiple_queues(struct rte_eth_dev *dev, uint16_t nb_queues)
+virtio_set_multiple_queues_rss(struct rte_eth_dev *dev, uint16_t nb_queues)
 {
 	struct virtio_hw *hw = dev->data->dev_private;
 	struct virtio_pmd_ctrl ctrl;
-	int dlen[1];
+	struct virtio_net_ctrl_rss rss;
+	int dlen, ret;
+
+	rss.hash_types = hw->rss_hash_types & VIRTIO_NET_HASH_TYPE_MASK;
+	RTE_BUILD_BUG_ON(!RTE_IS_POWER_OF_2(VIRTIO_NET_RSS_RETA_SIZE));
+	rss.indirection_table_mask = VIRTIO_NET_RSS_RETA_SIZE - 1;
+	rss.unclassified_queue = 0;
+	memcpy(rss.indirection_table, hw->rss_reta, VIRTIO_NET_RSS_RETA_SIZE * sizeof(uint16_t));
+	rss.max_tx_vq = nb_queues;
+	rss.hash_key_length = VIRTIO_NET_RSS_KEY_SIZE;
+	memcpy(rss.hash_key_data, hw->rss_key, VIRTIO_NET_RSS_KEY_SIZE);
+
+	ctrl.hdr.class = VIRTIO_NET_CTRL_MQ;
+	ctrl.hdr.cmd = VIRTIO_NET_CTRL_MQ_RSS_CONFIG;
+	memcpy(ctrl.data, &rss, sizeof(rss));
+
+	dlen = sizeof(rss);
+
+	ret = virtio_send_command(hw->cvq, &ctrl, &dlen, 1);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "RSS multiqueue configured but send command failed");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
+virtio_set_multiple_queues_auto(struct rte_eth_dev *dev, uint16_t nb_queues)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtio_pmd_ctrl ctrl;
+	int dlen;
 	int ret;
 
 	ctrl.hdr.class = VIRTIO_NET_CTRL_MQ;
 	ctrl.hdr.cmd = VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET;
 	memcpy(ctrl.data, &nb_queues, sizeof(uint16_t));
 
-	dlen[0] = sizeof(uint16_t);
+	dlen = sizeof(uint16_t);
 
-	ret = virtio_send_command(hw->cvq, &ctrl, dlen, 1);
+	ret = virtio_send_command(hw->cvq, &ctrl, &dlen, 1);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "Multiqueue configured but send command "
 			  "failed, this is too late now...");
@@ -369,10 +414,15 @@ virtio_set_multiple_queues(struct rte_eth_dev *dev, uint16_t nb_queues)
 	return 0;
 }
 
-static void
-virtio_dev_queue_release(void *queue __rte_unused)
+static int
+virtio_set_multiple_queues(struct rte_eth_dev *dev, uint16_t nb_queues)
 {
-	/* do nothing */
+	struct virtio_hw *hw = dev->data->dev_private;
+
+	if (virtio_with_feature(hw, VIRTIO_NET_F_RSS))
+		return virtio_set_multiple_queues_rss(dev, nb_queues);
+	else
+		return virtio_set_multiple_queues_auto(dev, nb_queues);
 }
 
 static uint16_t
@@ -435,6 +485,7 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 	int queue_type = virtio_get_queue_type(hw, queue_idx);
 	int ret;
 	int numa_node = dev->device->numa_node;
+	struct rte_mbuf *fake_mbuf = NULL;
 
 	PMD_INIT_LOG(INFO, "setting up queue: %u on NUMA node %d",
 			queue_idx, numa_node);
@@ -469,7 +520,7 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 		sz_hdr_mz = vq_size * sizeof(struct virtio_tx_region);
 	} else if (queue_type == VTNET_CQ) {
 		/* Allocate a page for control vq command, data and status */
-		sz_hdr_mz = PAGE_SIZE;
+		sz_hdr_mz = rte_mem_page_size();
 	}
 
 	vq = rte_zmalloc_socket(vq_name, size, RTE_CACHE_LINE_SIZE,
@@ -507,18 +558,20 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 			mz = rte_memzone_lookup(vq_name);
 		if (mz == NULL) {
 			ret = -ENOMEM;
-			goto fail_q_alloc;
+			goto free_vq;
 		}
 	}
 
 	memset(mz->addr, 0, mz->len);
 
-	vq->vq_ring_mem = mz->iova;
+	if (hw->use_va)
+		vq->vq_ring_mem = (uintptr_t)mz->addr;
+	else
+		vq->vq_ring_mem = mz->iova;
+
 	vq->vq_ring_virt_mem = mz->addr;
-	PMD_INIT_LOG(DEBUG, "vq->vq_ring_mem:      0x%" PRIx64,
-		     (uint64_t)mz->iova);
-	PMD_INIT_LOG(DEBUG, "vq->vq_ring_virt_mem: 0x%" PRIx64,
-		     (uint64_t)(uintptr_t)mz->addr);
+	PMD_INIT_LOG(DEBUG, "vq->vq_ring_mem: 0x%" PRIx64, vq->vq_ring_mem);
+	PMD_INIT_LOG(DEBUG, "vq->vq_ring_virt_mem: %p", vq->vq_ring_virt_mem);
 
 	virtio_init_vring(vq);
 
@@ -533,7 +586,7 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 				hdr_mz = rte_memzone_lookup(vq_hdr_name);
 			if (hdr_mz == NULL) {
 				ret = -ENOMEM;
-				goto fail_q_alloc;
+				goto free_mz;
 			}
 		}
 	}
@@ -547,31 +600,48 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 		if (!sw_ring) {
 			PMD_INIT_LOG(ERR, "can not allocate RX soft ring");
 			ret = -ENOMEM;
-			goto fail_q_alloc;
+			goto free_hdr_mz;
+		}
+
+		fake_mbuf = rte_zmalloc_socket("sw_ring", sizeof(*fake_mbuf),
+				RTE_CACHE_LINE_SIZE, numa_node);
+		if (!fake_mbuf) {
+			PMD_INIT_LOG(ERR, "can not allocate fake mbuf");
+			ret = -ENOMEM;
+			goto free_sw_ring;
 		}
 
 		vq->sw_ring = sw_ring;
 		rxvq = &vq->rxq;
-		rxvq->vq = vq;
 		rxvq->port_id = dev->data->port_id;
 		rxvq->mz = mz;
+		rxvq->fake_mbuf = fake_mbuf;
 	} else if (queue_type == VTNET_TQ) {
 		txvq = &vq->txq;
-		txvq->vq = vq;
 		txvq->port_id = dev->data->port_id;
 		txvq->mz = mz;
 		txvq->virtio_net_hdr_mz = hdr_mz;
-		txvq->virtio_net_hdr_mem = hdr_mz->iova;
+		if (hw->use_va)
+			txvq->virtio_net_hdr_mem = (uintptr_t)hdr_mz->addr;
+		else
+			txvq->virtio_net_hdr_mem = hdr_mz->iova;
 	} else if (queue_type == VTNET_CQ) {
 		cvq = &vq->cq;
-		cvq->vq = vq;
 		cvq->mz = mz;
 		cvq->virtio_net_hdr_mz = hdr_mz;
-		cvq->virtio_net_hdr_mem = hdr_mz->iova;
-		memset(cvq->virtio_net_hdr_mz->addr, 0, PAGE_SIZE);
+		if (hw->use_va)
+			cvq->virtio_net_hdr_mem = (uintptr_t)hdr_mz->addr;
+		else
+			cvq->virtio_net_hdr_mem = hdr_mz->iova;
+		memset(cvq->virtio_net_hdr_mz->addr, 0, rte_mem_page_size());
 
 		hw->cvq = cvq;
 	}
+
+	if (hw->use_va)
+		vq->mbuf_addr_offset = offsetof(struct rte_mbuf, buf_addr);
+	else
+		vq->mbuf_addr_offset = offsetof(struct rte_mbuf, buf_iova);
 
 	if (queue_type == VTNET_TQ) {
 		struct virtio_tx_region *txr;
@@ -607,16 +677,24 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 
 	if (VIRTIO_OPS(hw)->setup_queue(hw, vq) < 0) {
 		PMD_INIT_LOG(ERR, "setup_queue failed");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto clean_vq;
 	}
 
 	return 0;
 
-fail_q_alloc:
+clean_vq:
+	hw->cvq = NULL;
+	rte_free(fake_mbuf);
+free_sw_ring:
 	rte_free(sw_ring);
+free_hdr_mz:
 	rte_memzone_free(hdr_mz);
+free_mz:
 	rte_memzone_free(mz);
+free_vq:
 	rte_free(vq);
+	hw->vqs[queue_idx] = NULL;
 
 	return ret;
 }
@@ -639,6 +717,7 @@ virtio_free_queues(struct virtio_hw *hw)
 
 		queue_type = virtio_get_queue_type(hw, i);
 		if (queue_type == VTNET_RQ) {
+			rte_free(vq->rxq.fake_mbuf);
 			rte_free(vq->sw_ring);
 			rte_memzone_free(vq->rxq.mz);
 		} else if (queue_type == VTNET_TQ) {
@@ -684,11 +763,21 @@ virtio_alloc_queues(struct rte_eth_dev *dev)
 
 static void virtio_queues_unbind_intr(struct rte_eth_dev *dev);
 
+static void
+virtio_free_rss(struct virtio_hw *hw)
+{
+	rte_free(hw->rss_key);
+	hw->rss_key = NULL;
+
+	rte_free(hw->rss_reta);
+	hw->rss_reta = NULL;
+}
+
 int
 virtio_dev_close(struct rte_eth_dev *dev)
 {
 	struct virtio_hw *hw = dev->data->dev_private;
-	struct rte_intr_conf *intr_conf = &dev->data->dev_conf.intr_conf;
+	struct rte_eth_intr_conf *intr_conf = &dev->data->dev_conf.intr_conf;
 
 	PMD_INIT_LOG(DEBUG, "virtio_dev_close");
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
@@ -707,13 +796,13 @@ virtio_dev_close(struct rte_eth_dev *dev)
 	if (intr_conf->lsc || intr_conf->rxq) {
 		virtio_intr_disable(dev);
 		rte_intr_efd_disable(dev->intr_handle);
-		rte_free(dev->intr_handle->intr_vec);
-		dev->intr_handle->intr_vec = NULL;
+		rte_intr_vec_list_free(dev->intr_handle);
 	}
 
 	virtio_reset(hw);
 	virtio_dev_free_mbufs(dev);
 	virtio_free_queues(hw);
+	virtio_free_rss(hw);
 
 	return VIRTIO_OPS(hw)->dev_close(hw);
 }
@@ -826,6 +915,59 @@ virtio_dev_allmulticast_disable(struct rte_eth_dev *dev)
 	return 0;
 }
 
+uint16_t
+virtio_rx_mem_pool_buf_size(struct rte_mempool *mp)
+{
+	return rte_pktmbuf_data_room_size(mp) - RTE_PKTMBUF_HEADROOM;
+}
+
+bool
+virtio_rx_check_scatter(uint16_t max_rx_pkt_len, uint16_t rx_buf_size,
+			bool rx_scatter_enabled, const char **error)
+{
+	if (!rx_scatter_enabled && max_rx_pkt_len > rx_buf_size) {
+		*error = "Rx scatter is disabled and RxQ mbuf pool object size is too small";
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+virtio_check_scatter_on_all_rx_queues(struct rte_eth_dev *dev,
+				      uint16_t frame_size)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtnet_rx *rxvq;
+	struct virtqueue *vq;
+	unsigned int qidx;
+	uint16_t buf_size;
+	const char *error;
+
+	if (hw->vqs == NULL)
+		return true;
+
+	for (qidx = 0; qidx < hw->max_queue_pairs; qidx++) {
+		vq = hw->vqs[2 * qidx + VTNET_SQ_RQ_QUEUE_IDX];
+		if (vq == NULL)
+			continue;
+
+		rxvq = &vq->rxq;
+		if (rxvq->mpool == NULL)
+			continue;
+		buf_size = virtio_rx_mem_pool_buf_size(rxvq->mpool);
+
+		if (!virtio_rx_check_scatter(frame_size, buf_size,
+					     hw->rx_ol_scatter, &error)) {
+			PMD_INIT_LOG(ERR, "MTU check for RxQ %u failed: %s",
+				     qidx, error);
+			return false;
+		}
+	}
+
+	return true;
+}
+
 #define VLAN_TAG_LEN           4    /* 802.3ac tag (not DMA'd) */
 static int
 virtio_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
@@ -843,6 +985,14 @@ virtio_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 			RTE_ETHER_MIN_MTU, max_frame_size - ether_hdr_len);
 		return -EINVAL;
 	}
+
+	if (!virtio_check_scatter_on_all_rx_queues(dev, frame_size)) {
+		PMD_INIT_LOG(ERR, "MTU vs Rx scatter and Rx buffers check failed");
+		return -EINVAL;
+	}
+
+	hw->max_rx_pkt_len = frame_size;
+
 	return 0;
 }
 
@@ -851,7 +1001,7 @@ virtio_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 {
 	struct virtio_hw *hw = dev->data->dev_private;
 	struct virtnet_rx *rxvq = dev->data->rx_queues[queue_id];
-	struct virtqueue *vq = rxvq->vq;
+	struct virtqueue *vq = virtnet_rxq_to_vq(rxvq);
 
 	virtqueue_enable_intr(vq);
 	virtio_mb(hw->weak_barriers);
@@ -862,7 +1012,7 @@ static int
 virtio_dev_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t queue_id)
 {
 	struct virtnet_rx *rxvq = dev->data->rx_queues[queue_id];
-	struct virtqueue *vq = rxvq->vq;
+	struct virtqueue *vq = virtnet_rxq_to_vq(rxvq);
 
 	virtqueue_disable_intr(vq);
 	return 0;
@@ -892,15 +1042,18 @@ static const struct eth_dev_ops virtio_eth_dev_ops = {
 	.rx_queue_setup          = virtio_dev_rx_queue_setup,
 	.rx_queue_intr_enable    = virtio_dev_rx_queue_intr_enable,
 	.rx_queue_intr_disable   = virtio_dev_rx_queue_intr_disable,
-	.rx_queue_release        = virtio_dev_queue_release,
 	.tx_queue_setup          = virtio_dev_tx_queue_setup,
-	.tx_queue_release        = virtio_dev_queue_release,
+	.rss_hash_update         = virtio_dev_rss_hash_update,
+	.rss_hash_conf_get       = virtio_dev_rss_hash_conf_get,
+	.reta_update             = virtio_dev_rss_reta_update,
+	.reta_query              = virtio_dev_rss_reta_query,
 	/* collect stats per queue */
 	.queue_stats_mapping_set = virtio_dev_queue_stats_mapping_set,
 	.vlan_filter_set         = virtio_vlan_filter_set,
 	.mac_addr_add            = virtio_mac_addr_add,
 	.mac_addr_remove         = virtio_mac_addr_remove,
 	.mac_addr_set            = virtio_mac_addr_set,
+	.get_monitor_addr        = virtio_get_monitor_addr,
 };
 
 /*
@@ -1232,6 +1385,59 @@ virtio_mac_addr_set(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr)
 	return 0;
 }
 
+#define CLB_VAL_IDX 0
+#define CLB_MSK_IDX 1
+#define CLB_MATCH_IDX 2
+static int
+virtio_monitor_callback(const uint64_t value,
+		const uint64_t opaque[RTE_POWER_MONITOR_OPAQUE_SZ])
+{
+	const uint64_t m = opaque[CLB_MSK_IDX];
+	const uint64_t v = opaque[CLB_VAL_IDX];
+	const uint64_t c = opaque[CLB_MATCH_IDX];
+
+	if (c)
+		return (value & m) == v ? -1 : 0;
+	else
+		return (value & m) == v ? 0 : -1;
+}
+
+static int
+virtio_get_monitor_addr(void *rx_queue, struct rte_power_monitor_cond *pmc)
+{
+	struct virtnet_rx *rxvq = rx_queue;
+	struct virtqueue *vq = virtnet_rxq_to_vq(rxvq);
+	struct virtio_hw *hw;
+
+	if (vq == NULL)
+		return -EINVAL;
+
+	hw = vq->hw;
+	if (virtio_with_packed_queue(hw)) {
+		struct vring_packed_desc *desc;
+		desc = vq->vq_packed.ring.desc;
+		pmc->addr = &desc[vq->vq_used_cons_idx].flags;
+		if (vq->vq_packed.used_wrap_counter)
+			pmc->opaque[CLB_VAL_IDX] =
+						VRING_PACKED_DESC_F_AVAIL_USED;
+		else
+			pmc->opaque[CLB_VAL_IDX] = 0;
+		pmc->opaque[CLB_MSK_IDX] = VRING_PACKED_DESC_F_AVAIL_USED;
+		pmc->opaque[CLB_MATCH_IDX] = 1;
+		pmc->size = sizeof(desc[vq->vq_used_cons_idx].flags);
+	} else {
+		pmc->addr = &vq->vq_split.ring.used->idx;
+		pmc->opaque[CLB_VAL_IDX] = vq->vq_used_cons_idx
+					& (vq->vq_nentries - 1);
+		pmc->opaque[CLB_MSK_IDX] = vq->vq_nentries - 1;
+		pmc->opaque[CLB_MATCH_IDX] = 0;
+		pmc->size = sizeof(vq->vq_split.ring.used->idx);
+	}
+	pmc->fn = virtio_monitor_callback;
+
+	return 0;
+}
+
 static int
 virtio_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 {
@@ -1560,7 +1766,9 @@ virtio_queues_bind_intr(struct rte_eth_dev *dev)
 
 	PMD_INIT_LOG(INFO, "queue/interrupt binding");
 	for (i = 0; i < dev->data->nb_rx_queues; ++i) {
-		dev->intr_handle->intr_vec[i] = i + 1;
+		if (rte_intr_vec_list_index_set(dev->intr_handle, i,
+						       i + 1))
+			return -rte_errno;
 		if (VIRTIO_OPS(hw)->set_queue_irq(hw, hw->vqs[i * 2], i + 1) ==
 						 VIRTIO_MSI_NO_VECTOR) {
 			PMD_DRV_LOG(ERR, "failed to set queue vector");
@@ -1599,24 +1807,22 @@ virtio_configure_intr(struct rte_eth_dev *dev)
 		return -1;
 	}
 
-	if (!dev->intr_handle->intr_vec) {
-		dev->intr_handle->intr_vec =
-			rte_zmalloc("intr_vec",
-				    hw->max_queue_pairs * sizeof(int), 0);
-		if (!dev->intr_handle->intr_vec) {
-			PMD_INIT_LOG(ERR, "Failed to allocate %u rxq vectors",
-				     hw->max_queue_pairs);
-			return -ENOMEM;
-		}
+	if (rte_intr_vec_list_alloc(dev->intr_handle, "intr_vec",
+				    hw->max_queue_pairs)) {
+		PMD_INIT_LOG(ERR, "Failed to allocate %u rxq vectors",
+			     hw->max_queue_pairs);
+		return -ENOMEM;
 	}
 
-	/* Re-register callback to update max_intr */
-	rte_intr_callback_unregister(dev->intr_handle,
-				     virtio_interrupt_handler,
-				     dev);
-	rte_intr_callback_register(dev->intr_handle,
-				   virtio_interrupt_handler,
-				   dev);
+	if (dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC) {
+		/* Re-register callback to update max_intr */
+		rte_intr_callback_unregister(dev->intr_handle,
+					     virtio_interrupt_handler,
+					     dev);
+		rte_intr_callback_register(dev->intr_handle,
+					   virtio_interrupt_handler,
+					   dev);
+	}
 
 	/* DO NOT try to remove this! This function will enable msix, or QEMU
 	 * will encounter SIGSEGV when DRIVER_OK is sent.
@@ -1636,6 +1842,362 @@ virtio_configure_intr(struct rte_eth_dev *dev)
 
 	return 0;
 }
+
+static void
+virtio_get_speed_duplex(struct rte_eth_dev *eth_dev,
+			struct rte_eth_link *link)
+{
+	struct virtio_hw *hw = eth_dev->data->dev_private;
+	struct virtio_net_config *config;
+	struct virtio_net_config local_config;
+
+	config = &local_config;
+	virtio_read_dev_config(hw,
+		offsetof(struct virtio_net_config, speed),
+		&config->speed, sizeof(config->speed));
+	virtio_read_dev_config(hw,
+		offsetof(struct virtio_net_config, duplex),
+		&config->duplex, sizeof(config->duplex));
+	hw->speed = config->speed;
+	hw->duplex = config->duplex;
+	if (link != NULL) {
+		link->link_duplex = hw->duplex;
+		link->link_speed  = hw->speed;
+	}
+	PMD_INIT_LOG(DEBUG, "link speed = %d, duplex = %d",
+		     hw->speed, hw->duplex);
+}
+
+static uint64_t
+ethdev_to_virtio_rss_offloads(uint64_t ethdev_hash_types)
+{
+	uint64_t virtio_hash_types = 0;
+
+	if (ethdev_hash_types & (RTE_ETH_RSS_IPV4 | RTE_ETH_RSS_FRAG_IPV4 |
+				RTE_ETH_RSS_NONFRAG_IPV4_OTHER))
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_IPV4;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_NONFRAG_IPV4_TCP)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_TCPV4;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_NONFRAG_IPV4_UDP)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_UDPV4;
+
+	if (ethdev_hash_types & (RTE_ETH_RSS_IPV6 | RTE_ETH_RSS_FRAG_IPV6 |
+				RTE_ETH_RSS_NONFRAG_IPV6_OTHER))
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_IPV6;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_NONFRAG_IPV6_TCP)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_TCPV6;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_NONFRAG_IPV6_UDP)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_UDPV6;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_IPV6_EX)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_IP_EX;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_IPV6_TCP_EX)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_TCP_EX;
+
+	if (ethdev_hash_types & RTE_ETH_RSS_IPV6_UDP_EX)
+		virtio_hash_types |= VIRTIO_NET_HASH_TYPE_UDP_EX;
+
+	return virtio_hash_types;
+}
+
+static uint64_t
+virtio_to_ethdev_rss_offloads(uint64_t virtio_hash_types)
+{
+	uint64_t rss_offloads = 0;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_IPV4)
+		rss_offloads |= RTE_ETH_RSS_IPV4 | RTE_ETH_RSS_FRAG_IPV4 |
+			RTE_ETH_RSS_NONFRAG_IPV4_OTHER;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_TCPV4)
+		rss_offloads |= RTE_ETH_RSS_NONFRAG_IPV4_TCP;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_UDPV4)
+		rss_offloads |= RTE_ETH_RSS_NONFRAG_IPV4_UDP;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_IPV6)
+		rss_offloads |= RTE_ETH_RSS_IPV6 | RTE_ETH_RSS_FRAG_IPV6 |
+			RTE_ETH_RSS_NONFRAG_IPV6_OTHER;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_TCPV6)
+		rss_offloads |= RTE_ETH_RSS_NONFRAG_IPV6_TCP;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_UDPV6)
+		rss_offloads |= RTE_ETH_RSS_NONFRAG_IPV6_UDP;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_IP_EX)
+		rss_offloads |= RTE_ETH_RSS_IPV6_EX;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_TCP_EX)
+		rss_offloads |= RTE_ETH_RSS_IPV6_TCP_EX;
+
+	if (virtio_hash_types & VIRTIO_NET_HASH_TYPE_UDP_EX)
+		rss_offloads |= RTE_ETH_RSS_IPV6_UDP_EX;
+
+	return rss_offloads;
+}
+
+static int
+virtio_dev_get_rss_config(struct virtio_hw *hw, uint32_t *rss_hash_types)
+{
+	struct virtio_net_config local_config;
+	struct virtio_net_config *config = &local_config;
+
+	virtio_read_dev_config(hw,
+			offsetof(struct virtio_net_config, rss_max_key_size),
+			&config->rss_max_key_size,
+			sizeof(config->rss_max_key_size));
+	if (config->rss_max_key_size < VIRTIO_NET_RSS_KEY_SIZE) {
+		PMD_INIT_LOG(ERR, "Invalid device RSS max key size (%u)",
+				config->rss_max_key_size);
+		return -EINVAL;
+	}
+
+	virtio_read_dev_config(hw,
+			offsetof(struct virtio_net_config,
+				rss_max_indirection_table_length),
+			&config->rss_max_indirection_table_length,
+			sizeof(config->rss_max_indirection_table_length));
+	if (config->rss_max_indirection_table_length < VIRTIO_NET_RSS_RETA_SIZE) {
+		PMD_INIT_LOG(ERR, "Invalid device RSS max reta size (%u)",
+				config->rss_max_indirection_table_length);
+		return -EINVAL;
+	}
+
+	virtio_read_dev_config(hw,
+			offsetof(struct virtio_net_config, supported_hash_types),
+			&config->supported_hash_types,
+			sizeof(config->supported_hash_types));
+	if ((config->supported_hash_types & VIRTIO_NET_HASH_TYPE_MASK) == 0) {
+		PMD_INIT_LOG(ERR, "Invalid device RSS hash types (0x%x)",
+				config->supported_hash_types);
+		return -EINVAL;
+	}
+
+	*rss_hash_types = config->supported_hash_types & VIRTIO_NET_HASH_TYPE_MASK;
+
+	PMD_INIT_LOG(DEBUG, "Device RSS config:");
+	PMD_INIT_LOG(DEBUG, "\t-Max key size: %u", config->rss_max_key_size);
+	PMD_INIT_LOG(DEBUG, "\t-Max reta size: %u", config->rss_max_indirection_table_length);
+	PMD_INIT_LOG(DEBUG, "\t-Supported hash types: 0x%x", *rss_hash_types);
+
+	return 0;
+}
+
+static int
+virtio_dev_rss_hash_update(struct rte_eth_dev *dev,
+		struct rte_eth_rss_conf *rss_conf)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	char old_rss_key[VIRTIO_NET_RSS_KEY_SIZE];
+	uint32_t old_hash_types;
+	uint16_t nb_queues;
+	int ret;
+
+	if (!virtio_with_feature(hw, VIRTIO_NET_F_RSS))
+		return -ENOTSUP;
+
+	if (rss_conf->rss_hf & ~virtio_to_ethdev_rss_offloads(VIRTIO_NET_HASH_TYPE_MASK))
+		return -EINVAL;
+
+	old_hash_types = hw->rss_hash_types;
+	hw->rss_hash_types = ethdev_to_virtio_rss_offloads(rss_conf->rss_hf);
+
+	if (rss_conf->rss_key && rss_conf->rss_key_len) {
+		if (rss_conf->rss_key_len != VIRTIO_NET_RSS_KEY_SIZE) {
+			PMD_INIT_LOG(ERR, "Driver only supports %u RSS key length",
+					VIRTIO_NET_RSS_KEY_SIZE);
+			ret = -EINVAL;
+			goto restore_types;
+		}
+		memcpy(old_rss_key, hw->rss_key, VIRTIO_NET_RSS_KEY_SIZE);
+		memcpy(hw->rss_key, rss_conf->rss_key, VIRTIO_NET_RSS_KEY_SIZE);
+	}
+
+	nb_queues = RTE_MAX(dev->data->nb_rx_queues, dev->data->nb_tx_queues);
+	ret = virtio_set_multiple_queues_rss(dev, nb_queues);
+	if (ret < 0) {
+		PMD_INIT_LOG(ERR, "Failed to apply new RSS config to the device");
+		goto restore_key;
+	}
+
+	return 0;
+restore_key:
+	if (rss_conf->rss_key && rss_conf->rss_key_len)
+		memcpy(hw->rss_key, old_rss_key, VIRTIO_NET_RSS_KEY_SIZE);
+restore_types:
+	hw->rss_hash_types = old_hash_types;
+
+	return ret;
+}
+
+static int
+virtio_dev_rss_hash_conf_get(struct rte_eth_dev *dev,
+		struct rte_eth_rss_conf *rss_conf)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+
+	if (!virtio_with_feature(hw, VIRTIO_NET_F_RSS))
+		return -ENOTSUP;
+
+	if (rss_conf->rss_key && rss_conf->rss_key_len >= VIRTIO_NET_RSS_KEY_SIZE)
+		memcpy(rss_conf->rss_key, hw->rss_key, VIRTIO_NET_RSS_KEY_SIZE);
+	rss_conf->rss_key_len = VIRTIO_NET_RSS_KEY_SIZE;
+	rss_conf->rss_hf = virtio_to_ethdev_rss_offloads(hw->rss_hash_types);
+
+	return 0;
+}
+
+static int virtio_dev_rss_reta_update(struct rte_eth_dev *dev,
+			 struct rte_eth_rss_reta_entry64 *reta_conf,
+			 uint16_t reta_size)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	uint16_t nb_queues;
+	uint16_t old_reta[VIRTIO_NET_RSS_RETA_SIZE];
+	int idx, pos, i, ret;
+
+	if (!virtio_with_feature(hw, VIRTIO_NET_F_RSS))
+		return -ENOTSUP;
+
+	if (reta_size != VIRTIO_NET_RSS_RETA_SIZE)
+		return -EINVAL;
+
+	memcpy(old_reta, hw->rss_reta, sizeof(old_reta));
+
+	for (i = 0; i < reta_size; i++) {
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		pos = i % RTE_ETH_RETA_GROUP_SIZE;
+
+		if (((reta_conf[idx].mask >> pos) & 0x1) == 0)
+			continue;
+
+		hw->rss_reta[i] = reta_conf[idx].reta[pos];
+	}
+
+	nb_queues = RTE_MAX(dev->data->nb_rx_queues, dev->data->nb_tx_queues);
+	ret = virtio_set_multiple_queues_rss(dev, nb_queues);
+	if (ret < 0) {
+		PMD_INIT_LOG(ERR, "Failed to apply new RETA to the device");
+		memcpy(hw->rss_reta, old_reta, sizeof(old_reta));
+	}
+
+	hw->rss_rx_queues = dev->data->nb_rx_queues;
+
+	return ret;
+}
+
+static int virtio_dev_rss_reta_query(struct rte_eth_dev *dev,
+			 struct rte_eth_rss_reta_entry64 *reta_conf,
+			 uint16_t reta_size)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	int idx, i;
+
+	if (!virtio_with_feature(hw, VIRTIO_NET_F_RSS))
+		return -ENOTSUP;
+
+	if (reta_size != VIRTIO_NET_RSS_RETA_SIZE)
+		return -EINVAL;
+
+	for (i = 0; i < reta_size; i++) {
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		reta_conf[idx].reta[i % RTE_ETH_RETA_GROUP_SIZE] = hw->rss_reta[i];
+	}
+
+	return 0;
+}
+
+/*
+ * As default RSS hash key, it uses the default key of the
+ * Intel IXGBE devices. It can be updated by the application
+ * with any 40B key value.
+ */
+static uint8_t rss_intel_key[VIRTIO_NET_RSS_KEY_SIZE] = {
+	0x6D, 0x5A, 0x56, 0xDA, 0x25, 0x5B, 0x0E, 0xC2,
+	0x41, 0x67, 0x25, 0x3D, 0x43, 0xA3, 0x8F, 0xB0,
+	0xD0, 0xCA, 0x2B, 0xCB, 0xAE, 0x7B, 0x30, 0xB4,
+	0x77, 0xCB, 0x2D, 0xA3, 0x80, 0x30, 0xF2, 0x0C,
+	0x6A, 0x42, 0xB7, 0x3B, 0xBE, 0xAC, 0x01, 0xFA,
+};
+
+static int
+virtio_dev_rss_init(struct rte_eth_dev *eth_dev)
+{
+	struct virtio_hw *hw = eth_dev->data->dev_private;
+	uint16_t nb_rx_queues = eth_dev->data->nb_rx_queues;
+	struct rte_eth_rss_conf *rss_conf;
+	int ret, i;
+
+	if (!nb_rx_queues) {
+		PMD_INIT_LOG(ERR, "Cannot init RSS if no Rx queues");
+		return -EINVAL;
+	}
+
+	rss_conf = &eth_dev->data->dev_conf.rx_adv_conf.rss_conf;
+
+	ret = virtio_dev_get_rss_config(hw, &hw->rss_hash_types);
+	if (ret)
+		return ret;
+
+	if (rss_conf->rss_hf) {
+		/*  Ensure requested hash types are supported by the device */
+		if (rss_conf->rss_hf & ~virtio_to_ethdev_rss_offloads(hw->rss_hash_types))
+			return -EINVAL;
+
+		hw->rss_hash_types = ethdev_to_virtio_rss_offloads(rss_conf->rss_hf);
+	}
+
+	if (!hw->rss_key) {
+		/* Setup default RSS key if not already setup by the user */
+		hw->rss_key = rte_malloc_socket("rss_key",
+				VIRTIO_NET_RSS_KEY_SIZE, 0,
+				eth_dev->device->numa_node);
+		if (!hw->rss_key) {
+			PMD_INIT_LOG(ERR, "Failed to allocate RSS key");
+			return -1;
+		}
+	}
+
+	if (rss_conf->rss_key && rss_conf->rss_key_len) {
+		if (rss_conf->rss_key_len != VIRTIO_NET_RSS_KEY_SIZE) {
+			PMD_INIT_LOG(ERR, "Driver only supports %u RSS key length",
+					VIRTIO_NET_RSS_KEY_SIZE);
+			return -EINVAL;
+		}
+		memcpy(hw->rss_key, rss_conf->rss_key, VIRTIO_NET_RSS_KEY_SIZE);
+	} else {
+		memcpy(hw->rss_key, rss_intel_key, VIRTIO_NET_RSS_KEY_SIZE);
+	}
+
+	if (!hw->rss_reta) {
+		/* Setup default RSS reta if not already setup by the user */
+		hw->rss_reta = rte_zmalloc_socket("rss_reta",
+				VIRTIO_NET_RSS_RETA_SIZE * sizeof(uint16_t), 0,
+				eth_dev->device->numa_node);
+		if (!hw->rss_reta) {
+			PMD_INIT_LOG(ERR, "Failed to allocate RSS reta");
+			return -1;
+		}
+
+		hw->rss_rx_queues = 0;
+	}
+
+	/* Re-initialize the RSS reta if the number of RX queues has changed */
+	if (hw->rss_rx_queues != nb_rx_queues) {
+		for (i = 0; i < VIRTIO_NET_RSS_RETA_SIZE; i++)
+			hw->rss_reta[i] = i % nb_rx_queues;
+		hw->rss_rx_queues = nb_rx_queues;
+	}
+
+	return 0;
+}
+
 #define DUPLEX_UNKNOWN   0xff
 /* reset device and renegotiate features if needed */
 static int
@@ -1685,25 +2247,16 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 	rte_ether_addr_copy((struct rte_ether_addr *)hw->mac_addr,
 			&eth_dev->data->mac_addrs[0]);
 	PMD_INIT_LOG(DEBUG,
-		     "PORT MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+		     "PORT MAC: " RTE_ETHER_ADDR_PRT_FMT,
 		     hw->mac_addr[0], hw->mac_addr[1], hw->mac_addr[2],
 		     hw->mac_addr[3], hw->mac_addr[4], hw->mac_addr[5]);
 
-	if (hw->speed == ETH_SPEED_NUM_UNKNOWN) {
-		if (virtio_with_feature(hw, VIRTIO_NET_F_SPEED_DUPLEX)) {
-			config = &local_config;
-			virtio_read_dev_config(hw,
-				offsetof(struct virtio_net_config, speed),
-				&config->speed, sizeof(config->speed));
-			virtio_read_dev_config(hw,
-				offsetof(struct virtio_net_config, duplex),
-				&config->duplex, sizeof(config->duplex));
-			hw->speed = config->speed;
-			hw->duplex = config->duplex;
-		}
-	}
+	hw->get_speed_via_feat = hw->speed == RTE_ETH_SPEED_NUM_UNKNOWN &&
+			     virtio_with_feature(hw, VIRTIO_NET_F_SPEED_DUPLEX);
+	if (hw->get_speed_via_feat)
+		virtio_get_speed_duplex(eth_dev, NULL);
 	if (hw->duplex == DUPLEX_UNKNOWN)
-		hw->duplex = ETH_LINK_FULL_DUPLEX;
+		hw->duplex = RTE_ETH_LINK_FULL_DUPLEX;
 	PMD_INIT_LOG(DEBUG, "link speed = %d, duplex = %d",
 		hw->speed, hw->duplex);
 	if (virtio_with_feature(hw, VIRTIO_NET_F_CTRL_VQ)) {
@@ -1723,14 +2276,15 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 			config->status = 0;
 		}
 
-		if (virtio_with_feature(hw, VIRTIO_NET_F_MQ)) {
+		if (virtio_with_feature(hw, VIRTIO_NET_F_MQ) ||
+				virtio_with_feature(hw, VIRTIO_NET_F_RSS)) {
 			virtio_read_dev_config(hw,
 				offsetof(struct virtio_net_config, max_virtqueue_pairs),
 				&config->max_virtqueue_pairs,
 				sizeof(config->max_virtqueue_pairs));
 		} else {
 			PMD_INIT_LOG(DEBUG,
-				     "VIRTIO_NET_F_MQ is not supported");
+				     "Neither VIRTIO_NET_F_MQ nor VIRTIO_NET_F_RSS are supported");
 			config->max_virtqueue_pairs = 1;
 		}
 
@@ -1762,11 +2316,16 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 				VLAN_TAG_LEN - hw->vtnet_hdr_size;
 		}
 
+		hw->rss_hash_types = 0;
+		if (virtio_with_feature(hw, VIRTIO_NET_F_RSS))
+			if (virtio_dev_rss_init(eth_dev))
+				return -1;
+
 		PMD_INIT_LOG(DEBUG, "config->max_virtqueue_pairs=%d",
 				config->max_virtqueue_pairs);
 		PMD_INIT_LOG(DEBUG, "config->status=%d", config->status);
 		PMD_INIT_LOG(DEBUG,
-				"PORT MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+				"PORT MAC: " RTE_ETHER_ADDR_PRT_FMT,
 				config->mac[0], config->mac[1],
 				config->mac[2], config->mac[3],
 				config->mac[4], config->mac[5]);
@@ -1802,7 +2361,7 @@ int
 eth_virtio_dev_init(struct rte_eth_dev *eth_dev)
 {
 	struct virtio_hw *hw = eth_dev->data->dev_private;
-	uint32_t speed = ETH_SPEED_NUM_UNKNOWN;
+	uint32_t speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 	int vectorized = 0;
 	int ret;
 
@@ -1816,7 +2375,6 @@ eth_virtio_dev_init(struct rte_eth_dev *eth_dev)
 	}
 
 	eth_dev->dev_ops = &virtio_eth_dev_ops;
-	eth_dev->rx_descriptor_done = virtio_dev_rx_queue_done;
 
 	if (rte_eal_process_type() == RTE_PROC_SECONDARY) {
 		set_rxtx_funcs(eth_dev);
@@ -1827,6 +2385,7 @@ eth_virtio_dev_init(struct rte_eth_dev *eth_dev)
 	if (ret < 0)
 		return ret;
 	hw->speed = speed;
+	hw->duplex = DUPLEX_UNKNOWN;
 
 	/* Allocate memory for storing MAC addresses */
 	eth_dev->data->mac_addrs = rte_zmalloc("virtio",
@@ -1873,22 +2432,22 @@ static uint32_t
 virtio_dev_speed_capa_get(uint32_t speed)
 {
 	switch (speed) {
-	case ETH_SPEED_NUM_10G:
-		return ETH_LINK_SPEED_10G;
-	case ETH_SPEED_NUM_20G:
-		return ETH_LINK_SPEED_20G;
-	case ETH_SPEED_NUM_25G:
-		return ETH_LINK_SPEED_25G;
-	case ETH_SPEED_NUM_40G:
-		return ETH_LINK_SPEED_40G;
-	case ETH_SPEED_NUM_50G:
-		return ETH_LINK_SPEED_50G;
-	case ETH_SPEED_NUM_56G:
-		return ETH_LINK_SPEED_56G;
-	case ETH_SPEED_NUM_100G:
-		return ETH_LINK_SPEED_100G;
-	case ETH_SPEED_NUM_200G:
-		return ETH_LINK_SPEED_200G;
+	case RTE_ETH_SPEED_NUM_10G:
+		return RTE_ETH_LINK_SPEED_10G;
+	case RTE_ETH_SPEED_NUM_20G:
+		return RTE_ETH_LINK_SPEED_20G;
+	case RTE_ETH_SPEED_NUM_25G:
+		return RTE_ETH_LINK_SPEED_25G;
+	case RTE_ETH_SPEED_NUM_40G:
+		return RTE_ETH_LINK_SPEED_40G;
+	case RTE_ETH_SPEED_NUM_50G:
+		return RTE_ETH_LINK_SPEED_50G;
+	case RTE_ETH_SPEED_NUM_56G:
+		return RTE_ETH_LINK_SPEED_56G;
+	case RTE_ETH_SPEED_NUM_100G:
+		return RTE_ETH_LINK_SPEED_100G;
+	case RTE_ETH_SPEED_NUM_200G:
+		return RTE_ETH_LINK_SPEED_200G;
 	default:
 		return 0;
 	}
@@ -2004,14 +2563,14 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 	PMD_INIT_LOG(DEBUG, "configure");
 	req_features = VIRTIO_PMD_DEFAULT_GUEST_FEATURES;
 
-	if (rxmode->mq_mode != ETH_MQ_RX_NONE) {
+	if (rxmode->mq_mode != RTE_ETH_MQ_RX_NONE && rxmode->mq_mode != RTE_ETH_MQ_RX_RSS) {
 		PMD_DRV_LOG(ERR,
 			"Unsupported Rx multi queue mode %d",
 			rxmode->mq_mode);
 		return -EINVAL;
 	}
 
-	if (txmode->mq_mode != ETH_MQ_TX_NONE) {
+	if (txmode->mq_mode != RTE_ETH_MQ_TX_NONE) {
 		PMD_DRV_LOG(ERR,
 			"Unsupported Tx multi queue mode %d",
 			txmode->mq_mode);
@@ -2024,23 +2583,28 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			return ret;
 	}
 
-	if (rxmode->max_rx_pkt_len > hw->max_mtu + ether_hdr_len)
+	if (rxmode->mq_mode == RTE_ETH_MQ_RX_RSS)
+		req_features |= (1ULL << VIRTIO_NET_F_RSS);
+
+	if (rxmode->mtu > hw->max_mtu)
 		req_features &= ~(1ULL << VIRTIO_NET_F_MTU);
 
-	if (rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
-			   DEV_RX_OFFLOAD_TCP_CKSUM))
+	hw->max_rx_pkt_len = ether_hdr_len + rxmode->mtu;
+
+	if (rx_offloads & (RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+			   RTE_ETH_RX_OFFLOAD_TCP_CKSUM))
 		req_features |= (1ULL << VIRTIO_NET_F_GUEST_CSUM);
 
-	if (rx_offloads & DEV_RX_OFFLOAD_TCP_LRO)
+	if (rx_offloads & RTE_ETH_RX_OFFLOAD_TCP_LRO)
 		req_features |=
 			(1ULL << VIRTIO_NET_F_GUEST_TSO4) |
 			(1ULL << VIRTIO_NET_F_GUEST_TSO6);
 
-	if (tx_offloads & (DEV_TX_OFFLOAD_UDP_CKSUM |
-			   DEV_TX_OFFLOAD_TCP_CKSUM))
+	if (tx_offloads & (RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+			   RTE_ETH_TX_OFFLOAD_TCP_CKSUM))
 		req_features |= (1ULL << VIRTIO_NET_F_CSUM);
 
-	if (tx_offloads & DEV_TX_OFFLOAD_TCP_TSO)
+	if (tx_offloads & RTE_ETH_TX_OFFLOAD_TCP_TSO)
 		req_features |=
 			(1ULL << VIRTIO_NET_F_HOST_TSO4) |
 			(1ULL << VIRTIO_NET_F_HOST_TSO6);
@@ -2052,15 +2616,21 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			return ret;
 	}
 
-	if ((rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
-			    DEV_RX_OFFLOAD_TCP_CKSUM)) &&
+	if ((rxmode->mq_mode & RTE_ETH_MQ_RX_RSS_FLAG) &&
+			!virtio_with_feature(hw, VIRTIO_NET_F_RSS)) {
+		PMD_DRV_LOG(ERR, "RSS support requested but not supported by the device");
+		return -ENOTSUP;
+	}
+
+	if ((rx_offloads & (RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+			    RTE_ETH_RX_OFFLOAD_TCP_CKSUM)) &&
 		!virtio_with_feature(hw, VIRTIO_NET_F_GUEST_CSUM)) {
 		PMD_DRV_LOG(ERR,
 			"rx checksum not available on this host");
 		return -ENOTSUP;
 	}
 
-	if ((rx_offloads & DEV_RX_OFFLOAD_TCP_LRO) &&
+	if ((rx_offloads & RTE_ETH_RX_OFFLOAD_TCP_LRO) &&
 		(!virtio_with_feature(hw, VIRTIO_NET_F_GUEST_TSO4) ||
 		 !virtio_with_feature(hw, VIRTIO_NET_F_GUEST_TSO6))) {
 		PMD_DRV_LOG(ERR,
@@ -2072,10 +2642,12 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 	if (virtio_with_feature(hw, VIRTIO_NET_F_CTRL_VQ))
 		virtio_dev_cq_start(dev);
 
-	if (rx_offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
+	if (rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 		hw->vlan_strip = 1;
 
-	if ((rx_offloads & DEV_RX_OFFLOAD_VLAN_FILTER) &&
+	hw->rx_ol_scatter = (rx_offloads & RTE_ETH_RX_OFFLOAD_SCATTER);
+
+	if ((rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER) &&
 			!virtio_with_feature(hw, VIRTIO_NET_F_CTRL_VLAN)) {
 		PMD_DRV_LOG(ERR,
 			    "vlan filtering not available on this host");
@@ -2086,7 +2658,7 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 	hw->has_rx_offload = rx_offload_enabled(hw);
 
 	if (dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC)
-		/* Enable vector (0) for Link State Intrerrupt */
+		/* Enable vector (0) for Link State Interrupt */
 		if (VIRTIO_OPS(hw)->set_config_irq(hw, 0) ==
 				VIRTIO_MSI_NO_VECTOR) {
 			PMD_DRV_LOG(ERR, "failed to set config vector");
@@ -2128,7 +2700,7 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 				hw->use_vec_rx = 0;
 			}
 
-			if (rx_offloads & DEV_RX_OFFLOAD_TCP_LRO) {
+			if (rx_offloads & RTE_ETH_RX_OFFLOAD_TCP_LRO) {
 				PMD_DRV_LOG(INFO,
 					"disabled packed ring vectorized rx for TCP_LRO enabled");
 				hw->use_vec_rx = 0;
@@ -2155,10 +2727,10 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 				hw->use_vec_rx = 0;
 			}
 
-			if (rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
-					   DEV_RX_OFFLOAD_TCP_CKSUM |
-					   DEV_RX_OFFLOAD_TCP_LRO |
-					   DEV_RX_OFFLOAD_VLAN_STRIP)) {
+			if (rx_offloads & (RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+					   RTE_ETH_RX_OFFLOAD_TCP_CKSUM |
+					   RTE_ETH_RX_OFFLOAD_TCP_LRO |
+					   RTE_ETH_RX_OFFLOAD_VLAN_STRIP)) {
 				PMD_DRV_LOG(INFO,
 					"disabled split ring vectorized rx for offloading enabled");
 				hw->use_vec_rx = 0;
@@ -2180,8 +2752,7 @@ static int
 virtio_dev_start(struct rte_eth_dev *dev)
 {
 	uint16_t nb_queues, i;
-	struct virtnet_rx *rxvq;
-	struct virtnet_tx *txvq __rte_unused;
+	struct virtqueue *vq;
 	struct virtio_hw *hw = dev->data->dev_private;
 	int ret;
 
@@ -2205,7 +2776,7 @@ virtio_dev_start(struct rte_eth_dev *dev)
 		}
 	}
 
-	/* Enable uio/vfio intr/eventfd mapping: althrough we already did that
+	/* Enable uio/vfio intr/eventfd mapping: although we already did that
 	 * in device configure, but it could be unmapped  when device is
 	 * stopped.
 	 */
@@ -2238,27 +2809,27 @@ virtio_dev_start(struct rte_eth_dev *dev)
 	PMD_INIT_LOG(DEBUG, "nb_queues=%d", nb_queues);
 
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxvq = dev->data->rx_queues[i];
+		vq = virtnet_rxq_to_vq(dev->data->rx_queues[i]);
 		/* Flush the old packets */
-		virtqueue_rxvq_flush(rxvq->vq);
-		virtqueue_notify(rxvq->vq);
+		virtqueue_rxvq_flush(vq);
+		virtqueue_notify(vq);
 	}
 
 	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		txvq = dev->data->tx_queues[i];
-		virtqueue_notify(txvq->vq);
+		vq = virtnet_txq_to_vq(dev->data->tx_queues[i]);
+		virtqueue_notify(vq);
 	}
 
 	PMD_INIT_LOG(DEBUG, "Notified backend at initialization");
 
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxvq = dev->data->rx_queues[i];
-		VIRTQUEUE_DUMP(rxvq->vq);
+		vq = virtnet_rxq_to_vq(dev->data->rx_queues[i]);
+		VIRTQUEUE_DUMP(vq);
 	}
 
 	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		txvq = dev->data->tx_queues[i];
-		VIRTQUEUE_DUMP(txvq->vq);
+		vq = virtnet_txq_to_vq(dev->data->tx_queues[i]);
+		VIRTQUEUE_DUMP(vq);
 	}
 
 	set_rxtx_funcs(dev);
@@ -2315,6 +2886,35 @@ static void virtio_dev_free_mbufs(struct rte_eth_dev *dev)
 	PMD_INIT_LOG(DEBUG, "%d mbufs freed", mbuf_num);
 }
 
+static void
+virtio_tx_completed_cleanup(struct rte_eth_dev *dev)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtqueue *vq;
+	int qidx;
+	void (*xmit_cleanup)(struct virtqueue *vq, uint16_t nb_used);
+
+	if (virtio_with_packed_queue(hw)) {
+		if (hw->use_vec_tx)
+			xmit_cleanup = &virtio_xmit_cleanup_inorder_packed;
+		else if (virtio_with_feature(hw, VIRTIO_F_IN_ORDER))
+			xmit_cleanup = &virtio_xmit_cleanup_inorder_packed;
+		else
+			xmit_cleanup = &virtio_xmit_cleanup_normal_packed;
+	} else {
+		if (hw->use_inorder_tx)
+			xmit_cleanup = &virtio_xmit_cleanup_inorder;
+		else
+			xmit_cleanup = &virtio_xmit_cleanup;
+	}
+
+	for (qidx = 0; qidx < hw->max_queue_pairs; qidx++) {
+		vq = hw->vqs[2 * qidx + VTNET_SQ_TQ_QUEUE_IDX];
+		if (vq != NULL)
+			xmit_cleanup(vq, virtqueue_nused(vq));
+	}
+}
+
 /*
  * Stop device: disable interrupt and mark link down
  */
@@ -2323,7 +2923,7 @@ virtio_dev_stop(struct rte_eth_dev *dev)
 {
 	struct virtio_hw *hw = dev->data->dev_private;
 	struct rte_eth_link link;
-	struct rte_intr_conf *intr_conf = &dev->data->dev_conf.intr_conf;
+	struct rte_eth_intr_conf *intr_conf = &dev->data->dev_conf.intr_conf;
 
 	PMD_INIT_LOG(DEBUG, "stop");
 	dev->data->dev_started = 0;
@@ -2332,6 +2932,8 @@ virtio_dev_stop(struct rte_eth_dev *dev)
 	if (!hw->started)
 		goto out_unlock;
 	hw->started = 0;
+
+	virtio_tx_completed_cleanup(dev);
 
 	if (intr_conf->lsc || intr_conf->rxq) {
 		virtio_intr_disable(dev);
@@ -2362,28 +2964,32 @@ virtio_dev_link_update(struct rte_eth_dev *dev, __rte_unused int wait_to_complet
 	memset(&link, 0, sizeof(link));
 	link.link_duplex = hw->duplex;
 	link.link_speed  = hw->speed;
-	link.link_autoneg = ETH_LINK_AUTONEG;
+	link.link_autoneg = RTE_ETH_LINK_AUTONEG;
 
 	if (!hw->started) {
-		link.link_status = ETH_LINK_DOWN;
-		link.link_speed = ETH_SPEED_NUM_NONE;
+		link.link_status = RTE_ETH_LINK_DOWN;
+		link.link_speed = RTE_ETH_SPEED_NUM_NONE;
 	} else if (virtio_with_feature(hw, VIRTIO_NET_F_STATUS)) {
 		PMD_INIT_LOG(DEBUG, "Get link status from hw");
 		virtio_read_dev_config(hw,
 				offsetof(struct virtio_net_config, status),
 				&status, sizeof(status));
 		if ((status & VIRTIO_NET_S_LINK_UP) == 0) {
-			link.link_status = ETH_LINK_DOWN;
-			link.link_speed = ETH_SPEED_NUM_NONE;
+			link.link_status = RTE_ETH_LINK_DOWN;
+			link.link_speed = RTE_ETH_SPEED_NUM_NONE;
 			PMD_INIT_LOG(DEBUG, "Port %d is down",
 				     dev->data->port_id);
 		} else {
-			link.link_status = ETH_LINK_UP;
+			link.link_status = RTE_ETH_LINK_UP;
+			if (hw->get_speed_via_feat)
+				virtio_get_speed_duplex(dev, &link);
 			PMD_INIT_LOG(DEBUG, "Port %d is up",
 				     dev->data->port_id);
 		}
 	} else {
-		link.link_status = ETH_LINK_UP;
+		link.link_status = RTE_ETH_LINK_UP;
+		if (hw->get_speed_via_feat)
+			virtio_get_speed_duplex(dev, &link);
 	}
 
 	return rte_eth_linkstatus_set(dev, &link);
@@ -2396,8 +3002,8 @@ virtio_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 	struct virtio_hw *hw = dev->data->dev_private;
 	uint64_t offloads = rxmode->offloads;
 
-	if (mask & ETH_VLAN_FILTER_MASK) {
-		if ((offloads & DEV_RX_OFFLOAD_VLAN_FILTER) &&
+	if (mask & RTE_ETH_VLAN_FILTER_MASK) {
+		if ((offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER) &&
 				!virtio_with_feature(hw, VIRTIO_NET_F_CTRL_VLAN)) {
 
 			PMD_DRV_LOG(NOTICE,
@@ -2407,8 +3013,8 @@ virtio_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 		}
 	}
 
-	if (mask & ETH_VLAN_STRIP_MASK)
-		hw->vlan_strip = !!(offloads & DEV_RX_OFFLOAD_VLAN_STRIP);
+	if (mask & RTE_ETH_VLAN_STRIP_MASK)
+		hw->vlan_strip = !!(offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP);
 
 	return 0;
 }
@@ -2417,6 +3023,7 @@ static int
 virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 {
 	uint64_t tso_mask, host_features;
+	uint32_t rss_hash_types = 0;
 	struct virtio_hw *hw = dev->data->dev_private;
 	dev_info->speed_capa = virtio_dev_speed_capa_get(hw->speed);
 
@@ -2427,33 +3034,75 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->min_rx_bufsize = VIRTIO_MIN_RX_BUFSIZE;
 	dev_info->max_rx_pktlen = VIRTIO_MAX_RX_PKTLEN;
 	dev_info->max_mac_addrs = VIRTIO_MAX_MAC_ADDRS;
+	dev_info->max_mtu = hw->max_mtu;
 
 	host_features = VIRTIO_OPS(hw)->get_features(hw);
-	dev_info->rx_offload_capa = DEV_RX_OFFLOAD_VLAN_STRIP;
-	dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_JUMBO_FRAME;
+	dev_info->rx_offload_capa = RTE_ETH_RX_OFFLOAD_VLAN_STRIP;
+	if (host_features & (1ULL << VIRTIO_NET_F_MRG_RXBUF))
+		dev_info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_SCATTER;
 	if (host_features & (1ULL << VIRTIO_NET_F_GUEST_CSUM)) {
 		dev_info->rx_offload_capa |=
-			DEV_RX_OFFLOAD_TCP_CKSUM |
-			DEV_RX_OFFLOAD_UDP_CKSUM;
+			RTE_ETH_RX_OFFLOAD_TCP_CKSUM |
+			RTE_ETH_RX_OFFLOAD_UDP_CKSUM;
 	}
 	if (host_features & (1ULL << VIRTIO_NET_F_CTRL_VLAN))
-		dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_VLAN_FILTER;
+		dev_info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_VLAN_FILTER;
 	tso_mask = (1ULL << VIRTIO_NET_F_GUEST_TSO4) |
 		(1ULL << VIRTIO_NET_F_GUEST_TSO6);
 	if ((host_features & tso_mask) == tso_mask)
-		dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_TCP_LRO;
+		dev_info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_TCP_LRO;
 
-	dev_info->tx_offload_capa = DEV_TX_OFFLOAD_MULTI_SEGS |
-				    DEV_TX_OFFLOAD_VLAN_INSERT;
+	dev_info->tx_offload_capa = RTE_ETH_TX_OFFLOAD_MULTI_SEGS |
+				    RTE_ETH_TX_OFFLOAD_VLAN_INSERT;
 	if (host_features & (1ULL << VIRTIO_NET_F_CSUM)) {
 		dev_info->tx_offload_capa |=
-			DEV_TX_OFFLOAD_UDP_CKSUM |
-			DEV_TX_OFFLOAD_TCP_CKSUM;
+			RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+			RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
 	}
 	tso_mask = (1ULL << VIRTIO_NET_F_HOST_TSO4) |
 		(1ULL << VIRTIO_NET_F_HOST_TSO6);
 	if ((host_features & tso_mask) == tso_mask)
-		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
+		dev_info->tx_offload_capa |= RTE_ETH_TX_OFFLOAD_TCP_TSO;
+
+	if (host_features & (1ULL << VIRTIO_NET_F_RSS)) {
+		virtio_dev_get_rss_config(hw, &rss_hash_types);
+		dev_info->hash_key_size = VIRTIO_NET_RSS_KEY_SIZE;
+		dev_info->reta_size = VIRTIO_NET_RSS_RETA_SIZE;
+		dev_info->flow_type_rss_offloads =
+			virtio_to_ethdev_rss_offloads(rss_hash_types);
+	} else {
+		dev_info->hash_key_size = 0;
+		dev_info->reta_size = 0;
+		dev_info->flow_type_rss_offloads = 0;
+	}
+
+	if (host_features & (1ULL << VIRTIO_F_RING_PACKED)) {
+		/*
+		 * According to 2.7 Packed Virtqueues,
+		 * 2.7.10.1 Structure Size and Alignment:
+		 * The Queue Size value does not have to be a power of 2.
+		 */
+		dev_info->rx_desc_lim.nb_max = UINT16_MAX;
+		dev_info->tx_desc_lim.nb_max = UINT16_MAX;
+	} else {
+		/*
+		 * According to 2.6 Split Virtqueues:
+		 * Queue Size value is always a power of 2. The maximum Queue
+		 * Size value is 32768.
+		 */
+		dev_info->rx_desc_lim.nb_max = 32768;
+		dev_info->tx_desc_lim.nb_max = 32768;
+	}
+	/*
+	 * Actual minimum is not the same for virtqueues of different kinds,
+	 * but to avoid tangling the code with separate branches, rely on
+	 * default thresholds since desc number must be at least of their size.
+	 */
+	dev_info->rx_desc_lim.nb_min = RTE_MAX(DEFAULT_RX_FREE_THRESH,
+					       RTE_VIRTIO_VPMD_RX_REARM_THRESH);
+	dev_info->tx_desc_lim.nb_min = DEFAULT_TX_FREE_THRESH;
+	dev_info->rx_desc_lim.nb_align = 1;
+	dev_info->tx_desc_lim.nb_align = 1;
 
 	return 0;
 }
@@ -2469,5 +3118,5 @@ __rte_unused uint8_t is_rx)
 	return 0;
 }
 
-RTE_LOG_REGISTER(virtio_logtype_init, pmd.net.virtio.init, NOTICE);
-RTE_LOG_REGISTER(virtio_logtype_driver, pmd.net.virtio.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(virtio_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(virtio_logtype_driver, driver, NOTICE);

@@ -44,7 +44,7 @@
 #define FM10K_TX_MAX_MTU_SEG UINT8_MAX
 
 /*
- * byte aligment for HW RX data buffer
+ * byte alignment for HW RX data buffer
  * Datasheet requires RX buffer addresses shall either be 512-byte aligned or
  * be 8-byte aligned but without crossing host memory pages (4KB alignment
  * boundaries). Satisfy first option.
@@ -80,8 +80,6 @@
 #define FM10K_TX_RS_THRESH_MAX(txq)        \
 	RTE_MIN(((txq)->nb_desc - 2), (txq)->free_thresh)
 #define FM10K_TX_RS_THRESH_DIV(txq)        ((txq)->nb_desc)
-
-#define FM10K_VLAN_TAG_SIZE 4
 
 /* Maximum number of MAC addresses per PF/VF */
 #define FM10K_MAX_MACADDR_NUM       64
@@ -177,7 +175,7 @@ struct fm10k_rx_queue {
 	uint8_t drop_en;
 	uint8_t rx_deferred_start; /* don't start this queue in dev start. */
 	uint16_t rx_ftag_en; /* indicates FTAG RX supported */
-	uint64_t offloads; /* offloads of DEV_RX_OFFLOAD_* */
+	uint64_t offloads; /* offloads of RTE_ETH_RX_OFFLOAD_* */
 };
 
 /*
@@ -209,7 +207,7 @@ struct fm10k_tx_queue {
 	uint16_t next_rs; /* Next pos to set RS flag */
 	uint16_t next_dd; /* Next pos to check DD flag */
 	volatile uint32_t *tail_ptr;
-	uint64_t offloads; /* Offloads of DEV_TX_OFFLOAD_* */
+	uint64_t offloads; /* Offloads of RTE_ETH_TX_OFFLOAD_* */
 	uint16_t nb_desc;
 	uint16_t port_id;
 	uint8_t tx_deferred_start; /** don't start this queue in dev start. */
@@ -324,10 +322,7 @@ uint16_t fm10k_recv_scattered_pkts(void *rx_queue,
 		struct rte_mbuf **rx_pkts, uint16_t nb_pkts);
 
 uint32_t
-fm10k_dev_rx_queue_count(struct rte_eth_dev *dev, uint16_t rx_queue_id);
-
-int
-fm10k_dev_rx_descriptor_done(void *rx_queue, uint16_t offset);
+fm10k_dev_rx_queue_count(void *rx_queue);
 
 int
 fm10k_dev_rx_descriptor_status(void *rx_queue, uint16_t offset);

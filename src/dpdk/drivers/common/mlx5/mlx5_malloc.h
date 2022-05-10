@@ -19,7 +19,7 @@ extern "C" {
 
 enum mlx5_mem_flags {
 	MLX5_MEM_ANY = 0,
-	/* Memory will be allocated dpends on sys_mem_en. */
+	/* Memory will be allocated depends on sys_mem_en. */
 	MLX5_MEM_SYS = 1 << 0,
 	/* Memory should be allocated from system. */
 	MLX5_MEM_RTE = 1 << 1,
@@ -38,7 +38,6 @@ enum mlx5_mem_flags {
  * @param sys_mem_en
  *   Use system memory or not.
  */
-__rte_internal
 void mlx5_malloc_mem_select(uint32_t sys_mem_en);
 
 /**

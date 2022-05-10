@@ -1,5 +1,6 @@
-// SPDX-License-Identifier: BSD-3-Clause
-/* Copyright 2018 Mellanox Technologies, Ltd */
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright 2018 Mellanox Technologies, Ltd
+ */
 
 #include <unistd.h>
 
@@ -9,9 +10,44 @@
 
 #include "mlx5_prm.h"
 #include "mlx5_devx_cmds.h"
-#include "mlx5_common_utils.h"
+#include "mlx5_common_log.h"
 #include "mlx5_malloc.h"
 
+static void *
+mlx5_devx_get_hca_cap(void *ctx, uint32_t *in, uint32_t *out,
+		      int *err, uint32_t flags)
+{
+	const size_t size_in = MLX5_ST_SZ_DW(query_hca_cap_in) * sizeof(int);
+	const size_t size_out = MLX5_ST_SZ_DW(query_hca_cap_out) * sizeof(int);
+	int status, syndrome, rc;
+
+	if (err)
+		*err = 0;
+	memset(in, 0, size_in);
+	memset(out, 0, size_out);
+	MLX5_SET(query_hca_cap_in, in, opcode, MLX5_CMD_OP_QUERY_HCA_CAP);
+	MLX5_SET(query_hca_cap_in, in, op_mod, flags);
+	rc = mlx5_glue->devx_general_cmd(ctx, in, size_in, out, size_out);
+	if (rc) {
+		DRV_LOG(ERR,
+			"Failed to query devx HCA capabilities func %#02x",
+			flags >> 1);
+		if (err)
+			*err = rc > 0 ? -rc : rc;
+		return NULL;
+	}
+	status = MLX5_GET(query_hca_cap_out, out, status);
+	syndrome = MLX5_GET(query_hca_cap_out, out, syndrome);
+	if (status) {
+		DRV_LOG(ERR,
+			"Failed to query devx HCA capabilities func %#02x status %x, syndrome = %x",
+			flags >> 1, status, syndrome);
+		if (err)
+			*err = -1;
+		return NULL;
+	}
+	return MLX5_ADDR_OF(query_hca_cap_out, out, capability);
+}
 
 /**
  * Perform read access to the registers. Reads data from register
@@ -53,21 +89,85 @@ mlx5_devx_cmd_register_read(void *ctx, uint16_t reg_id, uint32_t arg,
 	MLX5_SET(access_register_in, in, register_id, reg_id);
 	MLX5_SET(access_register_in, in, argument, arg);
 	rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in), out,
-					 MLX5_ST_SZ_DW(access_register_out) *
-					 sizeof(uint32_t) + dw_cnt);
+					 MLX5_ST_SZ_BYTES(access_register_out) +
+					 sizeof(uint32_t) * dw_cnt);
 	if (rc)
 		goto error;
 	status = MLX5_GET(access_register_out, out, status);
 	if (status) {
 		int syndrome = MLX5_GET(access_register_out, out, syndrome);
 
-		DRV_LOG(DEBUG, "Failed to access NIC register 0x%X, "
+		DRV_LOG(DEBUG, "Failed to read access NIC register 0x%X, "
 			       "status %x, syndrome = %x",
 			       reg_id, status, syndrome);
 		return -1;
 	}
 	memcpy(data, &out[MLX5_ST_SZ_DW(access_register_out)],
 	       dw_cnt * sizeof(uint32_t));
+	return 0;
+error:
+	rc = (rc > 0) ? -rc : rc;
+	return rc;
+}
+
+/**
+ * Perform write access to the registers.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param[in] reg_id
+ *   Register identifier according to the PRM.
+ * @param[in] arg
+ *   Register access auxiliary parameter according to the PRM.
+ * @param[out] data
+ *   Pointer to the buffer containing data to write.
+ * @param[in] dw_cnt
+ *   Buffer size in double words (32bit units).
+ *
+ * @return
+ *   0 on success, a negative value otherwise.
+ */
+int
+mlx5_devx_cmd_register_write(void *ctx, uint16_t reg_id, uint32_t arg,
+			     uint32_t *data, uint32_t dw_cnt)
+{
+	uint32_t in[MLX5_ST_SZ_DW(access_register_in) +
+		    MLX5_ACCESS_REGISTER_DATA_DWORD_MAX] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(access_register_out)] = {0};
+	int status, rc;
+	void *ptr;
+
+	MLX5_ASSERT(data && dw_cnt);
+	MLX5_ASSERT(dw_cnt <= MLX5_ACCESS_REGISTER_DATA_DWORD_MAX);
+	if (dw_cnt > MLX5_ACCESS_REGISTER_DATA_DWORD_MAX) {
+		DRV_LOG(ERR, "Data to write exceeds max size");
+		return -1;
+	}
+	MLX5_SET(access_register_in, in, opcode,
+		 MLX5_CMD_OP_ACCESS_REGISTER_USER);
+	MLX5_SET(access_register_in, in, op_mod,
+		 MLX5_ACCESS_REGISTER_IN_OP_MOD_WRITE);
+	MLX5_SET(access_register_in, in, register_id, reg_id);
+	MLX5_SET(access_register_in, in, argument, arg);
+	ptr = MLX5_ADDR_OF(access_register_in, in, register_data);
+	memcpy(ptr, data, dw_cnt * sizeof(uint32_t));
+	rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in), out, sizeof(out));
+
+	rc = mlx5_glue->devx_general_cmd(ctx, in,
+					 MLX5_ST_SZ_BYTES(access_register_in) +
+					 dw_cnt * sizeof(uint32_t),
+					 out, sizeof(out));
+	if (rc)
+		goto error;
+	status = MLX5_GET(access_register_out, out, status);
+	if (status) {
+		int syndrome = MLX5_GET(access_register_out, out, syndrome);
+
+		DRV_LOG(DEBUG, "Failed to write access NIC register 0x%X, "
+			       "status %x, syndrome = %x",
+			       reg_id, status, syndrome);
+		return -1;
+	}
 	return 0;
 error:
 	rc = (rc > 0) ? -rc : rc;
@@ -263,19 +363,29 @@ mlx5_devx_cmd_mkey_create(void *ctx,
 	MLX5_SET(create_mkey_in, in, pg_access, attr->pg_access);
 	MLX5_SET(mkc, mkc, lw, 0x1);
 	MLX5_SET(mkc, mkc, lr, 0x1);
+	if (attr->set_remote_rw) {
+		MLX5_SET(mkc, mkc, rw, 0x1);
+		MLX5_SET(mkc, mkc, rr, 0x1);
+	}
 	MLX5_SET(mkc, mkc, qpn, 0xffffff);
 	MLX5_SET(mkc, mkc, pd, attr->pd);
 	MLX5_SET(mkc, mkc, mkey_7_0, attr->umem_id & 0xFF);
+	MLX5_SET(mkc, mkc, umr_en, attr->umr_en);
 	MLX5_SET(mkc, mkc, translations_octword_size, translation_size);
 	MLX5_SET(mkc, mkc, relaxed_ordering_write,
 		 attr->relaxed_ordering_write);
 	MLX5_SET(mkc, mkc, relaxed_ordering_read, attr->relaxed_ordering_read);
 	MLX5_SET64(mkc, mkc, start_addr, attr->addr);
 	MLX5_SET64(mkc, mkc, len, attr->size);
+	MLX5_SET(mkc, mkc, crypto_en, attr->crypto_en);
+	if (attr->crypto_en) {
+		MLX5_SET(mkc, mkc, bsf_en, attr->crypto_en);
+		MLX5_SET(mkc, mkc, bsf_octword_size, 4);
+	}
 	mkey->obj = mlx5_glue->devx_obj_create(ctx, in, in_size_dw * 4, out,
 					       sizeof(out));
 	if (!mkey->obj) {
-		DRV_LOG(ERR, "Can't create %sdirect mkey - error %d\n",
+		DRV_LOG(ERR, "Can't create %sdirect mkey - error %d",
 			klm_num ? "an in" : "a ", errno);
 		rte_errno = errno;
 		mlx5_free(mkey);
@@ -398,21 +508,15 @@ static void
 mlx5_devx_cmd_query_hca_vdpa_attr(void *ctx,
 				  struct mlx5_hca_vdpa_attr *vdpa_attr)
 {
-	uint32_t in[MLX5_ST_SZ_DW(query_hca_cap_in)] = {0};
-	uint32_t out[MLX5_ST_SZ_DW(query_hca_cap_out)] = {0};
-	void *hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
-	int status, syndrome, rc;
+	uint32_t in[MLX5_ST_SZ_DW(query_hca_cap_in)];
+	uint32_t out[MLX5_ST_SZ_DW(query_hca_cap_out)];
+	void *hcattr;
 
-	MLX5_SET(query_hca_cap_in, in, opcode, MLX5_CMD_OP_QUERY_HCA_CAP);
-	MLX5_SET(query_hca_cap_in, in, op_mod,
-		 MLX5_GET_HCA_CAP_OP_MOD_VDPA_EMULATION |
-		 MLX5_HCA_CAP_OPMOD_GET_CUR);
-	rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in), out, sizeof(out));
-	status = MLX5_GET(query_hca_cap_out, out, status);
-	syndrome = MLX5_GET(query_hca_cap_out, out, syndrome);
-	if (rc || status) {
-		RTE_LOG(DEBUG, PMD, "Failed to query devx VDPA capabilities,"
-			" status %x, syndrome = %x", status, syndrome);
+	hcattr = mlx5_devx_get_hca_cap(ctx, in, out, NULL,
+			MLX5_GET_HCA_CAP_OP_MOD_VDPA_EMULATION |
+			MLX5_HCA_CAP_OPMOD_GET_CUR);
+	if (!hcattr) {
+		RTE_LOG(DEBUG, PMD, "Failed to query devx VDPA capabilities");
 		vdpa_attr->valid = 0;
 	} else {
 		vdpa_attr->valid = 1;
@@ -516,10 +620,9 @@ mlx5_devx_cmd_query_parse_samples(struct mlx5_devx_obj *flex_obj,
 	return ret;
 }
 
-
 struct mlx5_devx_obj *
 mlx5_devx_cmd_create_flex_parser(void *ctx,
-			      struct mlx5_devx_graph_node_attr *data)
+				 struct mlx5_devx_graph_node_attr *data)
 {
 	uint32_t in[MLX5_ST_SZ_DW(create_flex_parser_in)] = {0};
 	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)] = {0};
@@ -543,12 +646,18 @@ mlx5_devx_cmd_create_flex_parser(void *ctx,
 		 MLX5_GENERAL_OBJ_TYPE_FLEX_PARSE_GRAPH);
 	MLX5_SET(parse_graph_flex, flex, header_length_mode,
 		 data->header_length_mode);
+	MLX5_SET64(parse_graph_flex, flex, modify_field_select,
+		   data->modify_field_select);
 	MLX5_SET(parse_graph_flex, flex, header_length_base_value,
 		 data->header_length_base_value);
 	MLX5_SET(parse_graph_flex, flex, header_length_field_offset,
 		 data->header_length_field_offset);
 	MLX5_SET(parse_graph_flex, flex, header_length_field_shift,
 		 data->header_length_field_shift);
+	MLX5_SET(parse_graph_flex, flex, next_header_field_offset,
+		 data->next_header_field_offset);
+	MLX5_SET(parse_graph_flex, flex, next_header_field_size,
+		 data->next_header_field_size);
 	MLX5_SET(parse_graph_flex, flex, header_length_field_mask,
 		 data->header_length_field_mask);
 	for (i = 0; i < MLX5_GRAPH_NODE_SAMPLE_NUM; i++) {
@@ -625,6 +734,76 @@ mlx5_devx_cmd_create_flex_parser(void *ctx,
 	return parse_flex_obj;
 }
 
+static int
+mlx5_devx_cmd_query_hca_parse_graph_node_cap
+	(void *ctx, struct mlx5_hca_flex_attr *attr)
+{
+	uint32_t in[MLX5_ST_SZ_DW(query_hca_cap_in)];
+	uint32_t out[MLX5_ST_SZ_DW(query_hca_cap_out)];
+	void *hcattr;
+	int rc;
+
+	hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+			MLX5_GET_HCA_CAP_OP_MOD_PARSE_GRAPH_NODE_CAP |
+			MLX5_HCA_CAP_OPMOD_GET_CUR);
+	if (!hcattr)
+		return rc;
+	attr->node_in = MLX5_GET(parse_graph_node_cap, hcattr, node_in);
+	attr->node_out = MLX5_GET(parse_graph_node_cap, hcattr, node_out);
+	attr->header_length_mode = MLX5_GET(parse_graph_node_cap, hcattr,
+					    header_length_mode);
+	attr->sample_offset_mode = MLX5_GET(parse_graph_node_cap, hcattr,
+					    sample_offset_mode);
+	attr->max_num_arc_in = MLX5_GET(parse_graph_node_cap, hcattr,
+					max_num_arc_in);
+	attr->max_num_arc_out = MLX5_GET(parse_graph_node_cap, hcattr,
+					 max_num_arc_out);
+	attr->max_num_sample = MLX5_GET(parse_graph_node_cap, hcattr,
+					max_num_sample);
+	attr->sample_id_in_out = MLX5_GET(parse_graph_node_cap, hcattr,
+					  sample_id_in_out);
+	attr->max_base_header_length = MLX5_GET(parse_graph_node_cap, hcattr,
+						max_base_header_length);
+	attr->max_sample_base_offset = MLX5_GET(parse_graph_node_cap, hcattr,
+						max_sample_base_offset);
+	attr->max_next_header_offset = MLX5_GET(parse_graph_node_cap, hcattr,
+						max_next_header_offset);
+	attr->header_length_mask_width = MLX5_GET(parse_graph_node_cap, hcattr,
+						  header_length_mask_width);
+	/* Get the max supported samples from HCA CAP 2 */
+	hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+			MLX5_GET_HCA_CAP_OP_MOD_GENERAL_DEVICE_2 |
+			MLX5_HCA_CAP_OPMOD_GET_CUR);
+	if (!hcattr)
+		return rc;
+	attr->max_num_prog_sample =
+		MLX5_GET(cmd_hca_cap_2, hcattr,	max_num_prog_sample_field);
+	return 0;
+}
+
+static int
+mlx5_devx_query_pkt_integrity_match(void *hcattr)
+{
+	return MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive.inner_l3_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive.inner_l4_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive.outer_l3_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive.outer_l4_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive
+				.inner_ipv4_checksum_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive.inner_l4_checksum_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive
+				.outer_ipv4_checksum_ok) &&
+	       MLX5_GET(flow_table_nic_cap, hcattr,
+			ft_field_support_2_nic_receive.outer_l4_checksum_ok);
+}
+
 /**
  * Query HCA attributes.
  * Using those attributes we can check on run time if the device
@@ -644,30 +823,24 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 {
 	uint32_t in[MLX5_ST_SZ_DW(query_hca_cap_in)] = {0};
 	uint32_t out[MLX5_ST_SZ_DW(query_hca_cap_out)] = {0};
+	bool hca_cap_2_sup;
+	uint64_t general_obj_types_supported = 0;
 	void *hcattr;
-	int status, syndrome, rc, i;
+	int rc, i;
 
-	MLX5_SET(query_hca_cap_in, in, opcode, MLX5_CMD_OP_QUERY_HCA_CAP);
-	MLX5_SET(query_hca_cap_in, in, op_mod,
-		 MLX5_GET_HCA_CAP_OP_MOD_GENERAL_DEVICE |
-		 MLX5_HCA_CAP_OPMOD_GET_CUR);
-
-	rc = mlx5_glue->devx_general_cmd(ctx,
-					 in, sizeof(in), out, sizeof(out));
-	if (rc)
-		goto error;
-	status = MLX5_GET(query_hca_cap_out, out, status);
-	syndrome = MLX5_GET(query_hca_cap_out, out, syndrome);
-	if (status) {
-		DRV_LOG(DEBUG, "Failed to query devx HCA capabilities, "
-			"status %x, syndrome = %x", status, syndrome);
-		return -1;
-	}
-	hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
+	hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+			MLX5_GET_HCA_CAP_OP_MOD_GENERAL_DEVICE |
+			MLX5_HCA_CAP_OPMOD_GET_CUR);
+	if (!hcattr)
+		return rc;
+	hca_cap_2_sup = MLX5_GET(cmd_hca_cap, hcattr, hca_cap_2);
+	attr->max_wqe_sz_sq = MLX5_GET(cmd_hca_cap, hcattr, max_wqe_sz_sq);
 	attr->flow_counter_bulk_alloc_bitmap =
 			MLX5_GET(cmd_hca_cap, hcattr, flow_counter_bulk_alloc);
 	attr->flow_counters_dump = MLX5_GET(cmd_hca_cap, hcattr,
 					    flow_counters_dump);
+	attr->log_max_rmp = MLX5_GET(cmd_hca_cap, hcattr, log_max_rmp);
+	attr->mem_rq_rmp = MLX5_GET(cmd_hca_cap, hcattr, mem_rq_rmp);
 	attr->log_max_rqt_size = MLX5_GET(cmd_hca_cap, hcattr,
 					  log_max_rqt_size);
 	attr->eswitch_manager = MLX5_GET(cmd_hca_cap, hcattr, eswitch_manager);
@@ -695,6 +868,9 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 	attr->max_geneve_tlv_option_data_len = MLX5_GET(cmd_hca_cap, hcattr,
 			max_geneve_tlv_option_data_len);
 	attr->qos.sup = MLX5_GET(cmd_hca_cap, hcattr, qos);
+	attr->qos.flow_meter_aso_sup = !!(MLX5_GET64(cmd_hca_cap, hcattr,
+					 general_obj_types) &
+			      MLX5_GENERAL_OBJ_TYPES_CAP_FLOW_METER_ASO);
 	attr->vdpa.valid = !!(MLX5_GET64(cmd_hca_cap, hcattr,
 					 general_obj_types) &
 			      MLX5_GENERAL_OBJ_TYPES_CAP_VIRTQ_NET_Q);
@@ -718,15 +894,36 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 	attr->roce = MLX5_GET(cmd_hca_cap, hcattr, roce);
 	attr->rq_ts_format = MLX5_GET(cmd_hca_cap, hcattr, rq_ts_format);
 	attr->sq_ts_format = MLX5_GET(cmd_hca_cap, hcattr, sq_ts_format);
-	attr->regex = MLX5_GET(cmd_hca_cap, hcattr, regexp);
+	attr->steering_format_version =
+		MLX5_GET(cmd_hca_cap, hcattr, steering_format_version);
+	attr->regexp_params = MLX5_GET(cmd_hca_cap, hcattr, regexp_params);
+	attr->regexp_version = MLX5_GET(cmd_hca_cap, hcattr, regexp_version);
 	attr->regexp_num_of_engines = MLX5_GET(cmd_hca_cap, hcattr,
 					       regexp_num_of_engines);
-	attr->flow_hit_aso = !!(MLX5_GET64(cmd_hca_cap, hcattr,
-					   general_obj_types) &
+	/* Read the general_obj_types bitmap and extract the relevant bits. */
+	general_obj_types_supported = MLX5_GET64(cmd_hca_cap, hcattr,
+						 general_obj_types);
+	attr->vdpa.valid = !!(general_obj_types_supported &
+			      MLX5_GENERAL_OBJ_TYPES_CAP_VIRTQ_NET_Q);
+	attr->vdpa.queue_counters_valid =
+			!!(general_obj_types_supported &
+			   MLX5_GENERAL_OBJ_TYPES_CAP_VIRTIO_Q_COUNTERS);
+	attr->parse_graph_flex_node =
+			!!(general_obj_types_supported &
+			   MLX5_GENERAL_OBJ_TYPES_CAP_PARSE_GRAPH_FLEX_NODE);
+	attr->flow_hit_aso = !!(general_obj_types_supported &
 				MLX5_GENERAL_OBJ_TYPES_CAP_FLOW_HIT_ASO);
-	attr->geneve_tlv_opt = !!(MLX5_GET64(cmd_hca_cap, hcattr,
-					   general_obj_types) &
-				MLX5_GENERAL_OBJ_TYPES_CAP_GENEVE_TLV_OPT);
+	attr->geneve_tlv_opt = !!(general_obj_types_supported &
+				  MLX5_GENERAL_OBJ_TYPES_CAP_GENEVE_TLV_OPT);
+	attr->dek = !!(general_obj_types_supported &
+		       MLX5_GENERAL_OBJ_TYPES_CAP_DEK);
+	attr->import_kek = !!(general_obj_types_supported &
+			      MLX5_GENERAL_OBJ_TYPES_CAP_IMPORT_KEK);
+	attr->credential = !!(general_obj_types_supported &
+			      MLX5_GENERAL_OBJ_TYPES_CAP_CREDENTIAL);
+	attr->crypto_login = !!(general_obj_types_supported &
+				MLX5_GENERAL_OBJ_TYPES_CAP_CRYPTO_LOGIN);
+	/* Add reading of other GENERAL_OBJ_TYPES_CAP bits above this line. */
 	attr->log_max_cq = MLX5_GET(cmd_hca_cap, hcattr, log_max_cq);
 	attr->log_max_qp = MLX5_GET(cmd_hca_cap, hcattr, log_max_qp);
 	attr->log_max_cq_sz = MLX5_GET(cmd_hca_cap, hcattr, log_max_cq_sz);
@@ -737,9 +934,18 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 	attr->log_max_srq_sz = MLX5_GET(cmd_hca_cap, hcattr, log_max_srq_sz);
 	attr->reg_c_preserve =
 		MLX5_GET(cmd_hca_cap, hcattr, reg_c_preserve);
-	attr->mmo_dma_en = MLX5_GET(cmd_hca_cap, hcattr, dma_mmo);
-	attr->mmo_compress_en = MLX5_GET(cmd_hca_cap, hcattr, compress);
-	attr->mmo_decompress_en = MLX5_GET(cmd_hca_cap, hcattr, decompress);
+	attr->mmo_regex_qp_en = MLX5_GET(cmd_hca_cap, hcattr, regexp_mmo_qp);
+	attr->mmo_regex_sq_en = MLX5_GET(cmd_hca_cap, hcattr, regexp_mmo_sq);
+	attr->mmo_dma_sq_en = MLX5_GET(cmd_hca_cap, hcattr, dma_mmo_sq);
+	attr->mmo_compress_sq_en = MLX5_GET(cmd_hca_cap, hcattr,
+			compress_mmo_sq);
+	attr->mmo_decompress_sq_en = MLX5_GET(cmd_hca_cap, hcattr,
+			decompress_mmo_sq);
+	attr->mmo_dma_qp_en = MLX5_GET(cmd_hca_cap, hcattr, dma_mmo_qp);
+	attr->mmo_compress_qp_en = MLX5_GET(cmd_hca_cap, hcattr,
+			compress_mmo_qp);
+	attr->mmo_decompress_qp_en = MLX5_GET(cmd_hca_cap, hcattr,
+			decompress_mmo_qp);
 	attr->compress_min_block_size = MLX5_GET(cmd_hca_cap, hcattr,
 						 compress_min_block_size);
 	attr->log_max_mmo_dma = MLX5_GET(cmd_hca_cap, hcattr, log_dma_mmo_size);
@@ -752,20 +958,40 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 						mini_cqe_resp_flow_tag);
 	attr->mini_cqe_resp_l3_l4_tag = MLX5_GET(cmd_hca_cap, hcattr,
 						 mini_cqe_resp_l3_l4_tag);
-	if (attr->qos.sup) {
-		MLX5_SET(query_hca_cap_in, in, op_mod,
-			 MLX5_GET_HCA_CAP_OP_MOD_QOS_CAP |
-			 MLX5_HCA_CAP_OPMOD_GET_CUR);
-		rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in),
-						 out, sizeof(out));
-		if (rc)
-			goto error;
-		if (status) {
-			DRV_LOG(DEBUG, "Failed to query devx QOS capabilities,"
-				" status %x, syndrome = %x", status, syndrome);
-			return -1;
+	attr->umr_indirect_mkey_disabled =
+		MLX5_GET(cmd_hca_cap, hcattr, umr_indirect_mkey_disabled);
+	attr->umr_modify_entity_size_disabled =
+		MLX5_GET(cmd_hca_cap, hcattr, umr_modify_entity_size_disabled);
+	attr->wait_on_time = MLX5_GET(cmd_hca_cap, hcattr, wait_on_time);
+	attr->crypto = MLX5_GET(cmd_hca_cap, hcattr, crypto);
+	if (attr->crypto)
+		attr->aes_xts = MLX5_GET(cmd_hca_cap, hcattr, aes_xts);
+	attr->ct_offload = !!(MLX5_GET64(cmd_hca_cap, hcattr,
+					 general_obj_types) &
+			      MLX5_GENERAL_OBJ_TYPES_CAP_CONN_TRACK_OFFLOAD);
+	attr->rq_delay_drop = MLX5_GET(cmd_hca_cap, hcattr, rq_delay_drop);
+	if (hca_cap_2_sup) {
+		hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+				MLX5_GET_HCA_CAP_OP_MOD_GENERAL_DEVICE_2 |
+				MLX5_HCA_CAP_OPMOD_GET_CUR);
+		if (!hcattr) {
+			DRV_LOG(DEBUG,
+				"Failed to query DevX HCA capabilities 2.");
+			return rc;
 		}
-		hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
+		attr->log_min_stride_wqe_sz = MLX5_GET(cmd_hca_cap_2, hcattr,
+						       log_min_stride_wqe_sz);
+	}
+	if (attr->log_min_stride_wqe_sz == 0)
+		attr->log_min_stride_wqe_sz = MLX5_MPRQ_LOG_MIN_STRIDE_WQE_SIZE;
+	if (attr->qos.sup) {
+		hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+				MLX5_GET_HCA_CAP_OP_MOD_QOS_CAP |
+				MLX5_HCA_CAP_OPMOD_GET_CUR);
+		if (!hcattr) {
+			DRV_LOG(DEBUG, "Failed to query devx QOS capabilities");
+			return rc;
+		}
 		attr->qos.flow_meter_old =
 				MLX5_GET(qos_cap, hcattr, flow_meter_old);
 		attr->qos.log_max_flow_meter =
@@ -778,66 +1004,92 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 				MLX5_GET(qos_cap, hcattr, packet_pacing);
 		attr->qos.wqe_rate_pp =
 				MLX5_GET(qos_cap, hcattr, wqe_rate_pp);
+		if (attr->qos.flow_meter_aso_sup) {
+			attr->qos.log_meter_aso_granularity =
+				MLX5_GET(qos_cap, hcattr,
+					log_meter_aso_granularity);
+			attr->qos.log_meter_aso_max_alloc =
+				MLX5_GET(qos_cap, hcattr,
+					log_meter_aso_max_alloc);
+			attr->qos.log_max_num_meter_aso =
+				MLX5_GET(qos_cap, hcattr,
+					log_max_num_meter_aso);
+		}
+	}
+	/*
+	 * Flex item support needs max_num_prog_sample_field
+	 * from the Capabilities 2 table for PARSE_GRAPH_NODE
+	 */
+	if (attr->parse_graph_flex_node) {
+		rc = mlx5_devx_cmd_query_hca_parse_graph_node_cap
+			(ctx, &attr->flex);
+		if (rc)
+			return -1;
 	}
 	if (attr->vdpa.valid)
 		mlx5_devx_cmd_query_hca_vdpa_attr(ctx, &attr->vdpa);
 	if (!attr->eth_net_offloads)
 		return 0;
-
 	/* Query Flow Sampler Capability From FLow Table Properties Layout. */
-	memset(in, 0, sizeof(in));
-	memset(out, 0, sizeof(out));
-	MLX5_SET(query_hca_cap_in, in, opcode, MLX5_CMD_OP_QUERY_HCA_CAP);
-	MLX5_SET(query_hca_cap_in, in, op_mod,
-		 MLX5_GET_HCA_CAP_OP_MOD_NIC_FLOW_TABLE |
-		 MLX5_HCA_CAP_OPMOD_GET_CUR);
-
-	rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in), out, sizeof(out));
-	if (rc)
-		goto error;
-	status = MLX5_GET(query_hca_cap_out, out, status);
-	syndrome = MLX5_GET(query_hca_cap_out, out, syndrome);
-	if (status) {
-		DRV_LOG(DEBUG, "Failed to query devx HCA capabilities, "
-			"status %x, syndrome = %x", status, syndrome);
+	hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+			MLX5_GET_HCA_CAP_OP_MOD_NIC_FLOW_TABLE |
+			MLX5_HCA_CAP_OPMOD_GET_CUR);
+	if (!hcattr) {
 		attr->log_max_ft_sampler_num = 0;
-		return -1;
+		return rc;
 	}
-	hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
-	attr->log_max_ft_sampler_num =
-			MLX5_GET(flow_table_nic_cap,
-			hcattr, flow_table_properties.log_max_ft_sampler_num);
-
+	attr->log_max_ft_sampler_num = MLX5_GET
+		(flow_table_nic_cap, hcattr,
+		 flow_table_properties_nic_receive.log_max_ft_sampler_num);
+	attr->flow.tunnel_header_0_1 = MLX5_GET
+		(flow_table_nic_cap, hcattr,
+		 ft_field_support_2_nic_receive.tunnel_header_0_1);
+	attr->flow.tunnel_header_2_3 = MLX5_GET
+		(flow_table_nic_cap, hcattr,
+		 ft_field_support_2_nic_receive.tunnel_header_2_3);
+	attr->pkt_integrity_match = mlx5_devx_query_pkt_integrity_match(hcattr);
+	attr->inner_ipv4_ihl = MLX5_GET
+		(flow_table_nic_cap, hcattr,
+		 ft_field_support_2_nic_receive.inner_ipv4_ihl);
+	attr->outer_ipv4_ihl = MLX5_GET
+		(flow_table_nic_cap, hcattr,
+		 ft_field_support_2_nic_receive.outer_ipv4_ihl);
 	/* Query HCA offloads for Ethernet protocol. */
-	memset(in, 0, sizeof(in));
-	memset(out, 0, sizeof(out));
-	MLX5_SET(query_hca_cap_in, in, opcode, MLX5_CMD_OP_QUERY_HCA_CAP);
-	MLX5_SET(query_hca_cap_in, in, op_mod,
-		 MLX5_GET_HCA_CAP_OP_MOD_ETHERNET_OFFLOAD_CAPS |
-		 MLX5_HCA_CAP_OPMOD_GET_CUR);
-
-	rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in), out, sizeof(out));
-	if (rc) {
+	hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+			MLX5_GET_HCA_CAP_OP_MOD_ETHERNET_OFFLOAD_CAPS |
+			MLX5_HCA_CAP_OPMOD_GET_CUR);
+	if (!hcattr) {
 		attr->eth_net_offloads = 0;
-		goto error;
+		return rc;
 	}
-	status = MLX5_GET(query_hca_cap_out, out, status);
-	syndrome = MLX5_GET(query_hca_cap_out, out, syndrome);
-	if (status) {
-		DRV_LOG(DEBUG, "Failed to query devx HCA capabilities, "
-			"status %x, syndrome = %x", status, syndrome);
-		attr->eth_net_offloads = 0;
-		return -1;
-	}
-	hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
 	attr->wqe_vlan_insert = MLX5_GET(per_protocol_networking_offload_caps,
 					 hcattr, wqe_vlan_insert);
+	attr->csum_cap = MLX5_GET(per_protocol_networking_offload_caps,
+					 hcattr, csum_cap);
+	attr->vlan_cap = MLX5_GET(per_protocol_networking_offload_caps,
+					 hcattr, vlan_cap);
 	attr->lro_cap = MLX5_GET(per_protocol_networking_offload_caps, hcattr,
 				 lro_cap);
+	attr->max_lso_cap = MLX5_GET(per_protocol_networking_offload_caps,
+				 hcattr, max_lso_cap);
+	attr->scatter_fcs = MLX5_GET(per_protocol_networking_offload_caps,
+				 hcattr, scatter_fcs);
 	attr->tunnel_lro_gre = MLX5_GET(per_protocol_networking_offload_caps,
 					hcattr, tunnel_lro_gre);
 	attr->tunnel_lro_vxlan = MLX5_GET(per_protocol_networking_offload_caps,
 					  hcattr, tunnel_lro_vxlan);
+	attr->swp = MLX5_GET(per_protocol_networking_offload_caps,
+					  hcattr, swp);
+	attr->tunnel_stateless_gre =
+				MLX5_GET(per_protocol_networking_offload_caps,
+					  hcattr, tunnel_stateless_gre);
+	attr->tunnel_stateless_vxlan =
+				MLX5_GET(per_protocol_networking_offload_caps,
+					  hcattr, tunnel_stateless_vxlan);
+	attr->swp_csum = MLX5_GET(per_protocol_networking_offload_caps,
+					  hcattr, swp_csum);
+	attr->swp_lso = MLX5_GET(per_protocol_networking_offload_caps,
+					  hcattr, swp_lso);
 	attr->lro_max_msg_sz_mode = MLX5_GET
 					(per_protocol_networking_offload_caps,
 					 hcattr, lro_max_msg_sz_mode);
@@ -864,26 +1116,14 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 					 hcattr, rss_ind_tbl_cap);
 	/* Query HCA attribute for ROCE. */
 	if (attr->roce) {
-		memset(in, 0, sizeof(in));
-		memset(out, 0, sizeof(out));
-		MLX5_SET(query_hca_cap_in, in, opcode,
-			 MLX5_CMD_OP_QUERY_HCA_CAP);
-		MLX5_SET(query_hca_cap_in, in, op_mod,
-			 MLX5_GET_HCA_CAP_OP_MOD_ROCE |
-			 MLX5_HCA_CAP_OPMOD_GET_CUR);
-		rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in),
-						 out, sizeof(out));
-		if (rc)
-			goto error;
-		status = MLX5_GET(query_hca_cap_out, out, status);
-		syndrome = MLX5_GET(query_hca_cap_out, out, syndrome);
-		if (status) {
+		hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+				MLX5_GET_HCA_CAP_OP_MOD_ROCE |
+				MLX5_HCA_CAP_OPMOD_GET_CUR);
+		if (!hcattr) {
 			DRV_LOG(DEBUG,
-				"Failed to query devx HCA ROCE capabilities, "
-				"status %x, syndrome = %x", status, syndrome);
-			return -1;
+				"Failed to query devx HCA ROCE capabilities");
+			return rc;
 		}
-		hcattr = MLX5_ADDR_OF(query_hca_cap_out, out, capability);
 		attr->qp_ts_format = MLX5_GET(roce_caps, hcattr, qp_ts_format);
 	}
 	if (attr->eth_virt &&
@@ -893,6 +1133,18 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 			attr->eth_virt = 0;
 			goto error;
 		}
+	}
+	if (attr->eswitch_manager) {
+		hcattr = mlx5_devx_get_hca_cap(ctx, in, out, &rc,
+				MLX5_SET_HCA_CAP_OP_MOD_ESW |
+				MLX5_HCA_CAP_OPMOD_GET_CUR);
+		if (!hcattr)
+			return rc;
+		attr->esw_mgr_vport_id_valid =
+			MLX5_GET(esw_cap, hcattr,
+				 esw_manager_vport_number_valid);
+		attr->esw_mgr_vport_id =
+			MLX5_GET(esw_cap, hcattr, esw_manager_vport_number);
 	}
 	return 0;
 error:
@@ -1097,6 +1349,56 @@ mlx5_devx_cmd_modify_rq(struct mlx5_devx_obj *rq,
 }
 
 /**
+ * Create RMP using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] rmp_attr
+ *   Pointer to create RMP attributes structure.
+ * @param [in] socket
+ *   CPU socket ID for allocations.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_rmp(void *ctx,
+			 struct mlx5_devx_create_rmp_attr *rmp_attr,
+			 int socket)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_rmp_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(create_rmp_out)] = {0};
+	void *rmp_ctx, *wq_ctx;
+	struct mlx5_devx_wq_attr *wq_attr;
+	struct mlx5_devx_obj *rmp = NULL;
+
+	rmp = mlx5_malloc(MLX5_MEM_ZERO, sizeof(*rmp), 0, socket);
+	if (!rmp) {
+		DRV_LOG(ERR, "Failed to allocate RMP data");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	MLX5_SET(create_rmp_in, in, opcode, MLX5_CMD_OP_CREATE_RMP);
+	rmp_ctx = MLX5_ADDR_OF(create_rmp_in, in, ctx);
+	MLX5_SET(rmpc, rmp_ctx, state, rmp_attr->state);
+	MLX5_SET(rmpc, rmp_ctx, basic_cyclic_rcv_wqe,
+		 rmp_attr->basic_cyclic_rcv_wqe);
+	wq_ctx = MLX5_ADDR_OF(rmpc, rmp_ctx, wq);
+	wq_attr = &rmp_attr->wq_attr;
+	devx_cmd_fill_wq_data(wq_ctx, wq_attr);
+	rmp->obj = mlx5_glue->devx_obj_create(ctx, in, sizeof(in), out,
+					      sizeof(out));
+	if (!rmp->obj) {
+		DRV_LOG(ERR, "Failed to create RMP using DevX");
+		rte_errno = errno;
+		mlx5_free(rmp);
+		return NULL;
+	}
+	rmp->id = MLX5_GET(create_rmp_out, out, rmpn);
+	return rmp;
+}
+
+/*
  * Create TIR using DevX API.
  *
  * @param[in] ctx
@@ -1552,7 +1854,7 @@ mlx5_devx_cmd_create_td(void *ctx)
  *   Pointer to file stream.
  *
  * @return
- *   0 on success, a nagative value otherwise.
+ *   0 on success, a negative value otherwise.
  */
 int
 mlx5_devx_cmd_flow_dump(void *fdb_domain __rte_unused,
@@ -1573,6 +1875,20 @@ mlx5_devx_cmd_flow_dump(void *fdb_domain __rte_unused,
 		return ret;
 	MLX5_ASSERT(tx_domain);
 	ret = mlx5_glue->dr_dump_domain(file, tx_domain);
+#else
+	ret = ENOTSUP;
+#endif
+	return -ret;
+}
+
+int
+mlx5_devx_cmd_flow_single_dump(void *rule_info __rte_unused,
+			FILE *file __rte_unused)
+{
+	int ret = 0;
+#ifdef HAVE_MLX5_DR_FLOW_DUMP_RULE
+	if (rule_info)
+		ret = mlx5_glue->dr_dump_rule(file, rule_info);
 #else
 	ret = ENOTSUP;
 #endif
@@ -1854,27 +2170,38 @@ mlx5_devx_cmd_create_qp(void *ctx,
 	MLX5_SET(qpc, qpc, st, MLX5_QP_ST_RC);
 	MLX5_SET(qpc, qpc, pd, attr->pd);
 	MLX5_SET(qpc, qpc, ts_format, attr->ts_format);
+	MLX5_SET(qpc, qpc, user_index, attr->user_index);
 	if (attr->uar_index) {
+		if (attr->mmo) {
+			void *qpc_ext_and_pas_list = MLX5_ADDR_OF(create_qp_in,
+				in, qpc_extension_and_pas_list);
+			void *qpc_ext = MLX5_ADDR_OF(qpc_extension_and_pas_list,
+				qpc_ext_and_pas_list, qpc_data_extension);
+
+			MLX5_SET(create_qp_in, in, qpc_ext, 1);
+			MLX5_SET(qpc_extension, qpc_ext, mmo, 1);
+		}
 		MLX5_SET(qpc, qpc, pm_state, MLX5_QP_PM_MIGRATED);
 		MLX5_SET(qpc, qpc, uar_page, attr->uar_index);
 		if (attr->log_page_size > MLX5_ADAPTER_PAGE_SHIFT)
 			MLX5_SET(qpc, qpc, log_page_size,
 				 attr->log_page_size - MLX5_ADAPTER_PAGE_SHIFT);
-		if (attr->sq_size) {
-			MLX5_ASSERT(RTE_IS_POWER_OF_2(attr->sq_size));
+		if (attr->num_of_send_wqbbs) {
+			MLX5_ASSERT(RTE_IS_POWER_OF_2(attr->num_of_send_wqbbs));
 			MLX5_SET(qpc, qpc, cqn_snd, attr->cqn);
 			MLX5_SET(qpc, qpc, log_sq_size,
-				 rte_log2_u32(attr->sq_size));
+				 rte_log2_u32(attr->num_of_send_wqbbs));
 		} else {
 			MLX5_SET(qpc, qpc, no_sq, 1);
 		}
-		if (attr->rq_size) {
-			MLX5_ASSERT(RTE_IS_POWER_OF_2(attr->rq_size));
+		if (attr->num_of_receive_wqes) {
+			MLX5_ASSERT(RTE_IS_POWER_OF_2(
+					attr->num_of_receive_wqes));
 			MLX5_SET(qpc, qpc, cqn_rcv, attr->cqn);
 			MLX5_SET(qpc, qpc, log_rq_stride, attr->log_rq_stride -
 				 MLX5_LOG_RQ_STRIDE_SHIFT);
 			MLX5_SET(qpc, qpc, log_rq_size,
-				 rte_log2_u32(attr->rq_size));
+				 rte_log2_u32(attr->num_of_receive_wqes));
 			MLX5_SET(qpc, qpc, rq_type, MLX5_NON_ZERO_RQ);
 		} else {
 			MLX5_SET(qpc, qpc, rq_type, MLX5_ZERO_LEN_RQ);
@@ -1968,7 +2295,7 @@ mlx5_devx_cmd_modify_qp_state(struct mlx5_devx_obj *qp, uint32_t qp_st_mod_op,
 	case MLX5_CMD_OP_RTR2RTS_QP:
 		qpc = MLX5_ADDR_OF(rtr2rts_qp_in, &in, qpc);
 		MLX5_SET(rtr2rts_qp_in, &in, qpn, qp->id);
-		MLX5_SET(qpc, qpc, primary_address_path.ack_timeout, 14);
+		MLX5_SET(qpc, qpc, primary_address_path.ack_timeout, 16);
 		MLX5_SET(qpc, qpc, log_ack_req_freq, 0);
 		MLX5_SET(qpc, qpc, retry_count, 7);
 		MLX5_SET(qpc, qpc, rnr_retry, 7);
@@ -2141,6 +2468,110 @@ mlx5_devx_cmd_alloc_pd(void *ctx)
 }
 
 /**
+ * Create general object of type FLOW_METER_ASO using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] pd
+ *   PD value to associate the FLOW_METER_ASO object with.
+ * @param [in] log_obj_size
+ *   log_obj_size define to allocate number of 2 * meters
+ *   in one FLOW_METER_ASO object.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_flow_meter_aso_obj(void *ctx, uint32_t pd,
+						uint32_t log_obj_size)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_flow_meter_aso_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)];
+	struct mlx5_devx_obj *flow_meter_aso_obj;
+	void *ptr;
+
+	flow_meter_aso_obj = mlx5_malloc(MLX5_MEM_ZERO,
+						sizeof(*flow_meter_aso_obj),
+						0, SOCKET_ID_ANY);
+	if (!flow_meter_aso_obj) {
+		DRV_LOG(ERR, "Failed to allocate FLOW_METER_ASO object data");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	ptr = MLX5_ADDR_OF(create_flow_meter_aso_in, in, hdr);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, opcode,
+		MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, obj_type,
+		MLX5_GENERAL_OBJ_TYPE_FLOW_METER_ASO);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, log_obj_range,
+		log_obj_size);
+	ptr = MLX5_ADDR_OF(create_flow_meter_aso_in, in, flow_meter_aso);
+	MLX5_SET(flow_meter_aso, ptr, access_pd, pd);
+	flow_meter_aso_obj->obj = mlx5_glue->devx_obj_create(
+							ctx, in, sizeof(in),
+							out, sizeof(out));
+	if (!flow_meter_aso_obj->obj) {
+		rte_errno = errno;
+		DRV_LOG(ERR, "Failed to create FLOW_METER_ASO obj using DevX.");
+		mlx5_free(flow_meter_aso_obj);
+		return NULL;
+	}
+	flow_meter_aso_obj->id = MLX5_GET(general_obj_out_cmd_hdr,
+								out, obj_id);
+	return flow_meter_aso_obj;
+}
+
+/*
+ * Create general object of type CONN_TRACK_OFFLOAD using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] pd
+ *   PD value to associate the CONN_TRACK_OFFLOAD ASO object with.
+ * @param [in] log_obj_size
+ *   log_obj_size to allocate its power of 2 * objects
+ *   in one CONN_TRACK_OFFLOAD bulk allocation.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_conn_track_offload_obj(void *ctx, uint32_t pd,
+					    uint32_t log_obj_size)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_conn_track_aso_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)];
+	struct mlx5_devx_obj *ct_aso_obj;
+	void *ptr;
+
+	ct_aso_obj = mlx5_malloc(MLX5_MEM_ZERO, sizeof(*ct_aso_obj),
+				 0, SOCKET_ID_ANY);
+	if (!ct_aso_obj) {
+		DRV_LOG(ERR, "Failed to allocate CONN_TRACK_OFFLOAD object.");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	ptr = MLX5_ADDR_OF(create_conn_track_aso_in, in, hdr);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, opcode,
+		 MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, obj_type,
+		 MLX5_GENERAL_OBJ_TYPE_CONN_TRACK_OFFLOAD);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, log_obj_range, log_obj_size);
+	ptr = MLX5_ADDR_OF(create_conn_track_aso_in, in, conn_track_offload);
+	MLX5_SET(conn_track_offload, ptr, conn_track_aso_access_pd, pd);
+	ct_aso_obj->obj = mlx5_glue->devx_obj_create(ctx, in, sizeof(in),
+						     out, sizeof(out));
+	if (!ct_aso_obj->obj) {
+		rte_errno = errno;
+		DRV_LOG(ERR, "Failed to create CONN_TRACK_OFFLOAD obj by using DevX.");
+		mlx5_free(ct_aso_obj);
+		return NULL;
+	}
+	ct_aso_obj->id = MLX5_GET(general_obj_out_cmd_hdr, out, obj_id);
+	return ct_aso_obj;
+}
+
+/**
  * Create general object of type GENEVE TLV option using DevX API.
  *
  * @param[in] ctx
@@ -2176,7 +2607,7 @@ mlx5_devx_cmd_create_geneve_tlv_option(void *ctx,
 	MLX5_SET(general_obj_in_cmd_hdr, hdr, opcode,
 			MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
 	MLX5_SET(general_obj_in_cmd_hdr, hdr, obj_type,
-			MLX5_OBJ_TYPE_GENEVE_TLV_OPT);
+		 MLX5_GENERAL_OBJ_TYPE_GENEVE_TLV_OPT);
 	MLX5_SET(geneve_tlv_option, opt, option_class,
 			rte_be_to_cpu_16(class));
 	MLX5_SET(geneve_tlv_option, opt, option_type, type);
@@ -2222,7 +2653,7 @@ mlx5_devx_cmd_wq_query(void *wq, uint32_t *counter_set_id)
 #endif
 }
 
-/**
+/*
  * Allocate queue counters via devx interface.
  *
  * @param[in] ctx
@@ -2293,4 +2724,244 @@ mlx5_devx_cmd_queue_counter_query(struct mlx5_devx_obj *dcs, int clear,
 	}
 	*out_of_buffers = MLX5_GET(query_q_counter_out, out, out_of_buffer);
 	return 0;
+}
+
+/**
+ * Create general object of type DEK using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] attr
+ *   Pointer to DEK attributes structure.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_dek_obj(void *ctx, struct mlx5_devx_dek_attr *attr)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_dek_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)] = {0};
+	struct mlx5_devx_obj *dek_obj = NULL;
+	void *ptr = NULL, *key_addr = NULL;
+
+	dek_obj = mlx5_malloc(MLX5_MEM_ZERO, sizeof(*dek_obj),
+			      0, SOCKET_ID_ANY);
+	if (dek_obj == NULL) {
+		DRV_LOG(ERR, "Failed to allocate DEK object data");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	ptr = MLX5_ADDR_OF(create_dek_in, in, hdr);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, opcode,
+		 MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, obj_type,
+		 MLX5_GENERAL_OBJ_TYPE_DEK);
+	ptr = MLX5_ADDR_OF(create_dek_in, in, dek);
+	MLX5_SET(dek, ptr, key_size, attr->key_size);
+	MLX5_SET(dek, ptr, has_keytag, attr->has_keytag);
+	MLX5_SET(dek, ptr, key_purpose, attr->key_purpose);
+	MLX5_SET(dek, ptr, pd, attr->pd);
+	MLX5_SET64(dek, ptr, opaque, attr->opaque);
+	key_addr = MLX5_ADDR_OF(dek, ptr, key);
+	memcpy(key_addr, (void *)(attr->key), MLX5_CRYPTO_KEY_MAX_SIZE);
+	dek_obj->obj = mlx5_glue->devx_obj_create(ctx, in, sizeof(in),
+						  out, sizeof(out));
+	if (dek_obj->obj == NULL) {
+		rte_errno = errno;
+		DRV_LOG(ERR, "Failed to create DEK obj using DevX.");
+		mlx5_free(dek_obj);
+		return NULL;
+	}
+	dek_obj->id = MLX5_GET(general_obj_out_cmd_hdr, out, obj_id);
+	return dek_obj;
+}
+
+/**
+ * Create general object of type IMPORT_KEK using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] attr
+ *   Pointer to IMPORT_KEK attributes structure.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_import_kek_obj(void *ctx,
+				    struct mlx5_devx_import_kek_attr *attr)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_import_kek_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)] = {0};
+	struct mlx5_devx_obj *import_kek_obj = NULL;
+	void *ptr = NULL, *key_addr = NULL;
+
+	import_kek_obj = mlx5_malloc(MLX5_MEM_ZERO, sizeof(*import_kek_obj),
+				     0, SOCKET_ID_ANY);
+	if (import_kek_obj == NULL) {
+		DRV_LOG(ERR, "Failed to allocate IMPORT_KEK object data");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	ptr = MLX5_ADDR_OF(create_import_kek_in, in, hdr);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, opcode,
+		 MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, obj_type,
+		 MLX5_GENERAL_OBJ_TYPE_IMPORT_KEK);
+	ptr = MLX5_ADDR_OF(create_import_kek_in, in, import_kek);
+	MLX5_SET(import_kek, ptr, key_size, attr->key_size);
+	key_addr = MLX5_ADDR_OF(import_kek, ptr, key);
+	memcpy(key_addr, (void *)(attr->key), MLX5_CRYPTO_KEY_MAX_SIZE);
+	import_kek_obj->obj = mlx5_glue->devx_obj_create(ctx, in, sizeof(in),
+							 out, sizeof(out));
+	if (import_kek_obj->obj == NULL) {
+		rte_errno = errno;
+		DRV_LOG(ERR, "Failed to create IMPORT_KEK object using DevX.");
+		mlx5_free(import_kek_obj);
+		return NULL;
+	}
+	import_kek_obj->id = MLX5_GET(general_obj_out_cmd_hdr, out, obj_id);
+	return import_kek_obj;
+}
+
+/**
+ * Create general object of type CREDENTIAL using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] attr
+ *   Pointer to CREDENTIAL attributes structure.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_credential_obj(void *ctx,
+				    struct mlx5_devx_credential_attr *attr)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_credential_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)] = {0};
+	struct mlx5_devx_obj *credential_obj = NULL;
+	void *ptr = NULL, *credential_addr = NULL;
+
+	credential_obj = mlx5_malloc(MLX5_MEM_ZERO, sizeof(*credential_obj),
+				     0, SOCKET_ID_ANY);
+	if (credential_obj == NULL) {
+		DRV_LOG(ERR, "Failed to allocate CREDENTIAL object data");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	ptr = MLX5_ADDR_OF(create_credential_in, in, hdr);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, opcode,
+		 MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, obj_type,
+		 MLX5_GENERAL_OBJ_TYPE_CREDENTIAL);
+	ptr = MLX5_ADDR_OF(create_credential_in, in, credential);
+	MLX5_SET(credential, ptr, credential_role, attr->credential_role);
+	credential_addr = MLX5_ADDR_OF(credential, ptr, credential);
+	memcpy(credential_addr, (void *)(attr->credential),
+	       MLX5_CRYPTO_CREDENTIAL_SIZE);
+	credential_obj->obj = mlx5_glue->devx_obj_create(ctx, in, sizeof(in),
+							 out, sizeof(out));
+	if (credential_obj->obj == NULL) {
+		rte_errno = errno;
+		DRV_LOG(ERR, "Failed to create CREDENTIAL object using DevX.");
+		mlx5_free(credential_obj);
+		return NULL;
+	}
+	credential_obj->id = MLX5_GET(general_obj_out_cmd_hdr, out, obj_id);
+	return credential_obj;
+}
+
+/**
+ * Create general object of type CRYPTO_LOGIN using DevX API.
+ *
+ * @param[in] ctx
+ *   Context returned from mlx5 open_device() glue function.
+ * @param [in] attr
+ *   Pointer to CRYPTO_LOGIN attributes structure.
+ *
+ * @return
+ *   The DevX object created, NULL otherwise and rte_errno is set.
+ */
+struct mlx5_devx_obj *
+mlx5_devx_cmd_create_crypto_login_obj(void *ctx,
+				      struct mlx5_devx_crypto_login_attr *attr)
+{
+	uint32_t in[MLX5_ST_SZ_DW(create_crypto_login_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(general_obj_out_cmd_hdr)] = {0};
+	struct mlx5_devx_obj *crypto_login_obj = NULL;
+	void *ptr = NULL, *credential_addr = NULL;
+
+	crypto_login_obj = mlx5_malloc(MLX5_MEM_ZERO, sizeof(*crypto_login_obj),
+				       0, SOCKET_ID_ANY);
+	if (crypto_login_obj == NULL) {
+		DRV_LOG(ERR, "Failed to allocate CRYPTO_LOGIN object data");
+		rte_errno = ENOMEM;
+		return NULL;
+	}
+	ptr = MLX5_ADDR_OF(create_crypto_login_in, in, hdr);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, opcode,
+		 MLX5_CMD_OP_CREATE_GENERAL_OBJECT);
+	MLX5_SET(general_obj_in_cmd_hdr, ptr, obj_type,
+		 MLX5_GENERAL_OBJ_TYPE_CRYPTO_LOGIN);
+	ptr = MLX5_ADDR_OF(create_crypto_login_in, in, crypto_login);
+	MLX5_SET(crypto_login, ptr, credential_pointer,
+		 attr->credential_pointer);
+	MLX5_SET(crypto_login, ptr, session_import_kek_ptr,
+		 attr->session_import_kek_ptr);
+	credential_addr = MLX5_ADDR_OF(crypto_login, ptr, credential);
+	memcpy(credential_addr, (void *)(attr->credential),
+	       MLX5_CRYPTO_CREDENTIAL_SIZE);
+	crypto_login_obj->obj = mlx5_glue->devx_obj_create(ctx, in, sizeof(in),
+							   out, sizeof(out));
+	if (crypto_login_obj->obj == NULL) {
+		rte_errno = errno;
+		DRV_LOG(ERR, "Failed to create CRYPTO_LOGIN obj using DevX.");
+		mlx5_free(crypto_login_obj);
+		return NULL;
+	}
+	crypto_login_obj->id = MLX5_GET(general_obj_out_cmd_hdr, out, obj_id);
+	return crypto_login_obj;
+}
+
+/**
+ * Query LAG context.
+ *
+ * @param[in] ctx
+ *   Pointer to ibv_context, returned from mlx5dv_open_device.
+ * @param[out] lag_ctx
+ *   Pointer to struct mlx5_devx_lag_context, to be set by the routine.
+ *
+ * @return
+ *   0 on success, a negative value otherwise.
+ */
+int
+mlx5_devx_cmd_query_lag(void *ctx,
+			struct mlx5_devx_lag_context *lag_ctx)
+{
+	uint32_t in[MLX5_ST_SZ_DW(query_lag_in)] = {0};
+	uint32_t out[MLX5_ST_SZ_DW(query_lag_out)] = {0};
+	void *lctx;
+	int rc;
+
+	MLX5_SET(query_lag_in, in, opcode, MLX5_CMD_OP_QUERY_LAG);
+	rc = mlx5_glue->devx_general_cmd(ctx, in, sizeof(in), out, sizeof(out));
+	if (rc)
+		goto error;
+	lctx = MLX5_ADDR_OF(query_lag_out, out, context);
+	lag_ctx->fdb_selection_mode = MLX5_GET(lag_context, lctx,
+					       fdb_selection_mode);
+	lag_ctx->port_select_mode = MLX5_GET(lag_context, lctx,
+					       port_select_mode);
+	lag_ctx->lag_state = MLX5_GET(lag_context, lctx, lag_state);
+	lag_ctx->tx_remap_affinity_2 = MLX5_GET(lag_context, lctx,
+						tx_remap_affinity_2);
+	lag_ctx->tx_remap_affinity_1 = MLX5_GET(lag_context, lctx,
+						tx_remap_affinity_1);
+	return 0;
+error:
+	rc = (rc > 0) ? -rc : rc;
+	return rc;
 }

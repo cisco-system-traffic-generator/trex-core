@@ -48,7 +48,7 @@
 #define NETVSC_CLASS_ID "{f8615163-df3e-46c5-913f-f2d2f965ed0e}"
 #define NETVSC_MAX_ROUTE_LINE_SIZE 300
 
-RTE_LOG_REGISTER(vdev_netvsc_logtype, pmd.net.vdev_netvsc, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(vdev_netvsc_logtype, NOTICE);
 
 #define DRV_LOG(level, ...) \
 	rte_log(RTE_LOG_ ## level, \
@@ -717,8 +717,7 @@ vdev_netvsc_vdev_probe(struct rte_vdev_device *dev)
 error:
 	++vdev_netvsc_ctx_inst;
 ignore:
-	if (kvargs)
-		rte_kvargs_free(kvargs);
+	rte_kvargs_free(kvargs);
 	/* Reset alarm if there are device context created */
 	if (vdev_netvsc_ctx_count) {
 		ret = rte_eal_alarm_set(VDEV_NETVSC_PROBE_MS * 1000,

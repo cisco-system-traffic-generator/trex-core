@@ -4,11 +4,17 @@
 # All rights reserved.
 #
 
+if is_windows
+    build = false
+    reason = 'not supported on Windows'
+    subdir_done()
+endif
+
 dep = dependency('libmusdk', required: false, method: 'pkg-config')
 if not dep.found()
-	build = false
-	reason = 'missing dependency, "libmusdk"'
-	subdir_done()
+    build = false
+    reason = 'missing dependency, "libmusdk"'
+    subdir_done()
 endif
 
 ext_deps += dep

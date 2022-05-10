@@ -64,8 +64,7 @@ ifpga_find_afu_dev(const struct rte_rawdev *rdev,
 	struct rte_afu_device *afu_dev = NULL;
 
 	TAILQ_FOREACH(afu_dev, &ifpga_afu_dev_list, next) {
-		if (afu_dev &&
-			afu_dev->rawdev == rdev &&
+		if (afu_dev->rawdev == rdev &&
 			!ifpga_afu_id_cmp(&afu_dev->id, afu_id))
 			return afu_dev;
 	}
@@ -78,8 +77,7 @@ rte_ifpga_find_afu_by_name(const char *name)
 	struct rte_afu_device *afu_dev = NULL;
 
 	TAILQ_FOREACH(afu_dev, &ifpga_afu_dev_list, next) {
-		if (afu_dev &&
-			!strcmp(afu_dev->device.name, name))
+		if (!strcmp(afu_dev->device.name, name))
 			return afu_dev;
 	}
 	return NULL;
@@ -161,6 +159,14 @@ ifpga_scan_one(struct rte_rawdev *rawdev,
 	afu_dev->id.uuid.uuid_high = 0;
 	afu_dev->id.port      = afu_pr_conf.afu_id.port;
 
+	/* Allocate interrupt instance */
+	afu_dev->intr_handle =
+		rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_PRIVATE);
+	if (afu_dev->intr_handle == NULL) {
+		IFPGA_BUS_ERR("Failed to allocate intr handle");
+		goto end;
+	}
+
 	if (rawdev->dev_ops && rawdev->dev_ops->dev_info_get)
 		rawdev->dev_ops->dev_info_get(rawdev, afu_dev, sizeof(*afu_dev));
 
@@ -185,12 +191,12 @@ ifpga_scan_one(struct rte_rawdev *rawdev,
 	return afu_dev;
 
 end:
-	if (kvlist)
-		rte_kvargs_free(kvlist);
-	if (path)
-		free(path);
-	if (afu_dev)
+	rte_kvargs_free(kvlist);
+	free(path);
+	if (afu_dev) {
+		rte_intr_instance_free(afu_dev->intr_handle);
 		free(afu_dev);
+	}
 
 	return NULL;
 }
@@ -246,10 +252,8 @@ ifpga_scan(void)
 	}
 
 end:
-	if (kvlist)
-		rte_kvargs_free(kvlist);
-	if (name)
-		free(name);
+	rte_kvargs_free(kvlist);
+	free(name);
 
 	return 0;
 }
@@ -396,6 +400,7 @@ ifpga_unplug(struct rte_device *dev)
 	TAILQ_REMOVE(&ifpga_afu_dev_list, afu_dev, next);
 
 	rte_devargs_remove(dev->devargs);
+	rte_intr_instance_free(afu_dev->intr_handle);
 	free(afu_dev);
 	return 0;
 
@@ -472,4 +477,4 @@ static struct rte_bus rte_ifpga_bus = {
 };
 
 RTE_REGISTER_BUS(IFPGA_BUS_NAME, rte_ifpga_bus);
-RTE_LOG_REGISTER(ifpga_bus_logtype, bus.ifpga, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(ifpga_bus_logtype, NOTICE);

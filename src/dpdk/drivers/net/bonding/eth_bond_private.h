@@ -139,7 +139,7 @@ struct bond_dev_private {
 
 	uint16_t slave_count;			/**< Number of bonded slaves */
 	struct bond_slave_details slaves[RTE_MAX_ETHPORTS];
-	/**< Arary of bonded slaves details */
+	/**< Array of bonded slaves details */
 
 	struct mode8023ad_private mode4;
 	uint16_t tlb_slaves_order[RTE_MAX_ETHPORTS];
@@ -167,8 +167,8 @@ struct bond_dev_private {
 	struct rte_eth_desc_lim tx_desc_lim;	/**< Tx descriptor limits */
 
 	uint16_t reta_size;
-	struct rte_eth_rss_reta_entry64 reta_conf[ETH_RSS_RETA_SIZE_512 /
-			RTE_RETA_GROUP_SIZE];
+	struct rte_eth_rss_reta_entry64 reta_conf[RTE_ETH_RSS_RETA_SIZE_512 /
+			RTE_ETH_RETA_GROUP_SIZE];
 
 	uint8_t rss_key[52];				/**< 52-byte hash key buffer. */
 	uint8_t rss_key_len;				/**< hash key length in bytes. */
@@ -212,7 +212,7 @@ int
 valid_bonded_port_id(uint16_t port_id);
 
 int
-valid_slave_port_id(uint16_t port_id, uint8_t mode);
+valid_slave_port_id(struct bond_dev_private *internals, uint16_t port_id);
 
 void
 deactivate_slave(struct rte_eth_dev *eth_dev, uint16_t port_id);
@@ -240,10 +240,14 @@ slave_remove_mac_addresses(struct rte_eth_dev *bonded_eth_dev,
 		uint16_t slave_port_id);
 
 int
-bond_ethdev_mode_set(struct rte_eth_dev *eth_dev, int mode);
+bond_ethdev_mode_set(struct rte_eth_dev *eth_dev, uint8_t mode);
 
 int
 slave_configure(struct rte_eth_dev *bonded_eth_dev,
+		struct rte_eth_dev *slave_eth_dev);
+
+int
+slave_start(struct rte_eth_dev *bonded_eth_dev,
 		struct rte_eth_dev *slave_eth_dev);
 
 void

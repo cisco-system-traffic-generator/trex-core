@@ -570,7 +570,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 'latency_9k_max_latency': 250,
             },
 
-            'net_i40e_vf': {
+            'net_iavf': {
                 'rate_percent': 20,
                 'rate_percent_soft': 1,
                 'total_pkts': 1000,

@@ -468,7 +468,7 @@ enum i40e_status_code i40e_init_arq(struct i40e_hw *hw)
 	/* initialize base registers */
 	ret_code = i40e_config_arq_regs(hw);
 	if (ret_code != I40E_SUCCESS)
-		goto init_adminq_free_rings;
+		goto init_config_regs;
 
 	/* success! */
 	hw->aq.arq.count = hw->aq.num_arq_entries;
@@ -476,6 +476,10 @@ enum i40e_status_code i40e_init_arq(struct i40e_hw *hw)
 
 init_adminq_free_rings:
 	i40e_free_adminq_arq(hw);
+	return ret_code;
+
+init_config_regs:
+	i40e_free_arq_bufs(hw);
 
 init_adminq_exit:
 	return ret_code;
@@ -648,8 +652,10 @@ enum i40e_status_code i40e_init_adminq(struct i40e_hw *hw)
 {
 	struct i40e_adminq_info *aq = &hw->aq;
 	enum i40e_status_code ret_code;
-	u16 cfg_ptr, oem_hi, oem_lo;
-	u16 eetrack_lo, eetrack_hi;
+	u16 oem_hi = 0, oem_lo = 0;
+	u16 eetrack_hi = 0;
+	u16 eetrack_lo = 0;
+	u16 cfg_ptr = 0;
 	int retry = 0;
 
 	/* verify input for valid configuration */
@@ -834,7 +840,7 @@ STATIC bool i40e_asq_done(struct i40e_hw *hw)
 }
 
 /**
- *  i40e_asq_send_command - send command to Admin Queue
+ *  i40e_asq_send_command_exec - send command to Admin Queue
  *  @hw: pointer to the hw struct
  *  @desc: prefilled descriptor describing the command (non DMA mem)
  *  @buff: buffer to use for indirect commands
@@ -844,11 +850,12 @@ STATIC bool i40e_asq_done(struct i40e_hw *hw)
  *  This is the main send command driver routine for the Admin Queue send
  *  queue.  It runs the queue, cleans the queue, etc
  **/
-enum i40e_status_code i40e_asq_send_command(struct i40e_hw *hw,
-				struct i40e_aq_desc *desc,
-				void *buff, /* can be NULL */
-				u16  buff_size,
-				struct i40e_asq_cmd_details *cmd_details)
+STATIC enum i40e_status_code
+i40e_asq_send_command_exec(struct i40e_hw *hw,
+			   struct i40e_aq_desc *desc,
+			   void *buff, /* can be NULL */
+			   u16  buff_size,
+			   struct i40e_asq_cmd_details *cmd_details)
 {
 	enum i40e_status_code status = I40E_SUCCESS;
 	struct i40e_dma_mem *dma_buff = NULL;
@@ -857,8 +864,6 @@ enum i40e_status_code i40e_asq_send_command(struct i40e_hw *hw,
 	bool cmd_completed = false;
 	u16  retval = 0;
 	u32  val = 0;
-
-	i40e_acquire_spinlock(&hw->aq.asq_spinlock);
 
 	hw->aq.asq_last_status = I40E_AQ_RC_OK;
 
@@ -1042,6 +1047,64 @@ enum i40e_status_code i40e_asq_send_command(struct i40e_hw *hw,
 	}
 
 asq_send_command_error:
+	return status;
+}
+
+/**
+ *  i40e_asq_send_command - send command to Admin Queue
+ *  @hw: pointer to the hw struct
+ *  @desc: prefilled descriptor describing the command (non DMA mem)
+ *  @buff: buffer to use for indirect commands
+ *  @buff_size: size of buffer for indirect commands
+ *  @cmd_details: pointer to command details structure
+ *
+ *  Acquires the lock and calls the main send command execution
+ *  routine.
+ **/
+enum i40e_status_code
+i40e_asq_send_command(struct i40e_hw *hw,
+		      struct i40e_aq_desc *desc,
+		      void *buff, /* can be NULL */
+		      u16  buff_size,
+		      struct i40e_asq_cmd_details *cmd_details)
+{
+	enum i40e_status_code status = I40E_SUCCESS;
+
+	i40e_acquire_spinlock(&hw->aq.asq_spinlock);
+	status = i40e_asq_send_command_exec(hw, desc, buff, buff_size,
+					    cmd_details);
+	i40e_release_spinlock(&hw->aq.asq_spinlock);
+	return status;
+}
+
+/**
+ *  i40e_asq_send_command_v2 - send command to Admin Queue
+ *  @hw: pointer to the hw struct
+ *  @desc: prefilled descriptor describing the command (non DMA mem)
+ *  @buff: buffer to use for indirect commands
+ *  @buff_size: size of buffer for indirect commands
+ *  @cmd_details: pointer to command details structure
+ *  @aq_status: pointer to Admin Queue status return value
+ *
+ *  Acquires the lock and calls the main send command execution
+ *  routine. Returns the last Admin Queue status in aq_status
+ *  to avoid race conditions in access to hw->aq.asq_last_status.
+ **/
+enum i40e_status_code
+i40e_asq_send_command_v2(struct i40e_hw *hw,
+			 struct i40e_aq_desc *desc,
+			 void *buff, /* can be NULL */
+			 u16  buff_size,
+			 struct i40e_asq_cmd_details *cmd_details,
+			 enum i40e_admin_queue_err *aq_status)
+{
+	enum i40e_status_code status = I40E_SUCCESS;
+
+	i40e_acquire_spinlock(&hw->aq.asq_spinlock);
+	status = i40e_asq_send_command_exec(hw, desc, buff, buff_size,
+					    cmd_details);
+	if (aq_status)
+		*aq_status = hw->aq.asq_last_status;
 	i40e_release_spinlock(&hw->aq.asq_spinlock);
 	return status;
 }

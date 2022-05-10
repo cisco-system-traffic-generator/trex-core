@@ -180,14 +180,13 @@ i40e_fdir_rx_queue_init(struct i40e_rx_queue *rxq)
  * @pf: board private structure
  */
 int
-trex_i40e_fdir_setup(struct i40e_pf *pf)
+trex_i40e_fdir_setup(struct i40e_pf *pf, struct rte_eth_dev *eth_dev)
 {
 	struct i40e_hw *hw = I40E_PF_TO_HW(pf);
 	struct i40e_vsi *vsi;
 	int err = I40E_SUCCESS;
 	char z_name[RTE_MEMZONE_NAMESIZE];
 	const struct rte_memzone *mz = NULL;
-	struct rte_eth_dev *eth_dev = pf->adapter->eth_dev;
 
 	if ((pf->flags & I40E_FLAG_FDIR) == 0) {
 		PMD_INIT_LOG(ERR, "HW doesn't support FDIR");
@@ -274,10 +273,10 @@ trex_i40e_fdir_setup(struct i40e_pf *pf)
 	return I40E_SUCCESS;
 
 fail_mem:
-	i40e_dev_rx_queue_release(pf->fdir.rxq);
+	i40e_dev_rx_queue_release(eth_dev, pf->fdir.rxq->queue_id);
 	pf->fdir.rxq = NULL;
 fail_setup_rx:
-	i40e_dev_tx_queue_release(pf->fdir.txq);
+	i40e_dev_tx_queue_release(eth_dev, pf->fdir.txq->queue_id);
 	pf->fdir.txq = NULL;
 fail_setup_tx:
 	i40e_vsi_release(vsi);
@@ -304,9 +303,9 @@ trex_i40e_fdir_teardown(struct i40e_pf *pf)
 	err = i40e_switch_rx_queue(hw, vsi->base_queue, FALSE);
 	if (err)
 		PMD_DRV_LOG(DEBUG, "Failed to do FDIR RX switch off");
-	i40e_dev_rx_queue_release(pf->fdir.rxq);
+	i40e_dev_rx_queue_release(hw->switch_dev, pf->fdir.rxq->queue_id);
 	pf->fdir.rxq = NULL;
-	i40e_dev_tx_queue_release(pf->fdir.txq);
+	i40e_dev_tx_queue_release(hw->switch_dev, pf->fdir.txq->queue_id);
 	pf->fdir.txq = NULL;
 	i40e_vsi_release(vsi);
 	pf->fdir.fdir_vsi = NULL;
@@ -2431,7 +2430,7 @@ trex_i40e_fdir_filter_inset_select(struct i40e_pf *pf,
 		inset_reg &= I40E_REG_INSET_FLEX_PAYLOAD_WORDS;
 	else
 		input_set |= pf->fdir.input_set[pctype];
-	num = i40e_generate_inset_mask_reg(input_set, mask_reg,
+	num = i40e_generate_inset_mask_reg(hw, input_set, mask_reg,
 					   I40E_INSET_MASK_NUM_REG);
 	if (num < 0)
 		return -EINVAL;

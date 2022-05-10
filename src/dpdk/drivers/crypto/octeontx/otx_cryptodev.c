@@ -4,8 +4,7 @@
 
 #include <rte_bus_pci.h>
 #include <rte_common.h>
-#include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #include <rte_log.h>
 #include <rte_pci.h>
 
@@ -13,6 +12,10 @@
 #include "otx_cryptodev_ops.h"
 
 #include "cpt_pmd_logs.h"
+
+/* Device ID */
+#define PCI_VENDOR_ID_CAVIUM		0x177d
+#define CPT_81XX_PCI_VF_DEVICE_ID	0xa041
 
 uint8_t otx_cryptodev_driver_id;
 
@@ -52,8 +55,10 @@ otx_cpt_pci_probe(struct rte_pci_driver *pci_drv,
 
 	/* Invoke PMD device initialization function */
 	retval = otx_cpt_dev_create(cryptodev);
-	if (retval == 0)
+	if (retval == 0) {
+		rte_cryptodev_pmd_probing_finish(cryptodev);
 		return 0;
+	}
 
 	CPT_LOG_ERR("[DRV %s]: Failed to create device "
 			"(vendor_id: 0x%x device_id: 0x%x",
@@ -71,6 +76,7 @@ otx_cpt_pci_remove(struct rte_pci_device *pci_dev)
 {
 	struct rte_cryptodev *cryptodev;
 	char name[RTE_CRYPTODEV_NAME_MAX_LEN];
+	void *dev_priv;
 
 	if (pci_dev == NULL)
 		return -EINVAL;
@@ -84,11 +90,13 @@ otx_cpt_pci_remove(struct rte_pci_device *pci_dev)
 	if (pci_dev->driver == NULL)
 		return -ENODEV;
 
+	dev_priv = cryptodev->data->dev_private;
+
 	/* free crypto device */
 	rte_cryptodev_pmd_release_device(cryptodev);
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY)
-		rte_free(cryptodev->data->dev_private);
+		rte_free(dev_priv);
 
 	cryptodev->device->driver = NULL;
 	cryptodev->device = NULL;
@@ -111,4 +119,4 @@ RTE_PMD_REGISTER_PCI_TABLE(CRYPTODEV_NAME_OCTEONTX_PMD, pci_id_cpt_table);
 RTE_PMD_REGISTER_KMOD_DEP(CRYPTODEV_NAME_OCTEONTX_PMD, "vfio-pci");
 RTE_PMD_REGISTER_CRYPTO_DRIVER(otx_cryptodev_drv, otx_cryptodev_pmd.driver,
 		otx_cryptodev_driver_id);
-RTE_LOG_REGISTER(otx_cpt_logtype, pmd.crypto.octeontx, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(otx_cpt_logtype, NOTICE);

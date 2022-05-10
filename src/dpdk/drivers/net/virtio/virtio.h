@@ -30,6 +30,7 @@
 #define VIRTIO_NET_F_GUEST_ANNOUNCE 21	/* Guest can announce device on the network */
 #define VIRTIO_NET_F_MQ		22	/* Device supports Receive Flow Steering */
 #define VIRTIO_NET_F_CTRL_MAC_ADDR 23	/* Set MAC address */
+#define VIRTIO_NET_F_RSS	60	/* RSS supported */
 
 /*
  * Do we get callbacks when the ring is completely used,
@@ -98,7 +99,30 @@
  *
  * Note the sizeof(struct vring_desc) is 16 bytes.
  */
-#define VIRTIO_MAX_INDIRECT ((int)(PAGE_SIZE / 16))
+#define VIRTIO_MAX_INDIRECT ((int)(rte_mem_page_size() / 16))
+
+/*  Virtio RSS hash types */
+#define VIRTIO_NET_HASH_TYPE_IPV4	RTE_BIT32(0)
+#define VIRTIO_NET_HASH_TYPE_TCPV4	RTE_BIT32(1)
+#define VIRTIO_NET_HASH_TYPE_UDPV4	RTE_BIT32(2)
+#define VIRTIO_NET_HASH_TYPE_IPV6	RTE_BIT32(3)
+#define VIRTIO_NET_HASH_TYPE_TCPV6	RTE_BIT32(4)
+#define VIRTIO_NET_HASH_TYPE_UDPV6	RTE_BIT32(5)
+#define VIRTIO_NET_HASH_TYPE_IP_EX	RTE_BIT32(6)
+#define VIRTIO_NET_HASH_TYPE_TCP_EX	RTE_BIT32(7)
+#define VIRTIO_NET_HASH_TYPE_UDP_EX	RTE_BIT32(8)
+
+#define VIRTIO_NET_HASH_TYPE_MASK ( \
+	VIRTIO_NET_HASH_TYPE_IPV4 | \
+	VIRTIO_NET_HASH_TYPE_TCPV4 | \
+	VIRTIO_NET_HASH_TYPE_UDPV4 | \
+	VIRTIO_NET_HASH_TYPE_IPV6 | \
+	VIRTIO_NET_HASH_TYPE_TCPV6 | \
+	VIRTIO_NET_HASH_TYPE_UDPV6 | \
+	VIRTIO_NET_HASH_TYPE_IP_EX | \
+	VIRTIO_NET_HASH_TYPE_TCP_EX | \
+	VIRTIO_NET_HASH_TYPE_UDP_EX)
+
 
 /*
  * Maximum number of virtqueues per device.
@@ -157,7 +181,9 @@ struct virtio_net_config {
 	 * Any other value stands for unknown.
 	 */
 	uint8_t duplex;
-
+	uint8_t rss_max_key_size;
+	uint16_t rss_max_indirection_table_length;
+	uint32_t supported_hash_types;
 } __rte_packed;
 
 struct virtio_hw {
@@ -167,6 +193,7 @@ struct virtio_hw {
 	uint8_t started;
 	uint8_t weak_barriers;
 	uint8_t vlan_strip;
+	bool rx_ol_scatter;
 	uint8_t has_tx_offload;
 	uint8_t has_rx_offload;
 	uint8_t use_vec_rx;
@@ -176,10 +203,16 @@ struct virtio_hw {
 	uint8_t opened;
 	uint16_t port_id;
 	uint8_t mac_addr[RTE_ETHER_ADDR_LEN];
+	/*
+	 * Speed is specified via 'speed' devarg or
+	 * negotiated via VIRTIO_NET_F_SPEED_DUPLEX
+	 */
+	bool get_speed_via_feat;
 	uint32_t speed;  /* link speed in MB */
 	uint8_t duplex;
 	uint8_t intr_lsc;
 	uint16_t max_mtu;
+	size_t max_rx_pkt_len;
 	/*
 	 * App management thread and virtio interrupt handler thread
 	 * both can change device state, this lock is meant to avoid
@@ -188,8 +221,13 @@ struct virtio_hw {
 	rte_spinlock_t state_lock;
 	struct rte_mbuf **inject_pkts;
 	uint16_t max_queue_pairs;
+	uint16_t rss_rx_queues;
+	uint32_t rss_hash_types;
+	uint16_t *rss_reta;
+	uint8_t *rss_key;
 	uint64_t req_guest_features;
 	struct virtnet_ctl *cvq;
+	bool use_va;
 };
 
 struct virtio_ops {

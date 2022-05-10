@@ -133,11 +133,12 @@ struct ixgbe_rx_queue {
 	uint8_t             rx_udp_csum_zero_err;
 	/** flags to set in mbuf when a vlan is detected. */
 	uint64_t            vlan_flags;
-	uint64_t	    offloads; /**< Rx offloads with DEV_RX_OFFLOAD_* */
+	uint64_t	    offloads; /**< Rx offloads with RTE_ETH_RX_OFFLOAD_* */
 	/** need to alloc dummy mbuf, for wraparound when scanning hw ring */
 	struct rte_mbuf fake_mbuf;
 	/** hold packets to return to application */
 	struct rte_mbuf *rx_stage[RTE_PMD_IXGBE_RX_MAX_BURST*2];
+	const struct rte_memzone *mz;
 };
 
 /**
@@ -226,7 +227,7 @@ struct ixgbe_tx_queue {
 	uint8_t             pthresh;       /**< Prefetch threshold register. */
 	uint8_t             hthresh;       /**< Host threshold register. */
 	uint8_t             wthresh;       /**< Write-back threshold reg. */
-	uint64_t offloads; /**< Tx offload flags of DEV_TX_OFFLOAD_* */
+	uint64_t offloads; /**< Tx offload flags of RTE_ETH_TX_OFFLOAD_* */
 	uint32_t            ctx_curr;      /**< Hardware context states. */
 	/** Hardware context0 history. */
 	struct ixgbe_advctx_info ctx_cache[IXGBE_CTX_NUM];
@@ -236,6 +237,7 @@ struct ixgbe_tx_queue {
 	uint8_t		    using_ipsec;
 	/**< indicates that IPsec TX feature is in use */
 #endif
+	const struct rte_memzone *mz;
 };
 
 struct ixgbe_txq_ops {

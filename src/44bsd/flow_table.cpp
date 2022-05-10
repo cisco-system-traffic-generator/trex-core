@@ -249,12 +249,12 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
     }
     lpf->m_l7_total_len  =  pkt_len - lpf->m_l7_offset;
 
-    if ( (mbuf->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
+    if ( (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) ==  RTE_MBUF_F_RX_IP_CKSUM_BAD ){
         FT_INC_SCNT(m_err_l3_cs);
         return;
     }
 
-    if ( rx_l4_check &&  ((mbuf->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD) ){
+    if ( rx_l4_check &&  ((mbuf->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_BAD) ==  RTE_MBUF_F_RX_L4_CKSUM_BAD) ){
         FT_INC_SCNT(m_err_l4_cs);
         return;
     }

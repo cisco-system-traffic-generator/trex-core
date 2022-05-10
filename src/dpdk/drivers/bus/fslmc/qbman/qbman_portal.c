@@ -339,17 +339,9 @@ struct qbman_swp *qbman_swp_init(const struct qbman_swp_desc *d)
 	eqcr_pi = qbman_cinh_read(&p->sys, QBMAN_CINH_SWP_EQCR_PI);
 	p->eqcr.pi = eqcr_pi & p->eqcr.pi_ci_mask;
 	p->eqcr.pi_vb = eqcr_pi & QB_VALID_BIT;
-	if ((p->desc.qman_version & QMAN_REV_MASK) >= QMAN_REV_5000
-			&& (d->cena_access_mode == qman_cena_fastest_access))
-		p->eqcr.ci = qbman_cinh_read(&p->sys, QBMAN_CINH_SWP_EQCR_PI)
-					     & p->eqcr.pi_ci_mask;
-	else
-		p->eqcr.ci = qbman_cinh_read(&p->sys, QBMAN_CINH_SWP_EQCR_CI)
-					     & p->eqcr.pi_ci_mask;
-	p->eqcr.available = p->eqcr.pi_ring_size -
-				qm_cyc_diff(p->eqcr.pi_ring_size,
-				p->eqcr.ci & (p->eqcr.pi_ci_mask<<1),
-				p->eqcr.pi & (p->eqcr.pi_ci_mask<<1));
+	p->eqcr.ci = qbman_cinh_read(&p->sys, QBMAN_CINH_SWP_EQCR_CI)
+			& p->eqcr.pi_ci_mask;
+	p->eqcr.available = p->eqcr.pi_ring_size;
 
 	portal_idx_map[p->desc.idx] = p;
 	return p;
@@ -1873,6 +1865,12 @@ void qbman_pull_desc_set_channel(struct qbman_pull_desc *d, uint32_t chid,
 	d->pull.dq_src = chid;
 }
 
+/**
+ * qbman_pull_desc_set_rad() - Decide whether reschedule the fq after dequeue
+ *
+ * @rad: 1 = Reschedule the FQ after dequeue.
+ *	 0 = Allow the FQ to remain active after dequeue.
+ */
 void qbman_pull_desc_set_rad(struct qbman_pull_desc *d, int rad)
 {
 	if (d->pull.verb & (1 << QB_VDQCR_VERB_RLS_SHIFT)) {
