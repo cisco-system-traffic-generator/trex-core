@@ -59,6 +59,15 @@ def parse_args():
         """,
     )
     parser.add_argument(
+        "-T",
+        "--sample-time",
+        type=ranged_int(1, 600),
+        default=1,
+        help="""
+        Iteration sample time in seconds.
+        """,
+    )
+    parser.add_argument(
         "-o",
         "--output",
         metavar="FILE",
@@ -438,11 +447,14 @@ def main():
                     break
                 pps = cur_pps
 
-            # gather statistics over 1 second
-            trex.clear_stats()
-            time.sleep(1)
-            stats = trex.get_stats()
-            err_flag, err_names = trex.is_traffic_stats_error(stats["traffic"])
+            for t in sorted(set([1, args.sample_time])):
+                debug(f"... sampling statistics over {t} seconds ...")
+                trex.clear_stats()
+                time.sleep(t)
+                stats = trex.get_stats()
+                err_flag, err_names = trex.is_traffic_stats_error(stats["traffic"])
+                if err_flag:
+                    break
 
             cps = human_readable(stats["global"]["tx_cps"])
             flows = human_readable(stats["global"]["active_flows"])
@@ -490,7 +502,7 @@ def main():
                     "dropped:",
                     human_readable(pkt_drop),
                     "pkts",
-                    f"({human_readable(pkt_drop)}/s)",
+                    f"({human_readable(pkt_drop / t)}/s)",
                 )
 
             for err in errors:
