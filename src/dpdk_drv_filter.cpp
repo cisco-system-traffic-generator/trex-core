@@ -178,12 +178,14 @@ static struct rte_flow * filter_drop_all(uint8_t port_id,
     if (hw_mode == fhtMLX){
 	    eth_spec.type = 0x0000;
 	    eth_mask.type = 0x0000;
+    	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
     }else{
         eth_spec.type = RTE_BE16(0x0000); 
         eth_mask.type = RTE_BE16(0x4000);
+    	pattern[0].type = RTE_FLOW_ITEM_TYPE_ANY;
     }
 
-	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
+
 	pattern[0].spec = &eth_spec;
 	pattern[0].mask = &eth_mask;
 
@@ -241,11 +243,12 @@ static struct rte_flow * filter_pass_all_to_rx(uint8_t port_id,
     if (hw_mode == fhtMLX){
 	    eth_spec.type = 0;
 	    eth_mask.type = 0;
+    	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
     }else{
         eth_spec.type = RTE_BE16(0x0000);
         eth_mask.type = RTE_BE16(0x4000);
+    	pattern[0].type = RTE_FLOW_ITEM_TYPE_ANY;
     }
-	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
 	pattern[0].spec = &eth_spec;
 	pattern[0].mask = &eth_mask;
 

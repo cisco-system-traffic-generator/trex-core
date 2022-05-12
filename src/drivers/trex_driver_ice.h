@@ -24,7 +24,9 @@
 
 #include "trex_driver_base.h"
 
-#define ICE_RX_DESC_NUM 1024
+#define ICE_DROP_DESC_NUM 64
+
+#define ICE_RX_DESC_NUM 4096
 #define ICE_TX_DESC_NUM 1024
 
 class CTRexExtendedDriverIce : public CTRexExtendedDriverBase {
