@@ -2303,7 +2303,7 @@ ice_get_recp_frm_fw(struct ice_hw *hw, struct ice_sw_recipe *recps, u8 rid,
 			lkup_exts->field_mask[fv_word_idx] =
 				rg_entry->fv_mask[i];
 			if (prot == ICE_META_DATA_ID_HW &&
-			    off == ICE_TUN_FLAG_MDID_OFF)
+			    off == ICE_TUN_FLAG_MDID_OFF2)
 				vlan = true;
 			fv_word_idx++;
 		}
@@ -6770,6 +6770,7 @@ static struct ice_protocol_entry ice_prot_id_tbl[ICE_PROTOCOL_LAST] = {
 	{ ICE_GTP_NO_PAY,	ICE_UDP_ILOS_HW },
 	{ ICE_VLAN_EX,		ICE_VLAN_OF_HW },
 	{ ICE_VLAN_IN,		ICE_VLAN_OL_HW },
+	{ ICE_FLG,		ICE_META_DATA_ID_HW},
 };
 
 /**
@@ -7508,6 +7509,10 @@ static bool ice_tun_type_match_word(enum ice_sw_tunnel_type tun_type, u16 *mask)
 		*mask = ICE_TUN_FLAG_MASK;
 		return true;
 
+	case ICE_SW_TUN_AND_NON_TUN:
+		*mask = ICE_DIR_FLAG_MASK;
+		return true;
+
 	case ICE_SW_TUN_GENEVE_VLAN:
 	case ICE_SW_TUN_VXLAN_VLAN:
 		*mask = ICE_TUN_FLAG_MASK & ~ICE_TUN_FLAG_VLAN_MASK;
@@ -7538,7 +7543,10 @@ ice_add_special_words(struct ice_adv_rule_info *rinfo,
 			u8 word = lkup_exts->n_val_words++;
 
 			lkup_exts->fv_words[word].prot_id = ICE_META_DATA_ID_HW;
-			lkup_exts->fv_words[word].off = ICE_TUN_FLAG_MDID_OFF;
+			if (rinfo->tun_type == ICE_SW_TUN_AND_NON_TUN)
+				lkup_exts->fv_words[word].off = ICE_TUN_FLAG_MDID_OFF1;
+			else
+				lkup_exts->fv_words[word].off = ICE_TUN_FLAG_MDID_OFF2;
 			lkup_exts->field_mask[word] = mask;
 		} else {
 			return ICE_ERR_MAX_LIMIT;
@@ -7864,6 +7872,11 @@ ice_add_adv_recipe(struct ice_hw *hw, struct ice_adv_lkup_elem *lkups,
 	 */
 	ice_get_compat_fv_bitmap(hw, rinfo, fv_bitmap);
 
+	if (rinfo->tun_type == ICE_SW_TUN_AND_NON_TUN) {
+		lkups[lkups_cnt].type = ICE_FLG;
+		lkups_cnt++;
+	}
+
 	status = ice_get_fv(hw, lkups, lkups_cnt, fv_bitmap, &rm->fv_list);
 	if (status)
 		goto err_unroll;
@@ -7888,6 +7901,7 @@ ice_add_adv_recipe(struct ice_hw *hw, struct ice_adv_lkup_elem *lkups,
 	/* Find offsets from the field vector. Pick the first one for all the
 	 * recipes.
 	 */
+
 	status = ice_fill_fv_word_index(hw, &rm->fv_list, &rm->rg_list);
 	if (status)
 		goto err_unroll;
@@ -8987,6 +9001,7 @@ ice_add_adv_rule(struct ice_hw *hw, struct ice_adv_lkup_elem *lkups,
 				 NULL);
 	if (status)
 		goto err_ice_add_adv_rule;
+
 	adv_fltr = (struct ice_adv_fltr_mgmt_list_entry *)
 		ice_malloc(hw, sizeof(struct ice_adv_fltr_mgmt_list_entry));
 	if (!adv_fltr) {
