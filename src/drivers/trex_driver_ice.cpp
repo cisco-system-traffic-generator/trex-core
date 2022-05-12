@@ -25,8 +25,8 @@
 std::string CTRexExtendedDriverIce::ice_so_str = "";
 
 CTRexExtendedDriverIce::CTRexExtendedDriverIce() {
-    //m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
-    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE  | TREX_DRV_CAP_MAC_ADDR_CHG |TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+    m_cap = tdCAP_ALL | TREX_DRV_CAP_MAC_ADDR_CHG | TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
+    //m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE  | TREX_DRV_CAP_MAC_ADDR_CHG |TREX_DRV_CAP_DROP_PKTS_IF_LNK_DOWN ;
 
     for ( int i=0; i<TREX_MAX_PORTS; i++ ) {
         m_port_xstats[i] = {0};
