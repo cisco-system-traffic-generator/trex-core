@@ -3,14 +3,13 @@
 
 """
 Connect to a TRex server and send TCP/UDP traffic at varying rates of connections per
-second following a binary search algorithm to find a "non-drop rate". The traffic is
-only stopped in between rate changes when there were transmission errors to avoid
-existing flows from piling up.
+second following a binary search algorithm to find a "non-drop rate".
 """
 
 import argparse
 import json
 import pathlib
+import subprocess
 import sys
 import time
 
@@ -56,6 +55,33 @@ def parse_args():
         type=int,
         help="""
         Max number of iterations. By default, the script will run until interrupted.
+        """,
+    )
+    parser.add_argument(
+        "-T",
+        "--sample-time",
+        type=ranged_int(1, 600),
+        default=1,
+        help="""
+        Iteration sample time in seconds.
+        """,
+    )
+    parser.add_argument(
+        "-e",
+        "--error-threshold",
+        type=ranged_float(0, 100, 5),
+        default=0.0,
+        help="""
+        Maximum allowed packet drop rate in percentage of the TX packet rate.
+        """,
+    )
+    parser.add_argument(
+        "-c",
+        "--reset-command",
+        type=str,
+        help="""
+        Command to execute between iterations after stopping traffic.
+        The argument is passed to `sh -c ''`, the exit status is ignored.
         """,
     )
     parser.add_argument(
@@ -176,7 +202,7 @@ def parse_args():
         type=ranged_float(MULTIPLIER, 4_000_000),
         help="""
         Max number of concurrent active flows.
-        Human readable values are accepted (e.g. 4.5m).
+        Human readable values are accepted (e.g. 3m).
         """,
     )
     g.add_argument(
@@ -414,6 +440,12 @@ def main():
         trex.reset()
         debug("... loading traffic profile ...")
         trex.load_profile(generate_traffic_profile(args))
+        debug(
+            f"... each connection",
+            f"{human_readable(args.num_messages * args.message_size * 2)} bytes",
+            "in both directions over",
+            f"{args.num_messages * args.server_wait / 1000:.1f} seconds ...",
+        )
 
         lower_mult = args.min_cps / MULTIPLIER
         upper_mult = args.max_cps / MULTIPLIER
@@ -426,10 +458,16 @@ def main():
 
         iterations = 0
         while True:
+            print(
+                f"... iteration #{iterations + 1}:",
+                f"lower={human_readable(lower_mult * MULTIPLIER)}",
+                f"current={human_readable(mult * MULTIPLIER)}",
+                f"upper={human_readable(upper_mult * MULTIPLIER)}",
+            )
             debug("... waiting until tx rate is stable ...")
             stats = trex.get_stats()
             pps = stats["global"]["tx_pps"] or 1
-            for _ in range(10 * args.ramp_up):
+            for _ in range(100 * args.ramp_up):
                 time.sleep(1)
                 stats = trex.get_stats()
                 cur_pps = stats["global"]["tx_pps"] or 1
@@ -437,12 +475,35 @@ def main():
                     # less than 1% rate difference since last second
                     break
                 pps = cur_pps
+            else:
+                debug(
+                    "... tx rate still not stable after",
+                    f"{100 * args.ramp_up} seconds ...",
+                )
 
-            # gather statistics over 1 second
-            trex.clear_stats()
-            time.sleep(1)
-            stats = trex.get_stats()
-            err_flag, err_names = trex.is_traffic_stats_error(stats["traffic"])
+            for t in sorted(set([1, args.sample_time])):
+                debug(f"... sampling statistics over {t} seconds ...")
+                trex.clear_stats()
+                time.sleep(t)
+                stats = trex.get_stats()
+                err_flag, err_names = trex.is_traffic_stats_error(stats["traffic"])
+                if err_flag:
+                    tx = stats["total"]["opackets"]
+                    rx = stats["total"]["ipackets"]
+                    dropped = max(0, tx - rx)
+                    if 100 * dropped / tx < args.error_threshold:
+                        err_flag = False
+                        if dropped:
+                            debug(
+                                f"... dropped:",
+                                human_readable(dropped),
+                                "pkts",
+                                f"({human_readable(dropped / t)}/s)",
+                                f"~ {dropped / tx:.4%}",
+                                "under error threshold",
+                            )
+                if err_flag:
+                    break
 
             cps = human_readable(stats["global"]["tx_cps"])
             flows = human_readable(stats["global"]["active_flows"])
@@ -483,14 +544,16 @@ def main():
                 f"Size: ~{size:.1f}B",
             )
 
-            pkt_drop = stats["total"]["opackets"] - stats["total"]["ipackets"]
-            if errors and pkt_drop > 0:
+            tx = stats["total"]["opackets"]
+            rx = stats["total"]["ipackets"]
+            if errors and tx > rx:
                 print(
                     red("err"),
                     "dropped:",
-                    human_readable(pkt_drop),
+                    human_readable(tx - rx),
                     "pkts",
-                    f"({human_readable(pkt_drop)}/s)",
+                    f"({human_readable((tx - rx) / t)}/s)",
+                    f"~ {(tx - rx) / tx:.4%}",
                 )
 
             for err in errors:
@@ -500,12 +563,16 @@ def main():
             if args.max_iterations is not None and iterations >= args.max_iterations:
                 break
 
-            if errors:
+            if errors or args.reset_command:
                 # traffic must be stopped to avoid existing connections to
                 # retransmit the dropped packets.
                 debug("... resetting connections ...")
                 trex.stop()
-                time.sleep(args.ramp_up)
+                if args.reset_command:
+                    debug(f"... executing `{args.reset_command}` ...")
+                    subprocess.call(args.reset_command, shell=True)
+                else:
+                    time.sleep(args.ramp_up)
                 trex.start(mult)
             else:
                 trex.update(mult)
