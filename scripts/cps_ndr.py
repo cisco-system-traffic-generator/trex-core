@@ -447,7 +447,7 @@ def main():
             debug("... waiting until tx rate is stable ...")
             stats = trex.get_stats()
             pps = stats["global"]["tx_pps"] or 1
-            for _ in range(10 * args.ramp_up):
+            for _ in range(100 * args.ramp_up):
                 time.sleep(1)
                 stats = trex.get_stats()
                 cur_pps = stats["global"]["tx_pps"] or 1
@@ -455,6 +455,11 @@ def main():
                     # less than 1% rate difference since last second
                     break
                 pps = cur_pps
+            else:
+                debug(
+                    "... tx rate still not stable after",
+                    f"{100 * args.ramp_up} seconds ...",
+                )
 
             for t in sorted(set([1, args.sample_time])):
                 debug(f"... sampling statistics over {t} seconds ...")
