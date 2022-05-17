@@ -68,6 +68,15 @@ def parse_args():
         """,
     )
     parser.add_argument(
+        "-e",
+        "--error-threshold",
+        type=ranged_float(0, 100, 5),
+        default=0.0,
+        help="""
+        Maximum allowed packet drop rate in percentage of the TX packet rate.
+        """,
+    )
+    parser.add_argument(
         "-o",
         "--output",
         metavar="FILE",
@@ -454,6 +463,21 @@ def main():
                 stats = trex.get_stats()
                 err_flag, err_names = trex.is_traffic_stats_error(stats["traffic"])
                 if err_flag:
+                    tx = stats["total"]["opackets"]
+                    rx = stats["total"]["ipackets"]
+                    dropped = max(0, tx - rx)
+                    if 100 * dropped / tx < args.error_threshold:
+                        err_flag = False
+                        if dropped:
+                            debug(
+                                f"... dropped:",
+                                human_readable(dropped),
+                                "pkts",
+                                f"({human_readable(dropped / t)}/s)",
+                                f"~ {dropped / tx:.4%}",
+                                "under error threshold",
+                            )
+                if err_flag:
                     break
 
             cps = human_readable(stats["global"]["tx_cps"])
@@ -495,14 +519,16 @@ def main():
                 f"Size: ~{size:.1f}B",
             )
 
-            pkt_drop = stats["total"]["opackets"] - stats["total"]["ipackets"]
-            if errors and pkt_drop > 0:
+            tx = stats["total"]["opackets"]
+            rx = stats["total"]["ipackets"]
+            if errors and tx > rx:
                 print(
                     red("err"),
                     "dropped:",
-                    human_readable(pkt_drop),
+                    human_readable(tx - rx),
                     "pkts",
-                    f"({human_readable(pkt_drop / t)}/s)",
+                    f"({human_readable((tx - rx) / t)}/s)",
+                    f"~ {(tx - rx) / tx:.4%}",
                 )
 
             for err in errors:
