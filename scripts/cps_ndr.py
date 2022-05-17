@@ -194,7 +194,7 @@ def parse_args():
         type=ranged_float(MULTIPLIER, 4_000_000),
         help="""
         Max number of concurrent active flows.
-        Human readable values are accepted (e.g. 4.5m).
+        Human readable values are accepted (e.g. 3m).
         """,
     )
     g.add_argument(
@@ -432,6 +432,12 @@ def main():
         trex.reset()
         debug("... loading traffic profile ...")
         trex.load_profile(generate_traffic_profile(args))
+        debug(
+            f"... each connection",
+            f"{human_readable(args.num_messages * args.message_size * 2)} bytes",
+            "in both directions over",
+            f"{args.num_messages * args.server_wait / 1000:.1f} seconds ...",
+        )
 
         lower_mult = args.min_cps / MULTIPLIER
         upper_mult = args.max_cps / MULTIPLIER
