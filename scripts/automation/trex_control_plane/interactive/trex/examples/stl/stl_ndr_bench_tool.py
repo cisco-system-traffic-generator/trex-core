@@ -101,10 +101,11 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
         else:
             print("\nBench Run has failed :-(\n")
 
-        if output == 'json':
-            pprint(b.results.to_json())
-        elif output == 'hu':
-            pprint(b.results.human_readable_dict())
+        if output:
+            with open(output, 'w') as f:
+                f.write(b.results.to_json())
+
+        pprint(b.results.human_readable_dict())
 
     return result, hu_dict
 
@@ -220,8 +221,7 @@ if __name__ == '__main__':
                         default=0,
                         type=is_percentage)
     parser.add_argument('-o', '--output', dest='output',
-                        help='If you specify this flag, after the test is finished, the final results will be printed in the requested format.'
-                             ' Use json for JSON format or hu for human readable format.',
+                        help='Output file where to write results in the JSON format.',
                         default=None,
                         type=str)
     parser.add_argument('--ports', dest='ports_list', help='Specify an even list of ports for running traffic on.',
