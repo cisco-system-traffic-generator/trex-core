@@ -3,14 +3,13 @@
 
 """
 Connect to a TRex server and send TCP/UDP traffic at varying rates of connections per
-second following a binary search algorithm to find a "non-drop rate". The traffic is
-only stopped in between rate changes when there were transmission errors to avoid
-existing flows from piling up.
+second following a binary search algorithm to find a "non-drop rate".
 """
 
 import argparse
 import json
 import pathlib
+import subprocess
 import sys
 import time
 
@@ -74,6 +73,15 @@ def parse_args():
         default=0.0,
         help="""
         Maximum allowed packet drop rate in percentage of the TX packet rate.
+        """,
+    )
+    parser.add_argument(
+        "-c",
+        "--reset-command",
+        type=str,
+        help="""
+        Command to execute between iterations after stopping traffic.
+        The argument is passed to `sh -c ''`, the exit status is ignored.
         """,
     )
     parser.add_argument(
@@ -555,12 +563,16 @@ def main():
             if args.max_iterations is not None and iterations >= args.max_iterations:
                 break
 
-            if errors:
+            if errors or args.reset_command:
                 # traffic must be stopped to avoid existing connections to
                 # retransmit the dropped packets.
                 debug("... resetting connections ...")
                 trex.stop()
-                time.sleep(args.ramp_up)
+                if args.reset_command:
+                    debug(f"... executing `{args.reset_command}` ...")
+                    subprocess.call(args.reset_command, shell=True)
+                else:
+                    time.sleep(args.ramp_up)
                 trex.start(mult)
             else:
                 trex.update(mult)
