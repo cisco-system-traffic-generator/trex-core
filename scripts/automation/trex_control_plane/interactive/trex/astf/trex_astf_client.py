@@ -341,7 +341,7 @@ class ASTFClient(TRexClient):
         else:
             return self.state
 
-    def _transmit_async(self, rpc_func, ok_states, bad_states = None, ready_state = None, **k):
+    def _transmit_wait_on_state(self, rpc_func, ok_states, bad_states = None, ready_state = None, **k):
         profile_id = k['params']['profile_id'] 
         ok_states = listify(ok_states)
         if bad_states is not None:
@@ -678,8 +678,8 @@ class ASTFClient(TRexClient):
                     'profile_id': profile_id
                 }
                 self.ctx.logger.pre_cmd('Clearing loaded profile.')
-                if block:
-                    rc = self._transmit_async('profile_clear', params = params, ok_states = self.STATE_IDLE)
+                if block and profile_state is self.STATE_ASTF_LOADED:
+                    rc = self._transmit_wait_on_state('profile_clear', params = params, ok_states = self.STATE_IDLE)
                 else:
                     rc = self._transmit('profile_clear', params = params)
                 self.ctx.logger.post_cmd(rc)
@@ -758,7 +758,7 @@ class ASTFClient(TRexClient):
         for profile_id in valid_pids:
 
             if block:
-                rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED, ready_state = self.STATE_ASTF_LOADED)
+                rc = self._transmit_wait_on_state('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED, ready_state = self.STATE_ASTF_LOADED)
             else:
                 rc = self._transmit('start', params = params)
             self.ctx.logger.post_cmd(rc)
@@ -805,7 +805,7 @@ class ASTFClient(TRexClient):
                     }
                 self.ctx.logger.pre_cmd('Stopping traffic.')
                 if block or is_remove:
-                    rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
+                    rc = self._transmit_wait_on_state('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
                 else:
                     rc = self._transmit('stop', params = params)
                 self.ctx.logger.post_cmd(rc)
