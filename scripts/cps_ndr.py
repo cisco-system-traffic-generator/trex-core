@@ -450,6 +450,12 @@ def main():
 
         iterations = 0
         while True:
+            print(
+                f"... iteration #{iterations + 1}:",
+                f"lower={human_readable(lower_mult * MULTIPLIER)}",
+                f"current={human_readable(mult * MULTIPLIER)}",
+                f"upper={human_readable(upper_mult * MULTIPLIER)}",
+            )
             debug("... waiting until tx rate is stable ...")
             stats = trex.get_stats()
             pps = stats["global"]["tx_pps"] or 1
