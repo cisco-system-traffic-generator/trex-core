@@ -888,13 +888,13 @@ class ASTFClient(TRexClient):
         index = 0
 
         timer = PassiveTimer(duration)
-        while True:
+        while self._get_profile_state(profile_id) is not self.STATE_IDLE:
             params = {
                 'profile_id': profile_id,
                 'index': index,
                 }
             rc = self._transmit('get_flow_info', params = params)
-            if rc:
+            if not rc:
                 raise TRexError(rc.err())
 
             for rc_flows in rc.data():
@@ -906,6 +906,10 @@ class ASTFClient(TRexClient):
                         flows[flow_id].append(rc_flows[flow_id])
 
             if not duration or timer.has_expired():
+                break
+
+            # stop when no additional flow info is expected.
+            if flows and self._get_profile_state(profile_id) is self.STATE_ASTF_LOADED:
                 break
 
             time.sleep(min(1.0, duration))
