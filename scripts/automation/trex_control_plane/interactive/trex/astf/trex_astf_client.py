@@ -852,7 +852,7 @@ class ASTFClient(TRexClient):
             if not rc:
                 raise TRexError(rc.err())
 
-    @client_api('command', True)
+    @client_api('getter', True)
     def get_profiles(self):
         """
             Get profile list from Server.
@@ -866,6 +866,8 @@ class ASTFClient(TRexClient):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
+
+        return rc.data()
 
     @client_api('getter', True)
     def get_flow_info(self, profile_id = DEFAULT_PROFILE_ID, duration = 0):
