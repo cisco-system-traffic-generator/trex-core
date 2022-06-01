@@ -13,6 +13,9 @@ class CTRexIMIX_Test(CTRexGeneral_Test):
         super(CTRexIMIX_Test, self).setUp() # launch super test class setUp process
         # CTRexGeneral_Test.setUp(self)       # launch super test class setUp process
         # self.router.clear_counters()
+        setup = CTRexScenario.setup_name
+        if setup in ['trex24']:
+            self.skip("skipping trex24")
         pass
 
     def test_short_flow(self):
