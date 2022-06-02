@@ -176,7 +176,7 @@ In order to use TRex VM, there are several easy steps to follow:
 
   . Download and install Oracle VM Virtual Box Manager https://www.virtualbox.org/wiki/Downloads[(VB download link)]. + 
     During installation you will be asked to allow the installation of system devices component interactions. Allow it.
-  . Download the latest TRex VM by http://trex-tgn.cisco.com/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link]. Notice that this is the
+  . Download the latest TRex VM by https://trex-tgn.cisco.com/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link]. Notice that this is the
     latest VM image, not the latest TRex version. This can be used for demonstration purposes. After installation, you can upgrade to latest
     TRex image if needed (Instructions below).
   . Open Oracle VM Virtual Box application installed at step 1.
