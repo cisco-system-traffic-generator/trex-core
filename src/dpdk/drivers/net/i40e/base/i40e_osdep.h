@@ -162,6 +162,10 @@ static inline uint64_t i40e_read64_addr(volatile void *addr)
 	rte_write32_wc_relaxed((rte_cpu_to_le_32(value)), reg)
 
 #define I40E_WRITE_FLUSH(a) I40E_READ_REG(a, I40E_GLGEN_STAT)
+#ifdef TREX_PATCH
+//support for i40evf
+#define I40EVF_WRITE_FLUSH(a) I40E_READ_REG(a, I40E_VFGEN_RSTAT)
+#endif
 
 #define I40E_READ_REG(hw, reg) i40e_read_addr(I40E_PCI_REG_ADDR((hw), (reg)))
 #define I40E_WRITE_REG(hw, reg, value) \
