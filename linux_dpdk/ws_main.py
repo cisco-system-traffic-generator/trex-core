@@ -1735,7 +1735,7 @@ i40e_dpdk_src = SrcGroup(
         'base/i40e_nvm.c',
         'i40e_hash.c',
         'i40e_ethdev.c',
-        #'i40e_ethdev_vf.c',
+        'i40e_ethdev_vf.c',
         'i40e_fdir.c',
         'i40e_flow.c',
         'i40e_pf.c',
