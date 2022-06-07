@@ -26,6 +26,16 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.98 ==
+
+* Upgrade to DPDK 22.03 
+** i40evf was removed by DPDK but due to an issue with the general driver (iavf) it was return
+** E810 - still not supported 
+* A new and faster way to capture traffic (to file)
+* ASTF
+** Get statistics per flow (in case of low number of active flows)
+* GTPU - minor bud fix 
+
 == Release 2.97 ==
 
 * ASTF 
