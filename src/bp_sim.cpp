@@ -1962,20 +1962,6 @@ bool CCapFileFlowInfo::Create(){
 }
 
 
-void CCapFileFlowInfo::dump_pkt_sizes(void){
-    int i;
-    for (i=0; i<(int)Size(); i++) {
-        flow_pkt_info_t lp=GetPacket((uint32_t)i);
-        CGenNode node;
-        node.m_dest_ip  = 0x10000110;
-        node.m_src_ip   = 0x20000110;
-        node.m_src_port = 12;
-        rte_mbuf_t * buf=lp->generate_new_mbuf(&node);
-        //rte_pktmbuf_dump(buf, buf->pkt_len);
-        rte_pktmbuf_free(buf);
-    }
-}
-
 void CCapFileFlowInfo::RemoveAll(){
     int i;
     clear();
@@ -4761,16 +4747,6 @@ void CFlowGenList::Dump(FILE *fd){
     for (i=0; i<(int)m_cap_gen.size(); i++) {
         CFlowGeneratorRec * lp=m_cap_gen[i];
         lp->Dump(fd);
-    }
-}
-
-
-void CFlowGenList::DumpPktSize(){
-
-    int i;
-    for (i=0; i<(int)m_cap_gen.size(); i++) {
-        CFlowGeneratorRec * lp=m_cap_gen[i];
-        lp->m_flow_info.dump_pkt_sizes();
     }
 }
 
