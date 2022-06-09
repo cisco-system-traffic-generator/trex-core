@@ -77,7 +77,6 @@ void test_load_list_of_cap_files_linux(CParserOption * op){
     fl.Create();
 
     fl.load_from_yaml(op->cfg_file,cores);
-    fl.DumpPktSize();
 
     
     fl.generate_p_thread_info(cores);
@@ -138,7 +137,6 @@ void test_load_list_of_cap_files(CParserOption * op){
     #define NUM 1
 
     fl.load_from_yaml(op->cfg_file,NUM);
-    fl.DumpPktSize();
     
     
     fl.generate_p_thread_info(NUM);

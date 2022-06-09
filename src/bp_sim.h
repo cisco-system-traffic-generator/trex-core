@@ -765,6 +765,7 @@ public:
 
     inline void reset_pkt_in_flow(void);
     inline uint8_t get_plugin_id(void){
+        assert(m_template_info);
         return ( m_template_info->m_plugin_id);
     }
 
@@ -2871,7 +2872,6 @@ public:
     inline CFlowPktInfo * GetPacket(uint32_t index);
     void Append(CPacketIndication * pkt_indication);
     void RemoveAll();
-    void dump_pkt_sizes(void);
     enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id);
     enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, CFlowYamlInfo &flow_info);
 
@@ -3426,7 +3426,6 @@ public:
 public:
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
-    void DumpPktSize();
     void UpdateFast();
     double GetCpuUtil();
     double GetCpuUtilRaw();
