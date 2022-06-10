@@ -94,6 +94,7 @@ private:
     void flip(sf_pkthdr_t * tofilp);
 	bool m_is_open;
 	uint64_t m_last_time;
+	uint32_t m_time_unit;
 	bool m_is_valid;
     FILE * m_file_handler;
     bool m_is_flip;
