@@ -460,6 +460,7 @@ bool CErfFileReader::ReadPacket(CCapPktRaw * lpPacket){
                           &interface);
     if ( length >0   ) {
         lpPacket->pkt_len =(uint16_t)length;
+        lpPacket->actual_pkt_len = lpPacket->pkt_len;
         lpPacket->pkt_cnt++;
         lpPacket->setInterface(interface);
         return (true);

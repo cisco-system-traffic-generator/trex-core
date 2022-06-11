@@ -172,11 +172,12 @@ bool LibPCapReader::ReadPacket(CCapPktRaw *lpPacket)
    }
 
    lpPacket->pkt_len = fread(lpPacket->raw,1,pkt_header.caplen,m_file_handler);
+   lpPacket->actual_pkt_len = pkt_header.len;
 
    lpPacket->time_sec  = pkt_header.ts.sec;
    lpPacket->time_nsec = pkt_header.ts.msec*m_time_unit;
 
-   if ( lpPacket->pkt_len < pkt_header.caplen) {
+   if (lpPacket->pkt_len < pkt_header.caplen || lpPacket->pkt_len > lpPacket->actual_pkt_len) {
        lpPacket->pkt_len = 0;
 	   return false;
    }
