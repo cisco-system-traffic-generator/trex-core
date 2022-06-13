@@ -5933,7 +5933,7 @@ COLD_FUNC void CPhyEthIF::conf_queues(void){
        rx_qs_descs.push_back(dpdk_p.rx_desc_num_data_q);
        rx_qs_drop_qid=0;
     }else{
-       tx_qs = g_trex.m_max_queues_per_port;
+       tx_qs = get_dpdk_mode()->total_tx_queues();
        int i;
        for (i=0; i<rx_qs; i++) {
            uint16_t desc;
