@@ -5765,8 +5765,6 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
           hash_key_size = dev_info->hash_key_size;
      }
 
-    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
-
     struct rte_eth_rss_conf *lp_rss = 
         &g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
 
@@ -5781,6 +5779,11 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
         lp_rss->rss_key = NULL;
     }
     lp_rss->rss_key_len = hash_key_size;
+
+    if (lp_rss->rss_hf)
+	g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+    else
+	g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
 }
 
 COLD_FUNC void CPhyEthIF::conf_hardware_astf_rss() {
