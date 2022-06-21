@@ -1947,7 +1947,7 @@ common_flags = ['-DWIN_UCODE_SIM',
 if march == 'x86_64':
     common_flags_new = common_flags + [
                     '-march=native',
-                    '-mssse3', '-msse4.1', '-mpclmul', 
+                    '-mssse3', '-msse4.1', '-mpclmul', '-mno-avx2',
                     '-DRTE_MACHINE_CPUFLAG_SSE',
                     '-DRTE_MACHINE_CPUFLAG_SSE2',
                     '-DRTE_MACHINE_CPUFLAG_SSE3',
