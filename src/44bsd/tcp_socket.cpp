@@ -35,6 +35,7 @@ limitations under the License.
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+#include "bp_sim.h"
 
 #if 0
 void sbreserve(struct sockbuf *sb, u_int cc) {
@@ -487,6 +488,21 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             return next_cmd();
         }
         break;
+    case tcADD_VAR :
+        {
+            assert(cmd->u.m_var.m_var_id<apVAR_NUM_SIZE);
+            m_vars[cmd->u.m_var.m_var_id]+=cmd->u.m_var.m_val;
+            return next_cmd();
+        }
+        break;
+    case tcADD_TICK_VAR :
+        {
+            assert(cmd->u.m_tick_var.m_var_id < apVAR_NUM_SIZE);
+            m_tick_vars[cmd->u.m_tick_var.m_var_id] += cmd->u.m_tick_var.m_duration;
+            return next_cmd();
+        }
+        break;
+
     case tcJMPNZ : 
         {
             assert(cmd->u.m_jmpnz.m_var_id<apVAR_NUM_SIZE);
@@ -520,6 +536,23 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
             return next_cmd();
         }
         break;
+    case tcJMPCMP :
+        {
+            assert(cmd->u.m_jmpcmp.m_var_id<apVAR_NUM_SIZE);
+
+            if (cmd->u.m_jmpcmp.m_cmp_op(m_vars[cmd->u.m_jmpcmp.m_var_id], cmd->u.m_jmpcmp.m_cmp_val)) {
+                /* action jump  */
+                m_cmd_index+=cmd->u.m_jmpcmp.m_offset-1;
+                /* make sure we are not in at the end */
+                int end=m_program->get_size();
+                if (m_cmd_index>end) {
+                    m_cmd_index=end;
+                }
+            }
+            return next_cmd();
+        }
+        break;
+
     case tcTX_PKT : 
         {
            m_state=te_NONE;
@@ -572,6 +605,37 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
         }
         break;
 
+    case tcADD_STATS:
+        {
+            inc_app_stats(cmd->u.m_stats.m_stats_id, cmd->u.m_stats.m_val);
+            return next_cmd();
+        }
+        break;
+    case tcADD_TICK_STATS:
+        {
+            uint64_t start_ticks = m_tick_vars[cmd->u.m_stats.m_var_id];
+            uint64_t curr_ticks = m_pctx->m_ctx->m_tick_var->get_curr_tick();
+            uint64_t duration_ticks = curr_ticks - start_ticks;
+
+            inc_app_stats(cmd->u.m_stats.m_stats_id, duration_ticks);
+            return next_cmd();
+        }
+        break;
+
+    case tcSET_TEMPLATE:
+        {
+            m_next_tg_id = cmd->u.m_template.m_tg_id;
+            return next_cmd();
+        }
+    case tcEXEC_TEMPLATE:
+        {
+            if (m_next_tg_id) {
+                exec_template_flow(m_next_tg_id);
+            } else {
+                return next_cmd();
+            }
+        }
+        break;
 
     default:
         assert(0);
@@ -606,6 +670,34 @@ void CEmulApp::next(){
     }
 }
 
+void CEmulApp::inc_app_stats(uint8_t id, uint64_t val){
+    m_pctx->m_appstat.AddStatsVal(m_flow->m_tg_id, id, val);
+}
+
+void CEmulApp::exec_template_flow(uint16_t tg_id){
+
+    m_state=te_NONE;
+
+    auto lpt = m_pctx->m_ctx->get_thread();
+    if (lpt) {
+        lpt->generate_flow(m_pctx, tg_id, m_flow);
+    }
+
+    INC_APP_STAT(m_pctx, m_flow->m_tg_id, flows_total);
+    if (m_last_tg_id && tg_id != m_last_tg_id) {
+        INC_APP_STAT(m_pctx, m_flow->m_tg_id, flows_other);
+    }
+    m_last_tg_id = tg_id;
+}
+
+void CEmulApp::resume_by(CEmulApp* app){
+    if (m_state == te_NONE) {
+        if (app->m_next_tg_id) {
+            m_next_tg_id = app->m_next_tg_id;
+        }
+        run_cmd_delay(1);
+    }
+}
 
 void CEmulApp::run_dpc_callbacks(){
     /* check all signals */
@@ -759,7 +851,14 @@ bool CEmulAppProgram::is_common_commands(tcp_app_cmd_t cmd_id){
          (cmd_id==tcSET_VAR) ||
          (cmd_id==tcJMPNZ) ||
          (cmd_id==tcSET_TICK_VAR) ||
-         (cmd_id==tcJMPDP)
+         (cmd_id==tcJMPDP) ||
+         (cmd_id==tcJMPCMP) ||
+         (cmd_id==tcADD_VAR) ||
+         (cmd_id==tcADD_TICK_VAR) ||
+         (cmd_id==tcADD_STATS) ||
+         (cmd_id==tcADD_TICK_STATS) ||
+         (cmd_id==tcSET_TEMPLATE) ||
+         (cmd_id==tcEXEC_TEMPLATE)
         ){
         return (true);
     }
@@ -888,7 +987,7 @@ void CEmulAppCmd::Dump(FILE *fd){
         fprintf(fd," tcSET_VAR id:%lu, val:%lu\n",(ulong)u.m_var.m_var_id,(ulong)u.m_var.m_val);
         break;
     case tcJMPNZ :
-        fprintf(fd," tcJMPNZ id:%lu, jmp:%d\n",(ulong)u.m_jmpnz.m_var_id,(int)u.m_jmpnz.m_offset);
+        fprintf(fd," tcJMPNZ id:%lu, offset:%d\n",(ulong)u.m_jmpnz.m_var_id,(int)u.m_jmpnz.m_offset);
         break;
 
     case tcTX_PKT :
@@ -923,10 +1022,45 @@ void CEmulAppCmd::Dump(FILE *fd){
         break;
 
     case tcSET_TICK_VAR :
-        fprintf(fd," tcSET_TICK_VAR id:%lu\n",(ulong)u.m_var.m_var_id);
+        fprintf(fd," tcSET_TICK_VAR id:%lu\n",(ulong)u.m_tick_var.m_var_id);
         break;
     case tcJMPDP :
-        fprintf(fd," tcJMPDP id:%lu, jmp:%d, dur:%lu\n",(ulong)u.m_jmpdp.m_var_id,(int)u.m_jmpdp.m_offset,(ulong)u.m_jmpdp.m_duration);
+        fprintf(fd," tcJMPDP id:%lu, offset:%d, dur:%lu\n",(ulong)u.m_jmpdp.m_var_id,(int)u.m_jmpdp.m_offset,(ulong)u.m_jmpdp.m_duration);
+        break;
+
+    case tcJMPCMP :
+        {
+            const char* ops[8] = { "false", "eq", "gt", "ge", "lt", "le", "ne", "true" };
+            auto cmp_op = u.m_jmpcmp.m_cmp_op;
+            int code = (cmp_op(0,1)? 4:0) + (cmp_op(1,0)? 2:0) + (cmp_op(1,1)? 1:0);
+
+            if (code == 7 /* always true */) {
+                fprintf(fd," tcJMPCMP offset:%d\n",(int)u.m_jmpcmp.m_offset);
+            } else {
+                fprintf(fd," tcJMPCMP id:%lu, offset:%d, cmp_op:%s, cmp_val:%lu\n",(ulong)u.m_jmpcmp.m_var_id,(int)u.m_jmpcmp.m_offset,ops[code],(ulong)u.m_jmpcmp.m_cmp_val);
+            }
+        }
+        break;
+
+    case tcADD_VAR :
+        fprintf(fd," tcADD_VAR id:%lu, val:%ld\n",(ulong)u.m_var.m_var_id,u.m_var.m_val);
+        break;
+    case tcADD_TICK_VAR :
+        fprintf(fd," tcADD_TICK_VAR id:%lu, dur:%lu\n",(ulong)u.m_tick_var.m_var_id,(ulong)u.m_tick_var.m_duration);
+        break;
+
+    case tcADD_STATS :
+        fprintf(fd," tcADD_STATS stats_id:%lu, val:%lu\n",(ulong)u.m_stats.m_stats_id,(ulong)u.m_stats.m_val);
+        break;
+    case tcADD_TICK_STATS :
+        fprintf(fd," tcADD_TICK_STATS stats_id:%lu, var_id:%lu\n",(ulong)u.m_stats.m_stats_id,(ulong)u.m_stats.m_var_id);
+        break;
+
+    case tcSET_TEMPLATE :
+        fprintf(fd," tcSET_TEMPLATE tg_id:%lu\n",(ulong)u.m_template.m_tg_id);
+        break;
+    case tcEXEC_TEMPLATE :
+        fprintf(fd," tcEXEC_TEMPLATE\n");
         break;
 
     default:
@@ -1131,5 +1265,50 @@ void CEmulTxQueue::reset(){
     m_tx_offset=0;
     m_q.clear();
     m_q_tot_bytes=0;
+}
+
+
+CAppStats::CAppStats(uint16_t num_of_tg_ids) {
+    Init(num_of_tg_ids);
+}
+
+CAppStats::~CAppStats() {
+    delete[] m_sts_tg_id;
+}
+
+void CAppStats::Init(uint16_t num_of_tg_ids){
+    m_sts_tg_id = new app_stat_int_t[num_of_tg_ids];
+    assert(m_sts_tg_id && "Operator new failed in udp.cpp/CAppStats::Init");
+    m_num_of_tg_ids = num_of_tg_ids;
+    Clear();
+}
+
+void CAppStats::Clear(){
+
+    for ( uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
+        ClearPerTGID(tg_id);
+    }
+    memset(&m_sts,0,sizeof(app_stat_int_t));
+}
+
+void CAppStats::ClearPerTGID(uint16_t tg_id) {
+    memset(m_sts_tg_id+tg_id,0,sizeof(app_stat_int_t));
+}
+
+void CAppStats::Dump(FILE *fd){
+}
+
+void CAppStats::Resize(uint16_t new_num_of_tg_ids){
+    delete[] m_sts_tg_id;
+    Init(new_num_of_tg_ids);
+}
+
+void CAppStats::AddStatsVal(uint16_t tg_id, const uint8_t id, const uint64_t val){
+    uint64_t* counter_p = &m_sts.user_counter_A;
+    if (id < NUM_USER_COUNTERS) {
+        counter_p[id] += val;
+        counter_p = &m_sts_tg_id[tg_id].user_counter_A;
+        counter_p[id] += val;
+    }
 }
 

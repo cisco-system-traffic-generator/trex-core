@@ -430,11 +430,22 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint32_t program_index, uint32_t cmd_index) 
         return tcSET_VAR;
     if (cmd["name"] == "set_tick_var")
         return tcSET_TICK_VAR;
+    if (cmd["name"] == "add_var")
+        return tcADD_VAR;
+    if (cmd["name"] == "add_tick_var")
+        return tcADD_TICK_VAR;
+
+    if (cmd["name"] == "add_stats")
+        return tcADD_STATS;
+    if (cmd["name"] == "add_tick_stats")
+        return tcADD_TICK_STATS;
 
     if (cmd["name"] == "jmp_nz")
         return tcJMPNZ;
     if (cmd["name"] == "jmp_dp")
         return tcJMPDP;
+    if (cmd["name"] == "jmp_cmp")
+        return tcJMPCMP;
 
     if (cmd["name"] == "tx_msg")
         return tcTX_PKT;
@@ -450,7 +461,12 @@ tcp_app_cmd_enum_t CAstfDB::get_cmd(uint32_t program_index, uint32_t cmd_index) 
 
     if (cmd["name"] == "tx_mode")
         return tcTX_MODE;
-    
+
+    if (cmd["name"] == "set_template")
+        return tcSET_TEMPLATE;
+    if (cmd["name"] == "exec_template")
+        return tcEXEC_TEMPLATE;
+
     /* TBD need to check the value and put an error  !!! */
     return tcNO_CMD;
 }
@@ -517,6 +533,27 @@ void CAstfDB::fill_set_tick_var(uint32_t program_index, uint32_t cmd_index, CEmu
     res.u.m_tick_var.m_var_id = cmd["id"].asUInt();
 }
 
+void CAstfDB::fill_add_var(uint32_t program_index,
+                           uint32_t cmd_index,
+                           CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "add_var", cmd);
+
+    res.u.m_var.m_var_id = cmd["id"].asUInt();
+    res.u.m_var.m_val    = cmd["val"].asInt64();
+}
+
+void CAstfDB::fill_add_tick_var(uint32_t program_index,
+                                uint32_t cmd_index,
+                                CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "add_tick_var", cmd);
+
+    res.u.m_tick_var.m_var_id = cmd["id"].asUInt();
+    double duration = cmd["duration"].asDouble();
+    res.u.m_tick_var.m_duration = (uint64_t)(duration * 1000L / CAstfTickCmdClock::TICK_MSEC);
+}
+
 void CAstfDB::fill_jmpnz(uint32_t program_index, 
                             uint32_t cmd_index,
                             CEmulAppCmd &res) {
@@ -537,6 +574,66 @@ void CAstfDB::fill_jmpdp(uint32_t program_index,
     res.u.m_jmpdp.m_offset   = cmd["offset"].asInt();
     double duration = cmd["duration"].asDouble();
     res.u.m_jmpdp.m_duration = (uint64_t)(duration * 1000L / CAstfTickCmdClock::TICK_MSEC);
+}
+
+void CAstfDB::fill_jmpcmp(uint32_t program_index,
+                          uint32_t cmd_index,
+                          CEmulAppCmd &res) {
+    std::map<std::string, bool(*)(uint64_t,uint64_t)> cmp_ops{
+        { "gt", [](uint64_t x, uint64_t y) { return x > y; } },
+        { "lt", [](uint64_t x, uint64_t y) { return x < y; } },
+        { "eq", [](uint64_t x, uint64_t y) { return x == y; } },
+        { "ge", [](uint64_t x, uint64_t y) { return x >= y; } },
+        { "le", [](uint64_t x, uint64_t y) { return x <= y; } },
+        { "ne", [](uint64_t x, uint64_t y) { return x != y; } },
+    };
+
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "jmp_cmp", cmd);
+
+    res.u.m_jmpcmp.m_offset = cmd["offset"].asInt();
+    if (cmd["cmp_op"] != Json::nullValue) {
+        res.u.m_jmpcmp.m_cmp_op = cmp_ops[cmd["cmp_op"].asString()];
+        res.u.m_jmpcmp.m_var_id = cmd["id"].asUInt();
+        res.u.m_jmpcmp.m_cmp_val = cmd["cmp_val"].asUInt64();
+    } else {
+        res.u.m_jmpcmp.m_cmp_op = [](uint64_t x, uint64_t y) { return true; };
+        res.u.m_jmpcmp.m_var_id = 0;
+    }
+}
+
+void CAstfDB::fill_add_stats(uint32_t program_index,
+                             uint32_t cmd_index,
+                             CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "add_stats", cmd);
+
+    res.u.m_stats.m_stats_id = cmd["stats_id"].asUInt();
+    res.u.m_stats.m_val      = cmd["val"].asUInt64();
+
+    assert(res.u.m_stats.m_stats_id < NUM_USER_COUNTERS);
+}
+
+void CAstfDB::fill_add_tick_stats(uint32_t program_index,
+                             uint32_t cmd_index,
+                             CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "add_tick_stats", cmd);
+
+    res.u.m_stats.m_stats_id = cmd["stats_id"].asUInt();
+    res.u.m_stats.m_var_id   = cmd["var_id"].asUInt();
+
+    assert(res.u.m_stats.m_stats_id < NUM_USER_COUNTERS);
+}
+
+void CAstfDB::fill_set_template(uint32_t program_index,
+                                uint32_t cmd_index,
+                                CEmulAppCmd &res) {
+    Json::Value cmd;
+    assert_cmd(program_index, cmd_index, "set_template", cmd);
+
+    res.u.m_template.m_tg_id = cmd["tg_id"].asUInt();
+    assert((res.u.m_template.m_tg_id - 1) < m_val["tg_names"].size());
 }
 
 void CAstfDB::fill_tx_pkt(uint32_t program_index, 
@@ -1212,6 +1309,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         CAstfPerTemplateRW *temp_rw = new CAstfPerTemplateRW();
         assert(temp_rw);
 
+        ret->add_tg_id_dist(m_val["templates"][index]["tg_id"].asInt(), index);
+
         Json::Value c_temp = m_val["templates"][index]["client_template"];
         CAstfPerTemplateRO template_ro;
         template_ro.m_dual_mask = poolinfo.m_dual_interface_mask; // Should be the same for all poolinfo, so just take from last one
@@ -1222,7 +1321,9 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         template_ro.m_w = 1;
         double cps = cps_factor (c_temp["cps"].asDouble() / max_threads);
         template_ro.m_k_cps = cps;
-        dist.push_back(cps);
+        if (cps) {
+            dist.push_back(cps);
+        }
         template_ro.m_destination_port = c_temp["port"].asInt();
         template_ro.m_stream = get_emul_stream(c_temp["program_index"].asInt());
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
@@ -1583,6 +1684,16 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
                 fill_set_tick_var(program_index, cmd_index, cmd);
                 prog->add_cmd(cmd);
                 break;
+            case tcADD_VAR :
+                cmd.m_cmd = tcADD_VAR;
+                fill_add_var(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcADD_TICK_VAR:
+                cmd.m_cmd = tcADD_TICK_VAR;
+                fill_add_tick_var(program_index, cmd_index, cmd);
+                prog->add_cmd(cmd);
+                break;
             case tcJMPNZ :
                 cmd.m_cmd = tcJMPNZ;
                 fill_jmpnz(program_index, cmd_index,cmd);
@@ -1591,6 +1702,11 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
             case tcJMPDP :
                 cmd.m_cmd = tcJMPDP;
                 fill_jmpdp(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcJMPCMP :
+                cmd.m_cmd = tcJMPCMP;
+                fill_jmpcmp(program_index, cmd_index,cmd);
                 prog->add_cmd(cmd);
                 break;
 
@@ -1620,6 +1736,27 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
             case tcTX_MODE :
                 cmd.m_cmd = tcTX_MODE;
                 fill_tx_mode(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
+            case tcADD_STATS :
+                cmd.m_cmd = tcADD_STATS;
+                fill_add_stats(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcADD_TICK_STATS :
+                cmd.m_cmd = tcADD_TICK_STATS;
+                fill_add_tick_stats(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+
+            case tcSET_TEMPLATE :
+                cmd.m_cmd = tcSET_TEMPLATE;
+                fill_set_template(program_index, cmd_index,cmd);
+                prog->add_cmd(cmd);
+                break;
+            case tcEXEC_TEMPLATE :
+                cmd.m_cmd = tcEXEC_TEMPLATE;
                 prog->add_cmd(cmd);
                 break;
 

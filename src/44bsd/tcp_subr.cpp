@@ -230,6 +230,8 @@ void CFlowBase::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_c_template_idx=0;
     m_pctx=pctx;
     m_tg_id=tg_id;
+    m_base_flow=nullptr;
+    m_exec_flow=nullptr;
 }
 
 void CFlowBase::Delete() {
@@ -257,7 +259,6 @@ void CFlowBase::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
         m_template.m_tunnel_ctx = m_pctx->m_ctx->m_tunnel_handler->get_opposite_ctx();
     }
 }
-
 
 
 void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
@@ -791,6 +792,7 @@ void CTcpPerThreadCtx::resize_stats(profile_id_t profile_id) {
     uint16_t num_of_tg_ids = get_template_ro(profile_id)->get_num_of_tg_ids();
     get_tcpstat(profile_id)->Resize(num_of_tg_ids);
     get_udpstat(profile_id)->Resize(num_of_tg_ids);
+    get_appstat(profile_id)->Resize(num_of_tg_ids);
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -813,6 +815,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_tick=0;
     tcp_now=timestamp;
     m_cb = NULL;
+    m_thread = nullptr;
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;
@@ -925,18 +928,23 @@ void CPerProfileFlowDump::on_timer_update(CAstfTimerFunctorObj* tmr) {
 void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
     tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts;
     udp_stat_int_t *lpt_udp = &m_udpstat.m_sts;
+    app_stat_int_t *lpt_app = &m_appstat.m_sts;
 
     CGCountersUtl64 tcp((uint64_t *)lpt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app((uint64_t *)lpt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     uint64_t *base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts;
     uint64_t *base_udp = (uint64_t *)&pctx->m_udpstat.m_sts;
+    uint64_t *base_app = (uint64_t *)&pctx->m_appstat.m_sts;
 
     CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app_ctx(base_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     tcp += tcp_ctx;
     udp += udp_ctx;
+    app += app_ctx;
 
     if (pctx->get_time_connects()) {
         update_time_connects(pctx->get_time_connects());
@@ -946,18 +954,23 @@ void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
 void CPerProfileCtx::update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id) {
     tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts_tg_id[tg_id];
     udp_stat_int_t *lpt_udp = &m_udpstat.m_sts_tg_id[tg_id];
+    app_stat_int_t *lpt_app = &m_appstat.m_sts_tg_id[tg_id];
 
     CGCountersUtl64 tcp((uint64_t *)lpt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app((uint64_t *)lpt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     uint64_t *base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts_tg_id[in_tg_id];
     uint64_t *base_udp = (uint64_t *)&pctx->m_udpstat.m_sts_tg_id[in_tg_id];
+    uint64_t *base_app = (uint64_t *)&pctx->m_appstat.m_sts_tg_id[in_tg_id];
 
     CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app_ctx(base_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     tcp += tcp_ctx;
     udp += udp_ctx;
+    app += app_ctx;
 }
 
 
