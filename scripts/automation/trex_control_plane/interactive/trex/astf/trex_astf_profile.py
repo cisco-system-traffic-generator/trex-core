@@ -224,10 +224,40 @@ class ASTFCmdSetVal(ASTFCmdSetValBase):
         self.fields['name'] = 'set_var'
         self.fields['val']  = val
 
+class ASTFCmdAddVal(ASTFCmdSetValBase):
+    def __init__(self, id_val, val):
+        super(ASTFCmdAddVal, self).__init__(id_val)
+        self.fields['name'] = 'add_var'
+        self.fields['val']  = val
+
 class ASTFCmdSetTickVar(ASTFCmdSetValBase):
     def __init__(self, id_val):
         super(ASTFCmdSetTickVar, self).__init__(id_val)
         self.fields['name'] = 'set_tick_var'
+
+class ASTFCmdAddTickVar(ASTFCmdSetValBase):
+    def __init__(self, id_val, duration):
+        super(ASTFCmdAddTickVar, self).__init__(id_val)
+        self.fields['name'] = 'add_tick_var'
+        self.fields['duration']  = duration
+
+# Add Statistics Commands #
+class ASTFCmdAddStatsBase(ASTFCmd):
+    def __init__(self, id_val):
+        super(ASTFCmdAddStatsBase, self).__init__()
+        self.fields['stats_id'] = id_val
+
+class ASTFCmdAddStatsVal(ASTFCmdAddStatsBase):
+    def __init__(self, id_val, val):
+        super(ASTFCmdAddStatsVal, self).__init__(id_val)
+        self.fields['name'] = 'add_stats'
+        self.fields['val']  = val
+
+class ASTFCmdAddTickStats(ASTFCmdAddStatsBase):
+    def __init__(self, id_val, tick_var):
+        super(ASTFCmdAddTickStats, self).__init__(id_val)
+        self.fields['name'] = 'add_tick_stats'
+        self.fields['var_id']  = tick_var
 
 # Conditional Jump Commands #
 class ASTFCmdJMPBase(ASTFCmd):
@@ -248,11 +278,33 @@ class ASTFCmdJMPDP(ASTFCmdJMPBase):
         self.fields['name'] = 'jmp_dp'
         self.fields['duration'] = duration
 
+class ASTFCmdJMPCMP(ASTFCmdJMPBase):
+    def __init__(self, id_val, offset, label, cmp_op, cmp_val):
+        super(ASTFCmdJMPCMP, self).__init__(id_val, offset, label)
+        self.fields['name'] = 'jmp_cmp'
+        if not id_val:
+            del self.fields['id']
+        else:
+            self.fields['cmp_op'] = cmp_op
+            self.fields['cmp_val'] = cmp_val
+
 class ASTFCmdTxMode(ASTFCmd):
     def __init__(self,flags):
         super(ASTFCmdTxMode, self).__init__()
         self.fields['name'] = 'tx_mode'
         self.fields['flags'] = flags
+
+# Template Control Commands #
+class ASTFCmdSetTemplate(ASTFCmd):
+    def __init__(self, id_val):
+        super(ASTFCmdSetTemplate, self).__init__()
+        self.fields['name'] = 'set_template'
+        self.fields['tg_id'] =  id_val
+
+class ASTFCmdExecTemplate(ASTFCmd):
+    def __init__(self):
+        super(ASTFCmdExecTemplate, self).__init__()
+        self.fields['name'] = 'exec_template'
 
 
 class ASTFProgram(object):
@@ -689,6 +741,26 @@ class ASTFProgram(object):
             self.__add_var(var_id)
         self.fields['commands'].append(ASTFCmdSetVal(var_id,val))
 
+    def add_var(self, var_id, val):
+        """
+        Add a value to a flow variable
+
+        :parameters:
+            var_id  : string
+                var-id there are limited number of variables
+
+            val  : int
+                value to be added
+
+        """
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "val", 'arg': val, "t": [int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdAddVal(var_id,val))
+
     def set_tick_var(self, var_id):
         """
         Set a flow variable used with jmp_nz command. Timer will be started when declaring tick var. 
@@ -705,6 +777,72 @@ class ASTFProgram(object):
         if  isinstance(var_id, str):
             self.__add_var(var_id)
         self.fields['commands'].append(ASTFCmdSetTickVar(var_id))
+
+    def add_tick_var(self, var_id, duration):
+        """
+        Add a tick value to a flow variable
+
+        :parameters:
+            var_id  : string
+               var-id there are limited number of variables
+
+            duartion  : float
+               duration of time in seconds to be added
+
+        """
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "duration", 'arg': duration, "t": [float, int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdAddTickVar(var_id,duration))
+
+    def add_stats(self, stats_id, val):
+        """
+        Add counter value to a statistics counter
+
+        :parameters:
+            stats_id  : int or string
+               statistics counter index (0, 1, 2, ... or 'A', 'B', 'C', ...)
+
+            val  : uint64_t
+               counter value to be added
+
+        """
+        ver_args = {"types":
+                    [{"name": "stats_id", 'arg': stats_id, "t": [int, str]},
+                     {"name": "val", 'arg': val, "t": [int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if isinstance(stats_id, str):
+            stats_id = ord(stats_id.upper()) - ord('A')
+
+        self.fields['commands'].append(ASTFCmdAddStatsVal(stats_id,val))
+
+    def add_tick_stats(self, stats_id, var_id):
+        """
+        Add elapsed time from a flow tick variable to a statistics counter
+
+        :parameters:
+            stats_id  : int or string
+               statistics counter index (0, 1, 2, ... or 'A', 'B', 'C', ...)
+
+            var_id  : string
+               flow tick variable that the base time is saved
+
+        """
+        ver_args = {"types":
+                    [{"name": "stats_id", 'arg': stats_id, "t": [int, str]},
+                     {"name": "var_id", 'arg': var_id, "t": [str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        if isinstance(stats_id, str):
+            stats_id = ord(stats_id.upper()) - ord('A')
+
+        self.fields['commands'].append(ASTFCmdAddTickStats(stats_id,var_id))
 
     def set_label(self, label):
         """
@@ -764,6 +902,79 @@ class ASTFProgram(object):
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
         duration = float(duration)
         self.fields['commands'].append(ASTFCmdJMPDP(var_id, 0, label, duration))
+
+    def jmp_cmp(self, var_id, label, cmp_op, cmp_val):
+        """
+        Jump to label if the result of comparison operation is true.
+
+        :parameters:
+            var_id  : string
+                flow var id
+
+            label  : string
+                label id
+
+            cmp_op  : string
+                comparison operator: 'lt', 'gt', 'eq', 'ge', 'le', 'ne'
+
+            cmp_val  : int
+                a value to compare with flow variable id
+
+        """
+
+        ver_args = {"types":
+                    [{"name": "var_id", 'arg': var_id, "t": [str]},
+                     {"name": "label", 'arg': label, "t": [str]},
+                     {"name": "cmp_op", 'arg': cmp_op, "t": [str]},
+                     {"name": "cmp_val", 'arg': cmp_val, "t": [int]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdJMPCMP(var_id, 0, label, cmp_op, cmp_val))
+
+    def jmp(self, label):
+        self.jmp_cmp('', label, '', 0)
+
+    def jmp_lt(self, var_id, label, value):
+        self.jmp_cmp(var_id, label, 'lt', value)
+
+    def jmp_gt(self, var_id, label, value):
+        self.jmp_cmp(var_id, label, 'gt', value)
+
+    def jmp_eq(self, var_id, label, value):
+        self.jmp_cmp(var_id, label, 'eq', value)
+
+    def jmp_ge(self, var_id, label, value):
+        self.jmp_cmp(var_id, label, 'ge', value)
+
+    def jmp_le(self, var_id, label, value):
+        self.jmp_cmp(var_id, label, 'le', value)
+
+    def jmp_ne(self, var_id, label, value):
+        self.jmp_cmp(var_id, label, 'ne', value)
+
+
+    def set_next_template(self, tg_id):
+        """
+        Set next template to generate new flow with the same association
+
+        :parameters:
+            tg_name  : string
+                template name to generate new flow
+        """
+        ver_args = {"types":
+                    [{"name": "tg_id", 'arg': tg_id, "t": [str]}]
+                    }
+        ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
+
+        self.fields['commands'].append(ASTFCmdSetTemplate(tg_id))
+
+    def exec_template(self):
+        """
+        Generate a flow from given template and wait for it done
+
+        """
+        self.fields['commands'].append(ASTFCmdExecTemplate())
 
 
     def _set_cmds(self, cmds):
@@ -867,6 +1078,9 @@ class ASTFProgram(object):
             new_cmds.append(cmd)
         return new_cmds
 
+    def set_tg_names(self, tg_names):
+        self.tg_name_to_id = tg_names
+
     def __compile(self):
         # update offsets for  ASTFCmdJMPNZ
         # comvert var names to ids 
@@ -880,12 +1094,20 @@ class ASTFProgram(object):
             if isinstance(cmd, ASTFCmdJMPBase):
                 #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
                 cmd.fields['offset']=self.__get_label_id(cmd.label)-(i);
-                if isinstance(cmd.fields['id'],str):
+                if 'id' in cmd.fields and isinstance(cmd.fields['id'],str):
                     cmd.fields['id']=self.__get_var_index(cmd.fields['id'])
             if isinstance(cmd, ASTFCmdSetValBase):
                 id_name=cmd.fields['id']
                 if isinstance(id_name,str):
                     cmd.fields['id']=self.__get_var_index(id_name)
+            if isinstance(cmd, ASTFCmdAddTickStats):
+                id_name=cmd.fields['var_id']
+                if isinstance(id_name,str):
+                    cmd.fields['var_id']=self.__get_var_index(id_name)
+            if isinstance(cmd, ASTFCmdSetTemplate):
+                id_name=cmd.fields['tg_id']
+                if isinstance(id_name,str):
+                    cmd.fields['tg_id']=self.tg_name_to_id[id_name]
             i=i+1
 
 
@@ -1396,7 +1618,8 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
 
         super(ASTFTCPClientTemplate, self).__init__(ip_gen=ip_gen, cluster=cluster, program=program)
         self.fields['port'] = port
-        self.fields['cps'] = cps
+        if cps:
+            self.fields['cps'] = cps
         self.fields['glob_info'] = glob_info
         if limit:
             self.fields['limit'] = limit
@@ -1406,7 +1629,8 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
     def to_json(self):
         ret = super(ASTFTCPClientTemplate, self).to_json()
         ret['port'] = self.fields['port']
-        ret['cps'] = self.fields['cps']
+        if 'cps' in self.fields:
+            ret['cps'] = self.fields['cps']
         if 'limit' in self.fields:
             ret['limit'] = self.fields['limit']
             if 'cont' in self.fields:
@@ -2042,6 +2266,7 @@ class ASTFProfileCache(object):
             tcp_templates = [client_template, server_template]
 
             for tcp_template in tcp_templates:
+                tcp_template.program.set_tg_names(self.profile.tg_name_to_id)
                 self.program_cache.add_commands_from_program(tcp_template.program)
                 self.template_cache.add_program_from_template(tcp_template)
 

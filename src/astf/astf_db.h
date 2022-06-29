@@ -547,8 +547,14 @@ private:
     void fill_delay_rnd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_set_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_set_tick_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_tick_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_jmpnz(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_jmpdp(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_jmpcmp(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_stats(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_tick_stats(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_set_template(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
     void fill_tx_pkt(uint32_t program_index, 
                      uint32_t cmd_index,

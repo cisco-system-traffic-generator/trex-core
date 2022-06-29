@@ -3097,6 +3097,7 @@ class CTcpCtxCb;
 class CSyncBarrier;
 class CAstfDB;
 class CIpInfoBase;
+class CFlowBase;
 
 class CFlowGenListPerThread {
 
@@ -3352,7 +3353,7 @@ public:
     void remove_tcp_profile(profile_id_t profile_id);
     void Delete_tcp_ctx();
 
-    void generate_flow(bool &done, CPerProfileCtx * pctx);
+    void generate_flow(CPerProfileCtx * pctx, uint16_t tg_id = 0, CFlowBase* in_flow = nullptr);
 
     void handle_rx_flush(CGenNode * node,bool on_terminate);
     void handle_tx_fif(CGenNodeTXFIF * node,bool on_terminate);

@@ -752,10 +752,22 @@ public:
         set_active_list_ptr_to_start();
     }
 
+    uint32_t GenerateTuple(CTupleBase & tuple, CIpInfoBase* ip_info) {
+
+        uint32_t idx = ip_info->get_ip() - m_ip_info[0]->get_ip();
+        ip_info->generate_tuple(tuple, ip_info->get_tunnel_ctx());
+
+        tuple.setClientId(idx);
+        if (tuple.getClientPort()==ILLEGAL_PORT) {
+            m_port_allocation_error++;
+        }
+        m_active_alloc++;
+        return idx;
+    }
+
     uint32_t GenerateTuple(CTupleBase & tuple) {
 
         CIpInfoBase* ip_info;
-        uint32_t idx = 0;
 
         //Round robin. If we are tail , start from head
         // Get index of client and increament for next active client 
@@ -765,16 +777,8 @@ public:
         ActiveClientListNode * ln = (ActiveClientListNode *)m_cur_act_itr.node();
         ip_info = (CIpInfoBase *)ln->client;
         m_cur_act_itr++;
-        
-        idx = ip_info->get_ip() - m_ip_info[0]->get_ip();
-        ip_info->generate_tuple(tuple, ip_info->get_tunnel_ctx());
 
-        tuple.setClientId(idx);
-        if (tuple.getClientPort()==ILLEGAL_PORT) {
-            m_port_allocation_error++;
-        }
-        m_active_alloc++;
-        return idx;
+        return GenerateTuple(tuple, ip_info);
     }
 
     /* Add dll node of client object in active client list */
@@ -1189,6 +1193,10 @@ public:
     CTupleGeneratorSmart * get_gen() {
         return m_gen;
     }
+
+    CClientPool * get_client_gen() const { return m_client_gen; }
+    CServerPoolBase * get_server_gen() const { return m_server_gen; }
+
 private:
     CTupleGeneratorSmart * m_gen;
     CClientPool          * m_client_gen;

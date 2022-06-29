@@ -68,6 +68,7 @@ private:
 public:
     CTcpStats           m_tcp;
     CUdpStats           m_udp;
+    CAppStats           m_app;
     CSttFlowTableStats  m_ft;
     dyn_sts_group_vec_t m_dyn_sts;
     dyn_sts_range_map_t m_dyn_sts_range_map;
