@@ -459,6 +459,30 @@ public:
 
     void set_tunnel_ctx();
 
+    void setup_base_flow(CFlowBase* flow) {
+        if (flow) {
+            assert(flow->m_exec_flow == nullptr);
+            flow->m_exec_flow = this;
+            m_base_flow = flow;
+        }
+    }
+
+    void resume_base_flow() {
+        if (m_base_flow) {
+            assert(m_base_flow->m_exec_flow == this);
+            m_base_flow->m_app.resume_by(&m_app);
+            m_base_flow->m_exec_flow = nullptr;
+            m_base_flow = nullptr;
+        }
+    }
+
+    void clear_exec_flow() {
+        if (m_exec_flow) {
+            assert(m_exec_flow->m_base_flow == this);
+            m_exec_flow->m_base_flow = nullptr;
+            m_exec_flow = nullptr;
+        }
+    }
 
 public:
     uint8_t              m_c_idx_enable;
@@ -472,6 +496,9 @@ public:
     flow_hash_ent_t      m_hash;  /* hash object - 64bit  */
     CEmulApp             m_app;   
     CFlowTemplate        m_template;  /* 128+32 bytes */
+
+    CFlowBase           *m_base_flow;  /* execution base flow */
+    CFlowBase           *m_exec_flow;  /* execution flow link */
 };
 
 
@@ -768,6 +795,7 @@ public:
 
     struct CTcpStats    m_tcpstat; /* tcp statistics */
     struct CUdpStats    m_udpstat; /* udp statistics */
+    struct CAppStats    m_appstat; /* app statistics */
 
     uint32_t            m_stop_id;
 
@@ -1077,6 +1105,8 @@ public:
 };
 
 
+class CFlowGenListPerThread;
+
 class CTcpPerThreadCtx {
 public:
     bool Create(uint32_t size,
@@ -1130,6 +1160,9 @@ public:
     }
     CTcpCtxCb *get_cb() {return m_cb;}
 
+    void set_thread(CFlowGenListPerThread* thread){ m_thread=thread; }
+    CFlowGenListPerThread *get_thread() const { return m_thread; }
+
     void set_memory_socket(uint8_t socket){
         m_mbuf_socket= socket;
     }
@@ -1169,6 +1202,7 @@ public:
     uint8_t     m_disable_new_flow;
     uint8_t     m_pad;
 
+    CFlowGenListPerThread * m_thread; /* back pointer */
     KxuLCRand         *  m_rand; /* per context */
     CTcpCtxCb         *  m_cb;
     CNATimerWheel        m_timer_w; /* TBD-FIXME one timer , should be pointer */
@@ -1322,6 +1356,7 @@ public:
 
     struct CTcpStats* get_tcpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_tcpstat; }
     struct CUdpStats* get_udpstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_udpstat; }
+    struct CAppStats* get_appstat(profile_id_t profile_id=0) { return &get_profile_ctx(profile_id)->m_appstat; }
 };
 
 
