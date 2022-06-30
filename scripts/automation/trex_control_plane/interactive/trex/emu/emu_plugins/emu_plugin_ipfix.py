@@ -342,3 +342,83 @@ class IPFIXPlugin(EMUPluginBase):
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
         return self.set_gen_rate(c_key, opts.gen_name, template_rate=opts.rate, rate=0.0), # rate 0 will keep the data rate unchanged
+
+
+    @client_api('getter', True)
+    def get_exporter_info(self, c_key):
+        """
+            Gets information about the exporter used by the client.
+
+            :parameters:
+
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
+            :returns: A json dictionary with the following fields:
+                    'exporter_type' : string
+                        Exporter type - emu-udp | udp | http | file
+                    
+                    'file': object
+                        In case of http exporter contains list of objects reporting the status of the most recent (up to 30)
+                        file export sessions.
+
+                    { 'name': string
+                           Name of the exported file
+
+                      'time': bool
+                           The time when the file was exported
+
+                       'status': string
+                           Final status of the export sesssion
+                        
+                       'transport_status': string
+                           Transport status of the export sesssion
+                        
+                       'http_status_code': string
+                           HTTP status code received from the server (collector)
+                        
+                       'http_response_msg': string
+                           HTTP response message received from the server (collector)
+                    
+                       'bytes_uploaded': int
+                           Number of bytes successfully uploaded by the file
+                    }
+        """
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
+        EMUValidator.verify(ver_args)
+        res = self.emu_c._send_plugin_cmd_to_client('ipfix_c_get_exp_info', c_key)
+        return res
+
+    @plugin_api('ipfix_get_exp_info', 'emu')
+    def ipfix_get_exporter_info_line(self, line):
+        """Get IPFix exporter information.\n"""
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_get_exp_info",
+                                        self.ipfix_get_exporter_info_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.MAC_ADDRESS,
+                                        parsing_opts.EMU_DUMPS_OPT)
+
+        opts = parser.parse_args(line.split())
+        self._validate_port(opts)
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        c_key = EMUClientKey(ns_key, opts.mac)
+        
+        res = self.get_exporter_info(c_key)
+
+        if opts.json or opts.yaml:
+            dump_json_yaml(data = res, to_json = opts.json, to_yaml = opts.yaml)
+            return
+
+        keys_to_headers = [ {'key': 'name',              'header': 'Name'},
+                            {'key': 'time',              'header': 'Time'},
+                            {'key': 'status',            'header': 'Status'},
+                            {'key': 'transport_status',  'header': 'Trans Status'},
+                            {'key': 'http_status_code',  'header': 'HTTP Status'},
+                            {'key': 'http_response_msg', 'header': 'HTTP Response Message'},
+                            {'key': 'bytes_uploaded',    'header': 'Bytes Uploaded'},
+        ]
+
+        print("Exporter type: ", res['exporter_type'])
+        print("\n")
+        self.print_table_by_keys(list(res['files']), keys_to_headers, title = "Files Info")

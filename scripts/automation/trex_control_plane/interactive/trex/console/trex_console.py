@@ -808,6 +808,11 @@ def setParserOptions():
     parser.add_argument("--emu-server",
                         help="Emulation client server, default is TRex server address")
 
+    parser.add_argument("--emu-server-port", 
+                        help = "Emu server port [default is 4510]\n",
+                        default = 4510,
+                        type = int)
+
     parser.add_argument("--emu-only-server",
                         nargs = "?",
                         const = "localhost",
@@ -906,6 +911,7 @@ def run_console(client, logger, options):
 
         # run emu if needed
         console.emu_server = options.emu_server
+        console.emu_server_port = options.emu_server_port
         if options.emu:
             console.do_plugins('load emu')
 
