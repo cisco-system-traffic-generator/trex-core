@@ -194,7 +194,7 @@ public:
     bool has_flow_stats();
 
     /**
-     * the the max stream id currently assigned
+     * the max stream id currently assigned
      *
      */
     int get_max_stream_id() const;
@@ -464,7 +464,7 @@ public:
     bool has_flow_stats(string profile_id);
 
     /**
-     * the the max stream id currently assigned
+     * the max stream id currently assigned
      *
      */
     int get_max_stream_id(string profile_id);
