@@ -421,4 +421,6 @@ class IPFIXPlugin(EMUPluginBase):
 
         print("Exporter type: ", res['exporter_type'])
         print("\n")
-        self.print_table_by_keys(list(res['files']), keys_to_headers, title = "Files Info")
+        
+        if 'files' in res:
+            self.print_table_by_keys(list(res['files']), keys_to_headers, title = "Files Info")
