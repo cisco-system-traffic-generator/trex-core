@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 2.99 ==
+
+* E810 add drop mode, latency stream filter does not work yet. 
+* i40evf another fix 
+* EMU add client mode for IPFIX plugin 
+
 == Release 2.98 ==
 
 * Upgrade to DPDK 22.03 
