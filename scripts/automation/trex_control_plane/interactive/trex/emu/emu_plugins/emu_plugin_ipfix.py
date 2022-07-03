@@ -355,34 +355,34 @@ class IPFIXPlugin(EMUPluginBase):
                     EMUClientKey
 
             :returns: A json dictionary with the following fields:
-                    'exporter_type' : string
-                        Exporter type - emu-udp | udp | http | file
-                    
-                    'file': object
-                        In case of http exporter contains list of objects reporting the status of the most recent (up to 30)
-                        file export sessions.
 
-                    { 'name': string
-                           Name of the exported file
+                'exporter_type': string
+                    Exporter type - emu-udp, udp, http, file
 
-                      'time': bool
-                           The time when the file was exported
+                'files': list
+                    Only for HTTP exporter - contains a list of objects reporting the status of the most recent (up to 30)
+                    file export sessions.
 
-                       'status': string
-                           Final status of the export sesssion
-                        
-                       'transport_status': string
-                           Transport status of the export sesssion
-                        
-                       'http_status_code': string
-                           HTTP status code received from the server (collector)
-                        
-                       'http_response_msg': string
-                           HTTP response message received from the server (collector)
-                    
-                       'bytes_uploaded': int
-                           Number of bytes successfully uploaded by the file
-                    }
+                { 'name': string
+                     Name of the exported file
+
+                'time': bool
+                    The time when the file was exported
+
+                'status': string
+                    Final status of the export session
+
+                'transport_status': string
+                    Transport status of the export session
+
+                'http_status_code': string
+                    HTTP status code received from the server (collector)
+
+                'http_response_msg': string
+                    HTTP response message received from the server (collector)
+
+                'bytes_uploaded': int
+                    Number of bytes successfully uploaded by the file}
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
         EMUValidator.verify(ver_args)
