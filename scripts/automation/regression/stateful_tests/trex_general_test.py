@@ -613,6 +613,16 @@ class CTRexGeneral_Test(unittest.TestCase):
                 'latency_9k_max_latency': 200,
             },
 
+            'net_ice': {
+                'rate_percent': 40,
+                'rate_percent_soft': 0.01 if cls.is_vf_nics else 1,
+                'total_pkts': 1000,
+                'rate_latency': 0.01 if cls.is_vf_nics else 1,
+                'latency_9k_enable': False if cls.is_vf_nics else True,
+                'latency_9k_max_average': 200,
+                'latency_9k_max_latency': 200,
+            },
+
             'net_enic': {
                 'rate_percent': 1,
                 'total_pkts': 50,
