@@ -26,6 +26,7 @@ limitations under the License.
 #include <unistd.h>
 #include <zmq.h>
 #include <sstream>
+#include <iomanip>
 #include <iostream>
 #include <ctime>
 
@@ -72,13 +73,16 @@ void TrexRpcServerInterface::verbose_msg(const std::string &msg) {
         return;
     }
 
-    auto t = std::time(nullptr);
-    auto tm = std::localtime(&t);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    auto tm = std::localtime(&ts.tv_sec);
     char time_buffer[80];
     strftime (time_buffer, 80, "%d-%m-%Y %H:%M:%S", tm);
 
     std::stringstream msg_ss;
-    msg_ss << "[" << time_buffer << "] [" << m_name << "] " << msg << "\n";
+    msg_ss << "[" << time_buffer
+           << "." << std::setw(6) << std::setfill('0') << ts.tv_nsec/1000
+           << "] [" << m_name << "] " << msg << "\n";
 
     if ( m_is_verbose ) {
         std::cout << msg_ss.str() << std::flush;
