@@ -50,7 +50,7 @@
 #ifndef TREX_PATCH
 #define I40EVF_ALARM_INTERVAL 50000 /* us */
 #else
-#define I40EVF_ALARM_INTERVAL 50000 /* same as ASQ_DELAY_MS */
+#define I40EVF_ALARM_INTERVAL 10000 /* same as ASQ_DELAY_MS */
 #endif
 
 struct i40evf_arq_msg_info {
