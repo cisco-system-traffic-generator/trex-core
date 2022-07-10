@@ -1,5 +1,6 @@
 from trex.emu.api import *
 import argparse
+import json
 
 
 class Prof1():
@@ -23,7 +24,7 @@ class Prof1():
             ipv4 = Ipv4('0.0.0.0')
             dg = Ipv4('0.0.0.0')
             # create a different client each time
-            for i in range(clients_size):       
+            for i in range(clients_size):
                 client = EMUClientObj(mac     = mac[i].V(),
                                       ipv4    = ipv4.V(),
                                       ipv4_dg = dg.V(),
@@ -47,7 +48,7 @@ class Prof1():
                     help='Number of clients to create in each namespace')
         parser.add_argument('--mac', type = str, default = '00:00:00:70:00:01',
                     help='Mac address of the first client')
-        parser.add_argument('--options', type=str, help="A JSON encoded options dictionary.")
+        parser.add_argument('--options', type=str, help="A JSON encoded options dictionary.", default=json.dumps({}))
 
         args = parser.parse_args(tuneables)
         return self.create_profile(args.ns, args.clients,args.mac, json.loads(args.options))
