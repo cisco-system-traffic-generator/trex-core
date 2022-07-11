@@ -25,7 +25,6 @@ import cmd
 import json
 import argparse
 import random
-import readline
 import string
 import os
 import sys
@@ -35,6 +34,13 @@ from functools import wraps, partial
 import threading
 import atexit
 import tempfile
+
+
+try:
+    import gnureadline as readline
+except ImportError:
+    import readline
+
 
 if __package__ == None:
     print("TRex console must be launched as a module")

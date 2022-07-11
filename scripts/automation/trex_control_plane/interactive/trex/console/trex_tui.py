@@ -11,7 +11,12 @@ from texttable import ansi_len
 
 
 import datetime
-import readline
+
+
+try:
+    import gnureadline as readline
+except ImportError:
+    import readline
 
 
 if sys.version_info > (3,0):
