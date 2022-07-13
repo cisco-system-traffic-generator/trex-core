@@ -492,7 +492,7 @@ CNamespacedIfNode * CStackLinuxBased::get_node_rpc(const std::string &mac){
     CNamespacedIfNode * lp=get_node_by_mac(mac);
     if (!lp) {
         stringstream ss;
-        ss << "node " << mac << " does not exits " ;
+        ss << "node " << mac << " does not exist " ;
         throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR,ss.str()));
     }
     return (lp);
