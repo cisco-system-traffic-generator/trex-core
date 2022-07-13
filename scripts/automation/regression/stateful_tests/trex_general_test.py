@@ -331,7 +331,7 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_general_scenario_results (self, trex_res, check_latency = True, skip_expected = False):
         """ 
 
-           skip expected is for case of TCP that those value does not exits because we can't predict them 
+           skip expected is for case of TCP that those value does not exist because we can't predict them 
 
         """
 
