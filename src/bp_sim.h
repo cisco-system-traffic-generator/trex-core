@@ -1,7 +1,7 @@
 #ifndef BP_SIM_H
 #define BP_SIM_H
 /*
- Hanoh Haim
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -1875,7 +1875,7 @@ public:
     uint16_t            m_payload_offset;
     uint8_t             m_rw_mbuf_size;    /* first R/W mbuf size 64/128/256 */
     uint8_t             m_pad1;
-    uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exits */
+    uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exist */
 
 public:
 
