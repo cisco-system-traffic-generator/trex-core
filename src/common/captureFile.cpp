@@ -194,7 +194,7 @@ bool CErfCmp::compare(std::string f1, std::string f2 ){
     CCapReaderBase * lp1=CCapReaderFactory::CreateReader((char *)f1.c_str(),0);
     if (lp1 == 0) {
         if ( dump ){
-            printf(" ERROR file %s does not exits or not supported \n",(char *)f1.c_str());
+            printf(" ERROR file %s does not exist or not supported \n",(char *)f1.c_str());
         }
         return (false);
     }
@@ -203,7 +203,7 @@ bool CErfCmp::compare(std::string f1, std::string f2 ){
     if (lp2 == 0) {
         delete lp1;
         if ( dump ){
-            printf(" ERROR file %s does not exits or not supported \n",(char *)f2.c_str());
+            printf(" ERROR file %s does not exist or not supported \n",(char *)f2.c_str());
         }
         return (false);
     }
