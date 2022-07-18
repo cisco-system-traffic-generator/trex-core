@@ -382,7 +382,13 @@ class IPFIXPlugin(EMUPluginBase):
                     HTTP response message received from the server (collector)
 
                 'bytes_uploaded': int
-                    Number of bytes successfully uploaded by the file}
+                    Number of bytes successfully uploaded by the file
+
+                'temp_records_uploaded': int
+                    Number of template records successfully uploaded by the file
+
+                'data_records_uploaded': int
+                    Number of data records successfully uploaded by the file}
         """
         ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
         EMUValidator.verify(ver_args)
@@ -410,13 +416,15 @@ class IPFIXPlugin(EMUPluginBase):
             dump_json_yaml(data = res, to_json = opts.json, to_yaml = opts.yaml)
             return
 
-        keys_to_headers = [ {'key': 'name',              'header': 'Name'},
-                            {'key': 'time',              'header': 'Time'},
-                            {'key': 'status',            'header': 'Status'},
-                            {'key': 'transport_status',  'header': 'Trans Status'},
-                            {'key': 'http_status_code',  'header': 'HTTP Status'},
-                            {'key': 'http_response_msg', 'header': 'HTTP Response Message'},
-                            {'key': 'bytes_uploaded',    'header': 'Bytes Uploaded'},
+        keys_to_headers = [ {'key': 'name',                  'header': 'Name'},
+                            {'key': 'time',                  'header': 'Time'},
+                            {'key': 'status',                'header': 'Status'},
+                            {'key': 'transport_status',      'header': 'Trans Status'},
+                            {'key': 'http_status_code',      'header': 'HTTP Status'},
+                            {'key': 'http_response_msg',     'header': 'HTTP Response Message'},
+                            {'key': 'bytes_uploaded',        'header': 'Bytes Uploaded'},
+                            {'key': 'temp_records_uploaded', 'header': 'Temp Records Uploaded'},
+                            {'key': 'data_records_uploaded', 'header': 'Data Records Uploaded'},
         ]
 
         print("Exporter type: ", res['exporter_type'])
