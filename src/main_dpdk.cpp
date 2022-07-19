@@ -7412,7 +7412,6 @@ COLD_FUNC int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
 }
 
 COLD_FUNC int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
-    g_trex.sync_threads_stats();
     CFlowStatRuleMgr::instance()->dump_json(json, pgids);
     return 0;
 }
