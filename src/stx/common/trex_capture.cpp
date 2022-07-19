@@ -271,7 +271,9 @@ double CaptureEndpoint::get_start_ts() const {
 
 uint64_t CaptureEndpoint::get_timestamp_ns() const {
     uint64_t cycles = os_get_hr_tick_64() - m_timestamp_cycles;
-    return  m_timestamp_ns + (cycles*NSEC_PER_SEC)/os_get_hr_freq();
+    uint64_t sec = cycles/os_get_hr_freq();
+    cycles = cycles - sec*os_get_hr_freq();
+    return  m_timestamp_ns + sec*NSEC_PER_SEC + (cycles*NSEC_PER_SEC)/os_get_hr_freq();
 }
 
 uint8_t *
