@@ -31,11 +31,8 @@ inline uint32_t utl_split_int(uint32_t val,
     assert(thread_id<num_threads);
     uint32_t s=val/num_threads;
     uint32_t m=val%num_threads;
-    if (thread_id==0) {
-        s+=m;
-    }
-    if (s==0) {
-        s=1;
+    if (thread_id<m) {
+        s+=1;
     }
     return(s);
 }

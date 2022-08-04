@@ -1578,7 +1578,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
      """
 
     def __init__(self, ip_gen, cluster=ASTFCluster(), program=None,
-                 port=80, cps=1, glob_info=None,limit=None,cont=None):
+                 port=80, cps=1, glob_info=None,limit=None,cont=None,core_base=None):
         """
 
         :parameters:
@@ -1603,6 +1603,10 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                   cont     : bool
                         try to keep the number of flows up to limit.
 
+                  core_base : uint16_t
+                        preferred core base hint when limit value is less than the number of cores.
+                        default is pseudo random value.
+
                   glob_info : ASTFGlobalInfoPerTemplate see :class:`trex.astf.trex_astf_global_info.ASTFGlobalInfoPerTemplate`
         """
 
@@ -1611,6 +1615,7 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
                      {"name": "cluster", 'arg': cluster, "t": ASTFCluster, "must": False},
                      {"name": "limit", 'arg': limit, "t": int, "must": False},
                      {"name": "cont", 'arg': cont, "t": bool, "must": False},
+                     {"name": "core_base", 'arg': core_base, "t": int, "must": False},
                      {"name": "glob_info", 'arg': glob_info, "t": ASTFGlobalInfoPerTemplate, "must": False},
                      {"name": "program", 'arg': program, "t": ASTFProgram}]
                     }
@@ -1625,6 +1630,8 @@ class ASTFTCPClientTemplate(_ASTFClientTemplate):
             self.fields['limit'] = limit
             if cont:
                 self.fields['cont'] = cont
+            if core_base:
+                self.fields['core_base'] = core_base
 
     def to_json(self):
         ret = super(ASTFTCPClientTemplate, self).to_json()
