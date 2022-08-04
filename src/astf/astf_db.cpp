@@ -41,6 +41,7 @@ CAstfJsonValidator* CAstfDB::m_validator = nullptr;
 
 
 void CAstfDB::Create(){
+    m_core_base = clock();  /* timing spread is enough for distribution */
     if (m_validator && m_topo_mngr) {
         return;
     }
@@ -721,6 +722,10 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
             err_str = std::string("IP start: ") + ip_start_str + " is bigger than IP end: " + ip_end_str;
             return CJsonData_err(CJsonData_err_pool_err, err_str);
         }
+        if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
+            /* in software_mode, split IPs is not required by source port distribution */
+            continue;
+        }
         num_ips = ip_end - ip_start + 1;
         if (num_ips < max_threads) {
             err_str = "Pool:(" + ip_gen_list[i]["ip_start"].asString() + "-"
@@ -1265,7 +1270,12 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         poolinfo.m_dist =  dist;
         s= ip_gen_list[i]["ip_offset"].asString();
         poolinfo.m_dual_interface_mask = ip_from_str(s.c_str());
-        if (poolinfo.m_per_core_distro) {
+        if (poolinfo.getTotalIps() < max_threads && CGlobalInfo::m_options.m_astf_best_effort_mode) {
+            /* in software_mode, same IP can be seen on multiple cores with source port distribution */
+            uint16_t total_ips = poolinfo.getTotalIps();
+            uint16_t split_id = (thread_id+m_core_base)%total_ips; /* to align with split "limit" value */
+            split_ips(split_id, total_ips, dual_port_id, poolinfo, portion);
+        } else if (poolinfo.m_per_core_distro) {
             split_ips_v2(max_threads, rss_thread_id,rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(),dual_port_id, poolinfo, portion);
         }else{
             split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
@@ -1333,16 +1343,20 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
             is_cont = c_temp["cont"].asBool(); // set continuous flows
         }
         if (c_temp["limit"] != Json::nullValue ){
+            uint16_t core_base = m_core_base;
+            if (c_temp["core_base"] != Json::nullValue) {
+                core_base = c_temp["core_base"].asUInt();
+            }
             uint32_t cnt= utl_split_int(c_temp["limit"].asUInt(),
-                                        thread_id, 
+                                        (core_base+thread_id)%max_threads,
                                         max_threads);
 
-            /* there is a limit */
+            /* there is a limit. there is no flow generation when cnt is 0. */
             temp_rw->set_limit(cnt, is_cont);
-            if (is_cont) {
+            if (cnt && is_cont) {
                 ret->set_flow_limited(false);
             }
-        } else {
+        } else if (cps) {
             ret->set_flow_limited(false);
         }
 

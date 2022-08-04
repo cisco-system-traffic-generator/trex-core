@@ -659,6 +659,7 @@ private:
     starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
 
     double m_factor; /* initial multiplier factor */
+    uint16_t m_core_base; /* preferred core base hint for the limited flow distribution */
 
     std::unordered_map<uint16_t,CTupleGeneratorSmart*> m_smart_gen;
 public:
