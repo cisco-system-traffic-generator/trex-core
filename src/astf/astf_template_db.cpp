@@ -90,8 +90,9 @@ void CAstfTemplatesRW::Dump(FILE *fd) {
 }
 
 
-void CAstfTemplatesRW::init_scheduler(std::vector<double> & dist){
-    m_nru =new KxuNuRand(dist,&m_rnd);
+void CAstfTemplatesRW::init_scheduler(std::vector<double> & cps, std::vector<astf_t_id_t> & tids){
+    m_nru =new KxuNuRand(cps,&m_rnd);
+    m_dist_tids = tids;
 }
 
 void CAstfTemplatesRW::add_tg_id_dist(uint16_t tg_id, astf_t_id_t tid){
@@ -109,7 +110,7 @@ uint16_t CAstfTemplatesRW::do_schedule_template(uint16_t tg_id){
         auto& tids = m_tg_ids[tg_id-1];
         return tids[m_rnd.getRandom() % tids.size()];
     }
-    return ((uint16_t)m_nru->getRandom());
+    return m_dist_tids[(uint16_t)m_nru->getRandom()];
 }
 
 
