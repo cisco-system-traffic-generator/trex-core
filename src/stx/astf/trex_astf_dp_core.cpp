@@ -36,7 +36,7 @@ limitations under the License.
 using namespace std;
 
 TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
-                TrexDpCore(thread_id, core, STATE_IDLE) {
+                TrexStatelessDpCore(thread_id, core) {
     CSyncBarrier *sync_barrier = get_astf_object()->get_barrier();
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);

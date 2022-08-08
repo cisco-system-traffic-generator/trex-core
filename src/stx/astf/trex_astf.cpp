@@ -33,6 +33,7 @@ limitations under the License.
 #include "trex_astf_messaging.h"
 #include "trex_astf_port.h"
 #include "trex_astf_rpc_cmds.h"
+#include "stl/trex_stl_rpc_cmds.h"
 #include "trex_astf_rx_core.h"
 #include "trex_astf_topo.h"
 
@@ -43,7 +44,7 @@ using namespace std;
 /***********************************************************
  * TrexAstf
  ***********************************************************/
-TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
+TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
     /* API core version */
     const int API_VER_MAJOR = 2;
     const int API_VER_MINOR = 3;
@@ -111,6 +112,7 @@ TrexAstf::~TrexAstf() {
     for (auto &port_pair : m_ports) {
         delete port_pair.second;
     }
+    m_ports.clear();
 
     delete m_rx;
     delete m_cp_sts_infra;

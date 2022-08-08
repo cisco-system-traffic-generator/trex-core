@@ -188,6 +188,11 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_stats = nullptr;
 }
 
+TrexStateless::TrexStateless(const TrexSTXCfg &cfg, bool base) : TrexSTX(cfg) {
+    assert(base);
+    m_stats = nullptr;
+}
+
 
 /** 
  * release all memory
