@@ -27,7 +27,7 @@ limitations under the License.
 
 using namespace std;
 
-TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexPort(port_id) {
+TrexAstfPort::TrexAstfPort(uint8_t port_id) : TrexStatelessPort(port_id) {
     m_is_service_mode_on          = false;
     m_is_service_filtered_mode_on = false;
     m_service_filtered_mask       = 0;
@@ -37,7 +37,10 @@ TrexAstfPort::~TrexAstfPort() {
 }
 
 void TrexAstfPort::change_state(port_state_e state) {
-    m_port_state = state;
+    if (m_port_state != state) {
+        m_port_state = state;
+        get_astf_object()->publish_astf_state();
+    }
 }
 
 void TrexAstfPort::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
