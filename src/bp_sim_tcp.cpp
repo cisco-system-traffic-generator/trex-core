@@ -105,6 +105,7 @@ int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
                       struct CTcpCb * tp,
                       rte_mbuf_t *m){
     CNodeTcp node_tcp;
+    node_tcp.m_type = 0xFF;
     node_tcp.dir  = m_dir;
     node_tcp.mbuf = m;
 #ifdef TREX_SIM

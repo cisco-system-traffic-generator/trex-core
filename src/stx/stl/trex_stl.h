@@ -86,6 +86,7 @@ public:
      * create stateless object 
      */
     TrexStateless(const TrexSTXCfg &cfg);
+    TrexStateless(const TrexSTXCfg &cfg, bool base);
     virtual ~TrexStateless();
 
     

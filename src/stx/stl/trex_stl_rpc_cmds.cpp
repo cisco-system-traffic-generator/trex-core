@@ -2272,16 +2272,21 @@ TrexRpcCmdClearTaggedPktGroupUnknownTags::_run(const Json::Value& params, Json::
  */
 TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
 
-    /* ownership */
-    m_cmds.push_back(new TrexRpcCmdAcquire(this));
-    m_cmds.push_back(new TrexRpcCmdRelease(this));
+    if (get_is_stateless()) {
+        /* ownership */
+        m_cmds.push_back(new TrexRpcCmdAcquire(this));
+        m_cmds.push_back(new TrexRpcCmdRelease(this));
+
+        /* service mode */
+        m_cmds.push_back(new TrexRpcCmdSetServiceMode(this));
+
+        /* profiles */
+        m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
+    }
 
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
-
-    /* profiles */
-    m_cmds.push_back(new TrexRpcCmdGetProfileList(this));
 
     /* streams */
     m_cmds.push_back(new TrexRpcCmdGetStreamList(this));
@@ -2302,9 +2307,6 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdUpdateStreams(this));
     m_cmds.push_back(new TrexRpcCmdValidate(this));
     m_cmds.push_back(new TrexRpcCmdRemoveRXFilters(this));
-
-    /* service mode */
-    m_cmds.push_back(new TrexRpcCmdSetServiceMode(this));
 
     /* pcap */
     m_cmds.push_back(new TrexRpcCmdPushRemote(this));
