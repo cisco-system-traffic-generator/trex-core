@@ -735,6 +735,17 @@ CJsonData_err CAstfDB::verify_data(uint16_t max_threads) {
                 + " Data path threads, which is " + std::to_string(max_threads);
             return CJsonData_err(CJsonData_err_pool_too_small, err_str);
         }
+        std::string ip_offset_str = ip_gen_list[i]["ip_offset"].asString();
+        uint32_t ip_offset = ip_from_str(ip_offset_str.c_str());
+        /* ip_offset is used to expand IP pool for more dual ports.
+         * Since the same IP cannot be used for the different dual ports (i.e. different route),
+         * the expanded IP should not be in the given IP range, [ip_start, ip_end].
+         */
+        bool per_core_distro = (ip_gen_list[i]["per_core_distribution"].asString() == "seq");
+        if (per_core_distro && (ip_start + ip_offset <= ip_end)) {
+            err_str = "not enough ip_offset(" + ip_offset_str + ") for per_core_distribution.";
+            return CJsonData_err(CJsonData_err_pool_err, err_str);
+        }
     }
 
     return CJsonData_err(CJsonData_err_pool_ok, "");
@@ -1205,7 +1216,7 @@ void CAstfDB::get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint
     if (poolinfo.m_per_core_distro) {
         uint16_t rss_thread_id, rss_thread_max;
         fill_rss_vals(thread_id, rss_thread_id, rss_thread_max);
-        split_ips_v2(max_threads, rss_thread_id, rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(), dual_port_id, poolinfo, portion);
+        split_ips(rss_thread_id, rss_thread_max, dual_port_id, poolinfo, portion);
     }else{
         split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
     }
@@ -1276,7 +1287,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
             uint16_t split_id = (thread_id+m_core_base)%total_ips; /* to align with split "limit" value */
             split_ips(split_id, total_ips, dual_port_id, poolinfo, portion);
         } else if (poolinfo.m_per_core_distro) {
-            split_ips_v2(max_threads, rss_thread_id,rss_thread_max, CGlobalInfo::m_options.get_expected_dual_ports(),dual_port_id, poolinfo, portion);
+            split_ips(rss_thread_id, rss_thread_max, dual_port_id, poolinfo, portion);
         }else{
             split_ips(thread_id, max_threads, dual_port_id, poolinfo, portion);
         }
