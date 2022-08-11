@@ -386,6 +386,10 @@ def decode_tunables (tunable_str):
         val = m.group(2)           # string
         if val.startswith(("'", '"')) and val.endswith(("'", '"')) and len(val) > 1: # need to remove the quotes from value
             val = val[1:-1]
+        elif val.lower() in ('true', 'on', 'yes'): # bool(True)
+            val = True
+        elif val.lower() in ('false', 'off', 'no'): # bool(False)
+            val = False
         elif val.startswith('0x'): # hex
             val = int(val, 16)
         else:
