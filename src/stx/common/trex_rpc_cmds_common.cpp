@@ -1734,9 +1734,11 @@ TrexRpcCmdCancelAsyncTask::_run(const Json::Value &params, Json::Value &result) 
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdSetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
-    double max_stretch = parse_double(params, "sched_max_stretch", result, -1.0);
-    if (max_stretch >= 0.0) {
-        CGlobalInfo::m_burst_offset_dtime = max_stretch;
+    if (params["sched_max_stretch"] != Json::Value::null) {
+        CGlobalInfo::m_burst_offset_dtime = parse_double(params, "sched_max_stretch", result);
+    }
+    if (params["process_at_cp"] != Json::Value::null) {
+        CGlobalInfo::m_process_at_cp = parse_bool(params, "process_at_cp", result);
     }
     return (TREX_RPC_CMD_OK);
 }
@@ -1746,6 +1748,7 @@ TrexRpcCmdGetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
     Json::Value &section = result["result"];
 
     section["sched_max_stretch"] = CGlobalInfo::m_burst_offset_dtime;
+    section["process_at_cp"] = CGlobalInfo::m_process_at_cp;
 
     return (TREX_RPC_CMD_OK);
 }
