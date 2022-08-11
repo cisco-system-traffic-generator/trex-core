@@ -9,17 +9,7 @@ test_short_flow:
     cores               : 13
     bw_per_core         : 1000
 
-test_short_flow_high_active:
-    multiplier          : 2000
-    cores               : 13
-    bw_per_core         : 1000
-    active_flows        : 4000000
 
-test_short_flow_high_active2:
-    multiplier          : 10000
-    cores               : 13
-    bw_per_core         : 1000
-    active_flows        : 4000000
 
 
 test_jumbo:
