@@ -112,6 +112,34 @@ extern "C" {
 #define BP_MAX_CORES 48
 #define BP_MASTER_AND_LATENCY 2
 
+
+#include "/usr/include/boost/circular_buffer.hpp"
+#include "/usr/include/boost/fusion/include/pair.hpp"
+
+
+struct PacketBuffer {
+    u_int64_t timestamp;
+    rte_mbuf_t * packet;
+};
+
+struct PacketBufferParam {
+    u_int64_t front;
+    u_int64_t rear;
+    u_int64_t size;
+};
+
+//////////////////////////////////////////////
+PacketBuffer LatencyQueue[BP_MAX_CORES][1000000];
+PacketBufferParam LatencyQueueInfo[BP_MAX_CORES];
+void initializeLatencyQueue() {
+    for(int i=0;i<BP_MAX_CORES;i++){
+        LatencyQueueInfo[i].front = -1;
+        LatencyQueueInfo[i].rear = -1;
+        LatencyQueueInfo[i].size = 1000000;
+    }
+}
+////////////////////////////////////////////
+
 void set_driver();
 void reorder_dpdk_ports();
 
@@ -1969,15 +1997,59 @@ HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
     return (0);
 }
 
+double get_current_time_in_usec_from_cycles(uint64_t start) {
+    u_int64_t hz_in_microsecond = rte_get_tsc_hz() / 1000000;
+    u_int64_t cpu_time = (rte_get_tsc_cycles() - start) / hz_in_microsecond; 
+    return cpu_time;
+}
 
 int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          rte_mbuf_t      *m,
                          CVirtualIFPerSideStats  * lp_stats
                          ){
-
     uint16_t len = lp_port->m_len;
-    lp_port->m_table[len]=m;
-    len++;
+    
+    bool latency = true;
+    if(latency) {
+        uint8_t core = lp_port->m_tx_queue_id;
+        if ((LatencyQueueInfo[core].front == 0 && LatencyQueueInfo[core].rear == LatencyQueueInfo[core].size-1) || (LatencyQueueInfo[core].front == LatencyQueueInfo[core].rear+1)) {
+            exit(1);
+        }
+
+        if (LatencyQueueInfo[core].front == -1) {
+            LatencyQueueInfo[core].front = 0;
+            LatencyQueueInfo[core].rear = 0;
+        } else {
+            if (LatencyQueueInfo[core].rear == LatencyQueueInfo[core].size - 1) LatencyQueueInfo[core].rear = 0;
+            else LatencyQueueInfo[core].rear = LatencyQueueInfo[core].rear + 1;
+        }
+
+        LatencyQueue[core][LatencyQueueInfo[core].rear].timestamp =  rte_get_tsc_cycles();
+        LatencyQueue[core][LatencyQueueInfo[core].rear].packet = m;
+
+        //LEts check with 100ms
+        if(get_current_time_in_usec_from_cycles(LatencyQueue[core][LatencyQueueInfo[core].rear].timestamp) > 100){
+            while(len != MAX_PKT_BURST){
+                if (LatencyQueueInfo[core].front == -1) {
+                    break;
+                }
+                lp_port->m_table[len] = LatencyQueue[core][LatencyQueueInfo[core].front].packet;
+                if (LatencyQueueInfo[core].front == LatencyQueueInfo[core].rear) {
+                    LatencyQueueInfo[core].front = -1;
+                    LatencyQueueInfo[core].rear = -1;
+                } else {
+                    if (LatencyQueueInfo[core].front == LatencyQueueInfo[core].size - 1)
+                        LatencyQueueInfo[core].front = 0;
+                    else
+                        LatencyQueueInfo[core].front = LatencyQueueInfo[core].front + 1;
+                }
+                len++;
+            }
+        }
+    }else{
+        lp_port->m_table[len]=m;
+        len++;
+    }
 
     /* enough pkts to be sent */
     if (unlikely(len == MAX_PKT_BURST)) {
@@ -6202,6 +6274,7 @@ COLD_FUNC const char *get_exe_name() {
 
 
 COLD_FUNC int main(int argc , char * argv[]){
+    initializeLatencyQueue();
     g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
