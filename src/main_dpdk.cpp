@@ -113,8 +113,7 @@ extern "C" {
 #define BP_MASTER_AND_LATENCY 2
 
 
-#include "/usr/include/boost/circular_buffer.hpp"
-#include "/usr/include/boost/fusion/include/pair.hpp"
+///////////////////////////////////////////////////////////////
 
 
 struct PacketBuffer {
@@ -123,14 +122,14 @@ struct PacketBuffer {
 };
 
 struct PacketBufferParam {
-    u_int64_t front;
-    u_int64_t rear;
-    u_int64_t size;
+    int64_t front;
+    int64_t rear;
+    int64_t size;
 };
 
-//////////////////////////////////////////////
 PacketBuffer LatencyQueue[BP_MAX_CORES][1000000];
 PacketBufferParam LatencyQueueInfo[BP_MAX_CORES];
+
 void initializeLatencyQueue() {
     for(int i=0;i<BP_MAX_CORES;i++){
         LatencyQueueInfo[i].front = -1;
@@ -6274,7 +6273,7 @@ COLD_FUNC const char *get_exe_name() {
 
 
 COLD_FUNC int main(int argc , char * argv[]){
-    initializeLatencyQueue();
+    // initializeLatencyQueue();
     g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
