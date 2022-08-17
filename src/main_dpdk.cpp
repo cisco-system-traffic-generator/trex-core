@@ -115,32 +115,20 @@ extern "C" {
 
 
 ///////////////////////////////////////////////////////////////
-
+#define LATENCY_QUEUE_SIZE 30000
 
 struct PacketBuffer {
     double timestamp;
     rte_mbuf_t * packet;
 };
 
-struct PacketBufferParam {
+struct PacketBufferInfo {
     int64_t front;
     int64_t rear;
     int64_t size;
 };
+//////////////////////////////////////////////
 
-#define LATENCY_QUEUE_SIZE 30000
-
-PacketBuffer LatencyQueue[BP_MAX_CORES][LATENCY_QUEUE_SIZE];
-PacketBufferParam LatencyQueueInfo[BP_MAX_CORES];
-
-void initializeLatencyQueue() {
-    for(int i=0;i<BP_MAX_CORES;i++){
-        LatencyQueueInfo[i].front = -1;
-        LatencyQueueInfo[i].rear = -1;
-        LatencyQueueInfo[i].size = LATENCY_QUEUE_SIZE;
-    }
-}
-////////////////////////////////////////////
 
 void set_driver();
 void reorder_dpdk_ports();
@@ -1627,6 +1615,13 @@ public:
         for (i=0; i<MAX_PKT_BURST; i++) {
             m_table[i]=0;
         }
+        for(i=0;i <LATENCY_QUEUE_SIZE;i++) {
+            m_latency_queue[i].timestamp=0.0;
+            m_latency_queue[i].packet=0;
+        }
+        m_latency_queue_info.front=-1;
+        m_latency_queue_info.rear=-1;
+        m_latency_queue_info.size=LATENCY_QUEUE_SIZE;
         m_port=0;
     }
     uint8_t                 m_tx_queue_id;
@@ -1634,6 +1629,8 @@ public:
     uint16_t                m_len;
     rte_mbuf_t *            m_table[MAX_PKT_BURST];
     CPhyEthIF  *            m_port;
+    PacketBuffer            m_latency_queue[LATENCY_QUEUE_SIZE];
+    PacketBufferInfo        m_latency_queue_info;
 };
 
 
@@ -2011,38 +2008,37 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     
     bool latency = true;
     if(latency) {
-        uint8_t core = lp_port->m_tx_queue_id;
-        if ((LatencyQueueInfo[core].front == 0 && LatencyQueueInfo[core].rear == LatencyQueueInfo[core].size-1) || (LatencyQueueInfo[core].front == LatencyQueueInfo[core].rear+1)) {
+        if ((lp_port->m_latency_queue_info.front == 0 && lp_port->m_latency_queue_info.rear == lp_port->m_latency_queue_info.size-1) || (lp_port->m_latency_queue_info.front == lp_port->m_latency_queue_info.rear+1)) {
             cout<<"Latency queue full\n";
             exit(1);
         }
 
-        if (LatencyQueueInfo[core].front == -1) {
-            LatencyQueueInfo[core].front = 0;
-            LatencyQueueInfo[core].rear = 0;
+        if (lp_port->m_latency_queue_info.front == -1) {
+            lp_port->m_latency_queue_info.front = 0;
+            lp_port->m_latency_queue_info.rear = 0;
         } else {
-            if (LatencyQueueInfo[core].rear == LatencyQueueInfo[core].size - 1) LatencyQueueInfo[core].rear = 0;
-            else LatencyQueueInfo[core].rear = LatencyQueueInfo[core].rear + 1;
+            if (lp_port->m_latency_queue_info.rear == lp_port->m_latency_queue_info.size - 1) lp_port->m_latency_queue_info.rear = 0;
+            else lp_port->m_latency_queue_info.rear = lp_port->m_latency_queue_info.rear + 1;
         }
 
-        LatencyQueue[core][LatencyQueueInfo[core].rear].timestamp =  get_time_from_boot();
-        LatencyQueue[core][LatencyQueueInfo[core].rear].packet = m;
+        lp_port->m_latency_queue[lp_port->m_latency_queue_info.rear].timestamp =  get_time_from_boot();
+        lp_port->m_latency_queue[lp_port->m_latency_queue_info.rear].packet = m;
 
         //LEts check with 100ms
-        if(get_time_from_boot() - LatencyQueue[core][LatencyQueueInfo[core].front].timestamp > 0.00001){
+        if(get_time_from_boot() - lp_port->m_latency_queue[lp_port->m_latency_queue_info.front].timestamp > 0.1){
             while(len != MAX_PKT_BURST){
-                if (LatencyQueueInfo[core].front == -1) {
+                if (lp_port->m_latency_queue_info.front == -1) {
                     break;
                 }
-                lp_port->m_table[len] = LatencyQueue[core][LatencyQueueInfo[core].front].packet;
-                if (LatencyQueueInfo[core].front == LatencyQueueInfo[core].rear) {
-                    LatencyQueueInfo[core].front = -1;
-                    LatencyQueueInfo[core].rear = -1;
+                lp_port->m_table[len] = lp_port->m_latency_queue[lp_port->m_latency_queue_info.front].packet;
+                if (lp_port->m_latency_queue_info.front == lp_port->m_latency_queue_info.rear) {
+                    lp_port->m_latency_queue_info.front = -1;
+                    lp_port->m_latency_queue_info.rear = -1;
                 } else {
-                    if (LatencyQueueInfo[core].front == LatencyQueueInfo[core].size - 1)
-                        LatencyQueueInfo[core].front = 0;
+                    if (lp_port->m_latency_queue_info.front == lp_port->m_latency_queue_info.size - 1)
+                        lp_port->m_latency_queue_info.front = 0;
                     else
-                        LatencyQueueInfo[core].front = LatencyQueueInfo[core].front + 1;
+                        lp_port->m_latency_queue_info.front = lp_port->m_latency_queue_info.front + 1;
                 }
                 len++;
             }
@@ -6275,7 +6271,6 @@ COLD_FUNC const char *get_exe_name() {
 
 
 COLD_FUNC int main(int argc , char * argv[]){
-    initializeLatencyQueue();
     g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
