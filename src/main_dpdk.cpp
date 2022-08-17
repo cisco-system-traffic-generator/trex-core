@@ -55,6 +55,7 @@
 #include <rte_version.h>
 #include <rte_ip.h>
 #include <rte_bus_pci.h>
+#include <unistd.h>
 
 #include "hot_section.h"
 #include "stt_cp.h"
@@ -117,7 +118,7 @@ extern "C" {
 
 
 struct PacketBuffer {
-    u_int64_t timestamp;
+    double timestamp;
     rte_mbuf_t * packet;
 };
 
@@ -127,14 +128,16 @@ struct PacketBufferParam {
     int64_t size;
 };
 
-PacketBuffer LatencyQueue[BP_MAX_CORES][1000000];
+#define LATENCY_QUEUE_SIZE 30000
+
+PacketBuffer LatencyQueue[BP_MAX_CORES][LATENCY_QUEUE_SIZE];
 PacketBufferParam LatencyQueueInfo[BP_MAX_CORES];
 
 void initializeLatencyQueue() {
     for(int i=0;i<BP_MAX_CORES;i++){
         LatencyQueueInfo[i].front = -1;
         LatencyQueueInfo[i].rear = -1;
-        LatencyQueueInfo[i].size = 1000000;
+        LatencyQueueInfo[i].size = LATENCY_QUEUE_SIZE;
     }
 }
 ////////////////////////////////////////////
@@ -1996,10 +1999,8 @@ HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
     return (0);
 }
 
-double get_current_time_in_usec_from_cycles(uint64_t start) {
-    u_int64_t hz_in_microsecond = rte_get_tsc_hz() / 1000000;
-    u_int64_t cpu_time = (rte_get_tsc_cycles() - start) / hz_in_microsecond; 
-    return cpu_time;
+double get_time_from_boot() { 
+    return ((double)rte_get_tsc_cycles())/rte_get_tsc_hz();
 }
 
 int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
@@ -2012,6 +2013,7 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     if(latency) {
         uint8_t core = lp_port->m_tx_queue_id;
         if ((LatencyQueueInfo[core].front == 0 && LatencyQueueInfo[core].rear == LatencyQueueInfo[core].size-1) || (LatencyQueueInfo[core].front == LatencyQueueInfo[core].rear+1)) {
+            cout<<"Latency queue full\n";
             exit(1);
         }
 
@@ -2023,11 +2025,11 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
             else LatencyQueueInfo[core].rear = LatencyQueueInfo[core].rear + 1;
         }
 
-        LatencyQueue[core][LatencyQueueInfo[core].rear].timestamp =  rte_get_tsc_cycles();
+        LatencyQueue[core][LatencyQueueInfo[core].rear].timestamp =  get_time_from_boot();
         LatencyQueue[core][LatencyQueueInfo[core].rear].packet = m;
 
         //LEts check with 100ms
-        if(get_current_time_in_usec_from_cycles(LatencyQueue[core][LatencyQueueInfo[core].rear].timestamp) > 100){
+        if(get_time_from_boot() - LatencyQueue[core][LatencyQueueInfo[core].front].timestamp > 0.00001){
             while(len != MAX_PKT_BURST){
                 if (LatencyQueueInfo[core].front == -1) {
                     break;
@@ -6273,7 +6275,7 @@ COLD_FUNC const char *get_exe_name() {
 
 
 COLD_FUNC int main(int argc , char * argv[]){
-    // initializeLatencyQueue();
+    initializeLatencyQueue();
     g_exe_name = argv[0];
 
     return ( main_test(argc , argv));
