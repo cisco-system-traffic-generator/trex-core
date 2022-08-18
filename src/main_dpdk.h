@@ -338,4 +338,15 @@ uint32_t trex_dev_get_overhead_len(uint32_t max_rx_pktlen, uint16_t max_mtu);
 typedef uint8_t tvpid_t; /* port ID of trex 0,1,2,3 up to MAX_PORTS*/
 typedef uint8_t repid_t; /* DPDK port id  */
 
+struct PacketBuffer {
+    double timestamp;
+    rte_mbuf_t * packet;
+};
+
+struct PacketBufferInfo {
+    int64_t front;
+    int64_t rear;
+    int64_t size;
+};
+
 #endif
