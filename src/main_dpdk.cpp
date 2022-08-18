@@ -1783,7 +1783,7 @@ public:
     uint16_t     m_rx_queue_id[CS_NUM]; 
 };
 
-class CCoreEthIFTcp : public CCoreEthIF {
+class CCoreEthIFTcp : public CCoreEthIFStateless {
 public:
     CCoreEthIFTcp() {
         m_rx_queue_id[CLIENT_SIDE]=0xffff;
@@ -1800,6 +1800,7 @@ public:
 
     void set_rx_queue_id(uint16_t client_qid,
                          uint16_t server_qid){
+        CCoreEthIFStateless::set_rx_queue_id(client_qid, server_qid);
         m_rx_queue_id[CLIENT_SIDE]=client_qid;
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
@@ -2126,6 +2127,9 @@ HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
 
 
 HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
+    if (unlikely(node->m_type == CGenNode::STATELESS_PKT)) {
+        return CCoreEthIFStateless::send_node_service_mode(node);
+    }
     CNodeTcp * node_tcp = (CNodeTcp *) node;
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
