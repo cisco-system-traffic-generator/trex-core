@@ -324,6 +324,9 @@ public:
                                         tvpid_t port_id
                                         );
 
+      bool rx_handle_stateless_packet(CTcpPerThreadCtx * ctx,
+                                      struct rte_mbuf * mbuf);
+
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf,
                             bool is_idle,

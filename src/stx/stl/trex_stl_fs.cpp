@@ -982,7 +982,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
 
-        if (get_dpdk_mode()->dp_rx_queues()) {
+        if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
             get_stateless_obj()->set_latency_feature();
         } else {
             send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
@@ -1101,7 +1101,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
         DEBUG_PRINT("  Sending stop message to rx\n");
-        if (get_dpdk_mode()->dp_rx_queues()) {
+        if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
             get_stateless_obj()->unset_latency_feature();
         } else {
             send_start_stop_msg_to_rx(false); // No more transmitting streams. Rx core should get into idle loop.
