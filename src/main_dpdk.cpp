@@ -4090,6 +4090,8 @@ COLD_FUNC void CGlobalTRex::init_astf() {
     rx_interactive_conf();
     m_stx = new TrexAstf(get_stx_cfg());
     start_master_astf();
+
+    init_stl_stats();
 }
 
 

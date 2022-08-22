@@ -60,6 +60,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
 
     /* load the RPC components for ASTF */
     rpc_table.load_component(new TrexRpcCmdsCommon());
+    rpc_table.load_component(new TrexRpcCmdsSTL());
     rpc_table.load_component(new TrexRpcCmdsASTF());
     const TrexPlatformApi &api = get_platform_api();
     m_opts = &CGlobalInfo::m_options;
