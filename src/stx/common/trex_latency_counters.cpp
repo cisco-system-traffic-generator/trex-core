@@ -30,6 +30,125 @@ void CRFC2544Info::reset() {
     m_dup = 0;
     m_latency.Reset();
     m_jitter.reset();
+    m_seqblks.clear();
+}
+
+bool CRFC2544Info::SeqBlk::set_map(uint32_t pkt_seq) {
+    assert(has_map() && includes(pkt_seq));
+    int seq_idx = pkt_seq - m_begin;
+
+    if (!m_seq_map[seq_idx]) {
+        m_seq_map[seq_idx] = true;
+        m_seq_cnt++;
+        return true;
+    }
+
+    return false;
+}
+
+bool CRFC2544Info::SeqBlk::set_seq(uint32_t pkt_seq) {
+    assert(includes(pkt_seq));
+
+    if (likely(!has_map())) {
+        if (likely(is_border(pkt_seq))) {
+            if (pkt_seq == m_begin) {
+                m_begin++;
+            } else if (pkt_seq == m_end) {
+                m_end--;
+            }
+            return true;
+        }
+        m_seq_map.resize(size());
+        m_seq_cnt = 0;
+    }
+    return set_map(pkt_seq);
+}
+
+void CRFC2544Info::add_seqblk(uint32_t begin, uint32_t end) {
+    int size = end - begin + 1;
+    assert(size > 0);
+
+    if (unlikely(m_seqblks.empty())) {
+        m_seqblk_base = begin;
+    } else if (size > CHECK_BLK_SIZE && (int)(begin - m_seqblk_base) <= 0) {
+        // remove overlapped old seqblk when new seqblk size is large.
+        bool is_overlap = (int)(m_seqblk_base - end) <= 0;
+        prune_old_seqblks(is_overlap ? m_seqblk_base - 1: end);
+    }
+
+    if (end < begin) {
+        m_seqblks.emplace(0, SeqBlk(0, end));
+        end = UINT32_MAX;
+    }
+    m_seqblks.emplace(begin, SeqBlk(begin, end));
+}
+
+#define SEQ_MAP_SIZE    0x400
+
+bool CRFC2544Info::set_seqblk_seq(uint32_t pkt_seq) {
+    auto it = m_seqblks.lower_bound(pkt_seq);
+    if (it != m_seqblks.end() && it->second.includes(pkt_seq)) {
+        auto& seqblk = it->second;
+
+        if (seqblk.size() > SEQ_MAP_SIZE && seqblk.is_split(pkt_seq)) {
+            uint32_t seq_end = seqblk.get_end();
+            seqblk.set_end(pkt_seq - 1);
+            add_seqblk(pkt_seq + 1, seq_end);
+            return true;
+        }
+
+        if (!seqblk.set_seq(pkt_seq)) {
+            return false;
+        }
+
+        if (seqblk.empty()) {
+            m_seqblks.erase(it);
+        }
+        return true;
+    }
+    return false;
+}
+
+void CRFC2544Info::prune_old_seqblks(uint32_t cur_seq) {
+    if (m_seqblks.empty() || (int)(m_seqblk_base - cur_seq) < 0) {
+        return;
+    }
+
+    auto it = m_seqblks.find(m_seqblk_base);
+    if (it == m_seqblks.end()) {
+        it = m_seqblks.upper_bound(m_seqblk_base);
+    }
+
+    do {
+        if (it == m_seqblks.end()) {
+            it = m_seqblks.begin();
+        }
+        m_seqblk_base = it->first;
+
+        uint32_t seq_end = it->second.get_end();
+        if ((int)(seq_end - cur_seq) < 0) {
+            // large size seqblk can be left easily and overlapped by new seqblk.
+            // So, the seqblk need to remove old sequences to prevent the overlap.
+            auto& seqblk = it->second;
+            if (seqblk.size() > CHECK_BLK_SIZE) {
+                uint32_t seq_begin = seq_end - seqblk.size() + 1; // it->first != seq_begin
+                if ((int)(seq_begin - cur_seq) > 0) {
+                    m_seqblks.erase(it);
+                    m_seqblk_base = cur_seq + INT32_MAX + 1;
+                    assert((int)(seq_end - m_seqblk_base) >= 0);
+                    add_seqblk(m_seqblk_base, seq_end);
+                }
+            }
+            break;
+        }
+        m_seqblks.erase(it++);
+    } while (!m_seqblks.empty());
+}
+
+void CRFC2544Info::check_seqblks() {
+    if (unlikely(!m_seqblks.empty() && (int)(m_seqblk_base - m_seq) > CHECK_BLK_SIZE)) {
+        prune_old_seqblks(m_seq);
+    }
 }
 
 void CRFC2544Info::export_data(rfc2544_info_t_ &obj) {
@@ -60,9 +179,10 @@ CRFC2544Info CRFC2544Info::operator+= (const CRFC2544Info& in) {
 std::ostream& operator<<(std::ostream& os, const CRFC2544Info& in) {
     os << "m_seq = " << in.m_seq << std::endl;
     os << "m_jitter = " << in.m_jitter << std::endl;
-    os << "m_latency" << in.m_latency << std::endl;
+    os << "m_latency" << std::endl << in.m_latency << std::endl;
     os << "m_seq_err_events_too_big = " << in.m_seq_err_events_too_big << std::endl;
     os << "m_seq_err_events_too_low = " << in.m_seq_err_events_too_low << std::endl;
+    os << "m_seq_err = " << in.m_seq_err << std::endl;
     os << "m_ooo = " << in.m_ooo << std::endl;
     os << "m_dup = " << in.m_dup << std::endl;
     os << "m_exp_flow_seq = " << in.m_exp_flow_seq << std::endl;
@@ -144,6 +264,7 @@ RXLatency::RXLatency() {
     m_dump_pkt = nullptr;
     m_dump_fsp_head = nullptr;
     m_is_ieee_ref_cnt_set = false;
+    m_diag_dup_pkts = false;
 }
 
 void
@@ -157,6 +278,7 @@ RXLatency::create(CRFC2544Info *rfc2544, CRxCoreErrCntrs *err_cntrs) {
     }
 
     m_dump_err_pkts = isVerbose(6); // be enabled by -v 7
+    m_diag_dup_pkts = CGlobalInfo::m_options.preview.get_latency_diag();
 
     uint16_t num_counters, cap, ip_id_base;
 
@@ -524,6 +646,9 @@ RXLatency::check_seq_number_and_update_stats(
         }
     } else {
         curr_rfc2544->set_seq(pkt_seq + 1);
+        if (unlikely(m_diag_dup_pkts)) {
+            curr_rfc2544->check_seqblks();
+        }
     }
 }
 
@@ -544,6 +669,9 @@ RXLatency::check_seq_number_and_update_stats_ieee_1588(
     } else {
         if(fsp_head->ptp_message.hdr.msg_type == FOLLOW_UP) {
             curr_rfc2544->set_seq(pkt_seq + 1);
+            if (unlikely(m_diag_dup_pkts)) {
+                curr_rfc2544->check_seqblks();
+            }
         }
     }
 }
@@ -553,7 +681,11 @@ RXLatency::handle_seq_number_smaller_than_expected(
         CRFC2544Info *curr_rfc2544,
         uint32_t &pkt_seq,
         uint32_t &exp_seq) {
-    if (pkt_seq == (exp_seq - 1)) {
+    bool is_dup = pkt_seq == (exp_seq - 1);
+    if (unlikely(!is_dup && m_diag_dup_pkts)) {
+        is_dup = !curr_rfc2544->set_seqblk_seq(pkt_seq);
+    }
+    if (is_dup) {
         curr_rfc2544->inc_dup();
 
         if (unlikely(m_dump_err_pkts)) {
@@ -575,6 +707,9 @@ RXLatency::handle_seq_number_bigger_than_expected(
     // seq > curr_rfc2544->seq. Assuming lost packets
     curr_rfc2544->inc_seq_err(pkt_seq - exp_seq);
     curr_rfc2544->inc_seq_err_too_big();
+    if (unlikely(m_diag_dup_pkts)) {
+        curr_rfc2544->add_seqblk(exp_seq, pkt_seq - 1);
+    }
     curr_rfc2544->set_seq(pkt_seq + 1);
 }
 
