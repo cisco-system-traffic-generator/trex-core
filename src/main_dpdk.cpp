@@ -224,6 +224,7 @@ enum {
        OPT_HDRH,
        OPT_BNXT_SO,
        OPT_DISABLE_IEEE_1588,
+       OPT_LATENCY_DIAG,
 
        /* no more pass this */
        OPT_MAX
@@ -322,6 +323,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
+        { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -426,6 +428,8 @@ static int COLD_FUNC  usage() {
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
+    printf(" --latency-diag             : STL flow latency counts all duplicated packets with more CPU load consumption.\n");
+    printf("                              To see the duplicated packets, please use -v 7.\n");
 
     printf("\n");
     printf(" Examples: ");
@@ -960,6 +964,9 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
+                break;
+            case OPT_LATENCY_DIAG:
+                po->preview.set_latency_diag(true);
                 break;
 
             default:
