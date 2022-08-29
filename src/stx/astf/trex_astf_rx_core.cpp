@@ -236,6 +236,7 @@ uint32_t CRxAstfCore::handle_rx_one_queue(uint8_t thread_id, CNodeRing *r) {
             break;
         }
         assert(node);
+        m_cpu_dp_u.start_work1();
 
         CGenNodeLatencyPktInfo *pkt_info = (CGenNodeLatencyPktInfo *) node;
         assert(pkt_info->m_msg_type==CGenNodeMsgBase::LATENCY_PKT);
@@ -244,6 +245,8 @@ uint32_t CRxAstfCore::handle_rx_one_queue(uint8_t thread_id, CNodeRing *r) {
         m_rx_port_mngr_vec[port_pair_offset + dir]->handle_pkt((rte_mbuf_t *)pkt_info->m_pkt);
 
         CGlobalInfo::free_node(node);
+
+        m_cpu_dp_u.commit1();
     }
     return got_pkts;
 }

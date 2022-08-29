@@ -4360,6 +4360,7 @@ uint16_t CFlowGenListPerThread::handle_stl_pkts(bool is_idle) {
             if (cnt==0) {
                 break;
             }
+            m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
             int i;
             for (i=0; i<(int)cnt;i++) {
                 rte_mbuf_t * m=rx_pkts[i];
@@ -4414,6 +4415,7 @@ bool CFlowGenListPerThread::check_msgs_from_rx() {
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return false;
     }
+    m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
 
     #ifdef  NAT_TRACE_
     printf(" %.03f got message from RX \n",now_sec());
@@ -4455,7 +4457,10 @@ bool CFlowGenListPerThread::check_msgs() {
     bool had_msg = false;
 
     /* inlined for performance */
-    if (m_dp_core->periodic_check_for_cp_messages()) {
+    if (m_dp_core->are_any_pending_cp_messages()) {
+        m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
+
+        m_dp_core->periodic_check_for_cp_messages();
         had_msg = true;
     }
 
