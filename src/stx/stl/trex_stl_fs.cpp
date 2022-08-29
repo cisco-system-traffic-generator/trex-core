@@ -1216,7 +1216,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
 #endif
     for (auto &port: m_port_ids) {
         if (min_f != HW_ID_INIT) {
-            m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+            m_api->get_flow_stats(port, m_rx_stats, nullptr, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
             for (int i = min_f; i <= max_f; i++) {
                 if (m_rx_stats[i - min_f].get_pkts() != 0) {
                     rx_per_flow_t rx_pkts = m_rx_stats[i - min_f];
@@ -1229,7 +1229,32 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                                   << (uint16_t)port << ", because no mapping was found." << std::endl;
                     }
                 }
+            }
+        }
+        // payload rules
+        if (min_l != HW_ID_INIT) {
+            m_api->get_flow_stats(port, m_rx_stats_payload, nullptr, min_l, max_l
+                                  , false, TrexPlatformApi::IF_STAT_PAYLOAD);
+            for (int i = min_l; i <= max_l; i++) {
+                if (m_rx_stats_payload[i - min_l].get_pkts() != 0) {
+                    rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
+                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
+                    if (likely(p_user_id != NULL)) {
+                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, update_rate);
+                    } else {
+                        m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
+                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
+                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
+                    }
+                }
+            }
+        }
+    }
 
+    for (auto &port: m_port_ids) {
+        if (min_f != HW_ID_INIT) {
+            m_api->get_flow_stats(port, nullptr, (void *)m_tx_stats, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+            for (int i = min_f; i <= max_f; i++) {
                 if (m_tx_stats[i - min_f].get_pkts() != 0) {
                     tx_per_flow_t tx_pkts = m_tx_stats[i - min_f];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
@@ -1246,21 +1271,9 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
         }
         // payload rules
         if (min_l != HW_ID_INIT) {
-            m_api->get_flow_stats(port, m_rx_stats_payload, (void *)m_tx_stats_payload, min_l, max_l
+            m_api->get_flow_stats(port, nullptr, (void *)m_tx_stats_payload, min_l, max_l
                                   , false, TrexPlatformApi::IF_STAT_PAYLOAD);
             for (int i = min_l; i <= max_l; i++) {
-                if (m_rx_stats_payload[i - min_l].get_pkts() != 0) {
-                    rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
-                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
-                    if (likely(p_user_id != NULL)) {
-                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, update_rate);
-                    } else {
-                        m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
-                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
-                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
-                    }
-                }
-
                 if (m_tx_stats_payload[i - min_l].get_pkts() != 0) {
                     tx_per_flow_t tx_pkts = m_tx_stats_payload[i - min_l];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));

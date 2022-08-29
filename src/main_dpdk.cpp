@@ -4659,6 +4659,20 @@ COLD_FUNC void CGlobalTRex::update_stats(){
 }
 
 COLD_FUNC tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
+    uint8_t port0;
+    CFlowGenListPerThread * lpt;
+
+    m_stats.m_port[port].m_tx_per_flow[index].clear();
+
+    for (int i=0; i < get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        port0 = lpt->getDualPortId() * 2;
+        if ((port == port0) || (port == port0 + 1)) {
+            m_stats.m_port[port].m_tx_per_flow[index] +=
+                lpt->m_node_gen.m_v_if->get_stats()[port - port0].m_tx_per_flow[index];
+        }
+    }
+
     return m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
 }
 
@@ -6084,12 +6098,17 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
     uint32_t diff_bytes[MAX_FLOW_STATS];
     bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
 
+    // reset allowed only when rx_stats and tx_stats are given.
+    if (reset && !(rx_stats && tx_stats)) {
+        return -1;
+    }
+
     if (hw_rx_stat_supported) {
         if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
                                        , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
             return -1;
         }
-    } else {
+    } else if (rx_stats != NULL) {
         get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID, get_core_list());
     }
 
@@ -6128,7 +6147,14 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
 }
 
 COLD_FUNC int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
-    get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    // reset allowed only when rx_stats and tx_stats are given.
+    if (reset && !(rx_stats && tx_stats)) {
+        return -1;
+    }
+
+    if (rx_stats != NULL) {
+        get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    }
     
     for (int i = min; i <= max; i++) {
         if ( reset ) {
