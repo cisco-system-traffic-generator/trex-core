@@ -257,6 +257,7 @@ bool CRxCore::periodic_check_for_cp_messages() {
     if ( likely ( m_ring_from_cp->isEmpty() ) ) {
         return false;
     }
+    m_cpu_dp_u.start_work1();
 
     while ( true ) {
         CGenNode * node = NULL;
@@ -271,6 +272,7 @@ bool CRxCore::periodic_check_for_cp_messages() {
 
     /* a message might result in a change of state */
     recalculate_next_state();
+    m_cpu_dp_u.commit1();
     return true;
 }
 
@@ -448,9 +450,21 @@ bool CRxCore::work_tick() {
     /* pass a tick to the TX queue
 
        */
-    m_tx_queue.tick();
+    if (!m_tx_queue.is_empty()) {
+        m_cpu_dp_u.start_work1();
 
-    did_something |= TrexCaptureMngr::getInstance().tick();
+        m_tx_queue.tick();
+
+        m_cpu_dp_u.commit1();
+    }
+
+    if (TrexCaptureMngr::getInstance().is_flush_needed()) {
+        m_cpu_dp_u.start_work1();
+
+        did_something |= TrexCaptureMngr::getInstance().tick();
+
+        m_cpu_dp_u.commit1();
+    }
 
     return did_something;
 }
@@ -803,6 +817,7 @@ bool CRxCore::handle_tpg_threads() {
     /**
      * NOTE: Called by the scheduler periodically if there is an allocating/deallocating thread working.
      **/
+    m_cpu_dp_u.start_work1();
 
     bool work_done = false;
     std::vector<std::string> to_erase;
@@ -823,6 +838,8 @@ bool CRxCore::handle_tpg_threads() {
     for (std::string& username : to_erase) {
         m_tpg_ctx.erase(username);
     }
+
+    m_cpu_dp_u.commit1();
     return work_done;
 }
 

@@ -1016,6 +1016,16 @@ TrexCaptureMngr::handle_pkt_slow_path(const rte_mbuf_t *m, int port, TrexPkt::or
 }
 
 bool
+TrexCaptureMngr::is_flush_needed() {
+    for (TrexCapture *capture : m_captures) {
+        if (capture->has_active_endpoint()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
 TrexCaptureMngr::tick() {
     dsec_t now = now_sec();
     if (m_tick_time_sec && now < m_tick_time_sec) {
