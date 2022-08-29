@@ -31,6 +31,7 @@ void CRFC2544Info::reset() {
     m_latency.Reset();
     m_jitter.reset();
     m_seqblks.clear();
+    m_drop_refcnt = 0;
 }
 
 bool CRFC2544Info::SeqBlk::set_map(uint32_t pkt_seq) {
@@ -75,6 +76,9 @@ void CRFC2544Info::add_seqblk(uint32_t begin, uint32_t end) {
         bool is_overlap = (int)(m_seqblk_base - end) <= 0;
         prune_old_seqblks(is_overlap ? m_seqblk_base - 1: end);
     }
+    if (unlikely(m_drop_refcnt && (int)(end + 1 - m_drop_refseq) < 0)) {
+        m_drop_refcnt = 0;
+    }
 
     if (end < begin) {
         m_seqblks.emplace(0, SeqBlk(0, end));
@@ -86,6 +90,10 @@ void CRFC2544Info::add_seqblk(uint32_t begin, uint32_t end) {
 #define SEQ_MAP_SIZE    0x400
 
 bool CRFC2544Info::set_seqblk_seq(uint32_t pkt_seq) {
+    if (m_drop_refcnt && (int)(pkt_seq - m_drop_refseq) < 0) {
+        m_drop_refcnt--;
+        return true;
+    }
     auto it = m_seqblks.lower_bound(pkt_seq);
     if (it != m_seqblks.end() && it->second.includes(pkt_seq)) {
         auto& seqblk = it->second;
@@ -110,7 +118,8 @@ bool CRFC2544Info::set_seqblk_seq(uint32_t pkt_seq) {
 }
 
 void CRFC2544Info::prune_old_seqblks(uint32_t cur_seq) {
-    if (m_seqblks.empty() || (int)(m_seqblk_base - cur_seq) < 0) {
+    if (m_seqblks.empty() ||
+        (m_seqblks.size() <= MAX_SEQBLKS && (int)(m_seqblk_base - cur_seq) < 0)) {
         return;
     }
 
@@ -126,7 +135,12 @@ void CRFC2544Info::prune_old_seqblks(uint32_t cur_seq) {
         m_seqblk_base = it->first;
 
         uint32_t seq_end = it->second.get_end();
-        if ((int)(seq_end - cur_seq) < 0) {
+        if (unlikely(m_seqblks.size() > MAX_SEQBLKS)) {
+            // after the seqblk is removed with unresolved dropped packets,
+            // the packet preceeds the seqblk would be treated as ooo packet.
+            m_drop_refseq = seq_end;
+            m_drop_refcnt += it->second.dropped_cnt();
+        } else if ((int)(seq_end - cur_seq) < 0) {
             // large size seqblk can be left easily and overlapped by new seqblk.
             // So, the seqblk need to remove old sequences to prevent the overlap.
             auto& seqblk = it->second;
@@ -146,8 +160,13 @@ void CRFC2544Info::prune_old_seqblks(uint32_t cur_seq) {
 }
 
 void CRFC2544Info::check_seqblks() {
-    if (unlikely(!m_seqblks.empty() && (int)(m_seqblk_base - m_seq) > CHECK_BLK_SIZE)) {
-        prune_old_seqblks(m_seq);
+    if (unlikely(!m_seqblks.empty())) {
+        if (m_seqblks.size() > MAX_SEQBLKS || (int)(m_seqblk_base - m_seq) > CHECK_BLK_SIZE) {
+            prune_old_seqblks(m_seq);
+        }
+    }
+    if (unlikely(m_drop_refcnt && (int)(m_seq - m_drop_refseq) < 0)) {
+        m_drop_refcnt = 0;
     }
 }
 

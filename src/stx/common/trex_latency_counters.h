@@ -68,6 +68,7 @@ class CRFC2544Info {
         bool empty() const { return size() == 0 || size() == m_seq_cnt; }
         bool includes(uint32_t seq) const { return seq >= m_begin && seq <= m_end; }
         bool has_map() const { return !m_seq_map.empty(); }
+        int dropped_cnt() const { return has_map() ? size() - m_seq_cnt: size(); }
 
         bool is_border(uint32_t seq) const { return seq == m_begin || seq == m_end; }
         bool is_split(uint32_t seq) const { return !has_map() && !is_border(seq); }
@@ -78,8 +79,11 @@ class CRFC2544Info {
         bool set_seq(uint32_t seq);
     };
 
+#define MAX_SEQBLKS     10000
     std::map<uint32_t,SeqBlk> m_seqblks;
     uint32_t m_seqblk_base;
+    uint32_t m_drop_refseq;
+    uint32_t m_drop_refcnt;
 
 #define CHECK_BLK_SIZE  0x1000000
     void prune_old_seqblks(uint32_t cur_seq);
