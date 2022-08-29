@@ -329,6 +329,7 @@ uint16_t CFlowGenListPerThread::handle_rx_pkts(bool is_idle) {
             if (cnt==0) {
                 break;
             }
+            m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
             int i;
             for (i=0; i<(int)cnt;i++) {
                 rte_mbuf_t * m=rx_pkts[i];
