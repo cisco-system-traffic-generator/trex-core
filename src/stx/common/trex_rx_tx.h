@@ -125,7 +125,13 @@ public:
         return m_heap.size() >= m_capacity;
     }
     
-    
+    /**
+     * return true if the queue is empty
+     */
+    bool is_empty() const {
+        return m_heap.empty();
+    }
+
     /**
      * a constant tick to the queue
      */

@@ -658,6 +658,7 @@ public:
     
     Json::Value to_json();
 
+    bool is_flush_needed();
     bool tick();    /* periodic flush for live captures */
         
 private:
