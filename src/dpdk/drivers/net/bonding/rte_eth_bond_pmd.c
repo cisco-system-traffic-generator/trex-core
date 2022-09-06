@@ -2210,6 +2210,15 @@ bond_ethdev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->max_rx_pktlen = internals->candidate_max_rx_pktlen ?
 			internals->candidate_max_rx_pktlen :
 			RTE_ETHER_MAX_JUMBO_FRAME_LEN;
+#ifdef TREX_PATCH
+        /* Intel NIC drivers provide max_mtu because they have larger overhead than default value.
+         * So, the calculated MTU value by the default overhead can be exceeded in this case.
+         * To solve this issue, proper max_mtu vaule should be provided.
+         * The calculated max_mtu by maximum overhead (from Intel NIC drivers) could be enough.
+         */
+#define BOND_ETH_OVERHEAD (RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + RTE_VLAN_HLEN * 2)
+	dev_info->max_mtu = dev_info->max_rx_pktlen - BOND_ETH_OVERHEAD;
+#endif
 
 	/* Max number of tx/rx queues that the bonded device can support is the
 	 * minimum values of the bonded slaves, as all slaves must be capable
