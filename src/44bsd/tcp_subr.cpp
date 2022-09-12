@@ -198,6 +198,9 @@ void CTcpFlow::init(){
     };
     tcp_inittcpcb(&m_tcp, &init_param);
 
+    // Increase the RTO based on the latency
+    m_tcp.t_rxtcur += CGlobalInfo::m_options.m_induce_server_latency_duration * hz;
+
     if (m_template.is_tcp_tso()){
         /* to cache the info*/
         m_tcp.m_tuneable_flags |=TUNE_TSO_CACHE;
