@@ -33,7 +33,7 @@ TRexPortAttr* CTRexExtendedDriverVirtBase::create_port_attr(tvpid_t tvpid, repid
     return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, true);
 }
 
-TRexPortAttr* CTRexExtendedDriverI40evf::create_port_attr(tvpid_t tvpid, repid_t repid) {
+TRexPortAttr* CTRexExtendedDriverIavf::create_port_attr(tvpid_t tvpid, repid_t repid) {
     return new DpdkTRexPortAttr(tvpid, repid, true, true, false, false, true);
 }
 
@@ -202,11 +202,11 @@ void CTRexExtendedDriverMemif::update_configuration(port_cfg_t * cfg){
 
 ///////////////////////////////////////////////////////// VF
 
-CTRexExtendedDriverI40evf::CTRexExtendedDriverI40evf() {
+CTRexExtendedDriverIavf::CTRexExtendedDriverIavf() {
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
 
-void CTRexExtendedDriverI40evf::update_configuration(port_cfg_t * cfg) {
+void CTRexExtendedDriverIavf::update_configuration(port_cfg_t * cfg) {
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
