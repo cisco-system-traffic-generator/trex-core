@@ -215,6 +215,8 @@ class EMUClient(object):
         # emu client holds every emu plugin
         self.general_data_c = DataCounter(self.conn, 'ctx_cnt')
 
+        self.resource_monitor_c = DataCounter(self.conn, 'ctx_resource_monitor_get')
+
         self.registered_plugs = {}  # keys as names values as emu_plugin objects i.e: {'arp': ARPPlugin, ...} 
         self.get_plugin_methods()  # important, bind emu_plugins to client
 
@@ -1626,6 +1628,31 @@ class EMUClient(object):
         opts = parser.parse_args(line.split())
 
         return self._base_show_counters(self.general_data_c, opts)
+
+    @plugin_api('resource_monitor_show', 'emu')
+    def resource_monitor_show_ctx_line(self, line):
+        '''Resource monitor show info'''
+        parser = parsing_opts.gen_parser(self,
+                                        "resource_monitor_show",
+                                        self.resource_monitor_show_ctx_line.__doc__,
+                                        parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+
+        return self._base_show_counters(self.resource_monitor_c, opts)
+
+    @plugin_api('resource_monitor_reset', 'emu')
+    def resource_monitor_reset_ctx_line(self, line):
+        '''Resource monitor reset'''
+        parser = parsing_opts.gen_parser(self,
+                                        "resource_monitor_reset",
+                                        self.resource_monitor_reset_ctx_line.__doc__)
+
+        opts = parser.parse_args(line.split())
+        rc = self._transmit("ctx_resource_monitor_reset")
+        return rc
 
     @plugin_api('show_mbuf', 'emu')
     def show_mbuf_line(self, line):
