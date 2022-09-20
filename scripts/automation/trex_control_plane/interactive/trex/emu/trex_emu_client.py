@@ -1492,6 +1492,62 @@ class EMUClient(object):
 
         self.ctx.logger.set_verbose(level)
 
+    @client_api('getter', True)
+    def resource_monitor_get_counters(self, meta = False, zero = False, mask = None, clear = False):
+        """
+        Get resource monitor counters from emu server. 
+
+            :parameters:
+                meta: bool
+                    True will get the meta data, defaults to False.
+
+                zero: bool
+                    True will send also zero values in request, defaults to False.
+
+                mask: list of strings
+                    List of wanted tables, defaults to None means all.
+
+                clear: bool
+                    Clear the counters and exit, defaults to False.
+
+            :returns:
+                | dict: Dictionary of all wanted counters. Keys as tables names and values as dictionaries with data.
+                | example when meta = True, all counters will be held in res['table_name']['meta'] as a list.
+                | {
+                |    'parser': {
+                |       'meta': [{
+                |           "info": "INFO",
+                |            "name": "eventsChangeSrc",
+                |            "value": 1,
+                |            "zero": false,
+                |           "unit": "ops",
+                |            "help": "change src ipv4 events"
+                |            }],
+                |    'name': 'parser'}
+                | }
+                | 
+                | example when meta = False, all counters will be held in res['table_name'] as a dict, counter name as a keys and numeric value as values.
+                | {
+                |     'parser': {'eventsChangeSrc': 1, ...}
+                | }
+        """
+        ver_args = [{'name': 'meta', 'arg': meta, 't': bool},
+            {'name': 'zero', 'arg': zero, 't': bool},
+            {'name': 'mask', 'arg': mask, 't': str, 'allow_list': True, 'must': False},
+            {'name': 'clear', 'arg': clear, 't': bool},
+        ]
+        EMUValidator.verify(ver_args)
+        return self.resource_monitor_c._get_counters(meta, zero, mask, clear)
+
+    @client_api('command', True)
+    def resource_monitor_reset(self):
+        """
+            Reset resource monitor tracking in EMU server.
+        """
+        self.ctx.logger.pre_cmd('Resource monitor reset')
+        rc = self._transmit("ctx_resource_monitor_reset")
+        self.ctx.logger.post_cmd(True)
+        return rc
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -1641,6 +1697,12 @@ class EMUClient(object):
 
         opts = parser.parse_args(line.split())
 
+        if opts.clear == True:
+            self.resource_monitor_reset()
+
+        # Print also zero values
+        opts.zero = True
+
         return self._base_show_counters(self.resource_monitor_c, opts)
 
     @plugin_api('resource_monitor_reset', 'emu')
@@ -1650,9 +1712,8 @@ class EMUClient(object):
                                         "resource_monitor_reset",
                                         self.resource_monitor_reset_ctx_line.__doc__)
 
-        opts = parser.parse_args(line.split())
-        rc = self._transmit("ctx_resource_monitor_reset")
-        return rc
+        parser.parse_args(line.split())
+        return self.resource_monitor_reset()
 
     @plugin_api('show_mbuf', 'emu')
     def show_mbuf_line(self, line):
