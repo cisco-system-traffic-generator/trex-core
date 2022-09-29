@@ -1102,8 +1102,14 @@ bond_mode_8023ad_activate_slave(struct rte_eth_dev *bond_dev,
 
 	snprintf(mem_name, RTE_DIM(mem_name), "slave_port%u_pool", slave_id);
 	port->mbuf_pool = rte_pktmbuf_pool_create(mem_name, total_tx_desc,
+#ifdef TREX_PATCH
+		/* 'total_tx_desc' does not consider the local lcore cache:
+		 * cache disabled because LACP packet does not need high performance. */
+		0,
+#else
 		RTE_MEMPOOL_CACHE_MAX_SIZE >= 32 ?
 			32 : RTE_MEMPOOL_CACHE_MAX_SIZE,
+#endif
 		0, element_size, socket_id);
 
 	/* Any memory allocation failure in initialization is critical because
