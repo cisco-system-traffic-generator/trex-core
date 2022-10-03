@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 3.00 ==
+
+* EMU 
+** Crash in case of bad IGMPv3 packet
+** Update IPfix plugin 
+
+* DPDK : Some driver patch 
+
 == Release 2.99 ==
 
 * E810 add drop mode, latency stream filter does not work yet. 
