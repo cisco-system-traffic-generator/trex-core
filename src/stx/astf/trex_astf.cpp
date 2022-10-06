@@ -421,7 +421,7 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
     m_opts->m_astf_client_mask = args.client_mask;
     m_opts->preview.set_ipv6_mode_enable(args.ipv6);
 
-    if ( pid->profile_needs_parsing() || topo_needs_parsing() ) {
+    if ( pid->profile_needs_parsing() || topo_needs_parsing() || tunnel_topo_needs_parsing() ) {
         pid->parse();
     } else {
         pid->build();
@@ -1064,8 +1064,29 @@ void TrexAstfPerProfile::parse() {
 
     auto astf_db = CAstfDB::get_instance(m_dp_profile_id);
 
-    TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db, tunnel_topo);
-    m_astf_obj->send_message_to_dp(0, msg);
+    if (topo || tunnel_topo || !CGlobalInfo::m_process_at_cp) {
+        TrexCpToDpMsgBase *msg = new TrexAstfLoadDB(m_dp_profile_id, prof, topo, astf_db, tunnel_topo);
+        m_astf_obj->send_message_to_dp(0, msg);
+    } else {
+        string err = "";
+        bool rc;
+
+        astf_db->Create();
+
+        rc = astf_db->set_profile_one_msg(*prof, err);
+        if (!rc) {
+            dp_core_error("profile parsing error at CP: " + err);
+            return;
+        }
+
+        int num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
+        CJsonData_err err_obj = astf_db->verify_data(num_dp_cores);
+        if (err_obj.is_error()) {
+            dp_core_error("Profile split to DP cores error at CP: " + err_obj.description());
+        } else {
+            dp_core_finished();
+        }
+    }
 }
 
 void TrexAstfPerProfile::build() {
@@ -1077,6 +1098,13 @@ void TrexAstfPerProfile::build() {
     auto astf_db = CAstfDB::instance(m_dp_profile_id);
     if (m_astf_obj->topo_exists()){
         astf_db->set_client_cfg_db(m_astf_obj->get_client_db()); 
+    }
+
+    if (CGlobalInfo::m_process_at_cp) {
+        auto num_ports = CGlobalInfo::m_options.get_expected_ports();
+        for (uint8_t port_id = 0; port_id < num_ports; port_id += 2) {
+            astf_db->get_db_ro(CGlobalInfo::m_socket.port_to_socket(port_id));
+        }
     }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpCreateTcp(m_dp_profile_id, m_factor, astf_db);

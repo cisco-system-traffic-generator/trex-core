@@ -1503,7 +1503,7 @@ class AVCProfiles():
         self.profiles[domain_id] = {
             "netflow_version": netflow_version,
             "dst": dst_url,
-            "domain_id": 6,
+            "domain_id": domain_id,
             "generators": [self.generators.get_generator(template_id) for template_id in generators]
         }
 

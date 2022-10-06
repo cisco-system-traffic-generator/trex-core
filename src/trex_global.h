@@ -455,6 +455,14 @@ public:
         return (btGetMaskBit32(m_flags1, 25, 25) ? true : false);
     }
 
+    void set_latency_diag(bool enable) {
+        btSetMaskBit32(m_flags1, 26, 26, (enable ? 1 : 0) );
+    }
+
+    bool get_latency_diag() {
+        return (btGetMaskBit32(m_flags1, 26, 26) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
@@ -1080,6 +1088,7 @@ public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
     static uint32_t              m_nodes_pool_size;
     static double                m_burst_offset_dtime;
+    static bool                  m_process_at_cp;
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;

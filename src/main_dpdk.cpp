@@ -231,6 +231,7 @@ enum {
        OPT_DISABLE_IEEE_1588,
        OPT_INDUCE_SERVER_LATENCY,
        OPT_INDUCE_CLIENT_LATENCY,
+       OPT_LATENCY_DIAG,
 
        /* no more pass this */
        OPT_MAX
@@ -331,9 +332,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
         {OPT_INDUCE_SERVER_LATENCY, "--induce-server-latency", SO_MULTI},
         {OPT_INDUCE_CLIENT_LATENCY, "--induce-client-latency", SO_REQ_SEP},
-
+        { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
         SO_END_OF_OPTIONS
-    };
 
 static int COLD_FUNC  usage() {
 
@@ -437,12 +437,12 @@ static int COLD_FUNC  usage() {
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
     printf(" --induce-client-latency <time>: Queues packets in buffer and induces latency from client side, time in micro second\n");
     printf(" --induce-server-latency <time> <percent>: Queues packets in buffer and induces latency from server side, time in micro second and percent of packets to be buffered for latency\n");
+    printf(" --latency-diag             : STL flow latency counts all duplicated packets with more CPU load consumption.\n");
+    printf("                              To see the duplicated packets, please use -v 7.\n");
 
     printf("\n");
-    printf(" Examples: ");
     printf(" basic trex run for 20 sec and multiplier of 10 \n");
     printf("  t-rex-64 -f cap2/dns.yaml -m 10 -d 20 \n");
-    printf("\n\n");
     printf(" Copyright (c) 2015-2017 Cisco Systems, Inc.    \n");
     printf("                                                                  \n");
     printf(" Licensed under the Apache License, Version 2.0 (the 'License') \n");
@@ -1008,6 +1008,9 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
+                break;
+            case OPT_LATENCY_DIAG:
+                po->preview.set_latency_diag(true);
                 break;
 
             default:
@@ -4773,6 +4776,20 @@ COLD_FUNC void CGlobalTRex::update_stats(){
 }
 
 COLD_FUNC tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
+    uint8_t port0;
+    CFlowGenListPerThread * lpt;
+
+    m_stats.m_port[port].m_tx_per_flow[index].clear();
+
+    for (int i=0; i < get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        port0 = lpt->getDualPortId() * 2;
+        if ((port == port0) || (port == port0 + 1)) {
+            m_stats.m_port[port].m_tx_per_flow[index] +=
+                lpt->m_node_gen.m_v_if->get_stats()[port - port0].m_tx_per_flow[index];
+        }
+    }
+
     return m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
 }
 
@@ -6198,12 +6215,17 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
     uint32_t diff_bytes[MAX_FLOW_STATS];
     bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
 
+    // reset allowed only when rx_stats and tx_stats are given.
+    if (reset && !(rx_stats && tx_stats)) {
+        return -1;
+    }
+
     if (hw_rx_stat_supported) {
         if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
                                        , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
             return -1;
         }
-    } else {
+    } else if (rx_stats != NULL) {
         get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID, get_core_list());
     }
 
@@ -6242,7 +6264,14 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
 }
 
 COLD_FUNC int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
-    get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    // reset allowed only when rx_stats and tx_stats are given.
+    if (reset && !(rx_stats && tx_stats)) {
+        return -1;
+    }
+
+    if (rx_stats != NULL) {
+        get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    }
     
     for (int i = min; i <= max; i++) {
         if ( reset ) {

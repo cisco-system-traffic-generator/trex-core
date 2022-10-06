@@ -93,7 +93,7 @@ public:
      * 
      */
     bool are_any_pending_cp_messages() {
-        return (!m_ring_from_cp->isEmpty());
+        return (!m_ring_from_cp->isEmpty() || !m_ring_to_cp->Reschedule());
     }
 
     

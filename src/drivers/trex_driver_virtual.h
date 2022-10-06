@@ -71,20 +71,20 @@ public:
 
 };
 
-class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtBase {
+class CTRexExtendedDriverIavf : public CTRexExtendedDriverVirtBase {
 public:
-    CTRexExtendedDriverI40evf();
+    CTRexExtendedDriverIavf();
     virtual bool get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         return get_extended_stats_fixed(_if, stats, 4, 4);
     }
     virtual void update_configuration(port_cfg_t * cfg);
     static CTRexExtendedDriverBase * create() {
-        return ( new CTRexExtendedDriverI40evf() );
+        return ( new CTRexExtendedDriverIavf() );
     }
     virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
 };
 
-class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
+class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverIavf {
 
 public:
     CTRexExtendedDriverIxgbevf();

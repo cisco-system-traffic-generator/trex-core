@@ -68,10 +68,14 @@ TrexDpCore::idle_state_loop() {
 
     while (m_state == STATE_IDLE) {
         m_core->tickle();
-        
+        // m_core->m_cpu_dp_u.start_work1() could not be used here,
+        // because cpu load is quite high although there is no working to do.
+        // So, it is used only when there is a need to do some works.
+
         bool had_msg = m_core->check_msgs();
         if (had_msg) {
             counter = 0;
+            m_core->m_cpu_dp_u.commit1();
             continue;
         }
 
@@ -80,6 +84,7 @@ TrexDpCore::idle_state_loop() {
         bool had_rx = rx_for_idle();
         if (had_rx) {
             counter = 0;
+            m_core->m_cpu_dp_u.commit1();
             continue;
         }
 
@@ -174,6 +179,7 @@ TrexDpCore::add_global_duration(double duration) {
  */
 void
 TrexDpCore::handle_cp_msg(TrexCpToDpMsgBase *msg) {
+    m_core->m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
     msg->handle(this);
     delete msg;
 }

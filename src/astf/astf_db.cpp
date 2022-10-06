@@ -1321,7 +1321,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
 
     ret->set_tuneables(c_tune, s_tune);
 
-    std::vector<double>  dist;
+    std::vector<double>  dist_cps;
+    std::vector<astf_t_id_t> dist_tids;
 
     ret->set_flow_limited(true);
 
@@ -1343,7 +1344,8 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
         double cps = cps_factor (c_temp["cps"].asDouble() / max_threads);
         template_ro.m_k_cps = cps;
         if (cps) {
-            dist.push_back(cps);
+            dist_cps.push_back(cps);
+            dist_tids.push_back(index);
         }
         template_ro.m_destination_port = c_temp["port"].asInt();
         template_ro.m_stream = get_emul_stream(c_temp["program_index"].asInt());
@@ -1390,7 +1392,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
     }
 
     /* init scheduler */
-    ret->init_scheduler(dist);
+    ret->init_scheduler(dist_cps, dist_tids);
 
     m_rw_db.push_back(ret);
 
