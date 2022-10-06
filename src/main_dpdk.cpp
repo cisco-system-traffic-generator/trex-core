@@ -230,7 +230,6 @@ enum {
        OPT_BNXT_SO,
        OPT_DISABLE_IEEE_1588,
        OPT_INDUCE_SERVER_LATENCY,
-       OPT_INDUCE_CLIENT_LATENCY,
        OPT_LATENCY_DIAG,
 
        /* no more pass this */
@@ -331,9 +330,10 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
         {OPT_INDUCE_SERVER_LATENCY, "--induce-server-latency", SO_MULTI},
-        {OPT_INDUCE_CLIENT_LATENCY, "--induce-client-latency", SO_REQ_SEP},
         { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
+
         SO_END_OF_OPTIONS
+    };
 
 static int COLD_FUNC  usage() {
 
@@ -435,14 +435,15 @@ static int COLD_FUNC  usage() {
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
-    printf(" --induce-client-latency <time>: Queues packets in buffer and induces latency from client side, time in micro second\n");
     printf(" --induce-server-latency <time> <percent>: Queues packets in buffer and induces latency from server side, time in micro second and percent of packets to be buffered for latency\n");
     printf(" --latency-diag             : STL flow latency counts all duplicated packets with more CPU load consumption.\n");
     printf("                              To see the duplicated packets, please use -v 7.\n");
 
     printf("\n");
+    printf(" Examples: ");
     printf(" basic trex run for 20 sec and multiplier of 10 \n");
     printf("  t-rex-64 -f cap2/dns.yaml -m 10 -d 20 \n");
+    printf("\n\n");
     printf(" Copyright (c) 2015-2017 Cisco Systems, Inc.    \n");
     printf("                                                                  \n");
     printf(" Licensed under the Apache License, Version 2.0 (the 'License') \n");
@@ -674,7 +675,6 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     float tmp_double;
 
     /*By Default induced latency is 0.0*/
-    po->m_induce_client_latency_duration = 0;
     po->m_induce_server_latency_duration = 0;
 
     /* Create a copy for argv for passing in args_first_pass 
@@ -992,9 +992,6 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
-                break;
-            case OPT_INDUCE_CLIENT_LATENCY:
-                sscanf(args.OptionArg(), "%d", &po->m_induce_client_latency_duration);
                 break;
             case OPT_INDUCE_SERVER_LATENCY:
                 rgpszArg = args.MultiArg(2);
@@ -2044,7 +2041,6 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     uint32_t induce_latency_duration = 0;
     if (&m_ports[0] == lp_port)
     {
-        induce_latency_duration = CGlobalInfo::m_options.m_induce_client_latency_duration;
         induce_latency_duration = CGlobalInfo::m_options.m_induce_server_latency_duration;
     }
     if (induce_latency_duration > 0 && generate_bool())
