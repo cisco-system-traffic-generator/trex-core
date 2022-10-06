@@ -34,7 +34,9 @@ limitations under the License.
 #include "hot_section.h"
 #include <algorithm>
 
-#define CONST_NB_MBUF 16380
+
+
+#define CONST_NB_MBUF  16380
 
 /* this is the first small part of the packet that we manipulate */
 #define _FIRST_PKT_SIZE 64
@@ -47,28 +49,29 @@ limitations under the License.
 #define _1024_MBUF_SIZE 1024
 #define _2048_MBUF_SIZE 2048
 #define _4096_MBUF_SIZE 4096
-#define MAX_PKT_ALIGN_BUF_9K (9 * 1024 + 64)
+#define MAX_PKT_ALIGN_BUF_9K       (9*1024+64)
 #define NUM_OF_POOLS 7
 
-#define MBUF_PKT_PREFIX (sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
+#define MBUF_PKT_PREFIX ( sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM )
 
-#define CONST_128_MBUF_SIZE (128 + MBUF_PKT_PREFIX)
-#define CONST_256_MBUF_SIZE (256 + MBUF_PKT_PREFIX)
+#define CONST_128_MBUF_SIZE (128 + MBUF_PKT_PREFIX )
+#define CONST_256_MBUF_SIZE (256 + MBUF_PKT_PREFIX )
 #define CONST_512_MBUF_SIZE (512 + MBUF_PKT_PREFIX)
 #define CONST_1024_MBUF_SIZE (1024 + MBUF_PKT_PREFIX)
 #define CONST_2048_MBUF_SIZE (2048 + MBUF_PKT_PREFIX)
 #define CONST_4096_MBUF_SIZE (4096 + MBUF_PKT_PREFIX)
-#define CONST_9k_MBUF_SIZE (MAX_PKT_ALIGN_BUF_9K + MBUF_PKT_PREFIX)
+#define CONST_9k_MBUF_SIZE   (MAX_PKT_ALIGN_BUF_9K + MBUF_PKT_PREFIX)
 
-#define TW_BUCKETS (CGlobalInfo::m_options.get_tw_buckets())
+
+#define TW_BUCKETS       (CGlobalInfo::m_options.get_tw_buckets())
 #define TW_BUCKETS_LEVEL1_DIV (16)
-#define TW_LEVELS (CGlobalInfo::m_options.get_tw_levels())
+#define TW_LEVELS        (CGlobalInfo::m_options.get_tw_levels())
 #define BUCKET_TIME_SEC (CGlobalInfo::m_options.get_tw_bucket_time_in_sec())
 #define BUCKET_TIME_SEC_LEVEL1 (CGlobalInfo::m_options.get_tw_bucket_level1_time_in_sec())
-#define TCP_RX_FLUSH_ACCURATE_SEC (2.0 / 1000000.0)
-#define TCP_RX_FLUSH_SEC (20.0 / 1000000.0)
-#define STL_RX_FLUSH_SEC (20.0 / 1000000.0)
-#define STL_RX_DELAY_TICKS (0.5 / STL_RX_FLUSH_SEC)
+#define TCP_RX_FLUSH_ACCURATE_SEC  (2.0/1000000.0)
+#define TCP_RX_FLUSH_SEC  (20.0/1000000.0)
+#define STL_RX_FLUSH_SEC  (20.0/1000000.0)
+#define STL_RX_DELAY_TICKS  (0.5/STL_RX_FLUSH_SEC)
 
 #define LOWEND_LIMIT_FLOWNODES (1 << 16)
 #define LOWEND_LIMIT_ACTIVEFLOWS (LOWEND_LIMIT_FLOWNODES / 2)
@@ -76,465 +79,379 @@ limitations under the License.
 #define LOWEND_LONG_SLEEP_SEC (1.0 / 1e3)
 #define LOWEND_MEMPOOL_LIMIT_MB (20 * 1e6)
 
-typedef enum
-{
-    SERVICE_OFF,
-    SERVICE_FILTERED,
-    SERVICE_ON,
+typedef enum {
+        SERVICE_OFF,
+        SERVICE_FILTERED,
+        SERVICE_ON,
 } service_status;
 
 class CGenNode;
 
-class CPreviewMode
-{
+class CPreviewMode {
 public:
-    enum
-    {
+    enum {
         VLAN_MODE_NONE = 0,
         VLAN_MODE_NORMAL = 1,
         VLAN_MODE_LOAD_BALANCE = 2,
     };
 
-    CPreviewMode()
-    {
+    CPreviewMode(){
         clean();
     }
-    void clean()
-    {
+    void clean(){
         m_flags = 0;
-        m_flags1 = 0;
+        m_flags1=0;
         setCores(1);
         set_vlan_mode(VLAN_MODE_NONE);
         set_zmq_publish_enable(true);
     }
 
-    void setFileWrite(bool enable)
-    {
-        btSetMaskBit32(m_flags, 0, 0, enable ? 1 : 0);
+    void setFileWrite(bool enable){
+        btSetMaskBit32(m_flags,0,0,enable?1:0);
     }
 
-    bool getFileWrite()
-    {
-        return (btGetMaskBit32(m_flags, 0, 0) ? true : false);
+    bool getFileWrite(){
+        return (btGetMaskBit32(m_flags,0,0) ? true:false);
     }
 
-    void setDisableMbufCache(bool enable)
-    {
-        btSetMaskBit32(m_flags, 2, 2, enable ? 1 : 0);
+    void setDisableMbufCache(bool enable){
+        btSetMaskBit32(m_flags,2,2,enable?1:0);
     }
 
-    bool isMbufCacheDisabled()
-    {
-        return (btGetMaskBit32(m_flags, 2, 2) ? true : false);
+    bool isMbufCacheDisabled(){
+        return (btGetMaskBit32(m_flags,2,2) ? true:false);
     }
 
-    void set_disable_hw_flow_stat(bool enable)
-    {
+    void set_disable_hw_flow_stat(bool enable) {
         btSetMaskBit32(m_flags, 3, 3, enable ? 1 : 0);
     }
 
-    bool get_disable_hw_flow_stat()
-    {
-        return (btGetMaskBit32(m_flags, 3, 3) ? true : false);
+    bool get_disable_hw_flow_stat() {
+        return (btGetMaskBit32(m_flags, 3, 3) ? true:false);
     }
 
-    void set_disable_flow_control_setting(bool enable)
-    {
-        btSetMaskBit32(m_flags, 4, 4, enable ? 1 : 0);
+    void set_disable_flow_control_setting(bool enable){
+        btSetMaskBit32(m_flags,4,4,enable?1:0);
     }
 
-    bool get_is_disable_flow_control_setting()
-    {
-        return (btGetMaskBit32(m_flags, 4, 4) ? true : false);
+    bool get_is_disable_flow_control_setting(){
+        return (btGetMaskBit32(m_flags,4,4) ? true:false);
     }
 
-    /* learn & verify mode  */
-    void set_learn_and_verify_mode_enable(bool enable)
-    {
-        btSetMaskBit32(m_flags, 5, 5, enable ? 1 : 0);
+          /* learn & verify mode  */
+    void set_learn_and_verify_mode_enable(bool enable){
+        btSetMaskBit32(m_flags,5,5,enable?1:0);
     }
 
-    bool get_learn_and_verify_mode_enable()
-    {
-        return (btGetMaskBit32(m_flags, 5, 5) ? true : false);
+    bool get_learn_and_verify_mode_enable(){
+        return (btGetMaskBit32(m_flags,5,5) ? true:false);
     }
 
-    /* IPv6 enable/disable */
-    void set_ipv6_mode_enable(bool enable)
-    {
-        btSetMaskBit32(m_flags, 7, 7, enable ? 1 : 0);
+  /* IPv6 enable/disable */
+    void set_ipv6_mode_enable(bool enable){
+        btSetMaskBit32(m_flags,7,7,enable?1:0);
     }
 
-    bool get_ipv6_mode_enable()
-    {
-        return (btGetMaskBit32(m_flags, 7, 7) ? true : false);
+    bool get_ipv6_mode_enable(){
+        return (btGetMaskBit32(m_flags,7,7) ? true:false);
     }
 
-    void setVMode(uint8_t vmode)
-    {
-        btSetMaskBit32(m_flags, 10, 8, vmode);
+    void setVMode(uint8_t vmode){
+        btSetMaskBit32(m_flags,10,8,vmode);
     }
-    uint8_t getVMode()
-    {
-        return (btGetMaskBit32(m_flags, 10, 8));
+    uint8_t  getVMode(){
+        return (btGetMaskBit32(m_flags,10,8) );
     }
 
-    void setRealTime(bool enable)
-    {
-        btSetMaskBit32(m_flags, 11, 11, enable ? 1 : 0);
+
+    void setRealTime(bool enable){
+        btSetMaskBit32(m_flags,11,11,enable?1:0);
     }
 
-    bool getRealTime()
-    {
-        return (btGetMaskBit32(m_flags, 11, 11) ? true : false);
+    bool getRealTime(){
+        return (btGetMaskBit32(m_flags,11,11) ? true:false);
     }
 
-    void setClientServerFlip(bool enable)
-    {
-        btSetMaskBit32(m_flags, 12, 12, enable ? 1 : 0);
+    void setClientServerFlip(bool enable){
+        btSetMaskBit32(m_flags,12,12,enable?1:0);
     }
 
-    bool getClientServerFlip()
-    {
-        return (btGetMaskBit32(m_flags, 12, 12) ? true : false);
+    bool getClientServerFlip(){
+        return (btGetMaskBit32(m_flags,12,12) ? true:false);
     }
 
-    void setSingleCore(bool enable)
-    {
-        btSetMaskBit32(m_flags, 13, 13, enable ? 1 : 0);
+    void setSingleCore(bool enable){
+        btSetMaskBit32(m_flags,13,13,enable?1:0);
     }
 
-    bool getSingleCore()
-    {
-        return (btGetMaskBit32(m_flags, 13, 13) ? true : false);
+    bool getSingleCore(){
+        return (btGetMaskBit32(m_flags,13,13) ? true:false);
     }
 
     /* -p */
-    void setClientServerFlowFlip(bool enable)
-    {
-        btSetMaskBit32(m_flags, 14, 14, enable ? 1 : 0);
+    void setClientServerFlowFlip(bool enable){
+        btSetMaskBit32(m_flags,14,14,enable?1:0);
     }
 
-    bool getClientServerFlowFlip()
-    {
-        return (btGetMaskBit32(m_flags, 14, 14) ? true : false);
+    bool getClientServerFlowFlip(){
+        return (btGetMaskBit32(m_flags,14,14) ? true:false);
     }
 
-    void setNoCleanFlowClose(bool enable)
-    {
-        btSetMaskBit32(m_flags, 15, 15, enable ? 1 : 0);
+
+
+    void setNoCleanFlowClose(bool enable){
+        btSetMaskBit32(m_flags,15,15,enable?1:0);
     }
 
-    bool getNoCleanFlowClose()
-    {
-        return (btGetMaskBit32(m_flags, 15, 15) ? true : false);
+    bool getNoCleanFlowClose(){
+        return (btGetMaskBit32(m_flags,15,15) ? true:false);
     }
 
-    void setCores(uint8_t cores)
-    {
-        btSetMaskBit32(m_flags, 24, 16, cores);
+    void setCores(uint8_t cores){
+        btSetMaskBit32(m_flags,24,16,cores);
     }
 
-    uint8_t getCores()
-    {
-        return (btGetMaskBit32(m_flags, 24, 16));
+    uint8_t getCores(){
+        return (btGetMaskBit32(m_flags,24,16) );
     }
 
-    bool getIsOneCore()
-    {
-        return (getCores() == 1 ? true : false);
+    bool  getIsOneCore(){
+        return (getCores()==1?true:false);
     }
 
-    void setOnlyLatency(bool enable)
-    {
-        btSetMaskBit32(m_flags, 25, 25, enable ? 1 : 0);
+    void setOnlyLatency(bool enable){
+        btSetMaskBit32(m_flags,25,25,enable?1:0);
     }
 
-    bool getOnlyLatency()
-    {
-        return (btGetMaskBit32(m_flags, 25, 25) ? true : false);
+    bool getOnlyLatency(){
+        return (btGetMaskBit32(m_flags,25,25) ? true:false);
     }
 
-    void set_pcap_mode_enable(bool enable)
-    {
-        btSetMaskBit32(m_flags, 26, 26, enable ? 1 : 0);
+    void set_pcap_mode_enable(bool enable){
+        btSetMaskBit32(m_flags,26,26,enable?1:0);
     }
 
-    bool get_pcap_mode_enable()
-    {
-        return (btGetMaskBit32(m_flags, 26, 26) ? true : false);
+    bool get_pcap_mode_enable(){
+        return (btGetMaskBit32(m_flags,26,26) ? true:false);
     }
 
-    void set_zmq_publish_enable(bool enable)
-    {
-        btSetMaskBit32(m_flags, 27, 27, enable ? 1 : 0);
+    void set_zmq_publish_enable(bool enable){
+        btSetMaskBit32(m_flags,27,27,enable?1:0);
     }
 
-    bool get_zmq_publish_enable()
-    {
-        return (btGetMaskBit32(m_flags, 27, 27) ? true : false);
+    bool get_zmq_publish_enable(){
+        return (btGetMaskBit32(m_flags,27,27) ? true:false);
     }
 
-    uint8_t get_vlan_mode()
-    {
+    uint8_t get_vlan_mode() {
         return (btGetMaskBit32(m_flags, 29, 28));
     }
 
-    void set_vlan_mode(uint8_t mode)
-    {
+    void set_vlan_mode(uint8_t mode) {
         btSetMaskBit32(m_flags, 29, 28, mode);
     }
 
     void set_vlan_mode_verify(uint8_t mode);
 
-    bool get_is_rx_check_enable()
-    {
-        return (btGetMaskBit32(m_flags, 31, 31) ? true : false);
+    bool get_is_rx_check_enable(){
+        return (btGetMaskBit32(m_flags,31,31) ? true:false);
     }
 
-    void set_rx_check_enable(bool enable)
-    {
-        btSetMaskBit32(m_flags, 31, 31, enable ? 1 : 0);
+    void set_rx_check_enable(bool enable){
+        btSetMaskBit32(m_flags,31,31,enable?1:0);
     }
 
-    bool get_is_slowpath_features_on()
-    {
+    bool get_is_slowpath_features_on() {
         return (btGetMaskBit32(m_flags1, 0, 0) ? true : false);
     }
 
-    void set_slowpath_features_on(bool enable)
-    {
+    void set_slowpath_features_on(bool enable) {
         btSetMaskBit32(m_flags1, 0, 0, enable ? 1 : 0);
     }
 
-    bool get_is_client_cfg_enable()
-    {
+    bool get_is_client_cfg_enable() {
         return (btGetMaskBit32(m_flags1, 1, 1) ? true : false);
     }
 
-    void set_client_cfg_enable(bool enable)
-    {
+    void set_client_cfg_enable(bool enable){
         btSetMaskBit32(m_flags1, 1, 1, enable ? 1 : 0);
-        if (enable)
-        {
+        if (enable) {
             set_slowpath_features_on(enable);
         }
     }
 
     // m_flags1 - bit 2 is free
-    void set_no_keyboard(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 5, 5, enable ? 1 : 0);
+    void set_no_keyboard(bool enable){
+        btSetMaskBit32(m_flags1,5,5,enable?1:0);
     }
 
-    bool get_no_keyboard()
-    {
-        return (btGetMaskBit32(m_flags1, 5, 5) ? true : false);
+    bool get_no_keyboard(){
+        return (btGetMaskBit32(m_flags1,5,5) ? true:false);
     }
 
     /* -e */
-    void setClientServerFlowFlipAddr(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 3, 3, enable ? 1 : 0);
+    void setClientServerFlowFlipAddr(bool enable){
+        btSetMaskBit32(m_flags1,3,3,enable?1:0);
     }
 
-    bool getClientServerFlowFlipAddr()
-    {
-        return (btGetMaskBit32(m_flags1, 3, 3) ? true : false);
+    bool getClientServerFlowFlipAddr(){
+        return (btGetMaskBit32(m_flags1,3,3) ? true:false);
     }
 
     /* split mac is enabled */
-    void setWDDisable(bool wd_disable)
-    {
-        btSetMaskBit32(m_flags1, 6, 6, wd_disable ? 1 : 0);
+    void setWDDisable(bool wd_disable){
+        btSetMaskBit32(m_flags1,6,6,wd_disable?1:0);
     }
 
-    bool getWDDisable()
-    {
-        return (btGetMaskBit32(m_flags1, 6, 6) ? true : false);
+    bool getWDDisable(){
+        return (btGetMaskBit32(m_flags1,6,6) ? true:false);
     }
 
-    void setCoreDumpEnable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 7, 7, (enable ? 1 : 0));
+    void setCoreDumpEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 7, 7, (enable ? 1 : 0) );
     }
 
-    bool getCoreDumpEnable()
-    {
+    bool getCoreDumpEnable(){
         return (btGetMaskBit32(m_flags1, 7, 7) ? true : false);
     }
 
-    void setChecksumOffloadEnable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 8, 8, (enable ? 1 : 0));
+    void setChecksumOffloadEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 8, 8, (enable ? 1 : 0) );
     }
 
-    bool getChecksumOffloadEnable()
-    {
+    bool getChecksumOffloadEnable(){
         return (btGetMaskBit32(m_flags1, 8, 8) ? true : false);
     }
 
-    void setCloseEnable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 9, 9, (enable ? 1 : 0));
+    void setCloseEnable(bool enable) {
+        btSetMaskBit32(m_flags1, 9, 9, (enable ? 1 : 0) );
     }
 
-    bool getCloseEnable()
-    {
+    bool getCloseEnable(){
         return (btGetMaskBit32(m_flags1, 9, 9) ? true : false);
     }
 
-    void set_rt_prio_mode(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 10, 10, (enable ? 1 : 0));
+    void set_rt_prio_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 10, 10, (enable ? 1 : 0) );
     }
 
-    bool get_rt_prio_mode()
-    {
+    bool get_rt_prio_mode() {
         return (btGetMaskBit32(m_flags1, 10, 10) ? true : false);
     }
 
-    void set_mlx5_so_mode(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 11, 11, (enable ? 1 : 0));
+    void set_mlx5_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 11, 11, (enable ? 1 : 0) );
     }
 
-    bool get_mlx5_so_mode()
-    {
+    bool get_mlx5_so_mode() {
         return (btGetMaskBit32(m_flags1, 11, 11) ? true : false);
     }
 
-    void set_mlx4_so_mode(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 12, 12, (enable ? 1 : 0));
+    void set_mlx4_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 12, 12, (enable ? 1 : 0) );
     }
 
-    bool get_mlx4_so_mode()
-    {
+    bool get_mlx4_so_mode() {
         return (btGetMaskBit32(m_flags1, 12, 12) ? true : false);
     }
 
-    void setChecksumOffloadDisable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 13, 13, (enable ? 1 : 0));
+    void setChecksumOffloadDisable(bool enable) {
+        btSetMaskBit32(m_flags1, 13, 13, (enable ? 1 : 0) );
     }
 
-    bool getChecksumOffloadDisable()
-    {
+    bool getChecksumOffloadDisable(){
         return (btGetMaskBit32(m_flags1, 13, 13) ? true : false);
     }
 
-    void set_dev_tso_support(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 15, 15, (enable ? 1 : 0));
+    void set_dev_tso_support(bool enable) {
+        btSetMaskBit32(m_flags1, 15, 15, (enable ? 1 : 0) );
     }
 
-    bool get_dev_tso_support()
-    {
+    bool get_dev_tso_support() {
         return (btGetMaskBit32(m_flags1, 15, 15) ? true : false);
     }
 
-    void setTsoOffloadDisable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 16, 16, (enable ? 1 : 0));
+    void setTsoOffloadDisable(bool enable){
+        btSetMaskBit32(m_flags1, 16, 16, (enable ? 1 : 0) );
     }
 
-    bool getTsoOffloadDisable()
-    {
+    bool getTsoOffloadDisable() {
         return (btGetMaskBit32(m_flags1, 16, 16) ? true : false);
     }
 
-    void set_ntacc_so_mode(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 17, 17, (enable ? 1 : 0));
+    void set_ntacc_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 17, 17, (enable ? 1 : 0) );
     }
 
-    bool get_ntacc_so_mode()
-    {
+    bool get_ntacc_so_mode() {
         return (btGetMaskBit32(m_flags1, 17, 17) ? true : false);
     }
 
-    void set_termio_disabled(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 18, 18, (enable ? 1 : 0));
+
+    void set_termio_disabled(bool enable) {
+        btSetMaskBit32(m_flags1, 18, 18, (enable ? 1 : 0) );
     }
 
-    bool get_is_termio_disabled()
-    {
+    bool get_is_termio_disabled() {
         return (btGetMaskBit32(m_flags1, 18, 18) ? true : false);
     }
 
-    void setLroOffloadDisable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 19, 19, (enable ? 1 : 0));
+    void setLroOffloadDisable(bool enable){
+        btSetMaskBit32(m_flags1, 19, 19, (enable ? 1 : 0) );
     }
 
-    bool getLroOffloadDisable()
-    {
+    bool getLroOffloadDisable() {
         return (btGetMaskBit32(m_flags1, 19, 19) ? true : false);
     }
 
-    void setPromMode(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 20, 20, (enable ? 1 : 0));
+    void setPromMode(bool enable){
+        btSetMaskBit32(m_flags1, 20, 20, (enable ? 1 : 0) );
     }
 
-    bool getPromMode()
-    {
+    bool getPromMode() {
         return (btGetMaskBit32(m_flags1, 20, 20) ? true : false);
     }
 
-    void setEmulDebug(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 21, 21, (enable ? 1 : 0));
+    void setEmulDebug(bool enable){
+        btSetMaskBit32(m_flags1, 21, 21, (enable ? 1 : 0) );
     }
 
-    bool getEmulDebug()
-    {
+    bool getEmulDebug() {
         return (btGetMaskBit32(m_flags1, 21, 21) ? true : false);
     }
 
-    uint8_t get_mac_ip_overide_mode()
-    {
+    uint8_t get_mac_ip_overide_mode() {
         return btGetMaskBit32(m_flags1, 23, 22);
     }
 
-    void set_mac_ip_overide_mode(uint8_t mode)
-    {
+    void set_mac_ip_overide_mode(uint8_t mode) {
         btSetMaskBit32(m_flags1, 23, 22, mode);
-        if (mode)
-        {
+        if ( mode ) {
             set_slowpath_features_on(mode);
         }
     }
 
-    void set_bnxt_so_mode(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 20, 20, (enable ? 1 : 0));
+    void set_bnxt_so_mode(bool enable) {
+        btSetMaskBit32(m_flags1, 20, 20, (enable ? 1 : 0) );
     }
 
-    bool get_bnxt_so_mode()
-    {
+    bool get_bnxt_so_mode() {
         return (btGetMaskBit32(m_flags1, 20, 20) ? true : false);
     }
 
-    void setLatencyIEEE1588Disable(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 24, 24, (enable ? 1 : 0));
+    void setLatencyIEEE1588Disable(bool enable) {
+        btSetMaskBit32(m_flags1, 24, 24, (enable ? 1 : 0) );
     }
 
-    bool getLatencyIEEE1588Disable()
-    {
+    bool getLatencyIEEE1588Disable(){
         return (btGetMaskBit32(m_flags1, 24, 24) ? true : false);
     }
 
-    void set_dev_lro_support(bool enable)
-    {
-        btSetMaskBit32(m_flags1, 25, 25, (enable ? 1 : 0));
+    void set_dev_lro_support(bool enable) {
+        btSetMaskBit32(m_flags1, 25, 25, (enable ? 1 : 0) );
     }
 
-    bool get_dev_lro_support()
-    {
+    bool get_dev_lro_support() {
         return (btGetMaskBit32(m_flags1, 25, 25) ? true : false);
     }
 
@@ -542,53 +459,47 @@ public:
     void Dump(FILE *fd);
 
 private:
-    uint32_t m_flags;
-    uint32_t m_flags1;
+    uint32_t      m_flags;
+    uint32_t      m_flags1;
 };
 
-typedef struct mac_align_t_
-{
-    uint8_t dest[6];
-    uint8_t src[6];
-    uint8_t is_set;
-    uint8_t pad[3];
-} mac_align_t;
 
-struct CMacAddrCfg
-{
+typedef  struct mac_align_t_ {
+        uint8_t dest[6];
+        uint8_t src[6];
+        uint8_t is_set;
+        uint8_t pad[3];
+} mac_align_t  ;
+
+struct CMacAddrCfg {
 public:
-    CMacAddrCfg()
-    {
+    CMacAddrCfg () {
         reset();
     }
-    void reset()
-    {
+    void reset () {
         memset(u.m_data, 0, sizeof(u.m_data));
         u.m_mac.dest[3] = 1;
         u.m_mac.is_set = 0;
     }
-    union
-    {
+    union {
         mac_align_t m_mac;
-        uint8_t m_data[16];
+        uint8_t     m_data[16];
     } u;
 } __rte_cache_aligned;
 
-class CPerPortIPCfg
-{
-public:
-    uint32_t get_ip() { return m_ip; }
-    uint32_t get_mask() { return m_mask; }
-    uint32_t get_def_gw() { return m_def_gw; }
-    uint32_t get_vlan() { return m_vlan; }
-    bool get_vxlan_fs() { return m_vxlan_fs; }
-    void set_ip(uint32_t val) { m_ip = val; }
-    void set_mask(uint32_t val) { m_mask = val; }
-    void set_def_gw(uint32_t val) { m_def_gw = val; }
-    void set_vlan(uint16_t val) { m_vlan = val; }
-    void set_vxlan_fs(bool val) { m_vxlan_fs = val; }
-
-private:
+class CPerPortIPCfg {
+ public:
+    uint32_t get_ip() {return m_ip;}
+    uint32_t get_mask() {return m_mask;}
+    uint32_t get_def_gw() {return m_def_gw;}
+    uint32_t get_vlan() {return m_vlan;}
+    bool get_vxlan_fs() {return m_vxlan_fs;}
+    void set_ip(uint32_t val) {m_ip = val;}
+    void set_mask(uint32_t val) {m_mask = val;}
+    void set_def_gw(uint32_t val) {m_def_gw = val;}
+    void set_vlan(uint16_t val) {m_vlan = val;}
+    void set_vxlan_fs(bool val) {m_vxlan_fs = val;}
+ private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
@@ -596,37 +507,35 @@ private:
     bool m_vxlan_fs = false;
 };
 
-class CParserOption
-{
+
+class CParserOption {
 
 public:
     /* Runtime flags */
-    enum
-    {
-        RUN_FLAGS_RXCHECK_CONST_TS = 1,
+    enum {
+        RUN_FLAGS_RXCHECK_CONST_TS =1,
     };
 
-    enum trex_astf_mode_e
-    {
-        OP_ASTF_MODE_NONE = 0,
-        OP_ASTF_MODE_SERVR_ONLY = 1,
-        OP_ASTF_MODE_CLIENT_MASK = 2
+
+    enum trex_astf_mode_e {
+        OP_ASTF_MODE_NONE       =0,
+        OP_ASTF_MODE_SERVR_ONLY =1,
+        OP_ASTF_MODE_CLIENT_MASK=2
     };
 
-    enum trex_learn_mode_e
-    {
-        LEARN_MODE_DISABLED = 0,
-        LEARN_MODE_TCP_ACK = 1,
-        LEARN_MODE_IP_OPTION = 2,
-        LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND = 3,
-        LEARN_MODE_MAX = LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND,
-        // This is used to check if 1 or 3 exist
-        LEARN_MODE_TCP = 100
+    enum trex_learn_mode_e {
+    LEARN_MODE_DISABLED=0,
+    LEARN_MODE_TCP_ACK=1,
+    LEARN_MODE_IP_OPTION=2,
+    LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND=3,
+    LEARN_MODE_MAX=LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND,
+    // This is used to check if 1 or 3 exist
+    LEARN_MODE_TCP=100
     };
 
 public:
-    void reset()
-    {
+
+    void reset() {
         preview.clean();
         m_tw_buckets = 1024;
         m_tw_levels = 3;
@@ -654,7 +563,7 @@ public:
         m_wait_before_traffic = 1;
         m_zmq_port = 4500;
         m_telnet_port = 4501;
-        m_ezmq_ch_port = 4511;
+        m_ezmq_ch_port = 4511; 
         m_expected_portd = 4; /* should be at least the number of ports found in the system but could be less. includes dummy ports */
         m_io_mode = 1;
         m_run_flags = 0;
@@ -673,24 +582,24 @@ public:
         set_tw_bucket_time_in_usec(20.0);
         // we read every 0.5 second. We want to catch the counter when it approach the maximum (where it will stuck,
         // and we will start losing packets).
-        x710_fdir_reset_threshold = 0xffffffff - 1000000000 / 8 / 64 * 40;
-        m_astf_mode = OP_ASTF_MODE_NONE;
-        m_astf_client_mask = 0;
-        m_is_lowend = false;
-        m_lowend_core = 0;
+        x710_fdir_reset_threshold = 0xffffffff - 1000000000/8/64*40;
+        m_astf_mode =OP_ASTF_MODE_NONE;
+        m_astf_client_mask=0;
+        m_is_lowend           = false;
+        m_lowend_core         = 0;
         m_is_sleepy_scheduler = false;
-        m_is_queuefull_retry = true;
-        m_is_vdev = false;
-        m_is_devs_in_vdev = false;
+        m_is_queuefull_retry  = true;
+        m_is_vdev             = false;
+        m_is_devs_in_vdev     = false;
         m_pdevs_in_vdev.clear();
-        m_is_bird_enabled = false;
-        m_ezmq_ch_enabled = false;
-        m_emzq_ch_tcp = false;
-        m_emzq_ipc_file_path = "/tmp/emu";
+        m_is_bird_enabled     = false;
+        m_ezmq_ch_enabled     = false;
+        m_emzq_ch_tcp         = false;
+        m_emzq_ipc_file_path  = "/tmp/emu";
         m_cmds_ipc_file_path = "/tmp/cmds";
-        m_stack_type = "legacy";
-        m_dummy_count = 0;
-        m_reta_mask = 0;
+        m_stack_type          = "legacy";
+        m_dummy_count=0;
+        m_reta_mask=0;
         m_hdrh = false;
         m_tx_ring_size = 0;
         m_astf_best_effort_mode = false;
@@ -699,178 +608,159 @@ public:
         m_rx_dp_ring_size = 0;
     }
 
-    CParserOption()
-    {
+    CParserOption(){
         reset();
     }
     /* IMPORTANT! Every new cold member in this class must be added at the bottom, otherwise performance issue may occur */
-    CPreviewMode preview;
-    uint16_t m_tw_buckets;
-    uint16_t m_tw_levels;
-    uint32_t m_active_flows;
-    float m_factor;
-    float m_mbuf_factor;
-    float m_duration;
-    float m_platform_factor;
-    uint16_t m_vlan_port[2]; /* vlan value */
-    uint16_t m_src_ipv6[6];  /* Most signficant 96-bits */
-    uint16_t m_dst_ipv6[6];  /* Most signficant 96-bits */
-    CPerPortIPCfg m_ip_cfg[TREX_MAX_PORTS];
-    uint32_t m_latency_rate; /* pkt/sec for each thread/port zero disable */
-    uint32_t m_induce_client_latency_duration;
-    uint32_t m_induce_server_latency_duration;
-    uint32_t m_latency_mask;
-    uint32_t m_latency_prev;
-    uint32_t m_wait_before_traffic;
-    uint16_t m_rx_check_sample; /* the sample rate of flows */
-    uint16_t m_rx_check_hops;
-    uint16_t m_zmq_port;
-    uint16_t m_telnet_port;
-    uint16_t m_ezmq_ch_port;
-    uint16_t m_expected_portd;
-    uint16_t m_io_mode; // 0,1,2 0 disable, 1- normal , 2 - short
-    uint16_t m_run_flags;
-    uint8_t m_l_pkt_mode;
-    uint8_t m_learn_mode;
-    uint16_t m_debug_pkt_proto;
-    uint16_t m_arp_ref_per;
-    uint16_t m_arp_req_limit; // limit the initial ARP req for GW address
-    uint8_t m_dummy_count;
-    uint8_t m_reta_mask;
-    bool m_rx_thread_enabled;
+    CPreviewMode    preview;
+    uint16_t        m_tw_buckets;
+    uint16_t        m_tw_levels;
+    uint32_t        m_active_flows;
+    float           m_factor;
+    float           m_mbuf_factor;
+    float           m_duration;
+    float           m_platform_factor;
+    uint16_t        m_vlan_port[2]; /* vlan value */
+    uint16_t        m_src_ipv6[6];  /* Most signficant 96-bits */
+    uint16_t        m_dst_ipv6[6];  /* Most signficant 96-bits */
+    CPerPortIPCfg   m_ip_cfg[TREX_MAX_PORTS];
+    uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
+    uint32_t        m_induce_client_latency_duration;
+    /* Default threshold value is 50 */
+    uint32_t        m_induce_server_latency_duration;
+    uint32_t        m_latency_mask;
+    uint32_t        m_latency_prev;
+    uint32_t        m_wait_before_traffic;
+    uint16_t        m_rx_check_sample; /* the sample rate of flows */
+    uint16_t        m_rx_check_hops;
+    uint16_t        m_zmq_port;
+    uint16_t        m_telnet_port;
+    uint16_t        m_ezmq_ch_port; 
+    uint16_t        m_expected_portd;
+    uint16_t        m_io_mode; //0,1,2 0 disable, 1- normal , 2 - short
+    uint16_t        m_run_flags;
+    uint8_t         m_l_pkt_mode;
+    uint8_t         m_learn_mode;
+    uint16_t        m_debug_pkt_proto;
+    uint16_t        m_arp_ref_per;
+    uint16_t        m_arp_req_limit; // limit the initial ARP req for GW address
+    uint8_t         m_dummy_count;
+    uint8_t         m_reta_mask;
+    bool            m_rx_thread_enabled;
     trex_astf_mode_e m_astf_mode;
-    uint32_t m_astf_client_mask;
-    bool m_is_lowend;
-    bool m_is_sleepy_scheduler; // sleep or busy wait on scheduler
-    bool m_is_queuefull_retry;  // retry on queue full
-    bool m_is_vdev;
-    bool m_is_devs_in_vdev;
-    std::vector<std::string> m_pdevs_in_vdev;
-    bool m_hdrh; /* enable HDR histograms for latency */
-    bool m_is_bird_enabled;
-    bool m_ezmq_ch_enabled;
-    bool m_tunnel_enabled;
-    bool m_emzq_ch_tcp;
-    std::string m_emzq_ipc_file_path;
-    std::string m_cmds_ipc_file_path;
-    std::string m_stack_type;
+    uint32_t        m_astf_client_mask;
+    bool            m_is_lowend;
+    bool            m_is_sleepy_scheduler;   // sleep or busy wait on scheduler
+    bool            m_is_queuefull_retry;    // retry on queue full
+    bool            m_is_vdev;
+    bool            m_is_devs_in_vdev;
+    std::vector<std::string>    m_pdevs_in_vdev;
+    bool            m_hdrh;        /* enable HDR histograms for latency */
+    bool            m_is_bird_enabled;
+    bool            m_ezmq_ch_enabled;
+    bool            m_tunnel_enabled;
+    bool            m_emzq_ch_tcp;
+    std::string     m_emzq_ipc_file_path;
+    std::string     m_cmds_ipc_file_path;
+    std::string     m_stack_type;
 
-    std::string cfg_file;
-    std::string astf_cfg_file;
-    std::string client_cfg_file;
-    std::string platform_cfg_file;
-    std::string out_file;
-    std::string prefix;
-    std::string rpc_logfile_name;
-    bool m_dummy_port_map[TREX_MAX_PORTS];
-    CMacAddrCfg m_mac_addr[TREX_MAX_PORTS];
-    double m_tw_bucket_time_sec;
-    double m_tw_bucket_time_sec_level1;
-    uint32_t x710_fdir_reset_threshold;
-    uint32_t m_lowend_core;
-    uint16_t m_tx_ring_size;
-    bool m_astf_best_effort_mode;
-    bool m_tunnel_loopback;
-    uint16_t m_rx_dp_ring_size; // Size of rings between Dp and Rx.
+    
+    std::string        cfg_file;
+    std::string        astf_cfg_file;
+    std::string        client_cfg_file;
+    std::string        platform_cfg_file;
+    std::string        out_file;
+    std::string        prefix;
+    std::string        rpc_logfile_name;
+    bool            m_dummy_port_map[TREX_MAX_PORTS];
+    CMacAddrCfg     m_mac_addr[TREX_MAX_PORTS];
+    double          m_tw_bucket_time_sec;
+    double          m_tw_bucket_time_sec_level1;
+    uint32_t        x710_fdir_reset_threshold;
+    uint32_t        m_lowend_core;
+    uint16_t        m_tx_ring_size;
+    bool            m_astf_best_effort_mode;
+    bool            m_tunnel_loopback;
+    uint16_t        m_rx_dp_ring_size;              // Size of rings between Dp and Rx.
+
 
 public:
-    uint8_t *get_src_mac_addr(int if_index)
-    {
+    uint8_t *       get_src_mac_addr(int if_index){
         return (m_mac_addr[if_index].u.m_mac.src);
     }
-    uint8_t *get_dst_src_mac_addr(int if_index)
-    {
+    uint8_t *       get_dst_src_mac_addr(int if_index){
         return (m_mac_addr[if_index].u.m_mac.dest);
     }
 
-    uint32_t get_expected_ports()
-    {
+    uint32_t get_expected_ports(){
         return (m_expected_portd);
     }
 
     /* how many dual ports supported */
-    uint32_t get_expected_dual_ports(void)
-    {
-        return (m_expected_portd >> 1);
+    uint32_t get_expected_dual_ports(void){
+        return (m_expected_portd>>1);
     }
 
-    uint32_t get_number_of_dp_cores_needed()
-    {
-        return ((m_expected_portd >> 1) * preview.getCores());
+    uint32_t get_number_of_dp_cores_needed() {
+        return ( (m_expected_portd>>1)   * preview.getCores());
     }
-    bool is_latency_enabled()
-    {
-        return ((m_latency_rate == 0) ? false : true);
+    bool is_latency_enabled() {
+        return ( (m_latency_rate == 0) ? false : true);
     }
-    bool is_rx_enabled()
-    {
+    bool is_rx_enabled() {
         return m_rx_thread_enabled;
     }
-    void set_rx_enabled()
-    {
+    void set_rx_enabled() {
         m_rx_thread_enabled = true;
     }
-    uint32_t get_x710_fdir_reset_threshold()
-    {
+    uint32_t get_x710_fdir_reset_threshold() {
         return (x710_fdir_reset_threshold);
     }
-    void set_x710_fdir_reset_threshold(uint32_t val)
-    {
+    void set_x710_fdir_reset_threshold(uint32_t val) {
         x710_fdir_reset_threshold = val;
     }
 
-    inline double get_tw_bucket_time_in_sec(void)
-    {
+    inline double get_tw_bucket_time_in_sec(void){
         return (m_tw_bucket_time_sec);
     }
 
-    inline double get_tw_bucket_level1_time_in_sec(void)
-    {
+    inline double get_tw_bucket_level1_time_in_sec(void){
         return (m_tw_bucket_time_sec_level1);
     }
 
-    void set_tw_bucket_time_in_usec(double usec)
-    {
-        m_tw_bucket_time_sec = (usec / 1000000.0);
-        m_tw_bucket_time_sec_level1 = (m_tw_bucket_time_sec * (double)m_tw_buckets) / ((double)TW_BUCKETS_LEVEL1_DIV);
+    void set_tw_bucket_time_in_usec(double usec){
+        m_tw_bucket_time_sec= (usec/1000000.0);
+        m_tw_bucket_time_sec_level1 = (m_tw_bucket_time_sec*(double)m_tw_buckets)/((double)TW_BUCKETS_LEVEL1_DIV);
     }
 
-    void set_tw_buckets(uint16_t buckets)
-    {
-        m_tw_buckets = buckets;
+    void     set_tw_buckets(uint16_t buckets){
+        m_tw_buckets=buckets;
     }
 
-    inline uint16_t get_tw_buckets(void)
-    {
+    inline uint16_t get_tw_buckets(void){
         return (m_tw_buckets);
     }
 
-    void set_tw_levels(uint16_t levels)
-    {
-        m_tw_levels = levels;
+    void     set_tw_levels(uint16_t levels){
+        m_tw_levels=levels;
     }
 
-    inline uint16_t get_tw_levels(void)
-    {
+    inline uint16_t get_tw_levels(void){
         return (m_tw_levels);
     }
 
-    inline void set_rxcheck_const_ts()
-    {
+    inline void set_rxcheck_const_ts(){
         m_run_flags |= RUN_FLAGS_RXCHECK_CONST_TS;
     }
-    inline void clear_rxcheck_const_ts()
-    {
-        m_run_flags &= ~RUN_FLAGS_RXCHECK_CONST_TS;
+    inline void clear_rxcheck_const_ts(){
+        m_run_flags &=~ RUN_FLAGS_RXCHECK_CONST_TS;
     }
 
-    inline bool is_rxcheck_const_ts()
-    {
-        return ((m_run_flags & RUN_FLAGS_RXCHECK_CONST_TS) ? true : false);
+    inline bool is_rxcheck_const_ts(){
+        return (  (m_run_flags &RUN_FLAGS_RXCHECK_CONST_TS)?true:false );
     }
 
-    inline uint8_t get_l_pkt_mode()
-    {
+    inline uint8_t get_l_pkt_mode(){
         return (m_l_pkt_mode);
     }
     void dump(FILE *fd);
@@ -878,283 +768,212 @@ public:
     void verify();
 };
 
-class CGlobalMemory
-{
+
+class  CGlobalMemory {
 
 public:
-    CGlobalMemory()
-    {
+    CGlobalMemory(){
         CPlatformMemoryYamlInfo info;
-        m_num_cores = 1;
-        m_pool_cache_size = 32;
+        m_num_cores=1;
+        m_pool_cache_size=32;
     }
-    void set(const CPlatformMemoryYamlInfo &info, float mul);
+    void set(const CPlatformMemoryYamlInfo &info,float mul);
 
-    uint32_t get_2k_num_blocks()
-    {
-        return (m_mbuf[MBUF_2048]);
+    uint32_t get_2k_num_blocks(){
+        return ( m_mbuf[MBUF_2048]);
     }
 
-    uint32_t get_each_core_dp_flows()
-    {
-        return (m_mbuf[MBUF_DP_FLOWS] / m_num_cores);
+    uint32_t get_each_core_dp_flows(){
+        return ( m_mbuf[MBUF_DP_FLOWS]/m_num_cores );
     }
-    void set_number_of_dp_cors(uint32_t cores)
-    {
+    void set_number_of_dp_cors(uint32_t cores){
         m_num_cores = cores;
     }
 
-    void set_pool_cache_size(uint32_t pool_cache)
-    {
-        m_pool_cache_size = pool_cache;
+    void set_pool_cache_size(uint32_t pool_cache){
+        m_pool_cache_size=pool_cache;
     }
 
     void Dump(FILE *fd);
 
 public:
-    uint32_t m_mbuf[MBUF_ELM_SIZE]; // relative to traffic norm to 2x10G ports
-    uint32_t m_num_cores;
-    uint32_t m_pool_cache_size;
+    uint32_t         m_mbuf[MBUF_ELM_SIZE]; // relative to traffic norm to 2x10G ports
+    uint32_t         m_num_cores;
+    uint32_t         m_pool_cache_size;
+
 };
 
-class CRteMemPool
-{
+
+class CRteMemPool {
 
 public:
-    inline rte_mbuf_t *HOT_FUNC _rte_pktmbuf_alloc(rte_mempool_t *mp)
-    {
-        rte_mbuf_t *m = rte_pktmbuf_alloc(mp);
-        if (likely(m))
-        {
+    inline rte_mbuf_t   * HOT_FUNC _rte_pktmbuf_alloc(rte_mempool_t * mp ){
+        rte_mbuf_t   * m=rte_pktmbuf_alloc(mp);
+        if ( likely(m) ) {
             return (m);
         }
         // hack for failure when using lots of 4k mbufs. See TRex-393
         // real solution should be to always use 2K mbufs, and concatenate if needed
-        if (mp == m_mbuf_pool_4096)
-        {
+        if (mp == m_mbuf_pool_4096) {
             return _rte_pktmbuf_alloc(m_mbuf_pool_9k);
         }
         dump_in_case_of_error(stderr, mp);
         assert(0);
     }
 
-    inline rte_mbuf_t *HOT_FUNC _rte_pktmbuf_alloc_no_assert(rte_mempool_t *mp)
-    {
-        rte_mbuf_t *m = rte_pktmbuf_alloc(mp);
-        if (likely(m))
-        {
+    inline rte_mbuf_t   * HOT_FUNC _rte_pktmbuf_alloc_no_assert(rte_mempool_t * mp ){
+        rte_mbuf_t   * m=rte_pktmbuf_alloc(mp);
+        if ( likely(m) ) {
             return (m);
         }
         // hack for failure when using lots of 4k mbufs. See TRex-393
         // real solution should be to always use 2K mbufs, and concatenate if needed
-        if (mp == m_mbuf_pool_4096)
-        {
+        if (mp == m_mbuf_pool_4096) {
             return _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_9k);
-        }
-        else
-        {
+        } else {
             return m;
         }
     }
 
-    inline rte_mempool_t HOT_FUNC *pktmbuf_get_pool(uint16_t size)
-    {
+    inline rte_mempool_t HOT_FUNC * pktmbuf_get_pool(uint16_t size){
 
-        rte_mempool_t *p;
+        rte_mempool_t * p;
 
-        if (size <= _128_MBUF_SIZE)
-        {
+        if ( size <= _128_MBUF_SIZE) {
             p = m_mbuf_pool_128;
-        }
-        else if (size <= _256_MBUF_SIZE)
-        {
+        }else if ( size <= _256_MBUF_SIZE) {
             p = m_mbuf_pool_256;
-        }
-        else if (size <= _512_MBUF_SIZE)
-        {
+        }else if (size <= _512_MBUF_SIZE) {
             p = m_mbuf_pool_512;
-        }
-        else if (size <= _1024_MBUF_SIZE)
-        {
+        }else if (size <= _1024_MBUF_SIZE) {
             p = m_mbuf_pool_1024;
-        }
-        else if (size <= _2048_MBUF_SIZE)
-        {
+        }else if (size <= _2048_MBUF_SIZE) {
             p = m_mbuf_pool_2048;
-        }
-        else if (size <= _4096_MBUF_SIZE)
-        {
+        }else if (size <= _4096_MBUF_SIZE) {
             p = m_mbuf_pool_4096;
-        }
-        else
-        {
-            assert(size <= MAX_PKT_ALIGN_BUF_9K);
+        }else{
+            assert(size<=MAX_PKT_ALIGN_BUF_9K);
             p = m_mbuf_pool_9k;
         }
         return (p);
     }
 
-    inline HOT_FUNC rte_mbuf_t *pktmbuf_alloc(uint16_t size)
-    {
 
-        rte_mbuf_t *m;
-        if (size <= _128_MBUF_SIZE)
-        {
+    inline HOT_FUNC rte_mbuf_t   * pktmbuf_alloc(uint16_t size){
+
+        rte_mbuf_t        * m;
+        if ( size <= _128_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_128);
-        }
-        else if (size <= _256_MBUF_SIZE)
-        {
+        }else if ( size <= _256_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_256);
-        }
-        else if (size <= _512_MBUF_SIZE)
-        {
+        }else if (size <= _512_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_512);
-        }
-        else if (size <= _1024_MBUF_SIZE)
-        {
+        }else if (size <= _1024_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_1024);
-        }
-        else if (size <= _2048_MBUF_SIZE)
-        {
+        }else if (size <= _2048_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_2048);
-        }
-        else if (size <= _4096_MBUF_SIZE)
-        {
+        }else if (size <= _4096_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc(m_mbuf_pool_4096);
-        }
-        else
-        {
-            assert(size <= MAX_PKT_ALIGN_BUF_9K);
+        }else{
+            assert(size<=MAX_PKT_ALIGN_BUF_9K);
             m = _rte_pktmbuf_alloc(m_mbuf_pool_9k);
         }
         return (m);
     }
 
-    inline HOT_FUNC rte_mbuf_t *pktmbuf_alloc_no_assert(uint16_t size)
-    {
+    inline HOT_FUNC rte_mbuf_t   * pktmbuf_alloc_no_assert(uint16_t size){
 
-        rte_mbuf_t *m;
-        if (size <= _128_MBUF_SIZE)
-        {
+        rte_mbuf_t * m;
+        if ( size <= _128_MBUF_SIZE) {
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_128);
-            if (m)
-            {
-                return m;
-            }
-        }
-        if (size <= _256_MBUF_SIZE)
-        {
+            if ( m ) { return m; }
+        } 
+        if ( size <= _256_MBUF_SIZE ) {
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_256);
-            if (m)
-            {
-                return m;
-            }
-        }
-        if (size <= _512_MBUF_SIZE)
-        {
+            if ( m ) { return m; }
+        } 
+        if ( size <= _512_MBUF_SIZE ) {
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_512);
-            if (m)
-            {
-                return m;
-            }
-        }
-        if (size <= _1024_MBUF_SIZE)
-        {
+            if ( m ) { return m; }
+        } 
+        if ( size <= _1024_MBUF_SIZE ) {
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_1024);
-            if (m)
-            {
-                return m;
-            }
-        }
-        if (size <= _2048_MBUF_SIZE)
-        {
+            if ( m ) { return m; }
+        } 
+        if ( size <= _2048_MBUF_SIZE ) {
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_2048);
-            if (m)
-            {
-                return m;
-            }
-        }
-        if (size <= _4096_MBUF_SIZE)
-        {
+            if ( m ) { return m; }
+        } 
+        if ( size <= _4096_MBUF_SIZE ) {
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_4096);
-            if (m)
-            {
-                return m;
-            }
-        }
-        else
-        {
-            assert(size <= MAX_PKT_ALIGN_BUF_9K);
+            if ( m ) { return m; }
+        } else {
+            assert(size<=MAX_PKT_ALIGN_BUF_9K);
             m = _rte_pktmbuf_alloc_no_assert(m_mbuf_pool_9k);
-            if (m)
-            {
-                return m;
-            }
+            if ( m ) { return m; }
         }
         return NULL;
     }
 
-    inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_small()
-    {
-        return (_rte_pktmbuf_alloc(m_small_mbuf_pool));
+    inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small(){
+        return ( _rte_pktmbuf_alloc(m_small_mbuf_pool) );
     }
 
-    inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_small_no_assert()
-    {
-        return (_rte_pktmbuf_alloc_no_assert(m_small_mbuf_pool));
+    inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_no_assert(){
+        return ( _rte_pktmbuf_alloc_no_assert(m_small_mbuf_pool) );
     }
 
     bool dump_one(FILE *fd, const char *name, rte_mempool_t *pool);
     void dump(FILE *fd);
 
-    void dump_in_case_of_error(FILE *fd, rte_mempool_t *mp);
+    void dump_in_case_of_error(FILE *fd, rte_mempool_t * mp);
 
     void dump_as_json(Json::Value &json);
 
 private:
-    void add_to_json(Json::Value &json, std::string name, rte_mempool_t *pool);
+    void add_to_json(Json::Value &json, std::string name, rte_mempool_t * pool);
 
 public:
-    rte_mempool_t *m_small_mbuf_pool; /* pool for start packets */
+    rte_mempool_t *   m_small_mbuf_pool; /* pool for start packets */
 
-    rte_mempool_t *m_mbuf_pool_128;
-    rte_mempool_t *m_mbuf_pool_256;
-    rte_mempool_t *m_mbuf_pool_512;
-    rte_mempool_t *m_mbuf_pool_1024;
-    rte_mempool_t *m_mbuf_pool_2048;
-    rte_mempool_t *m_mbuf_pool_4096;
-    rte_mempool_t *m_mbuf_pool_9k;
+    rte_mempool_t *   m_mbuf_pool_128;
+    rte_mempool_t *   m_mbuf_pool_256;
+    rte_mempool_t *   m_mbuf_pool_512;
+    rte_mempool_t *   m_mbuf_pool_1024;
+    rte_mempool_t *   m_mbuf_pool_2048;
+    rte_mempool_t *   m_mbuf_pool_4096;
+    rte_mempool_t *   m_mbuf_pool_9k;
 
-    rte_mempool_t *m_mbuf_global_nodes;
-    uint32_t m_pool_id;
+    rte_mempool_t *   m_mbuf_global_nodes;
+    uint32_t          m_pool_id;
 };
 
-class CGlobalInfo
-{
+
+
+
+class CGlobalInfo {
 public:
+
     static void init_pools(uint32_t rx_buffers, uint32_t rx_pool, bool is_hugepages = true);
     /* for simulation */
     static void free_pools();
 
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_small(socket_id_t socket)
-    {
-        return (m_mem_pool[socket].pktmbuf_alloc_small());
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small(socket_id_t socket){
+        return ( m_mem_pool[socket].pktmbuf_alloc_small() );
     }
 
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_small_no_assert(socket_id_t socket)
-    {
-        return (m_mem_pool[socket].pktmbuf_alloc_small_no_assert());
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_no_assert(socket_id_t socket){
+        return ( m_mem_pool[socket].pktmbuf_alloc_small_no_assert() );
     }
 
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_small_by_port(uint8_t port_id)
-    {
-        return (m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small());
+    static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_small_by_port(uint8_t port_id) {
+        return ( m_mem_pool[m_socket.port_to_socket(port_id)].pktmbuf_alloc_small() );
     }
 
-    static inline rte_mempool_t *HOT_FUNC pktmbuf_get_pool(socket_id_t socket, uint16_t size)
-    {
+    static inline rte_mempool_t * HOT_FUNC pktmbuf_get_pool(socket_id_t socket,uint16_t size){
         return (m_mem_pool[socket].pktmbuf_get_pool(size));
     }
+
 
     /**
      * try to allocate small buffers too
@@ -1165,189 +984,169 @@ public:
      *
      * @return
      */
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc(socket_id_t socket, uint16_t size)
-    {
-        if (size <= _64_MBUF_SIZE)
-        {
-            return (pktmbuf_alloc_small(socket));
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc(socket_id_t socket,uint16_t size){
+        if (size<=_64_MBUF_SIZE) {
+            return ( pktmbuf_alloc_small(socket));
         }
         return (m_mem_pool[socket].pktmbuf_alloc(size));
     }
 
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_no_assert(socket_id_t socket, uint16_t size)
-    {
-        if (size <= _64_MBUF_SIZE)
-        {
-            return (pktmbuf_alloc_small_no_assert(socket));
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_no_assert(socket_id_t socket,uint16_t size){
+        if (size<=_64_MBUF_SIZE) {
+            return ( pktmbuf_alloc_small_no_assert(socket));
         }
         return (m_mem_pool[socket].pktmbuf_alloc_no_assert(size));
     }
 
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_small_local(socket_id_t socket)
-    {
+    
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_small_local(socket_id_t socket){
         rte_mbuf_t *m = pktmbuf_alloc_small(socket);
-        if (m)
-        {
+        if (m) {
             rte_mbuf_set_as_core_local(m);
         }
         return m;
     }
-
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_local(socket_id_t socket, uint16_t size)
-    {
+    
+      
+    static inline rte_mbuf_t   * HOT_FUNC pktmbuf_alloc_local(socket_id_t socket,uint16_t size) {
         rte_mbuf_t *m = pktmbuf_alloc(socket, size);
-        if (m)
-        {
+        if (m) {
             rte_mbuf_set_as_core_local(m);
         }
         return m;
     }
-
-    static inline rte_mbuf_t *HOT_FUNC pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size)
-    {
+    
+    
+    static inline rte_mbuf_t * HOT_FUNC pktmbuf_alloc_by_port(uint8_t port_id, uint16_t size){
         socket_id_t socket = m_socket.port_to_socket(port_id);
-        if (size <= _64_MBUF_SIZE)
-        {
-            return (pktmbuf_alloc_small(socket));
+        if (size<=_64_MBUF_SIZE) {
+            return ( pktmbuf_alloc_small(socket));
         }
         return (m_mem_pool[socket].pktmbuf_alloc(size));
     }
 
-    static inline bool is_learn_verify_mode()
-    {
-        return ((m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED) && m_options.preview.get_learn_and_verify_mode_enable());
+    static inline bool is_learn_verify_mode(){
+        return ( (m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED) && m_options.preview.get_learn_and_verify_mode_enable());
     }
 
-    static inline bool is_learn_mode()
-    {
-        return ((m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED));
+    static inline bool is_learn_mode(){
+        return ( (m_options.m_learn_mode != CParserOption::LEARN_MODE_DISABLED));
     }
 
-    static inline bool is_learn_mode(CParserOption::trex_learn_mode_e mode)
-    {
-        if (mode == CParserOption::LEARN_MODE_TCP)
-        {
-            return ((m_options.m_learn_mode == CParserOption::LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND) || (m_options.m_learn_mode == CParserOption::LEARN_MODE_TCP_ACK));
-        }
-        else
+    static inline bool is_learn_mode(CParserOption::trex_learn_mode_e mode){
+        if (mode == CParserOption::LEARN_MODE_TCP) {
+            return ((m_options.m_learn_mode == CParserOption::LEARN_MODE_TCP_ACK_NO_SERVER_SEQ_RAND)
+                    || (m_options.m_learn_mode == CParserOption::LEARN_MODE_TCP_ACK));
+        } else
             return (m_options.m_learn_mode == mode);
     }
 
-    static inline bool is_ipv6_enable(void)
-    {
-        return (m_options.preview.get_ipv6_mode_enable());
+    static inline bool is_ipv6_enable(void){
+        return ( m_options.preview.get_ipv6_mode_enable() );
     }
 
-    static inline bool is_realtime(void)
-    {
-        // return (false);
-        return (m_options.preview.getRealTime());
+    static inline bool is_realtime(void){
+        //return (false);
+        return ( m_options.preview.getRealTime() );
     }
 
-    static inline void set_realtime(bool enable)
-    {
+    static inline void set_realtime(bool enable){
         m_options.preview.setRealTime(enable);
     }
 
-    static uint32_t get_node_pool_size()
-    {
+    static uint32_t get_node_pool_size(){
         return (m_nodes_pool_size);
     }
 
-    static inline CGenNode *HOT_FUNC create_node(void)
-    {
-        CGenNode *res;
-        if (unlikely(rte_mempool_get(m_mem_pool[0].m_mbuf_global_nodes, (void **)&res) < 0))
-        {
+    static inline CGenNode * HOT_FUNC create_node(void){
+        CGenNode * res;
+        if ( unlikely (rte_mempool_get(m_mem_pool[0].m_mbuf_global_nodes, (void **)&res) <0) ){
             rte_exit(EXIT_FAILURE, "can't allocate m_mbuf_global_nodes  objects try to tune the configuration file \n");
             return (0);
         }
         return (res);
     }
 
-    static inline void HOT_FUNC free_node(CGenNode *p)
-    {
+    static inline void HOT_FUNC free_node(CGenNode *p){
         rte_mempool_put(m_mem_pool[0].m_mbuf_global_nodes, p);
     }
+
 
     static void dump_pool_as_json(Json::Value &json);
 
     static std::string dump_pool_as_json_str(void);
 
 public:
-    static CRteMemPool m_mem_pool[MAX_SOCKETS_SUPPORTED];
-    static uint32_t m_nodes_pool_size;
-    static double m_burst_offset_dtime;
-    static CParserOption m_options;
-    static CGlobalMemory m_memory_cfg;
-    static CPlatformSocketInfo m_socket;
-    static CDpdkMode m_dpdk_mode;
+    static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
+    static uint32_t              m_nodes_pool_size;
+    static double                m_burst_offset_dtime;
+    static CParserOption         m_options;
+    static CGlobalMemory         m_memory_cfg;
+    static CPlatformSocketInfo   m_socket;
+    static CDpdkMode             m_dpdk_mode;
 };
 
-static inline CDpdkModeBase *get_dpdk_mode()
-{
+static inline CDpdkModeBase * get_dpdk_mode(){
     return (CGlobalInfo::m_dpdk_mode.get_mode());
 }
 
-static inline CDpdkMode *get_mode()
-{
+static inline CDpdkMode * get_mode(){
     return (&CGlobalInfo::m_dpdk_mode);
 }
 
+
 /* more than 1 core with ASTF  mode */
-static inline void set_op_mode(trex_traffic_mode_t mode)
-{
+static inline void  set_op_mode(trex_traffic_mode_t mode){
     get_mode()->set_opt_mode(mode);
+
+
 }
 
-static inline void set_op_debug_mode(trex_traffic_mode_t mode)
-{
+static inline void  set_op_debug_mode(trex_traffic_mode_t mode){
     get_mode()->switch_mode_debug(mode);
 }
 
-static inline trex_traffic_mode_t get_op_mode()
-{
+
+
+
+static inline trex_traffic_mode_t get_op_mode(){
     return (get_mode()->get_opt_mode());
+
 }
 
-static inline int get_is_stateless()
-{
+static inline int get_is_stateless(){
     return (get_op_mode() == OP_MODE_STL);
 }
 
-static inline int get_is_stateful()
-{
+static inline int get_is_stateful(){
     return (get_op_mode() == OP_MODE_STF);
 }
 
-static inline int get_is_tcp_mode()
-{
-    return ((get_op_mode() == OP_MODE_ASTF) || (get_op_mode() == OP_MODE_ASTF_BATCH));
+static inline int get_is_tcp_mode(){
+    return ( (get_op_mode() == OP_MODE_ASTF) || (get_op_mode() == OP_MODE_ASTF_BATCH) );
 }
 
-static inline int get_is_tcp_mode_multi_core()
-{
-    return (get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores() > 1));
+static inline int get_is_tcp_mode_multi_core(){
+    return ( get_is_tcp_mode() && (CGlobalInfo::m_options.preview.getCores()>1) ); 
 }
 
-static inline int get_is_interactive()
-{
-    return (get_mode()->is_interactive());
+static inline int get_is_interactive(){
+    return ( get_mode()->is_interactive());
 }
 
-static inline int get_is_rx_check_mode()
-{
-    return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ? 1 : 0);
+static inline int get_is_rx_check_mode(){
+    return (CGlobalInfo::m_options.preview.get_is_rx_check_enable() ?1:0);
 }
 
-static inline uint16_t get_rx_check_hops()
-{
+
+static inline uint16_t get_rx_check_hops() {
     return (CGlobalInfo::m_options.m_rx_check_hops);
 }
 
-static inline bool isVerbose(int val)
-{
-    return ((CGlobalInfo::m_options.preview.getVMode() > val) ? true : false);
+
+static inline bool isVerbose(int val){ 
+    return ((CGlobalInfo::m_options.preview.getVMode() > val) ?true:false);
 }
+
 
 #endif
