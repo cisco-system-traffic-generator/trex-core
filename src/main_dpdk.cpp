@@ -1117,13 +1117,6 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     return 0;
 }
 
-// COLD_FUNC void free_args_copy(int argc, char **argv_copy) {
-//     for(int i=0; i<argc; i++) {
-//         free(argv_copy[i]);
-//     }
-//     free(argv_copy);
-// }
-
 static int parse_options_wrapper(int argc, char *argv[], bool first_time ) {
     // copy, as arg parser sometimes changes the argv
     char ** argv_copy = (char **) malloc(sizeof(char *) * argc);
