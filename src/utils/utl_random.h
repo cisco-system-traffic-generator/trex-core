@@ -54,7 +54,7 @@ public:
     ParamHash param;
     virtual bool getProbability() = 0;
     /**
-     * Object initialized by one thread (CP)
+     * Random Function constructor
      * 
      * @param name: name of the function
      * @param param: param for the function
