@@ -55,6 +55,7 @@
 #include <rte_version.h>
 #include <rte_ip.h>
 #include <rte_bus_pci.h>
+#include <unistd.h>
 
 #include "hot_section.h"
 #include "stt_cp.h"
@@ -65,6 +66,7 @@
 #include "common/arg/SimpleOpt.h"
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
+#include "utl_random.h"
 #include "trex_build_info.h"
 #include "tunnels/tunnel_handler.h"
 
@@ -111,6 +113,8 @@ extern "C" {
 #define MAX_PKT_BURST   32
 #define BP_MAX_CORES 48
 #define BP_MASTER_AND_LATENCY 2
+#define LATENCY_QUEUE_SIZE 30000
+#define MICROSEC_TO_SECOND_FACTOR 1000000
 
 void set_driver();
 void reorder_dpdk_ports();
@@ -130,6 +134,7 @@ static char g_loglevel_str[20];
 static char g_master_id_str[10];
 static char g_image_postfix[10];
 static CPciPorts port_map;
+uint16_t RandomFunctionParameter::percent = 50;
 
 #define TREX_NAME "_t-rex-64"
 
@@ -224,6 +229,7 @@ enum {
        OPT_HDRH,
        OPT_BNXT_SO,
        OPT_DISABLE_IEEE_1588,
+       OPT_INDUCE_SERVER_LATENCY,
        OPT_LATENCY_DIAG,
 
        /* no more pass this */
@@ -323,6 +329,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
+        {OPT_INDUCE_SERVER_LATENCY, "--induce-server-latency", SO_MULTI},
         { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
 
         SO_END_OF_OPTIONS
@@ -428,6 +435,7 @@ static int COLD_FUNC  usage() {
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
+    printf(" --induce-server-latency <time> <percent>: Queues packets in buffer and induces latency from server side, time in micro second and percent of packets to be buffered for latency\n");
     printf(" --latency-diag             : STL flow latency counts all duplicated packets with more CPU load consumption.\n");
     printf("                              To see the duplicated packets, please use -v 7.\n");
 
@@ -635,6 +643,14 @@ COLD_FUNC static rte_mempool_t* get_rx_mem_pool(int socket_id) {
     }
 }
 
+COLD_FUNC void free_args_copy(int argc, char **argv_copy)
+{
+    for (int i = 0; i < argc; i++)
+    {
+        free(argv_copy[i]);
+    }
+    free(argv_copy);
+}
 
 COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     CSimpleOpt args(argc, argv, parser_options);
@@ -657,10 +673,25 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     po->m_tunnel_loopback = false;
     uint32_t tmp_data;
     float tmp_double;
-    
+
+    /*By Default induced latency is 0.0*/
+    po->m_induce_server_latency_duration = 0;
+
+    /* Create a copy for argv for passing in args_first_pass 
+       There seems to be a bug in SimpleOpt.h. It doesn't
+       parses SO_MULTI, and we need to manually parse it check
+       validity. 
+    */
+    char **argv_copy = (char **)malloc(sizeof(char *) * argc);
+    for (int i = 0; i < argc; i++)
+    {
+        argv_copy[i] = strdup(argv[i]);
+    }
+
     /* first run - pass all parameters for existence */
-    OptHash args_set = args_first_pass(argc, argv, po);
-    
+    OptHash args_set = args_first_pass(argc, argv_copy, po);
+    free_args_copy(argc, argv_copy);
+
     
     while ( args.Next() ){
         if (args.LastError() == SO_SUCCESS) {
@@ -962,6 +993,16 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
                 break;
+            case OPT_INDUCE_SERVER_LATENCY:
+                rgpszArg = args.MultiArg(2);
+                if (!rgpszArg) {
+                    cout<<"(use --help to get command line help)\n";
+                    break;
+                }
+                sscanf(rgpszArg[0], "%d", &po->m_induce_server_latency_duration);
+                sscanf(rgpszArg[1], "%d", &RandomFunctionParameter::percent);
+                //sscanf(args.OptionArg(), "%d", &po->m_induce_server_latency_duration);
+                break;
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
                 break;
@@ -1074,13 +1115,6 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
 
     return 0;
-}
-
-COLD_FUNC void free_args_copy(int argc, char **argv_copy) {
-    for(int i=0; i<argc; i++) {
-        free(argv_copy[i]);
-    }
-    free(argv_copy);
 }
 
 static int parse_options_wrapper(int argc, char *argv[], bool first_time ) {
@@ -1605,12 +1639,22 @@ public:
             m_table[i]=0;
         }
         m_port=0;
+        for (i = 0; i < LATENCY_QUEUE_SIZE; i++)
+        {
+            m_latency_queue[i].timestamp = 0.0;
+            m_latency_queue[i].packet = 0;
+        }
+        m_latency_queue_info.front = -1;
+        m_latency_queue_info.rear = -1;
+        m_latency_queue_info.size = LATENCY_QUEUE_SIZE;
     }
     uint8_t                 m_tx_queue_id;
     uint8_t                 m_tx_queue_id_lat; // q id for tx of latency pkts
     uint16_t                m_len;
     rte_mbuf_t *            m_table[MAX_PKT_BURST];
     CPhyEthIF  *            m_port;
+    PacketBuffer            m_latency_queue[LATENCY_QUEUE_SIZE];
+    PacketBufferInfo        m_latency_queue_info;
 };
 
 
@@ -1976,6 +2020,10 @@ HOT_FUNC int  CCoreEthIF::send_burst(CCorePerPort * lp_port,
     return (0);
 }
 
+double get_time_from_boot()
+{
+    return ((double)rte_get_tsc_cycles()) / rte_get_tsc_hz();
+}
 
 int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          rte_mbuf_t      *m,
@@ -1983,8 +2031,66 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
                          ){
 
     uint16_t len = lp_port->m_len;
-    lp_port->m_table[len]=m;
-    len++;
+    uint32_t induce_latency_duration = 0;
+    if (&m_ports[0] == lp_port)
+    {
+        induce_latency_duration = CGlobalInfo::m_options.m_induce_server_latency_duration;
+    }
+    if (induce_latency_duration > 0 && generate_bool())
+    {
+        if ((lp_port->m_latency_queue_info.front == 0 && lp_port->m_latency_queue_info.rear == lp_port->m_latency_queue_info.size - 1) || (lp_port->m_latency_queue_info.front == lp_port->m_latency_queue_info.rear + 1))
+        {
+            cout << "Latency queue full\n";
+            exit(1);
+        }
+
+        if (lp_port->m_latency_queue_info.front == -1)
+        {
+            lp_port->m_latency_queue_info.front = 0;
+            lp_port->m_latency_queue_info.rear = 0;
+        }
+        else
+        {
+            if (lp_port->m_latency_queue_info.rear == lp_port->m_latency_queue_info.size - 1)
+                lp_port->m_latency_queue_info.rear = 0;
+            else
+                lp_port->m_latency_queue_info.rear = lp_port->m_latency_queue_info.rear + 1;
+        }
+
+        lp_port->m_latency_queue[lp_port->m_latency_queue_info.rear].timestamp = get_time_from_boot();
+        lp_port->m_latency_queue[lp_port->m_latency_queue_info.rear].packet = m;
+
+        // LEts check with 100ms
+        if (get_time_from_boot() - lp_port->m_latency_queue[lp_port->m_latency_queue_info.front].timestamp > (double(induce_latency_duration) / MICROSEC_TO_SECOND_FACTOR))
+        {
+            while (len != MAX_PKT_BURST)
+            {
+                if (lp_port->m_latency_queue_info.front == -1)
+                {
+                    break;
+                }
+                lp_port->m_table[len] = lp_port->m_latency_queue[lp_port->m_latency_queue_info.front].packet;
+                if (lp_port->m_latency_queue_info.front == lp_port->m_latency_queue_info.rear)
+                {
+                    lp_port->m_latency_queue_info.front = -1;
+                    lp_port->m_latency_queue_info.rear = -1;
+                }
+                else
+                {
+                    if (lp_port->m_latency_queue_info.front == lp_port->m_latency_queue_info.size - 1)
+                        lp_port->m_latency_queue_info.front = 0;
+                    else
+                        lp_port->m_latency_queue_info.front = lp_port->m_latency_queue_info.front + 1;
+                }
+                len++;
+            }
+        }
+    }
+    else
+    {
+        lp_port->m_table[len] = m;
+        len++;
+    }
 
     /* enough pkts to be sent */
     if (unlikely(len == MAX_PKT_BURST)) {
