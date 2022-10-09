@@ -7696,6 +7696,41 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
     odir  = dir;
     single_port = (node->get_is_all_flow_from_same_dir() && CGlobalInfo::m_options.preview.get_mac_ip_overide_mode());
 
+    //if checksum offload is disabled, calculate UDP and TCP checksums by software
+    if (!CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
+        uint16_t l4_cksum;
+        char *l4ptr = rte_pktmbuf_mtod_offset(m,char *,m->l2_len+m->l3_len);
+        char *l3ptr = rte_pktmbuf_mtod_offset(m,char *,m->l2_len);
+        uint16_t l4off = m->l2_len+m->l3_len;
+
+        
+        if ( lp->m_pkt_indication.m_desc.IsTcp() ) {
+
+            if ( lp->m_pkt_indication.is_ipv6() ){
+                ((TCPHeader *)l4ptr)->setChecksum(0);
+                l4_cksum=rte_ipv6_udptcp_cksum_mbuf(m, (rte_ipv6_hdr *)l3ptr,l4off);
+                ((TCPHeader *)l4ptr)->setChecksumRaw(l4_cksum);
+            } else {
+                ((TCPHeader *)l4ptr)->setChecksum(0);
+                l4_cksum=rte_ipv4_udptcp_cksum_mbuf(m, (rte_ipv4_hdr *)l3ptr,l4off);
+                ((TCPHeader *)l4ptr)->setChecksumRaw(l4_cksum);
+            }
+        }
+        else {
+            if (lp->m_pkt_indication.m_desc.IsUdp()) {
+                
+                if ( lp->m_pkt_indication.is_ipv6() ){
+                    ((UDPHeader *)l4ptr)->setChecksum(0);
+                    l4_cksum=rte_ipv6_udptcp_cksum_mbuf(m, (rte_ipv6_hdr *)l3ptr,l4off);
+                    ((UDPHeader *)l4ptr)->setChecksumRaw(l4_cksum);
+                } else {
+                    ((UDPHeader *)l4ptr)->setChecksum(0);
+                    l4_cksum=rte_ipv4_udptcp_cksum_mbuf(m, (rte_ipv4_hdr *)l3ptr,l4off);
+                    ((UDPHeader *)l4ptr)->setChecksumRaw(l4_cksum);
+                }
+            }
+        }
+    }
 
     if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode()
                   != CPreviewMode::VLAN_MODE_NONE) ) {
