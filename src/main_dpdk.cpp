@@ -229,7 +229,7 @@ enum {
        OPT_HDRH,
        OPT_BNXT_SO,
        OPT_DISABLE_IEEE_1588,
-       OPT_INDUCE_SERVER_LATENCY,
+       OPT_INDUCE_SEND_LATENCY,
        OPT_LATENCY_DIAG,
 
        /* no more pass this */
@@ -329,7 +329,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
-        {OPT_INDUCE_SERVER_LATENCY, "--induce-server-latency", SO_MULTI},
+        { OPT_INDUCE_SEND_LATENCY,    "--induce-send-latency", SO_MULTI},
         { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
 
         SO_END_OF_OPTIONS
@@ -435,7 +435,7 @@ static int COLD_FUNC  usage() {
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
-    printf(" --induce-server-latency <time> <percent>: Queues packets in buffer and induces latency from server side, time in micro second and percent of packets to be buffered for latency\n");
+    printf(" --induce-send-latency <time> <percent>: Queues packets in buffer and induces latency, time in micro second and percent of packets to be buffered for latency\n");
     printf(" --latency-diag             : STL flow latency counts all duplicated packets with more CPU load consumption.\n");
     printf("                              To see the duplicated packets, please use -v 7.\n");
 
@@ -675,7 +675,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     float tmp_double;
 
     /*By Default induced latency is 0.0*/
-    po->m_induce_server_latency_duration = 0;
+    po->m_induce_send_latency_duration = 0;
 
     /* Create a copy for argv for passing in args_first_pass 
        There seems to be a bug in SimpleOpt.h. It doesn't
@@ -993,15 +993,15 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
                 break;
-            case OPT_INDUCE_SERVER_LATENCY:
+            case OPT_INDUCE_SEND_LATENCY:
                 rgpszArg = args.MultiArg(2);
                 if (!rgpszArg) {
                     cout<<"(use --help to get command line help)\n";
                     break;
                 }
-                sscanf(rgpszArg[0], "%d", &po->m_induce_server_latency_duration);
+                sscanf(rgpszArg[0], "%d", &po->m_induce_send_latency_duration);
                 sscanf(rgpszArg[1], "%d", &RandomFunctionParameter::percent);
-                //sscanf(args.OptionArg(), "%d", &po->m_induce_server_latency_duration);
+                //sscanf(args.OptionArg(), "%d", &po->m_induce_send_latency_duration);
                 break;
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
@@ -2034,7 +2034,7 @@ int HOT_FUNC CCoreEthIF::send_pkt(CCorePerPort * lp_port,
     uint32_t induce_latency_duration = 0;
     if (&m_ports[0] == lp_port)
     {
-        induce_latency_duration = CGlobalInfo::m_options.m_induce_server_latency_duration;
+        induce_latency_duration = CGlobalInfo::m_options.m_induce_send_latency_duration;
     }
     if (induce_latency_duration > 0 && generate_bool())
     {

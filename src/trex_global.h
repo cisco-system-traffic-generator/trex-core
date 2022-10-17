@@ -562,7 +562,7 @@ public:
         m_ip_cfg->set_vlan(0);
         m_ip_cfg->set_vxlan_fs(false);
         m_latency_rate = 0;
-        m_induce_server_latency_duration = 0;
+        m_induce_send_latency_duration = 0;
         m_latency_mask = 0xffffffff;
         m_latency_prev = 0;
         m_rx_check_sample = 0;
@@ -632,8 +632,7 @@ public:
     uint16_t        m_dst_ipv6[6];  /* Most signficant 96-bits */
     CPerPortIPCfg   m_ip_cfg[TREX_MAX_PORTS];
     uint32_t        m_latency_rate; /* pkt/sec for each thread/port zero disable */
-    /* Default threshold value is 50 */
-    uint32_t        m_induce_server_latency_duration;
+    uint32_t        m_induce_send_latency_duration;
     uint32_t        m_latency_mask;
     uint32_t        m_latency_prev;
     uint32_t        m_wait_before_traffic;
