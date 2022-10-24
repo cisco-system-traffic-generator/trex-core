@@ -1732,7 +1732,11 @@ void TrexStatelessDpCore::push_pcap(uint8_t port_id,
         add_port_duration(duration, port_id, 0, event_id);
     }
 
-     m_state = TrexStatelessDpCore::STATE_PCAP_TX;
+    /* TrexAstfDpCore may cause problem when STATE_PCAP_TX replaces STATE_TRANSMITTING.
+     * No impact on TrexStatelessDpCore because the state is not STATE_TRANSMITTING here. */
+    if (m_state != TrexStatelessDpCore::STATE_TRANSMITTING) {
+        m_state = TrexStatelessDpCore::STATE_PCAP_TX;
+    }
 }
 
 void TrexStatelessDpCore::update_traffic(uint8_t port_id, uint32_t profile_id, double factor) {

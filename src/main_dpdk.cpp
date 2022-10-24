@@ -4059,7 +4059,7 @@ COLD_FUNC void CGlobalTRex::init_stl() {
 }
 
 COLD_FUNC void CGlobalTRex::init_stl_stats() {
-    if (get_dpdk_mode()->dp_rx_queues()) {
+    if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
         std::vector<TrexStatelessDpCore*> dp_core_ptrs;
         for (int thread_id = 0; thread_id < (int)m_fl.m_threads_info.size(); thread_id++) {
             TrexStatelessDpCore* stl_dp_core = (TrexStatelessDpCore*)m_fl.m_threads_info[thread_id]->get_dp_core();

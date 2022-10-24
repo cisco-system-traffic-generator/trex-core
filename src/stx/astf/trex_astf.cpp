@@ -92,6 +92,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
     CRxCore *rx = (CRxCore*) new CRxAstfCore();
     rx->create(cfg.m_rx_cfg);
     m_sync_b = api.get_sync_barrier();
+    set_barrier(0.5); /* for the first epoch */
     m_fl = api.get_fl();
 
     m_rx = rx;
@@ -110,6 +111,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
 
 
 TrexAstf::~TrexAstf() {
+    m_dp_core_count = 0;
     for (auto &port_pair : m_ports) {
         delete port_pair.second;
     }
@@ -134,6 +136,12 @@ void TrexAstf::launch_control_plane() {
 
 void TrexAstf::shutdown(bool post_shutdown) {
     if ( !post_shutdown ) {
+        /* stop ports */
+        for (auto &port : get_port_map()) {
+            /* safe to call stop even if not active */
+            port.second->stop_traffic("*");
+        }
+
         /* stop RPC server */
         m_rpc_server.stop();
 
@@ -157,6 +165,7 @@ bool TrexAstf::topo_needs_parsing() {
 
 void TrexAstf::change_state(state_e new_state) {
     m_state = new_state;
+#if 0   /* port_state is handled by TrexStatelessPort */
     TrexPort::port_state_e port_state = TrexPort::PORT_STATE_IDLE;
 
     switch ( m_state ) {
@@ -187,6 +196,7 @@ void TrexAstf::change_state(state_e new_state) {
     for (auto &port: get_port_map()) {
         port.second->change_state(port_state);
     }
+#endif
 }
 
 void TrexAstf::update_astf_state() {
@@ -195,6 +205,11 @@ void TrexAstf::update_astf_state() {
     for (int i = 0; i < m_states_cnt.size(); i++) {
         if (m_states_cnt[i]) {
             temp_state |= (0x01 << i);
+        }
+    }
+    for (auto &port: get_port_map()) { /* TrexStatelessPort may have active streams. */
+        if (port.second->is_active()) {
+            temp_state |= (0x01 << STATE_TX);
         }
     }
 
@@ -279,7 +294,9 @@ void TrexAstf::publish_async_data() {
 }
 
 void TrexAstf::set_barrier(double timeout_sec) {
-    m_sync_b->reset(timeout_sec);
+    if (m_sync_b) {
+        m_sync_b->reset(timeout_sec);
+    }
 }
 
 void TrexAstf::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
@@ -631,6 +648,7 @@ void TrexAstf::publish_astf_state() {
         if (m_state != STATE_BUILD && m_state != STATE_PARSE) {
             stop_dp_scheduler();
         }
+        set_barrier(0.5); /* for the next epoch */
     }
 
     Json::Value data;
@@ -1125,10 +1143,6 @@ void TrexAstfPerProfile::transmit() {
         m_error = err;
         cleanup();
         return;
-    }
-
-    if (!m_astf_obj->is_another_profile_transmitting(m_cp_profile_id)) {
-        m_astf_obj->set_barrier(0.5);
     }
 
     profile_change_state(STATE_TX);

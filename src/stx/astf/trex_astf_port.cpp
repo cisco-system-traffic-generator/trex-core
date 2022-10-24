@@ -37,7 +37,10 @@ TrexAstfPort::~TrexAstfPort() {
 }
 
 void TrexAstfPort::change_state(port_state_e state) {
-    m_port_state = state;
+    if (m_port_state != state) {
+        m_port_state = state;
+        get_astf_object()->publish_astf_state();
+    }
 }
 
 void TrexAstfPort::set_service_mode(bool enabled, bool filtered, uint8_t mask) {

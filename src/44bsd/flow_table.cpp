@@ -152,7 +152,6 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
          (parser.m_protocol != IPHeader::Protocol::UDP) ){
         FT_INC_SCNT(m_err_no_tcp_udp);
         action=tREDIRECT_RX_CORE;
-        parser.m_protocol = 0;
         return;
     }
     /* TCP/UDP, only supported right now */
@@ -653,14 +652,15 @@ bool CFlowTable::ignore_packet(CTcpPerThreadCtx * ctx,
 }
 
 bool CFlowTable::rx_handle_stateless_packet(CTcpPerThreadCtx * ctx,
-                                            struct rte_mbuf * mbuf){
+                                            struct rte_mbuf * mbuf,
+                                            tvpid_t port_id){
     TrexStatelessDpCore* dp_core = (TrexStatelessDpCore*)ctx->m_thread->get_dp_core();
     if (!dp_core->is_feature_set(TrexStatelessDpCore::LATENCY))
         return false;
 
     RXLatency* fs_latency = dp_core->get_fs_latency_object_ptr(!m_client_side);
 
-    fs_latency->handle_pkt(mbuf, 0);
+    fs_latency->handle_pkt(mbuf, port_id);
 
     return true;
 }
@@ -681,7 +681,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
-        rx_handle_stateless_packet(ctx, mbuf);
+        rx_handle_stateless_packet(ctx, mbuf, port_id);
         FT_INC_SCNT(m_err_client_pkt_without_flow);
         rte_pktmbuf_free(mbuf);
         return(false);
@@ -711,7 +711,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     uint16_t dst_port = lpUDP->getDestPort();
 
     if (!ctx->is_any_profile()) {
-        rx_handle_stateless_packet(ctx, mbuf);
+        rx_handle_stateless_packet(ctx, mbuf, port_id);
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
         return(false);
@@ -728,7 +728,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     if (!server_info || !pctx->is_open_flow_allowed()){
         if (!server_info) {
-            rx_handle_stateless_packet(ctx, mbuf);
+            rx_handle_stateless_packet(ctx, mbuf, port_id);
         }
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
@@ -1245,9 +1245,7 @@ HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
     }
 
     if ( action != tPROCESS ) {
-        if (action != tDROP && !parser.m_protocol) {
-            rx_handle_stateless_packet(ctx, mbuf);
-        }
+        rx_handle_stateless_packet(ctx, mbuf, port_id);
         rx_non_process_packet(action, ctx, mbuf);
         return false;
     }

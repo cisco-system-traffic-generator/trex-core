@@ -325,7 +325,8 @@ public:
                                         );
 
       bool rx_handle_stateless_packet(CTcpPerThreadCtx * ctx,
-                                      struct rte_mbuf * mbuf);
+                                      struct rte_mbuf * mbuf,
+                                      tvpid_t port_id);
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf,

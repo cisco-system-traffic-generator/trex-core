@@ -213,33 +213,8 @@ void TrexAstfDpCore::get_scheduler_options(profile_id_t profile_id, bool& disabl
 
 void TrexAstfDpCore::start_scheduler() {
 
-    profile_id_t profile_id = 0;
-    double duration = -1;
-    bool nc = false;
-    double establish_timeout = 0.0;
-    double terminate_duration = 0.0;
-    double dump_interval = 0.0;
-
-    if (m_state == STATE_STARTING) { /* set by start_transmit function */
-        m_state = STATE_TRANSMITTING;
-        report_dp_state();
-
-        auto it = m_sched_param.begin();
-        profile_id = it->m_profile_id;
-        duration = it->m_duration;
-        nc = it->m_nc_flow_close;
-        establish_timeout = it->m_establish_timeout;
-        terminate_duration = it->m_terminate_duration;
-        dump_interval = it->m_dump_interval;
-
-        m_sched_param.erase(it);
-    }
-
-    dsec_t d_time_flow;
-    bool disable_client = false;
-    double d_phase;
-
-    get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
+    m_state = STATE_TRANSMITTING;
+    report_dp_state();
 
     double old_offset = 0.0;
     CGenNode *node;
@@ -250,14 +225,10 @@ void TrexAstfDpCore::start_scheduler() {
 
         m_flow_gen->m_cur_time_sec = now;
 
-        if ( duration <= 0.0 && m_flow_gen->m_yaml_info.m_duration_sec > 0 ) {
-            duration = m_flow_gen->m_yaml_info.m_duration_sec;
-        }
-
-        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration, dump_interval);
         for (auto param: m_sched_param) {
             start_profile_ctx(param.m_profile_id, param.m_duration, param.m_nc_flow_close, param.m_establish_timeout, param.m_terminate_duration, param.m_dump_interval);
         }
+        m_sched_param.clear();
 
         node = m_flow_gen->create_node() ;
         node->m_type = CGenNode::TCP_RX_FLUSH;
@@ -275,19 +246,20 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_node_gen.add_node(node);
     
         m_core->pre_flush_file();
-        m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, false, m_flow_gen, old_offset);
+        m_flow_gen->m_node_gen.flush_file(-1, 0, false, m_flow_gen, old_offset);
         m_core->post_flush_file();
 
         m_flow_gen->flush_tx_queue();
-        m_flow_gen->m_node_gen.close_file(m_flow_gen);
+        if (m_state != STATE_TERMINATE) {
+            m_flow_gen->m_node_gen.close_file(m_flow_gen);
+        }
         m_flow_gen->m_c_tcp->cleanup_flows();
         m_flow_gen->m_s_tcp->cleanup_flows();
     } else {
-        report_error(profile_id, "Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
-
         for (auto param: m_sched_param) {
-            report_error(param.m_profile_id, "Could not sync DP thread for start");
+            report_error(param.m_profile_id, "Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
         }
+        m_sched_param.clear();
     }
 
     if ( m_state != STATE_TERMINATE ) {
@@ -307,6 +279,11 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
     dsec_t d_time_flow;
     bool disable_client = false;
     double d_phase;
+
+    /* is this needed? */
+    if ( duration <= 0.0 && m_flow_gen->m_yaml_info.m_duration_sec > 0 ) {
+        duration = m_flow_gen->m_yaml_info.m_duration_sec;
+    }
 
     get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
 
