@@ -230,12 +230,18 @@ class ASTFCmdAddVal(ASTFCmdSetValBase):
         self.fields['name'] = 'add_var'
         self.fields['val']  = val
 
-class ASTFCmdSetTickVar(ASTFCmdSetValBase):
+# Set Tick Val Commands #
+class ASTFCmdSetTickValBase(ASTFCmd):
+    def __init__(self, id_val):
+        super(ASTFCmdSetTickValBase, self).__init__()
+        self.fields['id'] = id_val
+
+class ASTFCmdSetTickVar(ASTFCmdSetTickValBase):
     def __init__(self, id_val):
         super(ASTFCmdSetTickVar, self).__init__(id_val)
         self.fields['name'] = 'set_tick_var'
 
-class ASTFCmdAddTickVar(ASTFCmdSetValBase):
+class ASTFCmdAddTickVar(ASTFCmdSetTickValBase):
     def __init__(self, id_val, duration):
         super(ASTFCmdAddTickVar, self).__init__(id_val)
         self.fields['name'] = 'add_tick_var'
@@ -369,6 +375,7 @@ class ASTFProgram(object):
             raise ASTFError("Side must be one of {0}".side_vals)
 
         self.vars={};
+        self.tick_vars={};
         self.stream=stream;
         self.labels={};
         self.fields = {}
@@ -713,10 +720,20 @@ class ASTFProgram(object):
             var_index=len(self.vars);
             self.vars[var_name]=var_index
 
+    def __add_tick_var (self,var_name):
+        if var_name not in self.tick_vars:
+            var_index=len(self.tick_vars);
+            self.tick_vars[var_name]=var_index
+
     def __get_var_index (self,var_name):
         if var_name not in self.vars:
             raise ASTFError("var {0} wasn't defined  ".format(var_name))
         return (self.vars[var_name]);
+
+    def __get_tick_var_index (self,var_name):
+        if var_name not in self.tick_vars:
+            raise ASTFError("var {0} wasn't defined  ".format(var_name))
+        return (self.tick_vars[var_name]);
 
     def set_var(self, var_id,val):
         """
@@ -775,7 +792,7 @@ class ASTFProgram(object):
         ArgVerify.verify(self.__class__.__name__ + "." + sys._getframe().f_code.co_name, ver_args)
 
         if  isinstance(var_id, str):
-            self.__add_var(var_id)
+            self.__add_tick_var(var_id)
         self.fields['commands'].append(ASTFCmdSetTickVar(var_id))
 
     def add_tick_var(self, var_id, duration):
@@ -1095,15 +1112,22 @@ class ASTFProgram(object):
                 #print(" {0} {1}".format(self.__get_label_id(cmd.label),i));
                 cmd.fields['offset']=self.__get_label_id(cmd.label)-(i);
                 if 'id' in cmd.fields and isinstance(cmd.fields['id'],str):
-                    cmd.fields['id']=self.__get_var_index(cmd.fields['id'])
+                    if isinstance(cmd, ASTFCmdJMPDP):
+                        cmd.fields['id']=self.__get_tick_var_index(cmd.fields['id'])
+                    else:
+                        cmd.fields['id']=self.__get_var_index(cmd.fields['id'])
             if isinstance(cmd, ASTFCmdSetValBase):
                 id_name=cmd.fields['id']
                 if isinstance(id_name,str):
                     cmd.fields['id']=self.__get_var_index(id_name)
+            if isinstance(cmd, ASTFCmdSetTickValBase):
+                id_name=cmd.fields['id']
+                if isinstance(id_name,str):
+                    cmd.fields['id']=self.__get_tick_var_index(id_name)
             if isinstance(cmd, ASTFCmdAddTickStats):
                 id_name=cmd.fields['var_id']
                 if isinstance(id_name,str):
-                    cmd.fields['var_id']=self.__get_var_index(id_name)
+                    cmd.fields['var_id']=self.__get_tick_var_index(id_name)
             if isinstance(cmd, ASTFCmdSetTemplate):
                 id_name=cmd.fields['tg_id']
                 if isinstance(id_name,str):
