@@ -177,6 +177,9 @@ class STLClient(TRexClient):
                             sync_timeout,
                             async_timeout)
 
+        self.init()
+
+    def init(self):
         self.pgid_stats = CPgIdStats(self.conn.rpc)
         self.tpg_status = None # TPG Status cached in Python Side
 
@@ -327,6 +330,15 @@ class STLClient(TRexClient):
             active_profiles.extend(port_profiles)
         return active_profiles
 
+    def clear_pgid_stats(self, clear_flow_stats = True, clear_latency_stats = True):
+        self.pgid_stats.clear_stats(clear_flow_stats=clear_flow_stats, clear_latency_stats=clear_latency_stats)
+
+    def clear_stl_profiles(self, ports = None):
+        ports = ports if ports is not None else self.get_all_ports()
+        all_profiles = [PortProfileID(str(port) + ".*") for port in ports]
+        self.stop_stl(all_profiles)
+        self.remove_all_streams(all_profiles)
+
 ############################    Stateless   #############################
 ############################       API      #############################
 ############################                #############################
@@ -367,7 +379,7 @@ class STLClient(TRexClient):
             with self.ctx.logger.suppress():
                 # force take the port and ignore any streams on it
                 self.acquire(ports, force = True, sync_streams = False)
-                self.stop(all_profiles)
+                self.stop_stl(all_profiles)
                 self.remove_all_streams(all_profiles)
                 self.clear_stats(ports)
                 self.set_port_attr(ports,
@@ -798,7 +810,7 @@ class STLClient(TRexClient):
         # stop active ports if needed
         active_profiles = list_intersect(self.get_profiles_with_state("active"), ports)
         if active_profiles and force:
-            self.stop(active_profiles)
+            self.stop_stl(active_profiles)
 
         if synchronized:
             # start synchronized (per pair of ports) traffic
@@ -838,6 +850,8 @@ class STLClient(TRexClient):
             raise TRexError(rc)
 
         return rc
+
+    start_stl = start
 
     @client_api('command', True)
     @validate_port_input("ports")
@@ -889,6 +903,8 @@ class STLClient(TRexClient):
         rc = self._remove_rx_filters(ports, rx_delay_ms)
         if not rc:
             raise TRexError(rc)
+
+    stop_stl = stop
 
     @client_api('command', True)
     def wait_on_traffic (self, ports = None, timeout = None, rx_delay_ms = None):
@@ -989,6 +1005,8 @@ class STLClient(TRexClient):
 
         if not rc:
             raise TRexError(rc)
+
+    update_stl = update
 
     @client_api('command', True)
     @validate_port_input("port")
@@ -2574,7 +2592,7 @@ class STLClient(TRexClient):
         # show
         text_tables.print_table_with_header(table, table.title, buffer = buffer)
 
-    def _show_latency_stats(self, buffer = sys.stdout):
+    def _show_flow_latency_stats(self, buffer = sys.stdout):
         all_pg_ids = self.get_active_pgids()
         # Display data for at most 5 pgids.
         pg_ids = all_pg_ids['latency'][:5]
@@ -2582,7 +2600,7 @@ class STLClient(TRexClient):
         # show
         text_tables.print_table_with_header(table, table.title, buffer = buffer)
 
-    def _show_latency_histogram(self, buffer = sys.stdout):
+    def _show_flow_latency_histogram(self, buffer = sys.stdout):
         all_pg_ids = self.get_active_pgids()
         # Display data for at most 5 pgids.
         pg_ids = all_pg_ids['latency'][:5]
@@ -2697,10 +2715,10 @@ class STLClient(TRexClient):
             self._show_streams_stats()
 
         elif opts.stats == 'latency':
-            self._show_latency_stats()
+            self._show_flow_latency_stats()
 
         elif opts.stats == 'latency_histogram':
-            self._show_latency_histogram()
+            self._show_flow_latency_histogram()
 
         else:
             raise TRexError('Unhandled stats: %s' % opts.stats)
@@ -2971,7 +2989,7 @@ class STLClient(TRexClient):
         # stop ports if needed
         active_profiles = list_intersect(self.get_profiles_with_state("active"), ports)
         if active_profiles and opts.force:
-            self.stop(active_profiles)
+            self.stop_stl(active_profiles)
 
         # remove all streams
         self.remove_all_streams(ports)
@@ -2983,13 +3001,13 @@ class STLClient(TRexClient):
         if opts.dry:
             self.validate(ports, opts.mult, opts.duration, opts.total)
         else:
-            self.start(ports,
-                       opts.mult,
-                       opts.force,
-                       opts.duration,
-                       opts.total,
-                       core_mask,
-                       opts.sync)
+            self.start_stl(ports,
+                           opts.mult,
+                           opts.force,
+                           opts.duration,
+                           opts.total,
+                           core_mask,
+                           opts.sync)
 
         return True
 
@@ -3016,7 +3034,7 @@ class STLClient(TRexClient):
             print(msg)
         else:
             # call API
-            self.stop(active_ports)
+            self.stop_stl(active_ports)
 
         if opts.remove:
             streams_ports = list_intersect(ports, self.get_profiles_with_state("streams"))
@@ -3064,7 +3082,7 @@ class STLClient(TRexClient):
 
             raise TRexError(msg)
 
-        self.update(profiles, opts.mult, opts.total, opts.force)
+        self.update_stl(profiles, opts.mult, opts.total, opts.force)
 
         return True
 

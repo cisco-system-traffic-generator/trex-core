@@ -5779,6 +5779,11 @@ COLD_FUNC void CPhyEthIF::configure_rss(){
         configure_rss_astf(false,
                            dpdk_p.get_total_rx_queues(),
                            MAIN_DPDK_RX_Q);
+
+        /* disable HW flow statistics on ASTF mode due to conflicts with STL flow stats. */
+        if (get_is_interactive() && !get_is_stateless()) {
+            CGlobalInfo::m_options.preview.set_disable_hw_flow_stat(true);
+        }
     }
 }
 
