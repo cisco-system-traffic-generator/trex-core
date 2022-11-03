@@ -106,13 +106,22 @@ public:
     *
     * @param activate
     *   bool that determines whether to activate or deactivate by deafult the clients in the group.
+    * 
+    * @param cvlan_id
+    *   Customer VLAN ID. Identifies the VLAN to which the frame belongs
+    * 
+    * @param svlan_id
+    *   Service VLAN ID. Identifies the VLAN to which the QinQ belongs
     */
-    CTunnelsCtxGroup(uint32_t start_ip, uint32_t end_ip, uint32_t teid_jump, client_tunnel_data_t& tunnel_data, bool activate = true) {
+    CTunnelsCtxGroup(uint32_t start_ip, uint32_t end_ip, uint32_t teid_jump, client_tunnel_data_t& tunnel_data, bool activate = true, uint16_t vid = 0, uint16_t cvlan_id = 0, uint16_t svlan_id = 0) {
         m_start_ip = start_ip;
         m_end_ip = end_ip;
         m_teid_jump = teid_jump;
         m_tunnel_data = tunnel_data;
         m_activate = activate;
+        m_vid = vid;
+        m_cvlan_id = cvlan_id;
+        m_svlan_id = svlan_id;
     }
 
     CTunnelsCtxGroup() {
@@ -121,6 +130,9 @@ public:
         m_teid_jump = 0;
         memset(&m_tunnel_data, 0, sizeof(client_tunnel_data_t));
         m_activate = false;
+        m_cvlan_id = 0;
+        m_svlan_id = 0;
+        m_vid = 0;
     }
 
     /**
@@ -190,6 +202,12 @@ private:
     /*The difference between the teids of two consequtive clients in the range.*/
     uint32_t             m_teid_jump;
     bool                 m_activate;
+    /* QinQ Tunnel related parameters */
+    uint16_t             m_cvlan_id;
+    uint16_t             m_svlan_id;
+
+    /* VLAN Tunnel related parameters */
+    uint16_t             m_vid;
 };
 
 

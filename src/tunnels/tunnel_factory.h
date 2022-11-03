@@ -1,6 +1,7 @@
 #ifndef TUNNEL_FACTORY_H_
 #define TUNNEL_FACTORY_H_
 #include "gtp_man.h"
+#include "vlan_man.h"
 #include "tunnel_tx_rx_callback.h"
 
 inline CTunnelHandler *create_tunnel_handler(uint8_t tunnel_type, uint8_t mode) {
@@ -9,6 +10,10 @@ inline CTunnelHandler *create_tunnel_handler(uint8_t tunnel_type, uint8_t mode) 
         case TUNNEL_TYPE_GTP: {
             tunnel = new CGtpuMan(mode);
             break;
+        }
+        case TUNNEL_TYPE_VLAN: {
+           tunnel = new CVlanMan(mode);
+           break;
         }
     }
     return tunnel;
@@ -31,6 +36,10 @@ inline tunnel_cntxt_t get_tunnel_ctx(client_tunnel_data_t* data) {
                                             &(data->dst.ipv6),
                                             data->src_port);
             }
+            break;
+        }
+        case TUNNEL_TYPE_VLAN: {
+            tunnel_ctx = (void*) new CVlanCtx(data->vid, 0);
             break;
         }
     }

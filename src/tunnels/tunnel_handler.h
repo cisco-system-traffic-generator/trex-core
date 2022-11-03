@@ -21,7 +21,8 @@ typedef void (*tunnel_ctx_del_cb_t)(void *tunnel_handler, void *tunnel_ctx);
 
 enum tunnel_type: uint8_t {
     TUNNEL_TYPE_NONE,
-    TUNNEL_TYPE_GTP
+    TUNNEL_TYPE_GTP,
+    TUNNEL_TYPE_VLAN
 };
 
 // The client_tunnel_data holds basic info
@@ -35,6 +36,15 @@ typedef struct {
     ipv4_ipv6_t src;
     ipv4_ipv6_t dst;
     void *ex_data;
+
+    /* VLAN param */
+    uint16_t vid;
+    uint8_t pcp;
+    bool dei;
+
+    /* QinQ param */
+    uint16_t cvlan_id;
+    uint16_t svlan_id;
 }client_tunnel_data_t;
 
 

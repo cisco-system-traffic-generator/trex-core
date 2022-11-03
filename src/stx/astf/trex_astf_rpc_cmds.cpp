@@ -35,6 +35,7 @@ limitations under the License.
 #include "trex_astf_dp_core.h"
 #include "trex_astf_messaging.h"
 #include "dyn_sts.h"
+#include "../tunnels/vlan_man.h"
 
 using namespace std;
 
@@ -1022,6 +1023,9 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
     } else {
         generate_execute_err(result, "tunnel type is not supported");
     }
+    CVlanMan* vlan = (CVlanMan*)tunnel_handler;
+    CVlanCtx* ctx = (CVlanCtx *)vlan->get_tunnel_ctx(&all_msg_data[0]);
+    std::cout<<ctx->get_vid()<<"\n";
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpUpdateTunnelClient(astf_db, all_msg_data);
     get_astf_object()->send_message_to_all_dp(msg, false);

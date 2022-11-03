@@ -962,6 +962,7 @@ main_src = SrcGroup(dir='src',
              '44bsd/udp.cpp',
 
              'tunnels/gtp_man.cpp',
+             'tunnels/vlan_man.cpp',
              'tunnels/tunnel_db.cpp',
 
              'hdrh/hdr_time.c',
