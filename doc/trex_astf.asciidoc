@@ -230,6 +230,18 @@ The client side of TRex server is responsible to the encapsulation/decapsulation
 * Loopback mode - from version v2.93 TRex supports loopback mode for testing without DUT - the server side is aware to the GTPU mode and decapsulates the client packets, and learns the tunnel context. When transmitting, the server encapsulates the packets with the same tunnel context. +
 * More than 2 ports support - from version v2.93 TRex supports more than 2 ports in GTPU mode.
 
+==== Stateless profile support
+
+The stateless profile can be used on ASTF mode with the following limitations.
+
+* TCP header packet is not supported.
+* The UDP flow in stateless profile should not be handled by ASTF. When the received UDP packet is matched to ASTF UDP flow, it will not be handled by the stateless profile.
+* HW flow statistics is not supported due to the conflits with ASTF HW RSS.
+* The performance will be less than original stateless mode.
+* TPG is not supported yet.
+
+* start/update/stop cannot be used for the stateless profile. Instead, start_stl/update_stl/stop_stl should be used.
+
 
 
 === ASTF package folders 

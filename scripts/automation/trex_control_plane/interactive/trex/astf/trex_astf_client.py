@@ -2230,20 +2230,20 @@ class ASTFClient(STLClient):
     @console_api('start_stl', 'STL', True)
     def start_stl_line(self, line):
         '''Start traffic command'''
-        self.start_line(line)
+        STLClient.start_line(self, line)
 
     @console_api('stop_stl', 'STL', True)
     def stop_stl_line(self, line):
         '''stop traffic command'''
-        self.stop_line(line)
+        STLClient.stop_line(self, line)
 
     @console_api('update_stl', 'STL', True)
     def update_stl_line(self, line):
         '''update traffic command'''
-        self.update_line(line)
+        STLClient.update_line(self, line)
 
     @console_api('stats_stl', 'STL', True)
     def stats_stl_line(self, line):
         '''stats traffic command'''
-        self.show_stats_line(line)
+        STLClient.show_stats_line(self, line)
 
