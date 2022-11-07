@@ -172,7 +172,7 @@ class CTcpTuneables {
     uint8_t  m_tcp_do_sack;
     uint8_t  m_tcp_cc_algo;
 
-    uint8_t  m_tcp_reass_maxqlen;
+    uint16_t  m_tcp_reass_maxqlen;
 
  private:
     uint32_t m_bitfield;
