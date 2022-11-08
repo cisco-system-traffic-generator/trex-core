@@ -37,15 +37,12 @@ astf_states = [
     'STATE_ASTF_DELETE']
 
 class Tunnel:
-    def __init__(self, sip, dip, sport, teid, version, cvlan_id=None, svlan_id=None, vid=None):
+    def __init__(self, sip, dip, sport, teid, version):
         self.sip      = sip
         self.dip      = dip
         self.sport = sport
         self.teid     = teid
         self.version  = version
-        self.vid = vid
-        self.cvlan_id = cvlan_id
-        self.svlan_id = svlan_id
 
 class ASTFClient(TRexClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
@@ -1390,26 +1387,6 @@ class ASTFClient(TRexClient):
             json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'sport' : value.sport, 'teid' : value.teid, "version" :value.version})
  
         return json_attr
-    
-     # private function to form json data for VLAN tunnel
-    def _update_vlan_tunnel(self, client_list):
-
-        json_attr = []
-        
-        for key, value in client_list.items():
-            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'sport' : value.sport, 'vid' : value.vid, "version" :value.version})
- 
-        return json_attr
-
-     # private function to form json data for QINQ tunnel
-    def _update_qinq_tunnel(self, client_list):
-
-        json_attr = []
-        
-        for key, value in client_list.items():
-            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'sport' : value.sport, 'svlan_id' : value.svlan_id, 'cvlan_id' : value.cvlan_id, "version" :value.version})
- 
-        return json_attr
 
     # execute 'method' for inserting/updateing tunnel info for clients
     @client_api('command', True)
@@ -1419,10 +1396,6 @@ class ASTFClient(TRexClient):
         
         if tunnel_type == parsing_opts.TunnelType.GTPU:
            json_attr = self._update_gtp_tunnel(client_list)
-        elif tunnel_type == parsing_opts.TunnelType.VLAN:
-            json_attr = self._update_vlan_tunnel(client_list)
-        elif tunnel_type == parsing_opts.TunnelType.QINQ:
-            json_attr = self._update_qinq_tunnel(client_list)
         else:
            raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
         
@@ -1440,10 +1413,7 @@ class ASTFClient(TRexClient):
     def is_tunnel_supported(self, tunnel_type=1):
         '''
         parameters:
-            tunnel_type: currently supported:
-                          type 1 (gtpu)
-                          type 2 (vlan)
-                          type 3 (qinq)
+            tunnel_type: currently only type 1 (gtpu) is supported
         ret: 
             dict {is_tunnel_supported: true/false,
                   error_msg: why the tunnel is not supported}
@@ -1468,13 +1438,7 @@ class ASTFClient(TRexClient):
             'loopback': loopback
             }
 
-        supported_tunnels = [
-            parsing_opts.TunnelType.GTPU,
-            parsing_opts.TunnelType.VLAN,
-            parsing_opts.TunnelType.QINQ
-        ]
-
-        if tunnel_type not in supported_tunnels:
+        if tunnel_type != parsing_opts.TunnelType.GTPU:
            raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
 
         prefix = "Activating"
@@ -2139,9 +2103,6 @@ class ASTFClient(TRexClient):
             parsing_opts.SPORT,
             parsing_opts.SRC_IP,
             parsing_opts.DST_IP,
-            parsing_opts.VID,
-            parsing_opts.SVLAN_ID,
-            parsing_opts.CVLAN_ID,
             parsing_opts.TUNNEL_TYPE
             )
         opts = parser.parse_args(shlex.split(line))
@@ -2163,7 +2124,7 @@ class ASTFClient(TRexClient):
         client_db = dict()
         count = 0
         for ip_num in range(c_start, c_end + 1):
-            client_db[ip_num] = Tunnel(opts.src_ip, opts.dst_ip, opts.sport, opts.teid + count, opts.cvlan_id, opts.svlan_id, opts.vid, version)
+            client_db[ip_num] = Tunnel(opts.src_ip, opts.dst_ip, opts.sport, opts.teid + count, version)
             count+=1
 
         self.update_tunnel_client_record(client_db, opts.type)

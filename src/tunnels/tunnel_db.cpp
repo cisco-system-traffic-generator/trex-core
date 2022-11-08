@@ -40,9 +40,6 @@ void CTunnelsCtxGroup::to_json(Json::Value& group_json) const {
     group_json["version"] = m_tunnel_data.version;
     group_json["tunnel_type"] = m_tunnel_data.type;
     group_json["activate"] = m_activate;
-    group_json["vid"] = m_vid;
-    group_json["cvlan_id"] = m_cvlan_id;
-    group_json["svlan_id"] = m_svlan_id;
     std::string src_ip;
     std::string dst_ip;
     if (m_tunnel_data.version == 6) {
@@ -132,9 +129,6 @@ void CTunnelsTopo::from_json_obj_tunnel_groups(Json::Value& tunnels_group_json) 
         std::string src_end_str = json_map_get_value(group, "src_end", "JSON map").asString();
         uint32_t src_start;
         uint32_t src_end;
-        // uint16_t cvlan_id = 0;
-        // uint16_t svlan_id = 0;
-        uint16_t vid = 0;
         bool rc = utl_ipv4_to_uint32(src_start_str.c_str(), src_start);
         rc = rc && utl_ipv4_to_uint32(src_end_str.c_str(), src_end);
         if (!rc) {
@@ -151,10 +145,6 @@ void CTunnelsTopo::from_json_obj_tunnel_groups(Json::Value& tunnels_group_json) 
         std::string src_ipv46 = json_map_get_value(group, "src_ip", "JSON map").asString();
         std::string dst_ipv46 = json_map_get_value(group, "dst_ip", "JSON map").asString();
         bool activate = json_map_get_value(group, "activate", "JSON map").asBool();
-        if (tunnel_data.type == TUNNEL_TYPE_VLAN) {
-            tunnel_data.vid = json_map_get_value(group, "vid", "JSON map").asUInt();
-            vid = tunnel_data.vid;
-        }
         if (tunnel_data.version == 6) {
            rc = (inet_pton(AF_INET6, src_ipv46.c_str(), tunnel_data.src.ipv6.addr) == 1);
            rc = rc && (inet_pton(AF_INET6, dst_ipv46.c_str(), tunnel_data.dst.ipv6.addr) == 1);
@@ -165,7 +155,7 @@ void CTunnelsTopo::from_json_obj_tunnel_groups(Json::Value& tunnels_group_json) 
         if (!rc) {
             parse_tunnel_topo_err("invalid src_ip and dst_ip: " + src_ipv46 + " " + dst_ipv46);
         }
-        tmp_groups.push_back(CTunnelsCtxGroup(src_start, src_end, teid_jump, tunnel_data, activate, vid));
+        tmp_groups.push_back(CTunnelsCtxGroup(src_start, src_end, teid_jump, tunnel_data, activate));
     }
 
     validate_tunnel_topo(tmp_groups);

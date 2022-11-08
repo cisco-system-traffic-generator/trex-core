@@ -407,8 +407,6 @@ def decode_tunables (tunable_str):
 class TunnelType:
       NONE = 0
       GTPU  = 1
-      VLAN = 2
-      QINQ = 3
 
 tunnel_types = TunnelType()
 supported_tunnels = [attr for attr in dir(tunnel_types) if not callable(getattr(tunnel_types, attr)) and not attr.startswith("__") and attr != 'NONE']
@@ -419,20 +417,12 @@ def get_tunnel_type(tunnel_type_str):
     tunnel_type_str = tunnel_type_str.lower()
     if tunnel_type_str == "gtpu":
         return TunnelType.GTPU
-    elif tunnel_type_str == "vlan":
-        return TunnelType.VLAN
-    elif tunnel_type_str == "qinq":
-        return TunnelType.QINQ
     else:
         raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_str))
 
 def get_tunnel_type_str(tunnel_type_num):
     if tunnel_type_num == TunnelType.GTPU:
         return "gtpu"
-    elif tunnel_type_num == TunnelType.VLAN:
-        return "vlan"
-    elif tunnel_type_num == TunnelType.QINQ:
-        return "qinq"
     else:
         raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_num))
 
@@ -873,24 +863,6 @@ class OPTIONS_DB_ARGS:
          'help': '''The source port of the tunnel.
                     Use --sport 0 if you want to set the same source port as the inner L4 header source port.
                  '''})
-
-    VID = ArgumentPack(
-        ['--vid'],
-        {'type' : int,
-         'required': True,
-         'help': "The vlan id of the VLAN tunnel."})
-
-    SVLAN_ID = ArgumentPack(
-        ['--server-vlan-id'],
-        {'type' : int,
-         'required': True,
-         'help': "The server vlan id of the QinQ tunnel."})
-
-    CVLAN_ID = ArgumentPack(
-        ['--client-vlan-id'],
-        {'type': int,
-         'required': False,
-         'help': "The client vlan id of the QinQ tunnel"})
 
     REMOVE = ArgumentPack(
         ['--remove'],

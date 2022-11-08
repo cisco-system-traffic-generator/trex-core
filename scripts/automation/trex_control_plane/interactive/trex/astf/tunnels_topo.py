@@ -30,8 +30,7 @@ class TopoTunnelLatency(object):
 
 
 class TopoTunnelCtx(object):
-    def __init__(self, src_start, src_end, initial_teid=None, teid_jump=None, sport=None, version=None, tunnel_type="gtpu", src_ip=None, dst_ip=None, activate=False, vid=None, svlan_id=None, cvlan_id=None):
-        fields = []
+    def __init__(self, src_start, src_end, initial_teid, teid_jump, sport, version, tunnel_type, src_ip, dst_ip, activate):
         if version == 4 and (not is_valid_ipv4(src_ip) or not is_valid_ipv4(dst_ip)):
             raise TRexError('src_ip and dst_ip are not a valid IPv4 addresses: %s, %s' % (src_ip, dst_ip))
         elif version == 6 and (not is_valid_ipv6(src_ip) or not is_valid_ipv6(dst_ip)):
@@ -40,16 +39,6 @@ class TopoTunnelCtx(object):
             raise TRexError('src_start and src_end are not a valid IPv4 addresses: %s, %s' % (src_start, src_end))
         fields = [initial_teid, teid_jump, sport, version, tunnel_type]
         fields_str = ["initial_teid", 'teid_jump', "sport", "version", "tunnel_type"]
-        if tunnel_type == "vlan":
-            fields.append(vid)
-            fields_str.append("vid")
-        elif tunnel_type == "qinq":
-            fields.append(cvlan_id)
-            fields_str.append("cvlan_id")
-
-            fields.append(svlan_id)
-            fields.append("svlan_id")
-            
         for idx, val in enumerate(fields):
             if type(val) is not int:
                 raise TRexError("The type of '%s' field should be int" % (fields_str[idx]))
@@ -67,9 +56,6 @@ class TopoTunnelCtx(object):
         self.src_ip = src_ip
         self.dst_ip = dst_ip
         self.activate = activate
-        self.vid = vid
-        self.svlan_id = svlan_id
-        self.cvlan_id = cvlan_id
 
 
     def get_data(self):
@@ -84,9 +70,6 @@ class TopoTunnelCtx(object):
         d['src_ip']               = self.src_ip
         d['dst_ip']               = self.dst_ip
         d['activate']             = self.activate
-        d['vid']                  = self.vid
-        d['cvlan_id']             = self.cvlan_id
-        d['svlan_id']             = self.svlan_id    
         return d
 
 
