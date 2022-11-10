@@ -35,8 +35,11 @@ limitations under the License.
 
 int CRxAstfPort::tx(rte_mbuf_t *m){
     uint16_t vlan = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_vlan();
+    qinq_tag qinq = CGlobalInfo::m_options.m_ip_cfg[m_port_id].get_qinq();
     if (vlan){
         add_vlan(m,vlan);
+    } else if (qinq.inner_vlan && qinq.outer_vlan){
+        add_qinq(m,qinq.inner_vlan, qinq.outer_vlan);
     }
    return(m_rx->tx_pkt(m, m_port_id)?0:-1);
 }

@@ -23,6 +23,12 @@ static inline void add_vlan(rte_mbuf_t *m, uint16_t vlan_id) {
     assert(m->l2_len!=0);
     m->vlan_tci = vlan_id;
 }
+static inline void add_qinq(rte_mbuf_t *m, uint16_t inner_vlan, uint16_t outer_vlan) {
+    m->ol_flags |= RTE_MBUF_F_TX_QINQ;
+    assert(m->l2_len!=0);
+    m->vlan_tci = inner_vlan;
+    m->vlan_tci_outer = outer_vlan;
+}
 
 static inline rte_mbuf_t * utl_rte_pktmbuf_add_after2(rte_mbuf_t *m1,rte_mbuf_t *m2){
     utl_rte_pktmbuf_check(m1);

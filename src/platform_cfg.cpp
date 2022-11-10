@@ -220,6 +220,10 @@ uint32_t CMacYamlInfo::get_vlan() {
     return m_vlan;
 }
 
+qinq_tag CMacYamlInfo::get_qinq() {
+    return m_qinq;
+}
+
 void CMacYamlInfo::Dump(FILE *fd){
     if (m_dest_base.size() != 6) {
         fprintf(fd,"ERROR in dest mac addr \n");
@@ -294,6 +298,11 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
         mac_info.m_mask = 0;
     }
     if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan, 0, 0xfff)) {
+        mac_info.m_vlan = 0;
+    }
+    if ( utl_yaml_read_uint16(node, "outer_vlan", mac_info.m_outer_vlan, 0, 0xfff)) {
+        mac_info.m_qinq.inner_vlan = mac_info.m_vlan;
+        mac_info.m_qinq.outer_vlan = mac_info.m_outer_vlan;
         mac_info.m_vlan = 0;
     }
 

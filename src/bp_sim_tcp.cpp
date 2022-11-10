@@ -389,6 +389,7 @@ static CEmulAppApiUdpImpl  m_udp_bh_api_impl_c;
 
 #ifndef TREX_SIM
 uint16_t get_client_side_vlan(CVirtualIF * _ifs);
+qinq_tag get_client_side_qinq(CVirtualIF * _ifs);
 #endif
 void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id, CFlowBase* in_flow){
 
@@ -445,16 +446,25 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
     ClientCfgBase * lpc=tuple.getClientCfg();
 
     uint16_t vlan=0;
+    qinq_tag qinq = {0};
 
     if (lpc) {
         if (lpc->m_initiator.has_vlan()){
             vlan=lpc->m_initiator.get_vlan();
+        } else if (lpc->m_initiator.has_qinq())
+        {
+            qinq = lpc->m_initiator.get_qinq();
         }
     }else{
         if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
      /* TBD need to fix , should be taken from right port */
     #ifndef TREX_SIM
             vlan= get_client_side_vlan(m_node_gen.m_v_if);
+    #endif
+        } else if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::QINQ_MODE_NORMAL) ) {
+     /* TBD need to fix , should be taken from right port */
+    #ifndef TREX_SIM
+            qinq = get_client_side_qinq(m_node_gen.m_v_if);
     #endif
         }
     }
@@ -482,7 +492,8 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
                                                tuple.getTunnelCtx(),
                                                true,
                                                tg_id,
-                                               template_id);
+                                               template_id,
+                                               qinq);
     }else{
         c_flow = m_c_tcp->m_ft.alloc_flow(pctx,
                                           tuple.getClient(),
@@ -493,7 +504,8 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
                                           is_ipv6,
                                           tuple.getTunnelCtx(),
                                           tg_id,
-                                          template_id);
+                                          template_id,
+                                          qinq);
     }
 
     #ifdef RSS_DEBUG 

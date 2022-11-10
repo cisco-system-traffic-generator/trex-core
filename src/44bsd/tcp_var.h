@@ -308,10 +308,12 @@ public:
                    uint16_t src_port,
                    uint16_t dst_port,
                    uint16_t vlan,
+                   qinq_tag qinq,
                    uint8_t  proto,
                    void    *tunnel_ctx,
                    bool     is_ipv6){
         m_vlan = vlan;
+        m_qinq = qinq;
         m_src_ipv4 = src;
         m_dst_ipv4 = dst;
         m_src_port = src_port;
@@ -381,6 +383,7 @@ public:
     uint16_t  m_src_port;
     uint16_t  m_dst_port;
     uint16_t  m_vlan;
+    qinq_tag  m_qinq;
     uint16_t  m_l4_pseudo_checksum;
     void     *m_tunnel_ctx;
     uint8_t   m_offset_l4; /* offset of tcp_header, in template */
@@ -412,9 +415,10 @@ public:
                    uint16_t src_port,
                    uint16_t dst_port,
                    uint16_t vlan,
+                   qinq_tag qinq,
                    uint8_t  proto,
                    bool is_ipv6){
-        m_template.set_tuple(src,dst,src_port,dst_port,vlan,proto,NULL,is_ipv6);
+        m_template.set_tuple(src,dst,src_port,dst_port,vlan,qinq,proto,NULL,is_ipv6);
     }
 
     static CFlowBase * cast_from_hash_obj(flow_hash_ent_t *p){

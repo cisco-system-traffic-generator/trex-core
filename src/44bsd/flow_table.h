@@ -412,7 +412,8 @@ public:
                       uint8_t *   pkt,
                       IPv6Header *    ipv6,
                       CFlowKeyFullTuple &ftuple,
-                      tvpid_t port_id);
+                      tvpid_t port_id,
+                      qinq_tag={0});
 
 
     CTcpFlow * alloc_flow(CPerProfileCtx * pctx,
@@ -424,7 +425,8 @@ public:
                           bool is_ipv6,
                           void *tun_handle,
                           uint16_t tg_id=0,
-                          uint16_t template_id=0);
+                          uint16_t template_id=0,
+                          qinq_tag qinq={0});
 
     CUdpFlow * alloc_flow_udp(CPerProfileCtx * pctx,
                               uint32_t src,
@@ -436,7 +438,8 @@ public:
                               void *tun_handle,
                               bool client,
                               uint16_t tg_id=0,
-                              uint16_t template_id=0);
+                              uint16_t template_id=0,
+                              qinq_tag qinq={0});
 
 
     void free_flow(CFlowBase * flow);

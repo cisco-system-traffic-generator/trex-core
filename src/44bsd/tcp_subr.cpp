@@ -1613,6 +1613,8 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
         uint8_t vlan_offset=0;
         if (m_vlan){
             vlan_offset=4;
+        } else if (m_qinq.inner_vlan!=0 && m_qinq.outer_vlan!=0) {
+            vlan_offset=8;
         }
         m_offset_ip  = 14+vlan_offset;
         m_offset_l4 = m_offset_ip + 20;
@@ -1620,7 +1622,22 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
         uint8_t *p=m_template_pkt;
         if (vlan_offset==0){
             memcpy(p,default_ipv4_header,sizeof(default_ipv4_header) );
-        }else{
+        } else if(vlan_offset==8){
+            memcpy(p,default_ipv4_header,sizeof(12));
+            // Set outer VLAN
+            const uint8_t next_vlan[2]={0x81,00};
+            memcpy(p+12,next_vlan,2);
+            VLANHeader vlan_head;
+            vlan_head.setVlanTag(m_qinq.outer_vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x8100);
+            memcpy(p+14,vlan_head.getPointer(),4);
+
+            // Set inner VLAN
+            vlan_head.setVlanTag(m_qinq.inner_vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x0800);
+            memcpy(p+18,vlan_head.getPointer(), 4);
+            memcpy(p+22,default_ipv4_header+14,sizeof(default_ipv4_header)-14);
+        } else{
             memcpy(p,default_ipv4_header,sizeof(12));
             const uint8_t next_vlan[2]={0x81,00};
             memcpy(p+12,next_vlan,2);
@@ -1642,6 +1659,8 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
         uint8_t vlan_offset=0;
         if (m_vlan){
             vlan_offset=4;
+        } else if (m_qinq.inner_vlan!=0 && m_qinq.outer_vlan!=0) {
+            vlan_offset=8;
         }
 
         m_offset_ip  = 14+vlan_offset;
@@ -1650,6 +1669,21 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
         uint8_t *p=m_template_pkt;
         if (vlan_offset==0){
             memcpy(p,default_ipv6_header,sizeof(default_ipv6_header) );
+        } else if(vlan_offset==8){
+            memcpy(p,default_ipv6_header,sizeof(12));
+            // Set outer VLAN
+            const uint8_t next_vlan[2]={0x81,00};
+            memcpy(p+12,next_vlan,2);
+            VLANHeader vlan_head;
+            vlan_head.setVlanTag(m_qinq.outer_vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x8100);
+            memcpy(p+14,vlan_head.getPointer(),4);
+
+            // Set inner VLAN
+            vlan_head.setVlanTag(m_qinq.inner_vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x0800);
+            memcpy(p+18,vlan_head.getPointer(), 4);
+            memcpy(p+22,default_ipv6_header+14,sizeof(default_ipv6_header)-14);
         }else{
             memcpy(p,default_ipv6_header,sizeof(12));
             const uint8_t next_vlan[2]={0x81,00};

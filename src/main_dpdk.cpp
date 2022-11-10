@@ -1853,6 +1853,14 @@ COLD_FUNC uint16_t get_client_side_vlan(CVirtualIF * _ifs){
     return(vlan);
 }
 
+COLD_FUNC qinq_tag get_client_side_qinq(CVirtualIF * _ifs){
+    CCoreEthIFTcp * lpif=(CCoreEthIFTcp *)_ifs;
+    CCorePerPort *lp_port = (CCorePerPort *)lpif->get_ports();
+    uint8_t port_id = lp_port->m_port->get_tvpid();
+    qinq_tag qinq=CGlobalInfo::m_options.m_ip_cfg[port_id].get_qinq();
+    return(qinq);
+}
+
 
 COLD_FUNC bool CCoreEthIF::Create(uint8_t             core_id,
                         uint8_t             tx_client_queue_id,
@@ -2513,6 +2521,8 @@ CPortLatencyHWBase::apply_hw_vlan(rte_mbuf_t *m, uint8_t port_id) {
             add_vlan(m, CGlobalInfo::m_options.m_vlan_port[0]);
         } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
             add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
+        } else if (vlan_mode == CPreviewMode::QINQ_MODE_NORMAL) {
+            add_qinq(m, CGlobalInfo::m_options.m_qinq_port[0].inner_vlan, CGlobalInfo::m_options.m_qinq_port[0].outer_vlan);
         }
     }
 }
@@ -3997,7 +4007,7 @@ COLD_FUNC TrexSTXCfg
  CGlobalTRex::get_stx_cfg() {
 
     TrexSTXCfg cfg;
-    
+
     /* control plane config */
     cfg.m_rpc_req_resp_cfg.create(TrexRpcServerConfig::RPC_PROT_TCP,
                                   global_platform_cfg_info.m_zmq_rpc_port,
@@ -6314,9 +6324,15 @@ COLD_FUNC int update_global_info_from_platform_file(){
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
             g_opts->m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
+            g_opts->m_ip_cfg[i].set_qinq(cg->m_mac_info[i].get_qinq());
             // If one of the ports has vlan, work in vlan mode
             if (cg->m_mac_info[i].get_vlan() != 0) {
                 g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+            }
+            // Check if the ports have both outer and inner vlan, i.e QinQ
+            qinq_tag qinq = cg->m_mac_info[i].get_qinq();
+            if (qinq.inner_vlan !=0 && qinq.outer_vlan !=0) {
+                g_opts->preview.set_vlan_mode_verify(CPreviewMode::QINQ_MODE_NORMAL);
             }
         }
     }
@@ -7712,14 +7728,20 @@ HOT_FUNC  int CCoreEthIF::send_node(CGenNode * node) {
                 /* both from the same dir but with VLAN0 */
                 vlan_id = CGlobalInfo::m_options.m_vlan_port[0];
             }
+            add_vlan(m, vlan_id);
         } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
             == CPreviewMode::VLAN_MODE_NORMAL) {
             CCorePerPort *lp_port = &m_ports[dir];
             uint8_t port_id = lp_port->m_port->get_tvpid();
             vlan_id = CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan();
+            add_vlan(m, vlan_id);
+        } else if (CGlobalInfo::m_options.preview.get_vlan_mode()
+            == CPreviewMode::QINQ_MODE_NORMAL) {
+            CCorePerPort *lp_port = &m_ports[dir];
+            uint8_t port_id = lp_port->m_port->get_tvpid();
+            qinq_tag qinq = CGlobalInfo::m_options.m_ip_cfg[port_id].get_qinq();
+            add_qinq(m, qinq.inner_vlan, qinq.outer_vlan);
         }
-
-        add_vlan(m, vlan_id);
     }
 
     if (single_port){
