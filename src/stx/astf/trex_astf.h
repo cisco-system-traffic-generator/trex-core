@@ -28,6 +28,7 @@ limitations under the License.
 #include "common/trex_stx.h"
 #include "trex_astf_defs.h"
 #include "stt_cp.h"
+#include "stl/trex_stl.h"
 
 #include "tunnels/tunnel_factory.h"
 
@@ -229,7 +230,7 @@ private:
 /***********************************************************
  * TRex adavanced stateful interactive object
  ***********************************************************/
-class TrexAstf : public TrexAstfProfile, public TrexSTX {
+class TrexAstf : public TrexAstfProfile, public TrexStateless {
 public:
     enum state_latency_e {
         STATE_L_IDLE,

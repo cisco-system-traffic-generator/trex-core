@@ -17,6 +17,8 @@ from ..common.trex_exceptions import TRexError, TRexTimeoutError
 from ..common.trex_types import *
 from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 
+from ..stl.trex_stl_client import STLClient
+
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
 from .topo import ASTFTopologyManager
@@ -44,7 +46,7 @@ class Tunnel:
         self.teid     = teid
         self.version  = version
 
-class ASTFClient(TRexClient):
+class ASTFClient(STLClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
 
     def __init__(self,
@@ -122,6 +124,8 @@ class ASTFClient(TRexClient):
         self.astf_profile_state = {'_': 0}
         self.profile_state_change = {}
 
+        STLClient.init(self)
+
     def get_mode(self):
         return "ASTF"
 
@@ -156,6 +160,7 @@ class ASTFClient(TRexClient):
         with self.ctx.logger.suppress(verbose = "warning"):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
             self.clear_dynamic_traffic_stats()
+            self.clear_pgid_stats(clear_flow_stats=True, clear_latency_stats=True)
         return RC_OK()
 
     def _on_astf_state_chg(self, ctx_state, error, epoch):
@@ -421,6 +426,11 @@ class ASTFClient(TRexClient):
             with self.ctx.logger.suppress():
             # force take the port and ignore any streams on it
                 self.acquire(force = True)
+
+                # clear STL first
+                self.clear_stl_profiles(ports)
+                self.clear_pgid_stats(clear_flow_stats=True, clear_latency_stats=True)
+
                 self.stop(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_ASTF_LOADED, self.STATE_IDLE])
                 self.stop_latency()
@@ -941,6 +951,10 @@ class ASTFClient(TRexClient):
             TRexClient.wait_on_traffic(self, ports, timeout)
         else:
             self.wait_for_profile_state(profile_id, self.STATE_ASTF_LOADED, timeout)
+
+    
+    
+    wait_on_traffic_stl = STLClient.wait_on_traffic
 
     # get stats
     @client_api('getter', True)
@@ -1986,6 +2000,9 @@ class ASTFClient(TRexClient):
         elif opts.stats == 'latency_counters':
             self._show_latency_counters()
 
+        elif opts.stats == 'streams': # STLClient
+            self._show_streams_stats()
+
         else:
             raise TRexError('Unhandled stat: %s' % opts.stats)
 
@@ -2087,6 +2104,8 @@ class ASTFClient(TRexClient):
             self.logger.info(format_text("No profiles found with desired filter.\n", "bold", "magenta"))
 
         text_tables.print_table_with_header(table, header = 'Profile states')
+
+        STLClient.profiles_line(self, line)
 
 
     @console_api('update_tunnel', 'ASTF', True)
@@ -2205,3 +2224,26 @@ class ASTFClient(TRexClient):
 
         else:
             raise TRexError('Unhandled command %s' % opts.command)
+
+    # rename STL console commands
+
+    @console_api('start_stl', 'STL', True)
+    def start_stl_line(self, line):
+        '''Start traffic command'''
+        STLClient.start_line(self, line)
+
+    @console_api('stop_stl', 'STL', True)
+    def stop_stl_line(self, line):
+        '''stop traffic command'''
+        STLClient.stop_line(self, line)
+
+    @console_api('update_stl', 'STL', True)
+    def update_stl_line(self, line):
+        '''update traffic command'''
+        STLClient.update_line(self, line)
+
+    @console_api('stats_stl', 'STL', True)
+    def stats_stl_line(self, line):
+        '''stats traffic command'''
+        STLClient.show_stats_line(self, line)
+

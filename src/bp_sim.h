@@ -545,13 +545,6 @@ class CCapFileFlowInfo ;
    we are optimizing the allocation dealocation !!!
  */
 
-struct CNodeTcp {
-     double       sim_time;
-     rte_mbuf_t * mbuf;
-     uint8_t      dir;
-};
-
-
 struct CGenNodeBase  {
 public:
 
@@ -652,6 +645,13 @@ public:
             return (false);
         }
     }
+};
+
+
+struct CNodeTcp: public CGenNodeBase {
+     double       sim_time;
+     rte_mbuf_t * mbuf;
+     uint8_t      dir;
 };
 
 

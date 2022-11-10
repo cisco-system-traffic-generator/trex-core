@@ -337,6 +337,27 @@ TrexRpcCmdAstfProfileList::_run(const Json::Value &params, Json::Value &result) 
         json_profile_list.append(profile_id);
     }
 
+    uint8_t port_cnt = get_astf_object()->get_port_count();
+    for (uint8_t port_id = 0; port_id < port_cnt; port_id++) {
+        TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
+        profile_list.clear();
+
+        port->get_profile_id_list(profile_list);
+        Json::Value json_list = Json::arrayValue;
+
+        for (auto &profile_id : profile_list) {
+            json_list.append(profile_id);
+        }
+
+        if (json_list.size()) {
+            Json::Value json_port = Json::objectValue;
+            std::stringstream ss;
+            ss << port_id;
+            json_port[ss.str()] = json_list;
+            json_profile_list.append(json_port);
+        }
+    }
+
     result["result"] = json_profile_list;
 
     return (TREX_RPC_CMD_OK);

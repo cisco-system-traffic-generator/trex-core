@@ -188,6 +188,11 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     m_stats = nullptr;
 }
 
+TrexStateless::TrexStateless(const TrexSTXCfg &cfg, bool base) : TrexSTX(cfg) {
+    assert(base);
+    m_stats = nullptr;
+}
+
 
 /** 
  * release all memory
@@ -197,6 +202,7 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
 TrexStateless::~TrexStateless() {
 
     /* release memory for ports */
+    m_dp_core_count = 0;
     for (auto &port : m_ports) {
         delete port.second;
     }
@@ -267,7 +273,7 @@ TrexStateless::publish_async_data() {
 
 void
 TrexStateless::init_stats_multiqueue(const vector<TrexStatelessDpCore*> & dp_core_ptrs) {
-    assert(get_dpdk_mode()->dp_rx_queues());
+    assert(get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode());
     m_stats = new TrexStatelessMulticoreSoftwareFSLatencyStats(this, dp_core_ptrs);
 }
 

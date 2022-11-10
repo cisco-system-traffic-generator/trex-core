@@ -2005,6 +2005,7 @@ class OPTIONS_DB_GROUPS:
             EXTENDED_INC_ZERO_STATS,
             ASTF_STATS,
             ASTF_INC_ZERO_STATS,
+            STREAMS_STATS,
         ],
         {})
 

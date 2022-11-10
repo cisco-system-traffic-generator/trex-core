@@ -26,6 +26,7 @@ limitations under the License.
 #include <algorithm>
 #include "trex_astf_mbuf_redirect.h"
 #include "trex_dp_core.h"
+#include "stl/trex_stl_dp_core.h"
 #include "trex_messaging.h"
 #include "tunnels/tunnel_handler.h"
 
@@ -40,7 +41,7 @@ struct profile_param {
     double          m_dump_interval;
 };
 
-class TrexAstfDpCore : public TrexDpCore {
+class TrexAstfDpCore : public TrexStatelessDpCore {
 
 public:
 

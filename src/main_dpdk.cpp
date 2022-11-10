@@ -1783,7 +1783,7 @@ public:
     uint16_t     m_rx_queue_id[CS_NUM]; 
 };
 
-class CCoreEthIFTcp : public CCoreEthIF {
+class CCoreEthIFTcp : public CCoreEthIFStateless {
 public:
     CCoreEthIFTcp() {
         m_rx_queue_id[CLIENT_SIDE]=0xffff;
@@ -1800,6 +1800,7 @@ public:
 
     void set_rx_queue_id(uint16_t client_qid,
                          uint16_t server_qid){
+        CCoreEthIFStateless::set_rx_queue_id(client_qid, server_qid);
         m_rx_queue_id[CLIENT_SIDE]=client_qid;
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
@@ -2134,6 +2135,9 @@ HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
 
 
 HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
+    if (unlikely(node->m_type == CGenNode::STATELESS_PKT)) {
+        return CCoreEthIFStateless::send_node_service_mode(node);
+    }
     CNodeTcp * node_tcp = (CNodeTcp *) node;
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
@@ -4065,7 +4069,7 @@ COLD_FUNC void CGlobalTRex::init_stl() {
 }
 
 COLD_FUNC void CGlobalTRex::init_stl_stats() {
-    if (get_dpdk_mode()->dp_rx_queues()) {
+    if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
         std::vector<TrexStatelessDpCore*> dp_core_ptrs;
         for (int thread_id = 0; thread_id < (int)m_fl.m_threads_info.size(); thread_id++) {
             TrexStatelessDpCore* stl_dp_core = (TrexStatelessDpCore*)m_fl.m_threads_info[thread_id]->get_dp_core();
@@ -4096,6 +4100,8 @@ COLD_FUNC void CGlobalTRex::init_astf() {
     rx_interactive_conf();
     m_stx = new TrexAstf(get_stx_cfg());
     start_master_astf();
+
+    init_stl_stats();
 }
 
 
@@ -5783,6 +5789,11 @@ COLD_FUNC void CPhyEthIF::configure_rss(){
         configure_rss_astf(false,
                            dpdk_p.get_total_rx_queues(),
                            MAIN_DPDK_RX_Q);
+
+        /* disable HW flow statistics on ASTF mode due to conflicts with STL flow stats. */
+        if (get_is_interactive() && !get_is_stateless()) {
+            CGlobalInfo::m_options.preview.set_disable_hw_flow_stat(true);
+        }
     }
 }
 
