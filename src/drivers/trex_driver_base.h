@@ -219,6 +219,8 @@ public:
 
     void create_dummy();
 
+    CTRexExtendedDriverBase * create_driver(std::string name);
+
     CTRexExtendedDriverBase* get_drv();
 
 public:
@@ -226,8 +228,6 @@ public:
     static CTRexExtendedDriverDb * Ins();
 
 private:
-    CTRexExtendedDriverBase * create_driver(std::string name);
-
     CTRexExtendedDriverDb();
     void register_driver(std::string name, create_object_t func);
     static CTRexExtendedDriverDb * m_ins;

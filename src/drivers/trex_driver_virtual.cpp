@@ -270,6 +270,7 @@ void CTRexExtendedDriverAzure::update_configuration(port_cfg_t * cfg){
 
 CTRexExtendedDriverBonding::CTRexExtendedDriverBonding(){
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE | TREX_DRV_CAP_MAC_ADDR_CHG;
+    m_slave_drv = nullptr;
 }
 
 TRexPortAttr* CTRexExtendedDriverBonding::create_port_attr(tvpid_t tvpid, repid_t repid){
@@ -299,4 +300,56 @@ int CTRexExtendedDriverBonding::wait_for_stable_link(){
 
 void CTRexExtendedDriverBonding::wait_after_link_up(){
     wait_for_stable_link();
+}
+
+void CTRexExtendedDriverBonding::set_slave_driver(tvpid_t tvpid){
+    /* some slave drivers need to be called by bonding driver. */
+    if (m_slave_drv == nullptr) {
+        uint16_t slaves[RTE_MAX_ETHPORTS];
+        uint8_t slave_cnt = rte_eth_bond_slaves_get(CTVPort(tvpid).get_repid(), slaves, RTE_MAX_ETHPORTS);
+        if (slave_cnt > 0) {
+            struct rte_eth_dev_info dev_info;
+            rte_eth_dev_info_get(slaves[0], &dev_info);
+            if (CTRexExtendedDriverDb::Ins()->is_driver_exists(dev_info.driver_name)) {
+                m_slave_drv = CTRexExtendedDriverDb::Ins()->create_driver(dev_info.driver_name);
+                printf(" set slave driver = %s\n", dev_info.driver_name);
+            }
+        }
+    }
+}
+
+static std::vector<tvpid_t> get_bond_slave_devs(tvpid_t tvpid){
+    std::vector<tvpid_t> slave_devs;
+    uint16_t slaves[RTE_MAX_ETHPORTS];
+    uint8_t slave_cnt = rte_eth_bond_slaves_get(CTVPort(tvpid).get_repid(), slaves, RTE_MAX_ETHPORTS);
+
+    for (int i = 0; i < slave_cnt; i++) {
+        slave_devs.push_back(CREPort(slaves[i]).get_tvpid());
+    }
+
+    return slave_devs;
+}
+
+bool CTRexExtendedDriverBonding::extra_tx_queues_requires(tvpid_t tvpid){
+    set_slave_driver(tvpid);
+    if (m_slave_drv) {
+        for (auto slave_id: get_bond_slave_devs(tvpid)) {
+            if (m_slave_drv->extra_tx_queues_requires(slave_id)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+int CTRexExtendedDriverBonding::verify_fw_ver(tvpid_t tvpid){
+    set_slave_driver(tvpid);
+    if (m_slave_drv) {
+        for (auto slave_id: get_bond_slave_devs(tvpid)) {
+            if (m_slave_drv->verify_fw_ver(slave_id) < 0) {
+                return -1;
+            }
+        }
+    }
+    return 0;
 }
