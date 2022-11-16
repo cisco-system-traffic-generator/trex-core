@@ -7183,6 +7183,17 @@ COLD_FUNC void reorder_dpdk_ports() {
         if ( isVerbose(0) ){
            printf(" size of interfaces_vdevs %d \n",(int)cg->m_if_list_vdevs.size());
         }
+        if ( CGlobalInfo::m_options.m_pdevs_in_vdev.size() ) {
+            /* mapping virtual tvpid for bonding device driver usage.
+             * real tvpid will be updated by next m_if_list_vdevs loop. */
+            int tvpid = cg->m_if_list_vdevs.size();
+            uint8_t cnt = rte_eth_dev_count_avail();
+            for (int repid = 0; repid < cnt; repid++) {
+                lp->set_map(tvpid,repid);
+                lp->set_rmap(repid,tvpid);
+                tvpid++;
+            }
+        }
         int if_index = 0;
         for (std::string &opts : cg->m_if_list_vdevs) {
             if ( CTVPort(if_index).is_dummy() ) {
@@ -7204,6 +7215,7 @@ COLD_FUNC void reorder_dpdk_ports() {
                 printf(" ===>>>found %s %d \n",opts.c_str(),port_id);
             }
             lp->set_map(if_index,port_id);
+            lp->set_rmap(port_id,if_index);
             if_index++;
         }
         return;
@@ -7216,6 +7228,7 @@ COLD_FUNC void reorder_dpdk_ports() {
                     continue;
                 }
                 lp->set_map(i, if_index);
+                lp->set_rmap(if_index, i);
                 if_index++;
             }
             return;
