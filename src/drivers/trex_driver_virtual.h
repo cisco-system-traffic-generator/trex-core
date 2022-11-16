@@ -187,6 +187,13 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
+    virtual bool extra_tx_queues_requires(tvpid_t tvpid);
+    virtual int verify_fw_ver(tvpid_t tvpid);
+
+private:
+    CTRexExtendedDriverBase *m_slave_drv; // slave device driver
+
+    void set_slave_driver(tvpid_t tvpid);
 };
 
 
