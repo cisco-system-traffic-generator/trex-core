@@ -300,9 +300,8 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
     if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan, 0, 0xfff)) {
         mac_info.m_vlan = 0;
     }
-    if ( utl_yaml_read_uint16(node, "outer_vlan", mac_info.m_outer_vlan, 0, 0xfff)) {
+    if ( utl_yaml_read_uint16(node, "outer_vlan", mac_info.m_qinq.outer_vlan, 0, 0xfff)) {
         mac_info.m_qinq.inner_vlan = mac_info.m_vlan;
-        mac_info.m_qinq.outer_vlan = mac_info.m_outer_vlan;
         mac_info.m_vlan = 0;
     }
 

@@ -105,8 +105,7 @@ struct CMacYamlInfo {
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
-    uint16_t m_outer_vlan;
-    qinq_tag m_qinq;
+    qinq_tag m_qinq={0};
     void Dump(FILE *fd);
 
     void copy_dest(char *p);
