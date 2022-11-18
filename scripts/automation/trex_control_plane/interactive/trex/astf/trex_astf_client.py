@@ -1,6 +1,5 @@
 from __future__ import print_function
 from argparse import ArgumentParser
-from cProfile import label
 import hashlib
 import sys
 import time
@@ -39,24 +38,13 @@ astf_states = [
     'STATE_ASTF_CLEANUP',
     'STATE_ASTF_DELETE']
 
-class Mpls:
-    def __init__(self, label, tc, s=0, ttl=135):
-        self.label = label
-        self.tc = tc
-        self.s = s
-        self.ttl = ttl
 class Tunnel:
-    def __init__(self, sip=None, dip=None, sport=None, teid=None, version=None, mpls=None):
+    def __init__(self, sip, dip, sport, teid, version):
         self.sip      = sip
         self.dip      = dip
         self.sport = sport
         self.teid     = teid
         self.version  = version
-        if mpls:
-            self.label = mpls.label
-            self.tc = mpls.tc
-            self.s = mpls.s
-            self.ttl = mpls.ttl
 
 class ASTFClient(STLClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
@@ -1414,16 +1402,6 @@ class ASTFClient(STLClient):
  
         return json_attr
 
-    # private function to form json data for MPLS tunnel
-    def _update_mpls_tunnel(self, client_list):
-
-        json_attr = []
-
-        for key, value in client_list.items():
-            json_attr.append({'label': value.label, 'tc': value.tc, 's': value.s, 'ttl': value.ttl})
- 
-        return json_attr
-
     # execute 'method' for inserting/updateing tunnel info for clients
     @client_api('command', True)
     def update_tunnel_client_record (self, client_list, tunnel_type):
@@ -1432,8 +1410,6 @@ class ASTFClient(STLClient):
         
         if tunnel_type == parsing_opts.TunnelType.GTPU:
            json_attr = self._update_gtp_tunnel(client_list)
-        elif tunnel_type == parsing_opts.TunnelType.MPLS:
-            json_attr = self._update_mpls_tunnel(client_list)
         else:
            raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
         
@@ -1451,9 +1427,7 @@ class ASTFClient(STLClient):
     def is_tunnel_supported(self, tunnel_type=1):
         '''
         parameters:
-            tunnel_type: currently supported:
-                         type 1 (gtpu)
-                         type 2 (mpls)
+            tunnel_type: currently only type 1 (gtpu) is supported
         ret: 
             dict {is_tunnel_supported: true/false,
                   error_msg: why the tunnel is not supported}
@@ -1478,12 +1452,7 @@ class ASTFClient(STLClient):
             'loopback': loopback
             }
 
-        supported_tunnels = [
-            parsing_opts.TunnelType.GTPU,
-            parsing_opts.TunnelType.MPLS
-        ]
-
-        if tunnel_type not in supported_tunnels:
+        if tunnel_type != parsing_opts.TunnelType.GTPU:
            raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
 
         prefix = "Activating"
@@ -2153,41 +2122,30 @@ class ASTFClient(STLClient):
             parsing_opts.SPORT,
             parsing_opts.SRC_IP,
             parsing_opts.DST_IP,
-            parsing_opts.TUNNEL_TYPE,
-            parsing_opts.LABEL,
-            parsing_opts.TC,
-            parsing_opts.S,
-            parsing_opts.TTL,
+            parsing_opts.TUNNEL_TYPE
             )
         opts = parser.parse_args(shlex.split(line))
+        if opts.ipv6 and (not is_valid_ipv6(opts.src_ip) or not is_valid_ipv6(opts.dst_ip)):
+            raise TRexError("invalid IPv6 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
+
+        if not opts.ipv6 and (not is_valid_ipv4(opts.src_ip) or not is_valid_ipv4(opts.dst_ip)):
+            raise TRexError("invalid IPv4 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
 
         c_start = ip2int(opts.c_start)
         c_end = ip2int(opts.c_end)
         if (c_end < c_start):
             raise TRexError("invalid Client range: client_start: '{0}', client_end: {1}".format(opts.c_start, opts.c_end))
         print("src port is:{0}".format(opts.sport))
+        version = 4
+        if opts.ipv6:
+            version = 6
 
-        if not opts.label:
-            if opts.ipv6 and (not is_valid_ipv6(opts.src_ip) or not is_valid_ipv6(opts.dst_ip)):
-                raise TRexError("invalid IPv6 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
+        client_db = dict()
+        count = 0
+        for ip_num in range(c_start, c_end + 1):
+            client_db[ip_num] = Tunnel(opts.src_ip, opts.dst_ip, opts.sport, opts.teid + count, version)
+            count+=1
 
-            if not opts.ipv6 and (not is_valid_ipv4(opts.src_ip) or not is_valid_ipv4(opts.dst_ip)):
-                raise TRexError("invalid IPv4 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
-
-            version = 4
-            if opts.ipv6:
-                version = 6
-
-            client_db = dict()
-            count = 0
-            for ip_num in range(c_start, c_end + 1):
-                client_db[ip_num] = Tunnel(sip=opts.src_ip, dip=opts.dst_ip, sport=opts.sport, teid=opts.teid + count, version=version)
-                count+=1
-        else:
-            client_db = dict()
-            for ip_num in range(c_start, c_end + 1):
-                mpls = Mpls(label=opts.label, tc=opts.tc, s=opts.s, ttl=opts.ttl)
-                client_db[ip_num] = Tunnel(mpls=mpls)
         self.update_tunnel_client_record(client_db, opts.type)
 
 

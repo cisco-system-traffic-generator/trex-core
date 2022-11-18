@@ -40,10 +40,6 @@ void CTunnelsCtxGroup::to_json(Json::Value& group_json) const {
     group_json["version"] = m_tunnel_data.version;
     group_json["tunnel_type"] = m_tunnel_data.type;
     group_json["activate"] = m_activate;
-    group_json["label"] = m_tunnel_data.label;
-    group_json["tc"] = m_tunnel_data.tc;
-    group_json["s"] = m_tunnel_data.s;
-    group_json["ttl"] = m_tunnel_data.ttl;
     std::string src_ip;
     std::string dst_ip;
     if (m_tunnel_data.version == 6) {
@@ -133,7 +129,6 @@ void CTunnelsTopo::from_json_obj_tunnel_groups(Json::Value& tunnels_group_json) 
         std::string src_end_str = json_map_get_value(group, "src_end", "JSON map").asString();
         uint32_t src_start;
         uint32_t src_end;
-        uint32_t teid_jump = 0;
         bool rc = utl_ipv4_to_uint32(src_start_str.c_str(), src_start);
         rc = rc && utl_ipv4_to_uint32(src_end_str.c_str(), src_end);
         if (!rc) {
@@ -142,34 +137,23 @@ void CTunnelsTopo::from_json_obj_tunnel_groups(Json::Value& tunnels_group_json) 
         if (src_start > src_end) {
             parse_tunnel_topo_err("src_start must be <= to src_end");
         }
-
+        uint32_t teid_jump = json_map_get_value(group, "teid_jump", "JSON map").asUInt();
+        tunnel_data.teid = json_map_get_value(group, "initial_teid", "JSON map").asUInt();
+        tunnel_data.src_port = json_map_get_value(group, "sport", "JSON map").asUInt();
+        tunnel_data.version = json_map_get_value(group, "version", "JSON map").asUInt();
         tunnel_data.type = json_map_get_value(group, "tunnel_type", "JSON map").asUInt();
+        std::string src_ipv46 = json_map_get_value(group, "src_ip", "JSON map").asString();
+        std::string dst_ipv46 = json_map_get_value(group, "dst_ip", "JSON map").asString();
         bool activate = json_map_get_value(group, "activate", "JSON map").asBool();
-        if (tunnel_data.type == TUNNEL_TYPE_MPLS) {
-            tunnel_data.label = json_map_get_value(group, "label", "JSON map").asUInt();
-            tunnel_data.tc = json_map_get_value(group, "tc", "JSON map").asUInt();
-            tunnel_data.s = json_map_get_value(group, "s", "JSON map").asBool();
-            tunnel_data.ttl = json_map_get_value(group, "ttl", "JSON map").asUInt();
+        if (tunnel_data.version == 6) {
+           rc = (inet_pton(AF_INET6, src_ipv46.c_str(), tunnel_data.src.ipv6.addr) == 1);
+           rc = rc && (inet_pton(AF_INET6, dst_ipv46.c_str(), tunnel_data.dst.ipv6.addr) == 1);
         } else {
-            teid_jump = json_map_get_value(group, "teid_jump", "JSON map").asUInt();
-            tunnel_data.teid = json_map_get_value(group, "initial_teid", "JSON map").asUInt();
-            tunnel_data.src_port = json_map_get_value(group, "sport", "JSON map").asUInt();
-            tunnel_data.version = json_map_get_value(group, "version", "JSON map").asUInt();
-            tunnel_data.type = json_map_get_value(group, "tunnel_type", "JSON map").asUInt();
-            std::string src_ipv46 = json_map_get_value(group, "src_ip", "JSON map").asString();
-            std::string dst_ipv46 = json_map_get_value(group, "dst_ip", "JSON map").asString();
-            
-
-            if (tunnel_data.version == 6) {
-            rc = (inet_pton(AF_INET6, src_ipv46.c_str(), tunnel_data.src.ipv6.addr) == 1);
-            rc = rc && (inet_pton(AF_INET6, dst_ipv46.c_str(), tunnel_data.dst.ipv6.addr) == 1);
-            } else {
-            rc = (inet_pton(AF_INET, src_ipv46.c_str(), &tunnel_data.src.ipv4) == 1);
-            rc = rc && (inet_pton(AF_INET, dst_ipv46.c_str(), &tunnel_data.dst.ipv4) == 1);
-            }
-            if (!rc) {
-                parse_tunnel_topo_err("invalid src_ip and dst_ip: " + src_ipv46 + " " + dst_ipv46);
-            }
+           rc = (inet_pton(AF_INET, src_ipv46.c_str(), &tunnel_data.src.ipv4) == 1);
+           rc = rc && (inet_pton(AF_INET, dst_ipv46.c_str(), &tunnel_data.dst.ipv4) == 1);
+        }
+        if (!rc) {
+            parse_tunnel_topo_err("invalid src_ip and dst_ip: " + src_ipv46 + " " + dst_ipv46);
         }
         tmp_groups.push_back(CTunnelsCtxGroup(src_start, src_end, teid_jump, tunnel_data, activate));
     }

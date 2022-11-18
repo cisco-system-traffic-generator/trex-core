@@ -322,7 +322,6 @@ main_src = SrcGroup(dir='src',
             'utils/utl_port_map.cpp',
             'utils/utl_sync_barrier.cpp',
             'utils/utl_yaml.cpp',
-            'tunnels/mpls_man.cpp',
             'tunnels/gtp_man.cpp',
             'tunnels/tunnel_db.cpp'
             ]);

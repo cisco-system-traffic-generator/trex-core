@@ -103,7 +103,7 @@ public:
     *
     * @param teid_jump
     *   The difference between the teids of two consequtive clients in the range.
-    * 
+    *
     * @param activate
     *   bool that determines whether to activate or deactivate by deafult the clients in the group.
     */

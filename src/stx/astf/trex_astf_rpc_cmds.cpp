@@ -35,7 +35,6 @@ limitations under the License.
 #include "trex_astf_dp_core.h"
 #include "trex_astf_messaging.h"
 #include "dyn_sts.h"
-#include "../tunnels/mpls_man.h"
 
 using namespace std;
 

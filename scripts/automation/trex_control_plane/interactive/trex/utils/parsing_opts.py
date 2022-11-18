@@ -407,7 +407,6 @@ def decode_tunables (tunable_str):
 class TunnelType:
       NONE = 0
       GTPU  = 1
-      MPLS = 2
 
 tunnel_types = TunnelType()
 supported_tunnels = [attr for attr in dir(tunnel_types) if not callable(getattr(tunnel_types, attr)) and not attr.startswith("__") and attr != 'NONE']
@@ -418,16 +417,12 @@ def get_tunnel_type(tunnel_type_str):
     tunnel_type_str = tunnel_type_str.lower()
     if tunnel_type_str == "gtpu":
         return TunnelType.GTPU
-    elif tunnel_type_str == "mpls":
-        return TunnelType.MPLS
     else:
         raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_str))
 
 def get_tunnel_type_str(tunnel_type_num):
     if tunnel_type_num == TunnelType.GTPU:
         return "gtpu"
-    elif tunnel_type_num == TunnelType.MPLS:
-        return "mpls"
     else:
         raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_num))
 
@@ -836,30 +831,6 @@ class OPTIONS_DB_ARGS:
         {"required": True,
          'type': check_ipv4_addr,
          'help': "The last client that you want to update its tunnel."})
-
-    LABEL = ArgumentPack(
-        ['--label'],
-        {"required": False,
-         'type': int,
-         'help': 'MPLS label'})
-
-    TC = ArgumentPack(
-        ['--tc'],
-        {"required": False,
-         'type': int,
-         'help': 'MPLS Traffic Control'})
-    
-    S = ArgumentPack(
-        ['--s'],
-        {"required": False,
-         'type': int,
-         'help': 'MPLS Bottom of stack'})
-
-    TTL = ArgumentPack(
-        ['--ttl'],
-        {"required": False,
-         'type': int,
-         'help': 'MPLS TTL'})
 
     VERSION = ArgumentPack(
         ['--ipv6'],

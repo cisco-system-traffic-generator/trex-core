@@ -21,8 +21,7 @@ typedef void (*tunnel_ctx_del_cb_t)(void *tunnel_handler, void *tunnel_ctx);
 
 enum tunnel_type: uint8_t {
     TUNNEL_TYPE_NONE,
-    TUNNEL_TYPE_GTP,
-    TUNNEL_TYPE_MPLS
+    TUNNEL_TYPE_GTP
 };
 
 // The client_tunnel_data holds basic info
@@ -36,12 +35,6 @@ typedef struct {
     ipv4_ipv6_t src;
     ipv4_ipv6_t dst;
     void *ex_data;
-
-    //MPLS parameters
-    uint32_t label;
-    uint8_t tc;
-    bool s;
-    uint8_t ttl;
 }client_tunnel_data_t;
 
 
