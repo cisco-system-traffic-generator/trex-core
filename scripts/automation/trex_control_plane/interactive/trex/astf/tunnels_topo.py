@@ -1,3 +1,4 @@
+from cProfile import label
 import imp
 import json
 import yaml
@@ -30,15 +31,36 @@ class TopoTunnelLatency(object):
 
 
 class TopoTunnelCtx(object):
-    def __init__(self, src_start, src_end, initial_teid, teid_jump, sport, version, tunnel_type, src_ip, dst_ip, activate):
-        if version == 4 and (not is_valid_ipv4(src_ip) or not is_valid_ipv4(dst_ip)):
-            raise TRexError('src_ip and dst_ip are not a valid IPv4 addresses: %s, %s' % (src_ip, dst_ip))
-        elif version == 6 and (not is_valid_ipv6(src_ip) or not is_valid_ipv6(dst_ip)):
-            raise TRexError('src_ip and dst_ip are not a valid IPv6 addresses: %s, %s' % (src_ip, dst_ip))
-        if not is_valid_ipv4(src_start) or not is_valid_ipv4(src_end):
-            raise TRexError('src_start and src_end are not a valid IPv4 addresses: %s, %s' % (src_start, src_end))
-        fields = [initial_teid, teid_jump, sport, version, tunnel_type]
-        fields_str = ["initial_teid", 'teid_jump', "sport", "version", "tunnel_type"]
+    def __init__(self, src_start, src_end, activate, tunnel_type, initial_teid=None, teid_jump=None, sport=None, version=None, src_ip=None, dst_ip=None, mpls=None):
+        fields = []
+        fields_str = []
+        if tunnel_type == parsing_opts.TunnelType.GTPU:
+            if version == 4 and (not is_valid_ipv4(src_ip) or not is_valid_ipv4(dst_ip)):
+                raise TRexError('src_ip and dst_ip are not a valid IPv4 addresses: %s, %s' % (src_ip, dst_ip))
+            elif version == 6 and (not is_valid_ipv6(src_ip) or not is_valid_ipv6(dst_ip)):
+                raise TRexError('src_ip and dst_ip are not a valid IPv6 addresses: %s, %s' % (src_ip, dst_ip))
+            if not is_valid_ipv4(src_start) or not is_valid_ipv4(src_end):
+                raise TRexError('src_start and src_end are not a valid IPv4 addresses: %s, %s' % (src_start, src_end))
+            fields += [initial_teid, teid_jump, sport, version, tunnel_type]
+            fields_str += ["initial_teid", 'teid_jump', "sport", "version", "tunnel_type"]
+            
+            self.initial_teid = initial_teid
+            self.teid_jump = teid_jump
+            self.sport = sport
+            self.version = version
+            self.src_ip = src_ip
+            self.dst_ip = dst_ip
+            
+
+        elif tunnel_type == parsing_opts.TunnelType.MPLS:
+            self.label = mpls.label
+            self.tc = mpls.tc
+            self.ttl = mpls.ttl
+            self.s = mpls.s
+
+            fields += [mpls.label, mpls.tc, mpls.s, mpls.ttl]
+            fields_str += ["label", "tc", "s", "ttl"]
+
         for idx, val in enumerate(fields):
             if type(val) is not int:
                 raise TRexError("The type of '%s' field should be int" % (fields_str[idx]))
@@ -48,13 +70,9 @@ class TopoTunnelCtx(object):
 
         self.src_start = src_start
         self.src_end = src_end
-        self.initial_teid = initial_teid
-        self.teid_jump = teid_jump
-        self.sport = sport
-        self.version = version
+        
         self.tunnel_type = tunnel_type
-        self.src_ip = src_ip
-        self.dst_ip = dst_ip
+        
         self.activate = activate
 
 
@@ -70,6 +88,10 @@ class TopoTunnelCtx(object):
         d['src_ip']               = self.src_ip
         d['dst_ip']               = self.dst_ip
         d['activate']             = self.activate
+        d['label']                = self.label
+        d['tc']                   = self.tc
+        d['s']                    = self.s
+        d['ttl']                  = self.ttl
         return d
 
 

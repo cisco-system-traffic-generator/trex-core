@@ -961,6 +961,7 @@ main_src = SrcGroup(dir='src',
              '44bsd/tick_cmd_clock.cpp',
              '44bsd/udp.cpp',
 
+             'tunnels/mpls_man.cpp',
              'tunnels/gtp_man.cpp',
              'tunnels/tunnel_db.cpp',
 
