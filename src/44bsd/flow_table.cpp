@@ -458,14 +458,13 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                          uint32_t dst,
                                          uint16_t src_port,
                                          uint16_t dst_port,
-                                         uint16_t vlan,
+                                         tunnel_cfg_data_t* tunnel_data,
                                          bool is_ipv6,
                                         TCPHeader    * lpTcp,
                                         uint8_t *   pkt,
                                         IPv6Header *    ipv6,
                                         CFlowKeyFullTuple &ftuple,
-                                        tvpid_t port_id,
-                                        qinq_tag qinq){
+                                        tvpid_t port_id){
    /* TBD could be done much faster, but this is a corner case and there is no need to improve this 
       allocate flow, 
       fill information
@@ -485,12 +484,11 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                  dst,
                                  src_port,
                                  dst_port,
-                                 vlan,
+                                 tunnel_data,
                                  is_ipv6,
                                  NULL,
                                  0,
-                                 0,
-                                 qinq);
+                                 0);
     if (flow==0) {
         return;
     }
@@ -511,13 +509,12 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
                                   uint32_t dst,
                                   uint16_t src_port,
                                   uint16_t dst_port,
-                                  uint16_t vlan,
+                                  tunnel_cfg_data_t* tunnel_data,
                                   bool is_ipv6,
                                   void *tunnel_ctx,
                                   bool client,
                                   uint16_t tg_id,
-                                  uint16_t template_id,
-                                  qinq_tag qinq){
+                                  uint16_t template_id){
     CUdpFlow * flow = new (std::nothrow) CUdpFlow();
     if (flow == 0 ) {
         FT_INC_SCNT(m_err_no_memory);
@@ -525,7 +522,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, client, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,qinq,IPHeader::Protocol::UDP,tunnel_ctx,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,IPHeader::Protocol::UDP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -536,12 +533,11 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
                                   uint32_t dst,
                                   uint16_t src_port,
                                   uint16_t dst_port,
-                                  uint16_t vlan,
+                                  tunnel_cfg_data_t* tunnel_data,
                                   bool is_ipv6,
                                   void *tunnel_ctx,
                                   uint16_t tg_id,
-                                  uint16_t template_id,
-                                  qinq_tag qinq){
+                                  uint16_t template_id){
     CTcpFlow * flow = new (std::nothrow) CTcpFlow();
     if (flow == 0 ) {
         FT_INC_SCNT(m_err_no_memory);
@@ -549,7 +545,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,qinq,IPHeader::Protocol::TCP,tunnel_ctx,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,IPHeader::Protocol::TCP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -708,16 +704,15 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
-    uint16_t vlan=0;
-    qinq_tag qinq={0};
+    tunnel_cfg_data_t* tunnel_data = new tunnel_cfg_data_t();
     if (parser.m_vlan_offset==4) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        vlan = lpVlan->getVlanTag();
+        tunnel_data->m_vlan = lpVlan->getVlanTag();
     } else if (parser.m_vlan_offset==8) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        qinq.outer_vlan = lpVlan->getVlanTag();
+        tunnel_data->m_qinq.outer_vlan = lpVlan->getVlanTag();
         lpVlan = (VLANHeader *)(lpVlan+4);
-        qinq.inner_vlan = lpVlan->getVlanTag();
+        tunnel_data->m_qinq.inner_vlan = lpVlan->getVlanTag();
     }
 
     uint16_t dst_port = lpUDP->getDestPort();
@@ -762,8 +757,8 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     flow = ctx->m_ft.alloc_flow_udp(pctx, dest_ip, tuple.get_src_ip(),
                                     dst_port, tuple.get_sport(),
-                                    vlan, is_ipv6, NULL, false, tg_id,
-                                    c_template_idx, qinq);
+                                    tunnel_data, is_ipv6, NULL, false, tg_id,
+                                    c_template_idx);
 
 
 
@@ -836,16 +831,15 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
-    uint16_t vlan=0;
-    qinq_tag qinq={0};
+    tunnel_cfg_data_t* tunnel_data = new tunnel_cfg_data_t();
     if (parser.m_vlan_offset == 4) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        vlan = lpVlan->getVlanTag();
+        tunnel_data->m_vlan = lpVlan->getVlanTag();
     } else if (parser.m_vlan_offset==8) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        qinq.outer_vlan = lpVlan->getVlanTag();
+        tunnel_data->m_qinq.outer_vlan = lpVlan->getVlanTag();
         lpVlan = (VLANHeader *)(pkt+18);
-        qinq.inner_vlan = lpVlan->getVlanTag();
+        tunnel_data->m_qinq.inner_vlan = lpVlan->getVlanTag();
     }
 
     uint16_t dst_port = lpTcp->getDestPort();
@@ -881,13 +875,12 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                            source_ip,
                            dst_port,
                            lpTcp->getSourcePort(),
-                           vlan,
+                           tunnel_data,
                            is_ipv6,
                            lpTcp,
                            pkt,parser.m_ipv6,
                            ftuple,
-                           port_id,
-                           qinq);
+                           port_id);
         }
 
         FT_INC_SCNT(m_err_client_pkt_without_flow);
@@ -913,13 +906,12 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                              tuple.get_src_ip(),
                              dst_port,
                              tuple.get_sport(),
-                             vlan,
+                             tunnel_data,
                              is_ipv6,
                              lpTcp,
                              pkt,parser.m_ipv6,
                              ftuple,
-                             port_id,
-                             qinq);
+                             port_id);
 
         }
         rte_pktmbuf_free(mbuf);
@@ -949,7 +941,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                          tuple.get_src_ip(),
                          dst_port,
                          tuple.get_sport(),
-                         vlan,
+                         tunnel_data,
                          is_ipv6,
                          lpTcp,
                          pkt,parser.m_ipv6,
@@ -980,12 +972,11 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                    tuple.get_src_ip(),
                                    dst_port,
                                    tuple.get_sport(),
-                                   vlan,
+                                   tunnel_data,
                                    is_ipv6,
                                    NULL,
                                    tg_id,
-                                   c_template_idx,
-                                   qinq);
+                                   c_template_idx);
 
 
 

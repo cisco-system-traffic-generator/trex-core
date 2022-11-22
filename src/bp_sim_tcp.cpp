@@ -446,26 +446,24 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
 
     ClientCfgBase * lpc=tuple.getClientCfg();
 
-    uint16_t vlan=0;
-    qinq_tag qinq = {0};
+    tunnel_cfg_data_t* tunnel_data = new tunnel_cfg_data_t();
 
     if (lpc) {
         if (lpc->m_initiator.has_vlan()){
-            vlan=lpc->m_initiator.get_vlan();
+            tunnel_data->m_vlan = lpc->m_initiator.get_vlan();
         } else if (lpc->m_initiator.has_qinq())
         {
-            qinq = lpc->m_initiator.get_qinq();
+            tunnel_data->m_qinq = lpc->m_initiator.get_qinq();
         }
     }else{
         if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
      /* TBD need to fix , should be taken from right port */
     #ifndef TREX_SIM
-            vlan= get_client_side_vlan(m_node_gen.m_v_if);
+            tunnel_data->m_vlan = get_client_side_vlan(m_node_gen.m_v_if);
     #endif
         } else if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::QINQ_MODE_NORMAL) ) {
-     /* TBD need to fix , should be taken from right port */
     #ifndef TREX_SIM
-            qinq = get_client_side_qinq(m_node_gen.m_v_if);
+            tunnel_data->m_qinq = get_client_side_qinq(m_node_gen.m_v_if);
     #endif
         }
     }
@@ -488,25 +486,23 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
                                                tuple.getClientPort(),
                                                tuple.getServerPort(),
 
-                                               vlan,
+                                               tunnel_data,
                                                is_ipv6,
                                                tuple.getTunnelCtx(),
                                                true,
                                                tg_id,
-                                               template_id,
-                                               qinq);
+                                               template_id);
     }else{
         c_flow = m_c_tcp->m_ft.alloc_flow(pctx,
                                           tuple.getClient(),
                                           tuple.getServer(),
                                           tuple.getClientPort(),
                                           tuple.getServerPort(),
-                                          vlan,
+                                          tunnel_data,
                                           is_ipv6,
                                           tuple.getTunnelCtx(),
                                           tg_id,
-                                          template_id,
-                                          qinq);
+                                          template_id);
     }
 
     #ifdef RSS_DEBUG 
