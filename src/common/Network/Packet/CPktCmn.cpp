@@ -103,7 +103,7 @@ uint16_t pkt_SubtractInetChecksum(uint16_t checksum, uint16_t csToSubtract){
 extern "C" void pkt_ChecksumTest(){
 
     uint16_t cs;
-    uint8_t data[5] = {0xcd,0x7a,0x55,0x55,0xa1};
+    uint8_t data[6] = {0xcd,0x7a,0x55,0x55,0xa1,0x00};
 
     cs = pkt_InetChecksum((uint8_t*)data,5);
     printf("CS = 0x%04x: ",cs);
