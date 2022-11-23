@@ -880,7 +880,7 @@ class ASTFClient(STLClient):
         return rc.data()
 
     @client_api('getter', True)
-    def get_flow_info(self, profile_id = DEFAULT_PROFILE_ID, duration = 0):
+    def get_flow_info(self, profile_id = DEFAULT_PROFILE_ID, duration = 0, index = None):
         """
             Get TCP flow information
 
@@ -892,18 +892,57 @@ class ASTFClient(STLClient):
                     Requests stacked TCP flow information during duration time
                     Default value is 0 which means one time request.
 
+                index: int
+                    Retreive TCP flow information from the index of stacked data to the last index.
+                    For the first call, use 0 for all stacked data.
+                    And the next call, use "next_index" value in flows from the previous result.
+
+            :returns:
+                dictionary of <flow_id> : [ <flow_info>, ... ] pair.
+                - <flow_id> is represented by "<src_ip>:<src_port>-<dst_ip>:<dst_port>".
+                - <flow_info> is dictionary that contains following key-value pairs.
+
+                    - "origin" : "client" or "server"
+                    - "duration" : elapsed time after established, msec as TCP timer resolution(10 msec)
+
+                    - "state" : TCP state as a number.
+                        0 - CLOSED, 1 - LISTEN, 2 - SYN_SENT, 3 - SYN_RECCEIVED,
+                        4 - ESTABLISHED, 5 - CLOSE_WAIT, ...
+
+                    - "options" : "/timestamps", "/sack", "/wscale"
+                    - "snd_wscale" : window scaling for send window, with "/wscale" only
+                    - "rcv_wscale" : window scaling for recv window, with "/wscale" only
+                    - "rto" : current retransmit value (msec)
+                    - "last_data_recv" : inactivity time (msec)
+                    - "rtt" : smoothed round-trip time, msec >> TCP_RTT_SHIFT(5)
+                    - "rttvar" : variance in round-trip time, msec >> TCP_RTTVAR_SHIFT(4)
+                    - "snd_ssthresh" : snd_cwnd size threshold for slow start exponential to linear switch
+                    - "snd_cwnd" : congestion-controlled window size
+
+                    - "rcv_space" : receive window size
+                    - "rcv_nxt" : receive next, distance value from initial receive sequence number
+                    - "snd_wnd" : send window size
+                    - "snd_nxt" : send next, distance value from initial send sequence number
+                    - "snd_mss" : maximum segment size
+                    - "rcv_mss" : maximum segment size
+                    - "snd_rexmitpack" : retransmit packets sent count
+                    - "rcv_ooopack" : out-of-order packets received count
+                    - "snd_zerowin" : zero-window updates sent count
+
+                - When the index parameter is specified, "next_index" key is added as <flow_id>.
+
             :raises:
                 + :exc:`TRexError`
 
         """
         flows = {}
-        index = 0
+        next_index = index if index else 0
 
         timer = PassiveTimer(duration)
         while self._get_profile_state(profile_id) is not self.STATE_IDLE:
             params = {
                 'profile_id': profile_id,
-                'index': index,
+                'index': next_index,
                 }
             rc = self._transmit('get_flow_info', params = params)
             if not rc:
@@ -912,7 +951,7 @@ class ASTFClient(STLClient):
             for rc_flows in rc.data():
                 for flow_id in rc_flows:
                     if flow_id == 'index':
-                        index = rc_flows[flow_id] + 1
+                        next_index = rc_flows[flow_id] + 1
                     else:
                         flows[flow_id] = flows.get(flow_id, [])
                         flows[flow_id].append(rc_flows[flow_id])
@@ -925,6 +964,9 @@ class ASTFClient(STLClient):
                 break
 
             time.sleep(min(1.0, duration))
+
+        if index is not None:
+            flows['next_index'] = next_index
 
         return flows
 
