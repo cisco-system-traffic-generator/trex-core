@@ -1862,6 +1862,13 @@ COLD_FUNC qinq_tag get_client_side_qinq(CVirtualIF * _ifs){
     return(qinq);
 }
 
+COLD_FUNC tunnel_cfg_data_t get_client_side_tunnel_cfg_data(CVirtualIF * _ifs){
+    CCoreEthIFTcp * lpif=(CCoreEthIFTcp *)_ifs;
+    CCorePerPort *lp_port = (CCorePerPort *)lpif->get_ports();
+    uint8_t port_id = lp_port->m_port->get_tvpid();
+    tunnel_cfg_data_t tunnel_data=CGlobalInfo::m_options.m_ip_cfg[port_id].get_tunnel_cfg_data();
+    return(tunnel_data);
+}
 
 COLD_FUNC bool CCoreEthIF::Create(uint8_t             core_id,
                         uint8_t             tx_client_queue_id,

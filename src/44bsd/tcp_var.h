@@ -307,7 +307,7 @@ public:
                    uint32_t dst,
                    uint16_t src_port,
                    uint16_t dst_port,
-                   tunnel_cfg_data_t* tunnel_data,
+                   tunnel_cfg_data_t tunnel_data,
                    uint8_t  proto,
                    void    *tunnel_ctx,
                    bool     is_ipv6){
@@ -380,7 +380,7 @@ public:
     uint32_t  m_dst_ipv4;
     uint16_t  m_src_port;
     uint16_t  m_dst_port;
-    tunnel_cfg_data_t* m_tunnel_data;
+    tunnel_cfg_data_t m_tunnel_data;
     uint16_t  m_l4_pseudo_checksum;
     void     *m_tunnel_ctx;
     uint8_t   m_offset_l4; /* offset of tcp_header, in template */
@@ -411,7 +411,7 @@ public:
                    uint32_t dst,
                    uint16_t src_port,
                    uint16_t dst_port,
-                   tunnel_cfg_data_t* tunnel_data,
+                   tunnel_cfg_data_t tunnel_data,
                    uint8_t  proto,
                    bool is_ipv6){
         m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,proto,NULL,is_ipv6);

@@ -507,28 +507,25 @@ typedef struct tunnel_cfg_data_t{
 
 class CPerPortIPCfg {
  public:
-    CPerPortIPCfg() {
-        m_tunnel_cfg_data = new tunnel_cfg_data_t();
-    }
     uint32_t get_ip() {return m_ip;}
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
-    uint32_t get_vlan() {return m_tunnel_cfg_data->m_vlan;}
-    qinq_tag get_qinq() {return m_tunnel_cfg_data->m_qinq;}
-    tunnel_cfg_data_t* get_tunnel_cfg_data() {return m_tunnel_cfg_data;}
+    uint32_t get_vlan() {return m_tunnel_cfg_data.m_vlan;}
+    qinq_tag get_qinq() {return m_tunnel_cfg_data.m_qinq;}
+    tunnel_cfg_data_t get_tunnel_cfg_data() {return m_tunnel_cfg_data;}
     bool get_vxlan_fs() {return m_vxlan_fs;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
-    void set_vlan(uint16_t val) {m_tunnel_cfg_data->m_vlan = val;}
-    void set_qinq(qinq_tag val) {m_tunnel_cfg_data->m_qinq = val;}
-    void set_tunnel_cfg_data(tunnel_cfg_data_t* val) {m_tunnel_cfg_data = val;}
+    void set_vlan(uint16_t val) {m_tunnel_cfg_data.m_vlan = val;}
+    void set_qinq(qinq_tag val) {m_tunnel_cfg_data.m_qinq = val;}
+    void set_tunnel_cfg_data(tunnel_cfg_data_t val) {m_tunnel_cfg_data = val;}
     void set_vxlan_fs(bool val) {m_vxlan_fs = val;}
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
-    tunnel_cfg_data_t* m_tunnel_cfg_data;
+    tunnel_cfg_data_t m_tunnel_cfg_data;
     bool m_vxlan_fs = false;
 };
 
