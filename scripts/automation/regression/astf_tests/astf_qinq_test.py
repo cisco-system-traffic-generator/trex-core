@@ -12,8 +12,8 @@ import copy
 def sortKey(val):
    return min(val)
 
-class ASTFVLAN_Test(CASTFGeneral_Test):
-    ''' Checks for VLAN in latency, traffic, resolve and ping '''
+class ASTFQINQ_Test(CASTFGeneral_Test):
+    ''' Checks for QinQ in latency, traffic, resolve and ping '''
 
     @classmethod
     def setUpClass(cls):
@@ -24,26 +24,15 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         if cls.tx_port > cls.rx_port:
             cls.tx_port, cls.rx_port = cls.rx_port, cls.tx_port
         cls.ports = [cls.tx_port, cls.rx_port]
-        c = CTRexScenario.astf_trex
-        tx_port_vlan = c.get_port(cls.tx_port).get_vlan_cfg()
-        rx_port_vlan = c.get_port(cls.rx_port).get_vlan_cfg()
-        if tx_port_vlan != rx_port_vlan:
-            print('TX port VLAN != RX port VLAN, clearing')
-            cls.conf_vlan(cls.ports, False)
-            cls.vlan_prev = None
-        else:
-            cls.vlan_prev = tx_port_vlan
-        cls.vlan = 30
+        cls.inner_vlan = 30
+        cls.outer_vlan = 40
         cls.exp_packets = 20
 
 
     @classmethod
     def tearDownClass(cls):
         c = CTRexScenario.astf_trex
-        if cls.vlan_prev:
-            c.set_vlan(cls.ports, cls.vlan_prev)
-        else:
-            c.clear_vlan(cls.ports)
+        c.clear_vlan(cls.ports)
         c.remove_all_captures()
 
 
@@ -57,19 +46,19 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
 
     @classmethod
-    def conf_vlan(cls, ports, enabled):
+    def conf_qinq(cls, ports, enabled):
         c = CTRexScenario.astf_trex
         if enabled:
-            c.set_vlan(ports, vlan = cls.vlan)
+            c.set_vlan(ports, vlan = [cls.outer_vlan, cls.inner_vlan])
         else:
             c.clear_vlan(ports)
 
 
     def conf_environment(self, vlan_enabled, bpf_ip):
         c = self.astf_trex
-        self.conf_vlan(self.ports, vlan_enabled)
+        self.conf_qinq(self.ports, vlan_enabled)
         if vlan_enabled:
-            bpf = 'vlan %s and %s' % (self.vlan, bpf_ip)
+            bpf = 'vlan %s && vlan %s and %s' % (self.outer_vlan, self.inner_vlan, bpf_ip)
         else:
             bpf = bpf_ip
         capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets, bpf_filter = bpf)['id']
@@ -77,7 +66,7 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         return capt_id, debug_capt_id
 
 
-    def verify_vlan(self, with_vlan, cap_ids, is_ipv4 = True):
+    def verify_qinq(self, with_vlan, cap_ids, is_ipv4 = True):
         c = self.astf_trex
         filtered_pkts = []
         capture_id, debug_capture_id = cap_ids
@@ -103,7 +92,7 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         return ''.join(random.choice(letters) for i in range(stringLength))
 
 
-    def test_latency_vlan(self):
+    def test_latency_qinq(self):
         if CTRexScenario.setup_name in ['trex07']:
             self.skip('Skipping trex07')
         if CTRexScenario.setup_name in ['trex24']:
@@ -119,14 +108,14 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         c.start_latency(mult = 1000, src_ipv4 = src_ip)
         time.sleep(1)
         c.stop_latency()
-        self.verify_vlan(False, cap_ids)
+        self.verify_qinq(False, cap_ids)
 
         # with VLAN
         cap_ids = self.conf_environment(True, bpf_ip)
         c.start_latency(mult = 1000, src_ipv4 = src_ip)
         time.sleep(1)
         c.stop_latency()
-        self.verify_vlan(True, cap_ids)
+        self.verify_qinq(True, cap_ids)
 
 
     def get_profile(self, src_ip_start, src_ip_end):
@@ -153,7 +142,7 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         return ASTFProfile(default_ip_gen=ip_gen, templates=template)
 
 
-    def test_traffic_vlan(self):
+    def test_traffic_qinq(self):
         print('')
         c = self.astf_trex
         src_ip_start = '123.123.123.1'
@@ -161,36 +150,36 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         src_ip_bpf   = 'ip src net 123.123.123.0/24'
         c.load_profile(self.get_profile(src_ip_start, src_ip_end))
 
-        # no VLAN, IPv4
+        # no QinQ, IPv4
         cap_ids = self.conf_environment(False, src_ip_bpf)
         c.start(mult = 1000)
         time.sleep(1)
         c.stop()
-        self.verify_vlan(False, cap_ids)
+        self.verify_qinq(False, cap_ids)
 
-        # with VLAN, IPv4
+        # with QinQ, IPv4
         cap_ids = self.conf_environment(True, src_ip_bpf)
         c.start(mult = 1000)
         time.sleep(1)
         c.stop()
-        self.verify_vlan(True, cap_ids)
+        self.verify_qinq(True, cap_ids)
 
         src_ip_bpf   = 'ip6 src net ::123.123.123.0/120'
-        # no VLAN, IPv6
+        # no QinQ, IPv6
         cap_ids = self.conf_environment(False, src_ip_bpf)
         c.start(mult = 1000, ipv6 = True)
         time.sleep(1)
         c.stop()
-        self.verify_vlan(False, cap_ids, is_ipv4 = False)
+        self.verify_qinq(False, cap_ids, is_ipv4 = False)
 
-        # with VLAN, IPv6
+        # with QinQ, IPv6
         cap_ids = self.conf_environment(True, src_ip_bpf)
         c.start(mult = 1000, ipv6 = True)
         time.sleep(1)
         c.stop()
-        self.verify_vlan(True, cap_ids, is_ipv4 = False)
+        self.verify_qinq(True, cap_ids, is_ipv4 = False)
 
-    def test_traffic_vlan_dynamic_profile(self):
+    def test_traffic_qinq_dynamic_profile(self):
         print('')
         print('Creating random name for the dynamic profile')
         random_profile = self.randomString()
@@ -202,53 +191,53 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         src_ip_bpf   = 'ip src net 123.123.123.0/24'
         c.load_profile(self.get_profile(src_ip_start, src_ip_end), pid_input=str(random_profile))
 
-        # no VLAN, IPv4
+        # no QinQ, IPv4
         cap_ids = self.conf_environment(False, src_ip_bpf)
         c.start(mult = 1000, pid_input=str(random_profile))
         time.sleep(1)
         c.stop(pid_input=str(random_profile))
-        self.verify_vlan(False, cap_ids)
+        self.verify_qinq(False, cap_ids)
 
-        # with VLAN, IPv4
+        # with QinQ, IPv4
         cap_ids = self.conf_environment(True, src_ip_bpf)
         c.start(mult = 1000, pid_input=str(random_profile))
         time.sleep(1)
         c.stop(pid_input=str(random_profile))
-        self.verify_vlan(True, cap_ids)
+        self.verify_qinq(True, cap_ids)
 
         src_ip_bpf   = 'ip6 src net ::123.123.123.0/120'
-        # no VLAN, IPv6
+        # no QinQ, IPv6
         cap_ids = self.conf_environment(False, src_ip_bpf)
         c.start(mult = 1000, ipv6 = True, pid_input=str(random_profile))
         time.sleep(1)
         c.stop(pid_input=str(random_profile))
-        self.verify_vlan(False, cap_ids, is_ipv4 = False)
+        self.verify_qinq(False, cap_ids, is_ipv4 = False)
 
-        # with VLAN, IPv6
+        # with QinQ, IPv6
         cap_ids = self.conf_environment(True, src_ip_bpf)
         c.start(mult = 1000, ipv6 = True, pid_input=str(random_profile))
         time.sleep(1)
         c.stop(pid_input=str(random_profile))
-        self.verify_vlan(True, cap_ids, is_ipv4 = False)
+        self.verify_qinq(True, cap_ids, is_ipv4 = False)
 
 
-    def test_resolve_vlan(self):
+    def test_resolve_qinq(self):
         c = self.astf_trex
         if not c.get_resolvable_ports():
             self.skip('No resolvable ports')
-        self.conf_vlan(self.ports, False)
+        self.conf_qinq(self.ports, False)
         c.resolve()
-        self.conf_vlan(self.tx_port, True)
+        self.conf_qinq(self.tx_port, True)
         with assert_raises(TRexError):
             c.resolve()
-        self.conf_vlan(self.ports, True)
+        self.conf_qinq(self.ports, True)
         c.resolve()
-        self.conf_vlan(self.tx_port, False)
+        self.conf_qinq(self.tx_port, False)
         with assert_raises(TRexError):
             c.resolve()
 
 
-    def test_ping_vlan(self):
+    def test_ping_qinq(self):
         print('')
         c = self.astf_trex
         rx_port = c.get_port(self.rx_port)
@@ -257,32 +246,32 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
         dst_ip = rx_port.get_layer_cfg()['ipv4']['src']
 
-        print('TX port without VLAN, RX port without VLAN')
-        self.conf_vlan(self.ports, False)
+        print('TX port without QinQ, RX port without QinQ')
+        self.conf_qinq(self.ports, False)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
             print('Got reply as expected')
         else:
             self.fail('Got no reply, ping record: %s' % rec)
 
-        print('TX port with VLAN, RX port without VLAN')
-        self.conf_vlan(self.tx_port, True)
+        print('TX port with QinQ, RX port without QinQ')
+        self.conf_qinq(self.tx_port, True)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
             self.fail('Got unexpected reply, ping record: %s' % rec)
         else:
             print('Got no reply as expected')
 
-        print('TX port with VLAN, RX port with VLAN')
-        self.conf_vlan(self.ports, True)
+        print('TX port with QinQ, RX port with QinQ')
+        self.conf_qinq(self.ports, True)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
             print('Got reply as expected')
         else:
             self.fail('Got no reply, ping record: %s' % rec)
 
-        print('TX port without VLAN, RX port with VLAN')
-        self.conf_vlan(self.tx_port, False)
+        print('TX port without QinQ, RX port with QinQ')
+        self.conf_qinq(self.tx_port, False)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
             self.fail('Got unexpected reply, ping record: %s' % rec)
@@ -290,11 +279,13 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
             print('Got no reply as expected')
 
 
-    def test_config_vlan(self):
+    def test_config_qinq(self):
         with assert_raises(TRexError):
-            self.astf_trex.set_vlan(self.tx_port, [5000])
+            self.astf_trex.set_vlan(self.tx_port, [5000, 6000])
         with assert_raises(TRexError):
             self.astf_trex.set_vlan(self.tx_port, [-1])
-        with assert_raises(TRexError):
-            self.astf_trex.set_vlan(self.tx_port, [12, 13, 14]) # astf allows doesn't allow >2 VLAN
+        try:
+            self.astf_trex.set_vlan(self.tx_port, [12, 13])
+        except TRexError:
+            self.fail("Failed to configure QinQ")
 

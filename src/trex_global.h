@@ -93,6 +93,7 @@ public:
         VLAN_MODE_NONE = 0,
         VLAN_MODE_NORMAL = 1,
         VLAN_MODE_LOAD_BALANCE = 2,
+        QINQ_MODE_NORMAL = 3,
     };
 
     CPreviewMode(){
@@ -495,23 +496,36 @@ public:
     } u;
 } __rte_cache_aligned;
 
+typedef struct tunnel_cfg_data_t{
+    uint16_t m_vlan;
+    qinq_tag m_qinq;
+    tunnel_cfg_data_t() {
+        m_qinq = {0};
+        m_vlan = 0;
+    }
+} tunnel_cfg_data_t;
+
 class CPerPortIPCfg {
  public:
     uint32_t get_ip() {return m_ip;}
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
-    uint32_t get_vlan() {return m_vlan;}
+    uint32_t get_vlan() {return m_tunnel_cfg_data.m_vlan;}
+    qinq_tag get_qinq() {return m_tunnel_cfg_data.m_qinq;}
+    tunnel_cfg_data_t get_tunnel_cfg_data() {return m_tunnel_cfg_data;}
     bool get_vxlan_fs() {return m_vxlan_fs;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
-    void set_vlan(uint16_t val) {m_vlan = val;}
+    void set_vlan(uint16_t val) {m_tunnel_cfg_data.m_vlan = val;}
+    void set_qinq(qinq_tag val) {m_tunnel_cfg_data.m_qinq = val;}
+    void set_tunnel_cfg_data(tunnel_cfg_data_t val) {m_tunnel_cfg_data = val;}
     void set_vxlan_fs(bool val) {m_vxlan_fs = val;}
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
-    uint16_t m_vlan;
+    tunnel_cfg_data_t m_tunnel_cfg_data;
     bool m_vxlan_fs = false;
 };
 
@@ -554,12 +568,18 @@ public:
         m_platform_factor = 1.0;
         m_vlan_port[0] = 100;
         m_vlan_port[1] = 100;
+        for (uint8_t i = 0; i < 2; i++)
+        {
+            m_qinq_port[i].outer_vlan = 100;
+            m_qinq_port[i].inner_vlan = 101;
+        }
         memset(m_src_ipv6, 0, sizeof(m_src_ipv6));
         memset(m_dst_ipv6, 0, sizeof(m_dst_ipv6));
         m_ip_cfg->set_ip(0);
         m_ip_cfg->set_mask(0);
         m_ip_cfg->set_def_gw(0);
         m_ip_cfg->set_vlan(0);
+        m_ip_cfg->set_qinq({0});
         m_ip_cfg->set_vxlan_fs(false);
         m_latency_rate = 0;
         m_latency_mask = 0xffffffff;
@@ -627,6 +647,7 @@ public:
     float           m_duration;
     float           m_platform_factor;
     uint16_t        m_vlan_port[2]; /* vlan value */
+    qinq_tag        m_qinq_port[2]; /* qinq value */
     uint16_t        m_src_ipv6[6];  /* Most signficant 96-bits */
     uint16_t        m_dst_ipv6[6];  /* Most signficant 96-bits */
     CPerPortIPCfg   m_ip_cfg[TREX_MAX_PORTS];

@@ -494,6 +494,13 @@ void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
                 opts.m_ip_cfg[m_port_id].set_vlan(vlan_list[0]);
                 opts.preview.set_vlan_mode(CPreviewMode::VLAN_MODE_NORMAL);
                 break;
+            case 2: {
+                qinq_tag qinq = {0};
+                qinq.outer_vlan = vlan_list[0];
+                qinq.inner_vlan = vlan_list[1];
+                opts.m_ip_cfg[0].set_qinq(qinq);
+                break;
+            }
             default:
                 throw TrexException("Stacked VLANs are not allowed in ASTF mode");
         }

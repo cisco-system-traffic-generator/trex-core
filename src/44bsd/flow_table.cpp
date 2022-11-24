@@ -458,7 +458,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                          uint32_t dst,
                                          uint16_t src_port,
                                          uint16_t dst_port,
-                                         uint16_t vlan,
+                                         tunnel_cfg_data_t tunnel_data,
                                          bool is_ipv6,
                                         TCPHeader    * lpTcp,
                                         uint8_t *   pkt,
@@ -484,9 +484,11 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                  dst,
                                  src_port,
                                  dst_port,
-                                 vlan,
+                                 tunnel_data,
                                  is_ipv6,
-                                 NULL);
+                                 NULL,
+                                 0,
+                                 0);
     if (flow==0) {
         return;
     }
@@ -507,7 +509,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
                                   uint32_t dst,
                                   uint16_t src_port,
                                   uint16_t dst_port,
-                                  uint16_t vlan,
+                                  tunnel_cfg_data_t tunnel_data,
                                   bool is_ipv6,
                                   void *tunnel_ctx,
                                   bool client,
@@ -520,7 +522,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, client, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,tunnel_ctx,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,IPHeader::Protocol::UDP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -531,7 +533,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
                                   uint32_t dst,
                                   uint16_t src_port,
                                   uint16_t dst_port,
-                                  uint16_t vlan,
+                                  tunnel_cfg_data_t tunnel_data,
                                   bool is_ipv6,
                                   void *tunnel_ctx,
                                   uint16_t tg_id,
@@ -543,7 +545,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,tunnel_ctx,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,IPHeader::Protocol::TCP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -702,10 +704,15 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
-    uint16_t vlan=0;
-    if (parser.m_vlan_offset) {
+    tunnel_cfg_data_t tunnel_data;
+    if (parser.m_vlan_offset==4) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        vlan = lpVlan->getVlanTag();
+        tunnel_data.m_vlan = lpVlan->getVlanTag();
+    } else if (parser.m_vlan_offset==8) {
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
+        tunnel_data.m_qinq.outer_vlan = lpVlan->getVlanTag();
+        lpVlan = (VLANHeader *)(lpVlan+4);
+        tunnel_data.m_qinq.inner_vlan = lpVlan->getVlanTag();
     }
 
     uint16_t dst_port = lpUDP->getDestPort();
@@ -750,10 +757,8 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     flow = ctx->m_ft.alloc_flow_udp(pctx, dest_ip, tuple.get_src_ip(),
                                     dst_port, tuple.get_sport(),
-                                    vlan, is_ipv6, NULL, false, tg_id,
+                                    tunnel_data, is_ipv6, NULL, false, tg_id,
                                     c_template_idx);
-
-
 
     if (flow == 0 ) {
         rte_pktmbuf_free(mbuf);
@@ -824,10 +829,15 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
-    uint16_t vlan=0;
-    if (parser.m_vlan_offset) {
+    tunnel_cfg_data_t tunnel_data;
+    if (parser.m_vlan_offset == 4) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        vlan = lpVlan->getVlanTag();
+        tunnel_data.m_vlan = lpVlan->getVlanTag();
+    } else if (parser.m_vlan_offset==8) {
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
+        tunnel_data.m_qinq.outer_vlan = lpVlan->getVlanTag();
+        lpVlan = (VLANHeader *)(pkt+18);
+        tunnel_data.m_qinq.inner_vlan = lpVlan->getVlanTag();
     }
 
     uint16_t dst_port = lpTcp->getDestPort();
@@ -863,7 +873,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                            source_ip,
                            dst_port,
                            lpTcp->getSourcePort(),
-                           vlan,
+                           tunnel_data,
                            is_ipv6,
                            lpTcp,
                            pkt,parser.m_ipv6,
@@ -894,7 +904,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                              tuple.get_src_ip(),
                              dst_port,
                              tuple.get_sport(),
-                             vlan,
+                             tunnel_data,
                              is_ipv6,
                              lpTcp,
                              pkt,parser.m_ipv6,
@@ -929,7 +939,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                          tuple.get_src_ip(),
                          dst_port,
                          tuple.get_sport(),
-                         vlan,
+                         tunnel_data,
                          is_ipv6,
                          lpTcp,
                          pkt,parser.m_ipv6,
@@ -960,7 +970,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                    tuple.get_src_ip(),
                                    dst_port,
                                    tuple.get_sport(),
-                                   vlan,
+                                   tunnel_data,
                                    is_ipv6,
                                    NULL,
                                    tg_id,
@@ -1027,7 +1037,6 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* process SYN packet */
     process_tcp_packet(ctx,lptflow,mbuf,lpTcp,ftuple);
-
     return(true);
 }
 

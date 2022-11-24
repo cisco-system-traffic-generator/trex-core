@@ -105,6 +105,7 @@ struct CMacYamlInfo {
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
+    qinq_tag m_qinq={0};
     void Dump(FILE *fd);
 
     void copy_dest(char *p);
@@ -112,6 +113,7 @@ struct CMacYamlInfo {
     uint32_t get_def_gw();
     uint32_t get_ip();
     uint32_t get_vlan();
+    qinq_tag get_qinq();
     uint32_t get_mask();
 
     void dump_mac_vector( std::vector<uint8_t> & v,FILE *fd){
