@@ -49,7 +49,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
     def conf_qinq(cls, ports, enabled):
         c = CTRexScenario.astf_trex
         if enabled:
-            c.set_vlan(ports, vlan = [cls.inner_vlan, cls.outer_vlan])
+            c.set_vlan(ports, vlan = [cls.outer_vlan, cls.inner_vlan])
         else:
             c.clear_vlan(ports)
 
@@ -58,7 +58,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         c = self.astf_trex
         self.conf_qinq(self.ports, vlan_enabled)
         if vlan_enabled:
-            bpf = 'vlan %s and %s' % (self.innervlan, bpf_ip)
+            bpf = 'vlan %s && vlan %s and %s' % (self.outer_vlan, self.inner_vlan, bpf_ip)
         else:
             bpf = bpf_ip
         capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets, bpf_filter = bpf)['id']
@@ -246,7 +246,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
 
         dst_ip = rx_port.get_layer_cfg()['ipv4']['src']
 
-        print('TX port without VLAN, RX port without VLAN')
+        print('TX port without QinQ, RX port without QinQ')
         self.conf_qinq(self.ports, False)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
@@ -254,7 +254,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         else:
             self.fail('Got no reply, ping record: %s' % rec)
 
-        print('TX port with VLAN, RX port without VLAN')
+        print('TX port with QinQ, RX port without QinQ')
         self.conf_qinq(self.tx_port, True)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
@@ -262,7 +262,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         else:
             print('Got no reply as expected')
 
-        print('TX port with VLAN, RX port with VLAN')
+        print('TX port with QinQ, RX port with QinQ')
         self.conf_qinq(self.ports, True)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
@@ -270,7 +270,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         else:
             self.fail('Got no reply, ping record: %s' % rec)
 
-        print('TX port without VLAN, RX port with VLAN')
+        print('TX port without QinQ, RX port with QinQ')
         self.conf_qinq(self.tx_port, False)
         rec = c.ping_ip(self.tx_port, dst_ip, count = 1, timeout_sec = 0.5)[0]
         if rec.state == rec.SUCCESS:
