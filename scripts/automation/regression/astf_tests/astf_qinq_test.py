@@ -32,7 +32,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
     @classmethod
     def tearDownClass(cls):
         c = CTRexScenario.astf_trex
-        c.clear_vlan(cls.ports)
+        c.set_vlan(cls.ports, [cls.outer_vlan, cls.inner_vlan])
         c.remove_all_captures()
 
 
@@ -58,7 +58,7 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         c = self.astf_trex
         self.conf_qinq(self.ports, vlan_enabled)
         if vlan_enabled:
-            bpf = 'vlan %s && vlan %s and %s' % (self.outer_vlan, self.inner_vlan, bpf_ip)
+            bpf = 'vlan %s && vlan %s && %s' % (self.outer_vlan, self.inner_vlan, bpf_ip)
         else:
             bpf = bpf_ip
         capt_id = c.start_capture(rx_ports = self.rx_port, limit = self.exp_packets, bpf_filter = bpf)['id']
@@ -66,14 +66,14 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         return capt_id, debug_capt_id
 
 
-    def verify_qinq(self, with_vlan, cap_ids, is_ipv4 = True):
+    def verify_qinq(self, with_qinq, cap_ids, is_ipv4 = True):
         c = self.astf_trex
         filtered_pkts = []
         capture_id, debug_capture_id = cap_ids
         c.stop_capture(capture_id, filtered_pkts)
-        vlan_str = 'with' if with_vlan else 'without'
+        qinq_str = 'with' if with_qinq else 'without'
         ip_str = 'IPv4' if is_ipv4 else 'IPv6'
-        print('Expected %s %s pkts %s VLAN, got %s' % (self.exp_packets, ip_str, vlan_str, len(filtered_pkts)))
+        print('Expected %s %s pkts %s QinQ, got %s' % (self.exp_packets, ip_str, qinq_str, len(filtered_pkts)))
 
         if len(filtered_pkts) < self.exp_packets:
             print('Got following packets:')

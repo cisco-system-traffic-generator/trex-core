@@ -457,16 +457,6 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
             tunnel_data.m_qinq = lpc->m_initiator.get_qinq();
         }
     }else{
-    //     if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
-    //  /* TBD need to fix , should be taken from right port */
-    // #ifndef TREX_SIM
-    //         tunnel_data.m_vlan = get_client_side_vlan(m_node_gen.m_v_if);
-    // #endif
-    //     } else if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::QINQ_MODE_NORMAL) ) {
-    // #ifndef TREX_SIM
-    //         tunnel_data.m_qinq = get_client_side_qinq(m_node_gen.m_v_if);
-    // #endif
-    //     }
         if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) ) {
     #ifndef TREX_SIM
             tunnel_data = get_client_side_tunnel_cfg_data(m_node_gen.m_v_if);
