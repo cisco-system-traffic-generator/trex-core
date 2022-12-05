@@ -499,6 +499,7 @@ void TrexPort::set_vlan_cfg_async(const vlan_list_t &vlan_list) {
                 qinq.outer_vlan = vlan_list[0];
                 qinq.inner_vlan = vlan_list[1];
                 opts.m_ip_cfg[0].set_qinq(qinq);
+                opts.preview.set_vlan_mode(CPreviewMode::QINQ_MODE_NORMAL);
                 break;
             }
             default:
