@@ -863,13 +863,22 @@ class ASTFClient(STLClient):
                 raise TRexError(rc.err())
 
     @client_api('getter', True)
-    def get_profiles(self):
+    def get_profiles(self, profiles_in_ports = False):
         """
             Get profile list from Server.
 
+            :parameters:
+                profiles_in_ports: bool
+                    Get Stateless profiles also in all available ports
+                    Default is False
+
+            :returns:
+                List of profile names. When profiles_in_ports parameter is specified,
+                a dictionary for all available ports is included in the list.
         """
         params = {
             'handler': self.handler,
+            'profiles_in_ports': profiles_in_ports,
             }
         self.ctx.logger.pre_cmd('Getting profile list.')
         rc = self._transmit('get_profile_list', params = params)
