@@ -87,6 +87,7 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
 
     m_dp_states.resize(api.get_dp_core_count());
     m_stopping_dp = false;
+    m_starting_dp = false;
 
     /* create RX core */
     CRxCore *rx = (CRxCore*) new CRxAstfCore();
@@ -275,10 +276,18 @@ bool TrexAstf::is_dp_core_state(int state, bool any) {
 void TrexAstf::dp_core_state(int thread_id, int state) {
     m_dp_states[thread_id] = state;
 
+    if (m_starting_dp && is_dp_core_state(TrexAstfDpCore::STATE_TRANSMITTING)) {
+        m_starting_dp = false;
+        for (auto msg: m_suspended_core0_msgs) {
+            send_message_to_dp(0, msg);     // TrexAstfLoadDB, TrexAstfDeleteDB
+        }
+        m_suspended_core0_msgs.clear();
+    }
+
     if (m_stopping_dp && is_dp_core_state(TrexAstfDpCore::STATE_IDLE)) {
         m_stopping_dp = false;
         for (auto msg: m_suspended_msgs) {
-            send_message_to_all_dp(msg);    // TrexAstfDpCreateTcp
+            send_message_to_all_dp(msg);    // TrexAstfDpStart, TrexAstfDpStop
         }
         m_suspended_msgs.clear();
     }
@@ -446,6 +455,17 @@ void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &
     } else {
         pid->build();
     }
+
+    if (m_dp_core_count > 1) {
+        /* during multiple DP cores starting, sync_barrier timeout may happen.
+         * Since DP core 0 can be busy for handling some dedicated messages,
+         * to prevent the timeout, they should be suspended while DP cores are starting.
+         */
+        if ((get_state() & (STATE_PARSE|STATE_BUILD)) &&
+            !is_dp_core_state(TrexAstfDpCore::STATE_TRANSMITTING)) {
+            m_starting_dp = true;
+        }
+    }
 }
 
 void TrexAstf::stop_transmit(cp_profile_id_t profile_id) {
@@ -609,6 +629,11 @@ void TrexAstf::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg, bool 
     if ( clone ) {
         ring->SecureEnqueue((CGenNode *)msg->clone(), true);
     } else {
+        if (m_starting_dp) {  // to prevent sync_barrier timeout
+            assert(core_id == 0);
+            m_suspended_core0_msgs.push_back(msg);
+            return;
+        }
         ring->SecureEnqueue((CGenNode *)msg, true);
     }
 }
