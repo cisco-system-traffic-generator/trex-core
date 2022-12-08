@@ -92,32 +92,6 @@ class ASTFQINQ_Test(CASTFGeneral_Test):
         return ''.join(random.choice(letters) for i in range(stringLength))
 
 
-    def test_latency_qinq(self):
-        if CTRexScenario.setup_name in ['trex07']:
-            self.skip('Skipping trex07')
-        if CTRexScenario.setup_name in ['trex24']:
-            self.skip('Skip frpm dpdk virtio stop supporting vlan')
-
-        print('')
-        c = self.astf_trex
-        src_ip = '123.123.123.123'
-        bpf_ip = 'ip src %s' % src_ip
-
-        # no VLAN
-        cap_ids = self.conf_environment(False, bpf_ip)
-        c.start_latency(mult = 1000, src_ipv4 = src_ip)
-        time.sleep(1)
-        c.stop_latency()
-        self.verify_qinq(False, cap_ids)
-
-        # with VLAN
-        cap_ids = self.conf_environment(True, bpf_ip)
-        c.start_latency(mult = 1000, src_ipv4 = src_ip)
-        time.sleep(1)
-        c.stop_latency()
-        self.verify_qinq(True, cap_ids)
-
-
     def get_profile(self, src_ip_start, src_ip_end):
         prog_c = ASTFProgram(stream=False)
         prog_c.send_msg('req')

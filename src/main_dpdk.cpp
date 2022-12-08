@@ -2533,7 +2533,7 @@ CPortLatencyHWBase::apply_hw_vlan(rte_mbuf_t *m, uint8_t port_id) {
         } else if (vlan_mode == CPreviewMode::VLAN_MODE_NORMAL) {
             add_vlan(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_vlan());
         } else if (vlan_mode == CPreviewMode::QINQ_MODE_NORMAL) {
-            add_qinq(m, CGlobalInfo::m_options.m_qinq_port[0].inner_vlan, CGlobalInfo::m_options.m_qinq_port[0].outer_vlan);
+            add_qinq(m, CGlobalInfo::m_options.m_ip_cfg[port_id].get_qinq().inner_vlan, CGlobalInfo::m_options.m_ip_cfg[port_id].get_qinq().outer_vlan);
         }
     }
 }

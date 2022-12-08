@@ -1681,7 +1681,7 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
 
             // Set inner VLAN
             vlan_head.setVlanTag(m_tunnel_data.m_qinq.inner_vlan);
-            vlan_head.setNextProtocolFromHostOrder(0x0800);
+            vlan_head.setNextProtocolFromHostOrder(0x86dd);
             memcpy(p+18,vlan_head.getPointer(), 4);
             memcpy(p+22,default_ipv6_header+14,sizeof(default_ipv6_header)-14);
         }else{

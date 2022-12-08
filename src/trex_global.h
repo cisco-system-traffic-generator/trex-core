@@ -568,11 +568,6 @@ public:
         m_platform_factor = 1.0;
         m_vlan_port[0] = 100;
         m_vlan_port[1] = 100;
-        for (uint8_t i = 0; i < 2; i++)
-        {
-            m_qinq_port[i].outer_vlan = 100;
-            m_qinq_port[i].inner_vlan = 101;
-        }
         memset(m_src_ipv6, 0, sizeof(m_src_ipv6));
         memset(m_dst_ipv6, 0, sizeof(m_dst_ipv6));
         m_ip_cfg->set_ip(0);
@@ -647,7 +642,6 @@ public:
     float           m_duration;
     float           m_platform_factor;
     uint16_t        m_vlan_port[2]; /* vlan value */
-    qinq_tag        m_qinq_port[2]; /* qinq value */
     uint16_t        m_src_ipv6[6];  /* Most signficant 96-bits */
     uint16_t        m_dst_ipv6[6];  /* Most signficant 96-bits */
     CPerPortIPCfg   m_ip_cfg[TREX_MAX_PORTS];
