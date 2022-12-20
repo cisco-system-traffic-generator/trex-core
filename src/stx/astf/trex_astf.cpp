@@ -508,9 +508,9 @@ void TrexAstf::profile_clear(cp_profile_id_t profile_id){
         pid->profile_change_state(STATE_DELETE);
 
         auto dp_profile_id = pid->get_dp_profile_id();
-        auto astf_db = CAstfDB::instance(dp_profile_id);
-        TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(dp_profile_id, astf_db);
-        send_message_to_dp(0, msg);
+        /* try removing DP statistics at first */
+        TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(dp_profile_id, true, nullptr);
+        send_message_to_all_dp(msg);
     }
     else { // STATE_IDLE
         delete_profile(profile_id);
@@ -1022,6 +1022,10 @@ void TrexAstfPerProfile::profile_set_loaded() {
 void TrexAstfPerProfile::profile_change_state(state_e new_state) {
     auto old_state = m_profile_state;
 
+    // set default required cores to handle DP profile finished events
+    m_active_cores = get_platform_api().get_dp_core_count();
+    m_partial_cores = 0;
+
     switch ( new_state ) {
         case STATE_IDLE:
             m_active_cores = 0;
@@ -1037,24 +1041,22 @@ void TrexAstfPerProfile::profile_change_state(state_e new_state) {
             break;
         case STATE_BUILD:
             m_stt_cp->m_update = false;
-            m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_TX:
             m_stt_cp->m_update = true;
-            m_active_cores = get_platform_api().get_dp_core_count();
-            m_partial_cores = m_active_cores;
+            m_partial_cores = m_active_cores;   // handled by report_finished_partial()
             break;
         case STATE_CLEANUP:
             m_stt_cp->Update();
             m_stt_cp->m_update = false;
             m_astf_obj->Accumulate_stopped(false, !m_astf_obj->is_another_profile_transmitting(m_cp_profile_id), m_stt_cp);
-            m_active_cores = get_platform_api().get_dp_core_count();
             break;
         case STATE_DELETE:
             m_stt_cp->m_update = false;
             // to prevent unexpected access from reused default profile
             m_stt_cp->clear_profile_ctx();
-            m_active_cores = 1;
+            m_partial_cores = m_active_cores;
+            m_active_cores += 1;                // for all DP statistics + DB cleared
             break;
         case AMOUNT_OF_STATES:
             assert(0);
@@ -1148,6 +1150,7 @@ void TrexAstfPerProfile::build() {
 
     if (CGlobalInfo::m_process_at_cp) {
         auto num_ports = CGlobalInfo::m_options.get_expected_ports();
+        astf_db->set_factor(m_factor);
         for (uint8_t port_id = 0; port_id < num_ports; port_id += 2) {
             astf_db->get_db_ro(CGlobalInfo::m_socket.port_to_socket(port_id));
         }
@@ -1188,6 +1191,18 @@ void TrexAstfPerProfile::cleanup() {
     m_astf_obj->send_message_to_all_dp(msg);
 }
 
+void TrexAstfPerProfile::remove() {
+    auto astf_db = CAstfDB::instance(m_dp_profile_id);
+    assert(astf_db);
+    if (!CGlobalInfo::m_process_at_cp) {
+        TrexCpToDpMsgBase *msg = new TrexAstfDeleteDB(m_dp_profile_id, astf_db);
+        m_astf_obj->send_message_to_dp(0, msg);
+    } else {
+        astf_db->Delete();
+        dp_core_finished();
+    }
+}
+
 void TrexAstfPerProfile::all_dp_cores_finished(bool partial) {
     switch ( m_profile_state ) {
         case STATE_PARSE:
@@ -1220,8 +1235,11 @@ void TrexAstfPerProfile::all_dp_cores_finished(bool partial) {
             profile_change_state(STATE_LOADED);
             break;
         case STATE_DELETE:
-            CAstfDB::free_instance(m_dp_profile_id);
-            {
+            if (partial) {  /* DP statistics removed */
+                remove();
+            } else {
+                CAstfDB::free_instance(m_dp_profile_id);
+
                 auto astf = m_astf_obj;
                 m_astf_obj->delete_profile(m_cp_profile_id);
                 astf->publish_astf_state();     // ASTF state should be updated
