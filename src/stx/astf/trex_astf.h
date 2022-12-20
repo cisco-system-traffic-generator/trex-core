@@ -107,6 +107,7 @@ public:
     void build();
     void transmit();
     void cleanup();
+    void remove();
     void all_dp_cores_finished(bool partial=false);
     void dp_core_finished();
     void dp_core_finished_partial();
