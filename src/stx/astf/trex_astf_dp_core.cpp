@@ -427,8 +427,6 @@ void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db)
         report_error(profile_id, "Cannot delete ASTF DB on existing profile: state " + std::to_string(get_profile_state(profile_id)));
         return;
     }
-    // try removing the profile_ctx which contains statistics.
-    m_flow_gen->remove_tcp_profile(profile_id);
 
     if (astf_db) {
         astf_db->Delete();
