@@ -104,7 +104,8 @@ class Prof1:
         parser.add_argument("--exporter-max-interval", type=str, default=None, dest="exporter_max_interval", help="HTTP exporter max interval to wait between two consecutive posts")
         parser.add_argument("--exporter-max-size", type=int, default=None, dest="exporter_max_size", help="HTTP exporter max size of files to export")
         parser.add_argument("--exporter-max-posts", type=int, default=None, dest="exporter_max_posts", help="HTTP exporter max posts to export")
-        parser.add_argument("--exporter-store-exported-files-on-disk", type=bool, default=None, dest="exporter_store_exported_files_on_disk", help="HTTP exporter store exported files on disk")
+        parser.add_argument('--exporter-compressed', default=None, dest="exporter_compressed", action=argparse.BooleanOptionalAction, help="HTTP exporter store exported files on disk")
+        parser.add_argument('--exporter-store-exported-files-on-disk', default=None, dest="exporter_store_exported_files_on_disk", action=argparse.BooleanOptionalAction, help="HTTP exporter store exported files on disk")
 
         args = parser.parse_args(tuneables)
 
@@ -113,6 +114,7 @@ class Prof1:
             exporter_params.set_max_interval(args.exporter_max_interval)
             exporter_params.set_max_size(args.exporter_max_size)
             exporter_params.set_max_posts(args.exporter_max_posts)
+            exporter_params.set_compress(args.exporter_compressed)
             exporter_params.set_store_exported_files_on_disk(args.exporter_store_exported_files_on_disk)
 
         self.register_profiles(
