@@ -1,1 +1,135 @@
-trex_daemon_server
+#! /bin/bash
+"source" "find_python.sh" "--local"
+"exec" "$PYTHON" "$0" "$@"
+
+import os, sys
+import tempfile
+from time import time, sleep
+import subprocess, shlex, multiprocessing
+from argparse import ArgumentParser
+from distutils.dir_util import mkpath
+import signal
+
+def fail(msg):
+    print(msg)
+    sys.exit(-1)
+
+if os.getuid() != 0:
+    fail('Please run this program as root/with sudo')
+
+cur_dir = os.path.abspath(os.path.dirname(__file__))
+server_path = os.path.join(cur_dir, 'automation', 'trex_control_plane', 'server')
+if server_path not in sys.path:
+    sys.path.append(server_path)
+
+default_log_path = '/var/log/trex/trex_daemon_server.log'
+daemon_log_path = os.getenv('TREX_DAEMON_LOG', default_log_path)
+if 'start-live' not in sys.argv:
+    import CCustomLogger
+    CCustomLogger.setup_daemon_logger('TRexServer', daemon_log_path)
+
+import outer_packages
+import trex_server
+import netstat
+import termstyle
+
+
+def get_daemon_pid():
+    pid = None
+    for conn in netstat.netstat():
+        if conn[2] == '0.0.0.0' and int(conn[3]) == args.daemon_port and conn[6] == 'LISTEN':
+            pid = conn[7]
+            if pid is None:
+                raise Exception('Found the connection, but could not determine pid: %s' % conn)
+            break
+    return pid
+
+
+# faster variant of get_daemon_pid
+def is_running():
+    for conn in netstat.netstat(with_pid = False):
+        if conn[2] == '0.0.0.0' and int(conn[3]) == args.daemon_port and conn[6] == 'LISTEN':
+            return True
+    return False
+
+
+def show_daemon_status():
+    if is_running():
+        print(termstyle.green('TRex server daemon is running'))
+    else:
+        print(termstyle.red('TRex server daemon is NOT running'))
+
+
+def start_daemon():
+    if is_running():
+        print(termstyle.red('TRex server daemon is already running'))
+        return
+    # Usual daemon will die with current process, detach it with double fork
+    # https://www.safaribooksonline.com/library/view/python-cookbook/0596001673/ch06s08.html
+    pid = os.fork()
+    if pid > 0:
+        for i in range(50):
+            if is_running():
+                print(termstyle.green('TRex server daemon is started'))
+                os._exit(0)
+            sleep(0.1)
+        fail(termstyle.red('TRex server daemon failed to run, look at: /var/log/trex/trex_daemon_server.log'))
+    os.setsid()
+    pid = os.fork()
+    if pid > 0:
+        os._exit(0)
+    trex_server.do_main_program()
+
+
+def start_live():
+    if is_running():
+        fail(termstyle.red('TRex server daemon is already running'))
+    trex_server.do_main_program()
+
+
+def restart_daemon():
+    if is_running():
+        kill_daemon()
+        sleep(0.5)
+    start_daemon()
+
+
+def kill_daemon():
+    pid = get_daemon_pid()
+    if not pid:
+        print(termstyle.red('TRex server daemon is NOT running'))
+        return True
+    pid = int(pid)
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        os.kill(pid, sig)
+        for i in range(50):
+            if not is_running():
+                print(termstyle.green('TRex server daemon is killed'))
+                return True
+            sleep(0.1)
+    fail('Failed to kill trex_daemon, even with -9. Please review manually.\n' \
+         'Return code: %s\nStdout: %s\nStderr: %s' % return_code, stdout, stderr) # should not happen
+
+### Main ###
+
+actions_help = '''Specify action command to be applied on server.
+    (*) start      : start the application in as a daemon process.
+    (*) show       : prompt an updated status of daemon process (running/ not running).
+    (*) stop       : exit the daemon process.
+    (*) restart    : stop, then start again the application as daemon process
+    (*) start-live : start the application in live mode (no daemon process).
+    '''
+action_funcs = {'start': start_daemon,
+                'show': show_daemon_status,
+                'stop': kill_daemon,
+                'restart': restart_daemon,
+                'start-live': start_live,
+                }
+trex_server.trex_parser.add_argument('action', choices=action_funcs.keys(),
+                        action='store', help=actions_help)
+trex_server.trex_parser.usage = None
+args = trex_server.trex_parser.parse_args()
+
+action_funcs[args.action]()
+
+

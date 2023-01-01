@@ -104,6 +104,12 @@ typedef struct {
     uint16_t outer_vlan;
 } qinq_tag;
 typedef struct {
+    uint32_t label;
+    uint8_t tc;
+    bool s;
+    uint8_t ttl;
+} mpls_tag_t;
+typedef struct {
     bool            is_ready;
     err_per_mac_t   err_per_mac;
     Json::Value     m_results;    

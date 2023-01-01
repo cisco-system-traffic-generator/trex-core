@@ -6343,14 +6343,18 @@ COLD_FUNC int update_global_info_from_platform_file(){
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
             g_opts->m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
             g_opts->m_ip_cfg[i].set_qinq(cg->m_mac_info[i].get_qinq());
+            g_opts->m_ip_cfg[i].set_mpls(cg->m_mac_info[i].get_mpls());
             // If one of the ports has vlan, work in vlan mode
             if (cg->m_mac_info[i].get_vlan() != 0) {
-                g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
-            }
-            // Check if the ports have both outer and inner vlan, i.e QinQ
-            qinq_tag qinq = cg->m_mac_info[i].get_qinq();
-            if (qinq.inner_vlan !=0 && qinq.outer_vlan !=0) {
-                g_opts->preview.set_vlan_mode_verify(CPreviewMode::QINQ_MODE_NORMAL);
+                // Check if MPLS configuration also specified, tunnel in tunnel EoMPLS[vlan] or MPLS[vlan]
+                if (cg->m_mac_info[i].get_mpls().label) {
+                    g_opts->preview.set_vlan_mode_verify(cg->m_mac_info[i].get_is_eompls() ? CPreviewMode::EoMPLS_WITH_VLAN_MODE : CPreviewMode::MPLS_WITH_VLAN_MODE);
+                } else {
+                    g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+                }
+            } else if (cg->m_mac_info[i].get_mpls().label) {
+                // Currenlty with MPLS Simple MPLS and EoMPLS supported
+                g_opts->preview.set_vlan_mode_verify(cg->m_mac_info[i].get_is_eompls() ? CPreviewMode::EoMPLS_MODE_NORMAL : CPreviewMode::MPLS_MODE_NORMAL);
             }
         }
     }

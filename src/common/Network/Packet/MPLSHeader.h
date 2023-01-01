@@ -59,49 +59,65 @@ limitations under the License.
 #define MPLS_LABEL_FIRST_UNRESERVED	16 /* RFC3032 */
 
 class MPLSHeader {
-    uint32_t label;
-    uint8_t tc;
-    bool s;
-    uint8_t ttl;
+    uint32_t myTag;
 
 public:
     MPLSHeader() {
-        label = 0;
-        tc = 0;
-        s = false;
-        ttl = 135;
+        myTag = 0;
+    }
+
+    uint32_t getTag() {
+        return (PKT_NTOHL(this->myTag));
+    }
+
+    void setTag(uint32_t) {
+        this->myTag = PKT_HTONL(this->myTag);
     }
 
     uint32_t getLabel() {
-        return this->label;
+        return getMaskBit32(PKT_NTOHL(this->myTag), 0, 19);
+        
     }
 
     void setLabel(uint32_t label) {
-        this->label = label;
+        uint32_t tempTag = PKT_NTOHL(this->myTag);
+        setMaskBit32(tempTag, 0, 19, label);
+        this->myTag = PKT_HTONL(tempTag);
     }
 
     uint8_t getTc() {
-        return this->tc;
+        return getMaskBit32(PKT_NTOHL(this->myTag), 20, 22);
     }
 
     void setTc(uint8_t tc) {
-        this->tc = tc;
+        uint32_t tempTag = PKT_NTOHL(this->myTag);
+        setMaskBit32(tempTag, 20, 22, tc);
+        this->myTag = PKT_HTONL(tempTag);
     }
 
     bool getBottomOfStack() {
-        return this->s;
+        // return this->s;
+        return (getMaskBit32(PKT_NTOHL(this->myTag), 23, 23) == 1);
     }
 
     void setBottomOfStack(bool s) {
-        this->s = s;
+        uint32_t tempTag = PKT_NTOHL(this->myTag);
+        setMaskBit32(tempTag, 23, 23, s ? 1 : 0);
+        this->myTag = PKT_HTONL(tempTag);
     }
 
     uint8_t getTtl() {
-        return this->ttl;
+        return getMaskBit32(PKT_NTOHL(this->myTag), 24, 31);
     }
 
     void setTtl(uint8_t ttl) {
-        this->ttl = ttl;
+        uint32_t tempTag = PKT_NTOHL(this->myTag);
+        setMaskBit32(tempTag, 24, 31, ttl);
+        this->myTag = PKT_HTONL(tempTag);
+    }
+
+    uint8_t*  getPointer(){
+       return (uint8_t*)this;
     }
 };
 

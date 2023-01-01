@@ -27,6 +27,7 @@ limitations under the License.
 #include "trex_global.h"
 #include "trex_capture.h"
 #include "trex_port.h"
+#include <common/Network/Packet/MPLSHeader.h>
 
 void CSttFlowTableStats::Clear(){
     memset(&m_sts,0,sizeof(m_sts));
@@ -705,14 +706,22 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* TBD Parser need to be fixed */
     tunnel_cfg_data_t tunnel_data;
-    if (parser.m_vlan_offset==4) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
+    if (parser.m_vlan_offset == 4) {
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
         tunnel_data.m_vlan = lpVlan->getVlanTag();
     } else if (parser.m_vlan_offset==8) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
         tunnel_data.m_qinq.outer_vlan = lpVlan->getVlanTag();
-        lpVlan = (VLANHeader *)(lpVlan+4);
+        lpVlan = (VLANHeader *)(pkt+18+parser.m_mpls_offset);
         tunnel_data.m_qinq.inner_vlan = lpVlan->getVlanTag();
+    }
+
+    if (parser.m_mpls_offset !=0) {
+        MPLSHeader *lpMpls = (MPLSHeader *)(pkt + 14);
+        tunnel_data.m_mpls.label = lpMpls->getLabel();
+        tunnel_data.m_mpls.tc = lpMpls->getTc();
+        tunnel_data.m_mpls.s = lpMpls->getBottomOfStack();
+        tunnel_data.m_mpls.ttl = lpMpls->getTtl();
     }
 
     uint16_t dst_port = lpUDP->getDestPort();
@@ -831,13 +840,21 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     /* TBD Parser need to be fixed */
     tunnel_cfg_data_t tunnel_data;
     if (parser.m_vlan_offset == 4) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
         tunnel_data.m_vlan = lpVlan->getVlanTag();
     } else if (parser.m_vlan_offset==8) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
         tunnel_data.m_qinq.outer_vlan = lpVlan->getVlanTag();
-        lpVlan = (VLANHeader *)(pkt+18);
+        lpVlan = (VLANHeader *)(pkt+18+parser.m_mpls_offset);
         tunnel_data.m_qinq.inner_vlan = lpVlan->getVlanTag();
+    }
+
+    if (parser.m_mpls_offset !=0) {
+        MPLSHeader *lpMpls = (MPLSHeader *)(pkt + 14);
+        tunnel_data.m_mpls.label = lpMpls->getLabel();
+        tunnel_data.m_mpls.tc = lpMpls->getTc();
+        tunnel_data.m_mpls.s = lpMpls->getBottomOfStack();
+        tunnel_data.m_mpls.ttl = lpMpls->getTtl();
     }
 
     uint16_t dst_port = lpTcp->getDestPort();

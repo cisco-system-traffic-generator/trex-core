@@ -634,60 +634,105 @@ bool CSimplePacketParser::Parse(){
     IPv6Header * ipv6=0;
     VLANHeader *vlan=0;
     m_vlan_offset=0;
+    m_mpls_offset=0;
     uint8_t protocol = 0;
     uint16_t l3_offset = ETH_HDR_LEN;
     uint16_t nxt_protocol = 0;
 
     // Retrieve the protocol type from the packet
-    switch( m_ether->getNextProtocol() ) {
-    case EthernetHeader::Protocol::IP :
-        // IPv4 packet
-        ipv4=(IPHeader *)(p+l3_offset);
-        m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
-        protocol = ipv4->getProtocol();
-        break;
-    case EthernetHeader::Protocol::IPv6 :
-        // IPv6 packet
-        ipv6=(IPv6Header *)(p+l3_offset);
-        m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
-        protocol = ipv6->getNextHdr();
-        break;
-    case EthernetHeader::Protocol::VLAN :
-        m_vlan_offset = 4;
-        l3_offset += 4;
-        nxt_protocol = m_ether->getVlanProtocol();
-        while (nxt_protocol){
-            switch ( nxt_protocol ){
-            case EthernetHeader::Protocol::IP:
-                // IPv4 packet
-                ipv4=(IPHeader *)(p+l3_offset);
+    uint16_t ether_nxt_protocol = m_ether->getNextProtocol();
+
+    while (ether_nxt_protocol) {
+       switch( ether_nxt_protocol ) {
+        case EthernetHeader::Protocol::IP :
+            // IPv4 packet
+            ipv4=(IPHeader *)(p+l3_offset);
+            m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
+            protocol = ipv4->getProtocol();
+            ether_nxt_protocol = 0;
+            break;
+        case EthernetHeader::Protocol::IPv6 :
+            // IPv6 packet
+            ipv6=(IPv6Header *)(p+l3_offset);
+            m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
+            protocol = ipv6->getNextHdr();
+            ether_nxt_protocol = 0;
+            break;
+        case EthernetHeader::Protocol::MPLS_Unicast: {
+            m_mpls_offset += 4;
+            l3_offset += 4;
+            uint8_t next_four_bits = *(p + l3_offset) >> 4;
+            switch (next_four_bits)
+            {
+            case 4:
+                // IPV4 packet
+                ipv4 = (IPHeader *)(p + l3_offset);
                 m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
                 protocol = ipv4->getProtocol();
-                nxt_protocol = 0;
+                ether_nxt_protocol = 0;
                 break;
-            case EthernetHeader::Protocol::IPv6 :
-                // IPv6 packet
-                ipv6=(IPv6Header *)(p+l3_offset);
+
+            case 6:
+                // IPv6 Packet
+                ipv6 = (IPv6Header *)(p + l3_offset);
                 m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
                 protocol = ipv6->getNextHdr();
-                nxt_protocol = 0;
+                ether_nxt_protocol = 0;
                 break;
-            case EthernetHeader::Protocol::VLAN :
-                // QinQ packet
-                vlan = (VLANHeader *)(p+ETH_HDR_LEN+m_vlan_offset);
-                m_vlan_offset += 4;
-                l3_offset += 4;
-                nxt_protocol = vlan->getNextProtocolHostOrder();
-                break;
-
 
             default:
-            nxt_protocol = 0;
-            break;
+                // Ethernet Packet
+                // The packet is an EoMPLS Packet
+                l3_offset += ETH_HDR_LEN;
+                m_mpls_offset += ETH_HDR_LEN;
+                m_ether = (EthernetHeader *)(p + ETH_HDR_LEN + m_mpls_offset);
+                ether_nxt_protocol = m_ether->getNextProtocol();
+                break;
             }
+            break;
         }
-        default:
-        break;
+        case EthernetHeader::Protocol::VLAN :
+            m_vlan_offset += 4;
+            l3_offset += 4;
+            nxt_protocol = m_ether->getVlanProtocol();
+            while (nxt_protocol){
+                switch ( nxt_protocol ){
+                case EthernetHeader::Protocol::IP:
+                    // IPv4 packet
+                    ipv4=(IPHeader *)(p+l3_offset);
+                    m_l4 = (uint8_t *)ipv4 + ipv4->getHeaderLength();
+                    protocol = ipv4->getProtocol();
+                    nxt_protocol = 0;
+                    ether_nxt_protocol = 0;
+                    break;
+                case EthernetHeader::Protocol::IPv6 :
+                    // IPv6 packet
+                    ipv6=(IPv6Header *)(p+l3_offset);
+                    m_l4 = (uint8_t *)ipv6 + ipv6->getHeaderLength();
+                    protocol = ipv6->getNextHdr();
+                    nxt_protocol = 0;
+                    ether_nxt_protocol = 0;
+                    break;
+                case EthernetHeader::Protocol::VLAN :
+                    // QinQ packet
+                    vlan = (VLANHeader *)(p+ETH_HDR_LEN+m_vlan_offset);
+                    m_vlan_offset += 4;
+                    l3_offset += 4;
+                    nxt_protocol = vlan->getNextProtocolHostOrder();
+                    ether_nxt_protocol = 0;
+                    break;
+
+
+                default:
+                nxt_protocol = 0;
+                ether_nxt_protocol = 0;
+                break;
+                }
+            }
+            default:
+            break;
+        }
+    
     }
     m_protocol =protocol;
     m_ipv4=ipv4;
