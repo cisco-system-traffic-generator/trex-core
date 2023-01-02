@@ -100,10 +100,6 @@ typedef std::unordered_map<std::string,std::string> err_per_mac_t;
 typedef std::set<std::string> str_set_t;
 typedef std::vector<uint16_t> vlan_list_t;
 typedef struct {
-    uint16_t inner_vlan;
-    uint16_t outer_vlan;
-} qinq_tag;
-typedef struct {
     uint32_t label;
     uint8_t tc;
     bool s;

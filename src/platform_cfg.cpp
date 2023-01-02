@@ -220,10 +220,6 @@ uint32_t CMacYamlInfo::get_vlan() {
     return m_vlan;
 }
 
-qinq_tag CMacYamlInfo::get_qinq() {
-    return m_qinq;
-}
-
 mpls_tag_t CMacYamlInfo::get_mpls() {
     return m_mpls;
 }
@@ -306,10 +302,6 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
         mac_info.m_mask = 0;
     }
     if (! utl_yaml_read_uint16(node, "vlan", mac_info.m_vlan, 0, 0xfff)) {
-        mac_info.m_vlan = 0;
-    }
-    if ( utl_yaml_read_uint16(node, "outer_vlan", mac_info.m_qinq.outer_vlan, 0, 0xfff)) {
-        mac_info.m_qinq.inner_vlan = mac_info.m_vlan;
         mac_info.m_vlan = 0;
     }
 

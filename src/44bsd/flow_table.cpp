@@ -706,14 +706,9 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* TBD Parser need to be fixed */
     tunnel_cfg_data_t tunnel_data;
-    if (parser.m_vlan_offset == 4) {
+    if (parser.m_vlan_offset) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
         tunnel_data.m_vlan = lpVlan->getVlanTag();
-    } else if (parser.m_vlan_offset==8) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
-        tunnel_data.m_qinq.outer_vlan = lpVlan->getVlanTag();
-        lpVlan = (VLANHeader *)(pkt+18+parser.m_mpls_offset);
-        tunnel_data.m_qinq.inner_vlan = lpVlan->getVlanTag();
     }
 
     if (parser.m_mpls_offset !=0) {
@@ -839,14 +834,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* TBD Parser need to be fixed */
     tunnel_cfg_data_t tunnel_data;
-    if (parser.m_vlan_offset == 4) {
+    if (parser.m_vlan_offset) {
         VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
         tunnel_data.m_vlan = lpVlan->getVlanTag();
-    } else if (parser.m_vlan_offset==8) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
-        tunnel_data.m_qinq.outer_vlan = lpVlan->getVlanTag();
-        lpVlan = (VLANHeader *)(pkt+18+parser.m_mpls_offset);
-        tunnel_data.m_qinq.inner_vlan = lpVlan->getVlanTag();
     }
 
     if (parser.m_mpls_offset !=0) {
@@ -1054,6 +1044,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* process SYN packet */
     process_tcp_packet(ctx,lptflow,mbuf,lpTcp,ftuple);
+
     return(true);
 }
 

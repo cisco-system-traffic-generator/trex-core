@@ -296,5 +296,5 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
         with assert_raises(TRexError):
             self.astf_trex.set_vlan(self.tx_port, [-1])
         with assert_raises(TRexError):
-            self.astf_trex.set_vlan(self.tx_port, [12, 13, 14]) # astf allows doesn't allow >2 VLAN
+            self.astf_trex.set_vlan(self.tx_port, [12, 13]) # astf allows only single VLAN
 

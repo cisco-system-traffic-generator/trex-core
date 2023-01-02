@@ -58,14 +58,12 @@ class ClientCfgDirBase {
         HAS_SRC_IP        = 0x20,
         HAS_SRC_IPV6      = 0x40,
         CAN_NOT_USE       = 0x80,
-        HAS_QINQ          = 0x100,
     };
 
     MacAddress  m_src_mac;
     MacAddress  m_dst_mac;
     uint16_t    m_vlan;
-    qinq_tag    m_qinq;
-    uint16_t    m_bitfield;
+    uint8_t     m_bitfield;
 
  public:
     ClientCfgDirBase() {
@@ -98,19 +96,11 @@ class ClientCfgDirBase {
         m_bitfield |= HAS_VLAN;
     }
 
-    void set_qinq(qinq_tag qinq) {
-        m_qinq = qinq;
-        m_bitfield |= HAS_QINQ;
-    }
-
     bool has_dst_mac_addr() const {
         return (m_bitfield & HAS_DST_MAC);
     }
     bool has_vlan() const {
         return (m_bitfield & HAS_VLAN);
-    }
-    bool has_qinq() const {
-        return (m_bitfield & HAS_QINQ);
     }
 
     const uint8_t *get_src_mac_addr() const {
@@ -126,11 +116,6 @@ class ClientCfgDirBase {
     uint16_t get_vlan() const {
         assert(has_vlan());
         return m_vlan;
-    }
-
-    qinq_tag get_qinq() const {
-        assert(has_qinq());
-        return m_qinq;
     }
 
     /* updates a configuration with a group index member */
@@ -275,7 +260,6 @@ class ClientCfgCompactEntry {
  public:
     uint16_t get_count() {return m_count;}
     uint16_t get_vlan() {return m_vlan;}
-    qinq_tag get_qinq() {return m_qinq;}
     uint16_t get_port() {return m_port;}
     bool is_ipv4() {return m_is_ipv4;}
     uint32_t get_dst_ip() {return m_next_hop_base.ip;}
@@ -289,7 +273,6 @@ class ClientCfgCompactEntry {
  private:
     uint16_t m_count;
     uint16_t m_vlan;
-    qinq_tag m_qinq;
     uint8_t m_port;
     bool m_is_ipv4;
     union {

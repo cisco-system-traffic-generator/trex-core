@@ -153,12 +153,6 @@ ClientCfgBase::apply(rte_mbuf_t *m, pkt_dir_t dir) const {
     if (cfg_dir.has_vlan()) {
         add_vlan(m, cfg_dir.get_vlan());
     }
-
-    /* QINQ */
-    if (cfg_dir.has_qinq()) {
-        qinq_tag qinq = cfg_dir.get_qinq();
-        add_qinq(m, qinq.inner_vlan, qinq.outer_vlan);
-    }
 }
 
 
