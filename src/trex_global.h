@@ -96,8 +96,7 @@ public:
         QINQ_MODE_NORMAL = 3,
         MPLS_MODE_NORMAL = 4,
         EoMPLS_MODE_NORMAL = 5,
-        MPLS_WITH_VLAN_MODE = 6,
-        EoMPLS_WITH_VLAN_MODE = 7,
+        EoMPLS_WITH_VLAN_MODE = 6,
     };
 
     CPreviewMode(){

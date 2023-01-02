@@ -683,10 +683,10 @@ bool CSimplePacketParser::Parse(){
             default:
                 // Ethernet Packet
                 // The packet is an EoMPLS Packet
-                l3_offset += ETH_HDR_LEN;
-                m_mpls_offset += ETH_HDR_LEN;
                 m_ether = (EthernetHeader *)(p + ETH_HDR_LEN + m_mpls_offset);
                 ether_nxt_protocol = m_ether->getNextProtocol();
+                l3_offset += ETH_HDR_LEN;
+                m_mpls_offset += ETH_HDR_LEN;
                 break;
             }
             break;
@@ -715,7 +715,7 @@ bool CSimplePacketParser::Parse(){
                     break;
                 case EthernetHeader::Protocol::VLAN :
                     // QinQ packet
-                    vlan = (VLANHeader *)(p+ETH_HDR_LEN+m_vlan_offset);
+                    vlan = (VLANHeader *)(p+ETH_HDR_LEN+m_vlan_offset+m_mpls_offset);
                     m_vlan_offset += 4;
                     l3_offset += 4;
                     nxt_protocol = vlan->getNextProtocolHostOrder();

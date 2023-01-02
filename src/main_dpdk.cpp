@@ -6346,9 +6346,14 @@ COLD_FUNC int update_global_info_from_platform_file(){
             g_opts->m_ip_cfg[i].set_mpls(cg->m_mac_info[i].get_mpls());
             // If one of the ports has vlan, work in vlan mode
             if (cg->m_mac_info[i].get_vlan() != 0) {
-                // Check if MPLS configuration also specified, tunnel in tunnel EoMPLS[vlan] or MPLS[vlan]
+                // Check if MPLS configuration also specified, tunnel in tunnel EoMPLS[vlan]
+                if (cg->m_mac_info[i].get_mpls().label && !cg->m_mac_info[i].get_is_eompls()) {
+                    printf("\n");
+                    printf("Error: Both MPLS and VLAN configuration is not allowed. Please remove one of them and try again.\n");
+                    exit(1);
+                }
                 if (cg->m_mac_info[i].get_mpls().label) {
-                    g_opts->preview.set_vlan_mode_verify(cg->m_mac_info[i].get_is_eompls() ? CPreviewMode::EoMPLS_WITH_VLAN_MODE : CPreviewMode::MPLS_WITH_VLAN_MODE);
+                    g_opts->preview.set_vlan_mode_verify(CPreviewMode::EoMPLS_WITH_VLAN_MODE );
                 } else {
                     g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
                 }
