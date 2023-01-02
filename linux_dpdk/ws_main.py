@@ -212,6 +212,7 @@ def configure_dummy_mlx5 (ctx):
     autoconf_file = 'src/dpdk/drivers/common/mlx5/mlx5_autoconf.h'
     autoconf_path = os.path.join(top, autoconf_file)
     os.system('rm -rf %s' % autoconf_path)
+    # a copy with some modification of the generated autoconf_file of the function configure_mlx5
     dummy_file_data = '''
 #ifndef HAVE_IBV_MLX5_MOD_SWP
 #define HAVE_IBV_MLX5_MOD_SWP 1
@@ -265,9 +266,7 @@ def configure_dummy_mlx5 (ctx):
 
 /* HAVE_IBV_WQ_FLAG_RX_END_PADDING is not defined. */
 
-#ifndef HAVE_MLX5DV_DR_DEVX_PORT
-#define HAVE_MLX5DV_DR_DEVX_PORT 1
-#endif /* HAVE_MLX5DV_DR_DEVX_PORT */
+/* HAVE_MLX5DV_DR_DEVX_PORT is not defined. */
 
 #ifndef HAVE_IBV_DEVX_OBJ
 #define HAVE_IBV_DEVX_OBJ 1
@@ -466,7 +465,7 @@ def configure_dummy_mlx5 (ctx):
         #define ETHTOOL_LINK_MODE_100000baseLR4_ER4_Full_BIT 39
 
 
-        '''
+'''
     
     f = open(autoconf_path, "w")
     f.write(dummy_file_data)

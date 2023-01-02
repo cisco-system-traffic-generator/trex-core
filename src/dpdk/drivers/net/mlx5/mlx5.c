@@ -2363,8 +2363,11 @@ mlx5_port_args_config(struct mlx5_priv *priv, struct mlx5_kvargs_ctrl *mkvlist,
 		DRV_LOG(WARNING, "Multi-Packet RQ isn't supported.");
 		config->mprq.enabled = 0;
 	}
-	if (config->max_dump_files_num == 0)
+    #ifndef TREX_PATCH
+	if (config->max_dump_files_num == 0) {
 		config->max_dump_files_num = 128;
+    }
+    #endif
 	/* Detect minimal data bytes to inline. */
 	mlx5_set_min_inline(priv);
 	DRV_LOG(DEBUG, "VLAN insertion in WQE is %ssupported.",

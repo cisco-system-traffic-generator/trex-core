@@ -269,9 +269,18 @@ TRex v2.32 and lower works with OFED 4.1 and it can't work with OFED 4.2/newer
 | 2.33-2.56         | *only* 4.3    | CentOS 7.4
 | 2.57 and v2.86    | *only* 4.6    | CentOS 7.6
 | 2.89 and above    | *only* GA 5.3-1 | CentOS 7.9
+| v3.01 and above   | *only* 5.7-1 | CentOS 7.9
 |=================
 
 WARNING: In our case an upgrade from CentOS 7.3 to CentOS 7.4 using `yum update` didn't work and we needed to *reinstall* everything from scratch see link:https://trex-tgn.cisco.com/youtrack/issue/trex-504[trex-504] 
+
+[NOTE] 
+=====================================================================
+In v3.01 we changed the default value of the device-argument: max_dump_files_num. +
+We use default value of 0 instead of 128. +
+If this argument is important to you, you can set it's value using trex config file, by adding the line: +
+dpdk_devargs: ['max_dump_files_num=your_num'].
+=====================================================================
 
 == TRex specific implementation details
 

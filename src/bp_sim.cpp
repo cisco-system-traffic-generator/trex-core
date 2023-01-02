@@ -3591,10 +3591,10 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
     m_scheduler_offset = offset;
     dsec_t burst_size = BURST_OFFSET_DTIME;
     if (CGlobalInfo::m_burst_offset_dtime > BURST_OFFSET_DTIME) {
+        burst_size = CGlobalInfo::m_burst_offset_dtime;
         if (CGlobalInfo::m_options.preview.getVMode() > 3) {
             std::cout << "burst_size = " << burst_size << std::endl;
         }
-        burst_size = CGlobalInfo::m_burst_offset_dtime;
     }
 
     thread->m_cpu_dp_u.start_work1();

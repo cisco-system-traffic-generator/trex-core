@@ -332,29 +332,32 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfProfileList::_run(const Json::Value &params, Json::Value &result) {
     vector<string> profile_list = get_astf_object()->get_profile_id_list();
     Json::Value json_profile_list = Json::arrayValue;
+    bool profiles_in_ports = parse_bool(params, "profiles_in_ports", result, false);
 
     for (auto &profile_id : profile_list) {
         json_profile_list.append(profile_id);
     }
 
-    uint8_t port_cnt = get_astf_object()->get_port_count();
-    for (uint8_t port_id = 0; port_id < port_cnt; port_id++) {
-        TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
-        profile_list.clear();
+    if (profiles_in_ports) {
+        Json::Value json_ports = Json::objectValue;
+        for (auto &port : get_stateless_obj()->get_port_map()) {
+            profile_list.clear();
 
-        port->get_profile_id_list(profile_list);
-        Json::Value json_list = Json::arrayValue;
+            port.second->get_profile_id_list(profile_list);
+            Json::Value json_list = Json::arrayValue;
 
-        for (auto &profile_id : profile_list) {
-            json_list.append(profile_id);
+            for (auto &profile_id : profile_list) {
+                json_list.append(profile_id);
+            }
+
+            if (json_list.size()) {
+                std::stringstream ss;
+                ss << uint16_t(port.first);
+                json_ports[ss.str()] = json_list;
+            }
         }
-
-        if (json_list.size()) {
-            Json::Value json_port = Json::objectValue;
-            std::stringstream ss;
-            ss << port_id;
-            json_port[ss.str()] = json_list;
-            json_profile_list.append(json_port);
+        if (json_ports.size()) {
+            json_profile_list.append(json_ports);
         }
     }
 

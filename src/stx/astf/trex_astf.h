@@ -507,6 +507,9 @@ public:
     bool                m_stopping_dp;
     std::vector<int>    m_dp_states;
     std::vector<TrexCpToDpMsgBase*> m_suspended_msgs;
+
+    bool                m_starting_dp;
+    std::vector<TrexCpToDpMsgBase*> m_suspended_core0_msgs;
 };
 
 static inline TrexAstf * get_astf_object() {

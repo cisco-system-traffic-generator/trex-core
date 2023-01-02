@@ -111,7 +111,7 @@ class IPFIXPlugin(EMUPluginBase):
                 emu_client: :class:`trex.emu.trex_emu_client.EMUClient`
                     Valid EMU client.
         """
-        super(IPFIXPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='ipfix_c_cnt')
+        super(IPFIXPlugin, self).__init__(emu_client, ns_cnt_rpc_cmd='ipfix_ns_cnt', client_cnt_rpc_cmd='ipfix_c_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -262,6 +262,22 @@ class IPFIXPlugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
         self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
+        return True
+
+    @plugin_api('ipfix_show_ns_counters', 'emu')
+    def ipfix_show_ns_counters_line(self, line):
+        '''Show IPFix namespace counters.\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_show_ns_counters_line",
+                                        self.ipfix_show_ns_counters_line.__doc__,
+                                        parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_ALL_NS,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+        self.emu_c._base_show_counters(self.ns_data_cnt, opts, req_ns = True)
         return True
 
     @plugin_api('ipfix_get_gen_info', 'emu')
