@@ -1855,6 +1855,14 @@ COLD_FUNC uint16_t get_client_side_vlan(CVirtualIF * _ifs){
 }
 
 
+COLD_FUNC tunnel_cfg_data_t get_client_side_tunnel_cfg_data(CVirtualIF * _ifs){
+    CCoreEthIFTcp * lpif=(CCoreEthIFTcp *)_ifs;
+    CCorePerPort *lp_port = (CCorePerPort *)lpif->get_ports();
+    uint8_t port_id = lp_port->m_port->get_tvpid();
+    tunnel_cfg_data_t tunnel_data=CGlobalInfo::m_options.m_ip_cfg[port_id].get_tunnel_cfg_data();
+    return(tunnel_data);
+}
+
 COLD_FUNC bool CCoreEthIF::Create(uint8_t             core_id,
                         uint8_t             tx_client_queue_id,
                         CPhyEthIF  *        tx_client_port,
@@ -6325,9 +6333,23 @@ COLD_FUNC int update_global_info_from_platform_file(){
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
             g_opts->m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
+            g_opts->m_ip_cfg[i].set_mpls(cg->m_mac_info[i].get_mpls());
             // If one of the ports has vlan, work in vlan mode
             if (cg->m_mac_info[i].get_vlan() != 0) {
-                g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+                // Check if MPLS configuration also specified, tunnel in tunnel EoMPLS[vlan]
+                if (cg->m_mac_info[i].get_mpls().label && !cg->m_mac_info[i].get_is_eompls()) {
+                    printf("\n");
+                    printf("Error: Both MPLS and VLAN configuration is not allowed. Please remove one of them and try again.\n");
+                    exit(1);
+                }
+                if (cg->m_mac_info[i].get_mpls().label) {
+                    g_opts->preview.set_vlan_mode_verify(CPreviewMode::EoMPLS_WITH_VLAN_MODE );
+                } else {
+                    g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+                }
+            } else if (cg->m_mac_info[i].get_mpls().label) {
+                // Currenlty with MPLS Simple MPLS and EoMPLS supported
+                g_opts->preview.set_vlan_mode_verify(cg->m_mac_info[i].get_is_eompls() ? CPreviewMode::EoMPLS_MODE_NORMAL : CPreviewMode::MPLS_MODE_NORMAL);
             }
         }
     }

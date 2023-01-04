@@ -281,8 +281,8 @@ void CPreviewMode::set_vlan_mode_verify(uint8_t mode) {
         // validate that there is no vlan both in platform config file and traffic profile
     if ((CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) &&
         ( CGlobalInfo::m_options.preview.get_vlan_mode() != mode ) ) {
-        fprintf(stderr, "Error: You are not allowed to specify vlan both in platform config file (--cfg) and traffic config file (-f)\n");
-        fprintf(stderr, "       Please remove vlan definition from one of the files, and try again.\n");
+        fprintf(stderr, "Error: You are not allowed to specify tunnel mode both in platform config file (--cfg) and traffic config file (-f)\n");
+        fprintf(stderr, "       Please remove tunnel modes definition from one of the files, and try again.\n");
         exit(1);
     }
     set_vlan_mode(mode);
