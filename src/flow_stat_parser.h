@@ -163,6 +163,7 @@ class CFlowStatParser {
     uint8_t *m_l4;
     uint8_t m_l4_proto;
     uint8_t m_vlan_offset;
+    uint8_t m_mpls_offset;
     uint16_t m_flags;
 };
 
@@ -226,6 +227,7 @@ class CSimplePacketParser {
     IPv6Header *    m_ipv6;
     uint8_t         m_protocol;
     uint16_t        m_vlan_offset;
+    uint16_t        m_mpls_offset;
     uint8_t *       m_l4;
  private:
     rte_mbuf_t *    m_m;

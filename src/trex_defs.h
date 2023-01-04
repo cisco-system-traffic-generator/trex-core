@@ -100,6 +100,12 @@ typedef std::unordered_map<std::string,std::string> err_per_mac_t;
 typedef std::set<std::string> str_set_t;
 typedef std::vector<uint16_t> vlan_list_t;
 typedef struct {
+    uint32_t label;
+    uint8_t tc;
+    bool s;
+    uint8_t ttl;
+} mpls_tag_t;
+typedef struct {
     bool            is_ready;
     err_per_mac_t   err_per_mac;
     Json::Value     m_results;    

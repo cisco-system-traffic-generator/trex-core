@@ -64,7 +64,7 @@ public:
 
     inline  uint8_t*  getPointer          (){return (uint8_t*)this;}
     inline  uint32_t  getSize () {
-        return ( (getNextProtocol() == Protocol::VLAN) ? 18 : 14);
+            return ( ((getNextProtocol() == Protocol::VLAN) || (getNextProtocol() ==Protocol::MPLS_Unicast)) ? 18 : 14);
     }
     
     // Get dest MAC pointer

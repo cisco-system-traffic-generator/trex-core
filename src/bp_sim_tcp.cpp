@@ -390,6 +390,7 @@ static CEmulAppApiUdpImpl  m_udp_bh_api_impl_c;
 
 #ifndef TREX_SIM
 uint16_t get_client_side_vlan(CVirtualIF * _ifs);
+tunnel_cfg_data_t get_client_side_tunnel_cfg_data(CVirtualIF * _ifs);
 #endif
 void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id, CFlowBase* in_flow){
 
@@ -445,17 +446,16 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
 
     ClientCfgBase * lpc=tuple.getClientCfg();
 
-    uint16_t vlan=0;
+    tunnel_cfg_data_t tunnel_data;
 
     if (lpc) {
         if (lpc->m_initiator.has_vlan()){
-            vlan=lpc->m_initiator.get_vlan();
+            tunnel_data.m_vlan = lpc->m_initiator.get_vlan();
         }
     }else{
-        if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_NORMAL) ) {
-     /* TBD need to fix , should be taken from right port */
+        if ( unlikely(CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) ) {
     #ifndef TREX_SIM
-            vlan= get_client_side_vlan(m_node_gen.m_v_if);
+            tunnel_data = get_client_side_tunnel_cfg_data(m_node_gen.m_v_if);
     #endif
         }
     }
@@ -478,7 +478,7 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
                                                tuple.getClientPort(),
                                                tuple.getServerPort(),
 
-                                               vlan,
+                                               tunnel_data,
                                                is_ipv6,
                                                tuple.getTunnelCtx(),
                                                true,
@@ -490,7 +490,7 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
                                           tuple.getServer(),
                                           tuple.getClientPort(),
                                           tuple.getServerPort(),
-                                          vlan,
+                                          tunnel_data,
                                           is_ipv6,
                                           tuple.getTunnelCtx(),
                                           tg_id,
