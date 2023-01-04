@@ -220,6 +220,14 @@ uint32_t CMacYamlInfo::get_vlan() {
     return m_vlan;
 }
 
+mpls_tag_t CMacYamlInfo::get_mpls() {
+    return m_mpls;
+}
+
+bool CMacYamlInfo::get_is_eompls() {
+    return m_is_eompls;
+}
+
 void CMacYamlInfo::Dump(FILE *fd){
     if (m_dest_base.size() != 6) {
         fprintf(fd,"ERROR in dest mac addr \n");
@@ -297,6 +305,35 @@ void operator >> (const YAML::Node& node, CMacYamlInfo & mac_info) {
         mac_info.m_vlan = 0;
     }
 
+    if ( node.FindValue("mpls")) {
+        // node["mpls"] >> mac_info.m_mpls;
+        read_mpls(node["mpls"], mac_info.m_mpls);
+    }
+
+    if ( node.FindValue("eompls")) {
+        mac_info.m_is_eompls = 1;
+        read_mpls(node["eompls"], mac_info.m_mpls);
+    }
+
+}
+
+void read_mpls(const YAML::Node& node, mpls_tag_t & mpls) {
+
+    if (!utl_yaml_read_uint32(node, "label", mpls.label, 0, 0xfffff)) {
+        mpls.label = 0;
+    }
+
+    if (!utl_yaml_read_uint16(node, "tc", (uint16_t&)mpls.tc, (uint16_t)0, (uint16_t)0x007)) {
+        mpls.tc = 0;
+    }
+
+    if (!utl_yaml_read_uint16(node, "s", (uint16_t&)mpls.s, (uint16_t)0, (uint16_t)0x1)) {
+        mpls.s = 0;
+    }
+
+    if (!utl_yaml_read_uint16(node, "ttl", (uint16_t&)mpls.ttl, (uint16_t)0, (uint16_t)0x100)) {
+        mpls.ttl = 200;
+    }
 }
 
 void operator >> (const YAML::Node& node, CPlatformMemoryYamlInfo & plat_info) {

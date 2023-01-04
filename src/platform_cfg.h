@@ -61,6 +61,7 @@ typedef enum {         MBUF_64        , // per dual port, per NUMA
               } mbuf_sizes_t;
 
 const std::string * get_mbuf_names(void);
+void read_mpls(const YAML::Node& node, mpls_tag_t & mpls);
 
 /*
 #- port_limit      : 2         # this option can limit the number of port of the platform
@@ -105,6 +106,8 @@ struct CMacYamlInfo {
     uint32_t m_ip;
     uint32_t m_mask;
     uint16_t m_vlan;
+    mpls_tag_t m_mpls={0};
+    bool m_is_eompls=0;
     void Dump(FILE *fd);
 
     void copy_dest(char *p);
@@ -112,6 +115,8 @@ struct CMacYamlInfo {
     uint32_t get_def_gw();
     uint32_t get_ip();
     uint32_t get_vlan();
+    mpls_tag_t get_mpls();
+    bool get_is_eompls();
     uint32_t get_mask();
 
     void dump_mac_vector( std::vector<uint8_t> & v,FILE *fd){
