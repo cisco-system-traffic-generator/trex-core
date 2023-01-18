@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 3.01 ==
+
+* DPDK 
+** mlx5 upgrade to new ofed 
+** XL710 bonding fix 
+
 == Release 3.00 ==
 
 * EMU 
