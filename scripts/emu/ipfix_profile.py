@@ -180,10 +180,12 @@ class IpfixUdpExporterParams(IpfixExporterParams):
         self._dst_port = dst_port
         self._type = "udp"
         self._use_emu_client_ip_addr = None
+        self._raw_socket_interface_name = None
 
     def get_json(self):
         exporter_params = {}
         add_to_json_if_not_none(exporter_params, "use_emu_client_ip_addr", self._use_emu_client_ip_addr)
+        add_to_json_if_not_none(exporter_params, "raw_socket_interface_name", self._raw_socket_interface_name)
 
         if len(exporter_params) == 0:
             return None
@@ -195,6 +197,9 @@ class IpfixUdpExporterParams(IpfixExporterParams):
 
     def set_use_emu_client_ip_addr(self, use_emu_client_ip_addr):
         self._use_emu_client_ip_addr = use_emu_client_ip_addr
+
+    def set_raw_socket_interface_name(self, raw_socket_interface_name):
+        self._raw_socket_interface_name = raw_socket_interface_name
 
 
 class IpfixFileExporterParams(IpfixExporterParams):
