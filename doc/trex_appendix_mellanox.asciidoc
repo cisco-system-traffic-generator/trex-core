@@ -32,7 +32,7 @@ Following distros were tested and did *not* work for us in the past (with older 
 
 == OFED Installation
 
-Information was taken from link:http://www.mellanox.com/page/products_dyn?product_family=26&mtag=linux_sw_drivers[Install OFED]
+Information was taken from link:https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed[Install OFED]
 Look for OFED matrix for the right version you need (in the next sections)
 
 [IMPORTANT]
