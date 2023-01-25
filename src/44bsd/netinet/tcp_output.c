@@ -667,6 +667,12 @@ send:
                     sendalot = 1;
                 }
             }
+            /* TREX_FBSD: Prevent the send sockbuf from being emptied */
+            else {
+                moff = len % max_len;
+                len -= moff ? : max_len;
+                sendalot = 1;
+            }
 
             /*
              * In case there are too many small fragments
