@@ -1078,11 +1078,30 @@ void CTcpRxOffloadBuf::reset() {
     }
 }
 
-bool CTcpRxOffloadBuf::reassemble_mbuf(struct rte_mbuf * mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
+HOT_FUNC bool CTcpRxOffloadBuf::reassemble_mbuf(struct rte_mbuf * mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
 #ifndef TREX_SIM
     /* merge if the two packets are neighbors */
     if (m_ftuple.m_l7_total_len + ftuple.m_l7_total_len <= TCP_TSO_MAX_DEFAULT &&
         lpTcp->getHeaderLength() == m_lpTcp->getHeaderLength()) {
+
+        if (unlikely(m_ftuple.m_l7_total_len == 0 || ftuple.m_l7_total_len == 0)) {
+            /* merge consecutive ACK-only packets */
+            if (m_ftuple.m_l7_total_len == 0 && ftuple.m_l7_total_len == 0 &&
+                m_lpTcp->getSeqNumber() == lpTcp->getSeqNumber() &&
+                m_lpTcp->getAckNumber() != lpTcp->getAckNumber()) {
+
+                if ((int)(lpTcp->getAckNumber() - m_lpTcp->getAckNumber()) > 0) {
+                    rte_pktmbuf_free(m_mbuf);
+                    update_mbuf(mbuf, lpTcp, ftuple);
+                }
+                else {
+                    rte_pktmbuf_free(mbuf);
+                }
+                INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
+                return true;
+            }
+            return false;
+        }
 
         if (likely(lpTcp->getSeqNumber() == m_lpTcp->getSeqNumber() + m_ftuple.m_l7_total_len)) {
             m_ftuple.m_l7_total_len += ftuple.m_l7_total_len;
@@ -1159,7 +1178,7 @@ HOT_FUNC bool CTcpRxOffload::append_buf(CTcpFlow* flow,
                                         TCPHeader* lpTcp,
                                         CFlowKeyFullTuple& ftuple) {
     bool lro_done = false;
-    bool do_lro = (lpTcp->getFlags() == TCPHeader::Flag::ACK) && (ftuple.m_l7_total_len > 0);
+    bool do_lro = (lpTcp->getFlags() == TCPHeader::Flag::ACK);
     CTcpRxOffloadBuf* buf = find_buf(flow);
 
     if (buf) {
