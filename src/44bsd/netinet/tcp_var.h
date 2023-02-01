@@ -506,6 +506,7 @@ struct	tcpstat {
 struct tcp_tune {
     int tcp_do_rfc1323;     /* (1) Enable rfc1323 (high performance TCP) extensions */
     int tcp_do_sack;        /* (1) Enable/Disable TCP SACK support */
+    int tcp_do_ecn;         /* (0) Enable/Disable TCP ECN support */
     int tcp_mssdflt;        /* (TCP_MSS) Default TCP Maximum Segment Size */
     //int tcp_v6mssdflt;      /* (TCP6_MSS) Default TCP Maximum Segment Size for IPv6 */
     int tcp_initcwnd_segments;  /* (10) Slow-start flight size (initial congestion window) in number of segments (10) */
@@ -539,7 +540,7 @@ struct tcp_tune {
 #define V_tcp_do_rfc3390            1
 #define V_tcp_do_rfc3042            1
 
-#define V_tcp_do_ecn                2
+#define V_tcp_do_ecn                TCP_TUNE(tcp_do_ecn)
 #define V_tcp_ecn_maxretries        1
 
 #define V_tcp_minmss                216
