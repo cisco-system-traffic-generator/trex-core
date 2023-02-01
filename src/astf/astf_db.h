@@ -85,8 +85,9 @@ class CTcpTuneables {
 
         tcp_do_sack     = 0x200000,
         tcp_cc_algo     = 0x400000,
+        tcp_do_ecn      = 0x800000,
 
-        tcp_reass_maxqlen = 0x800000,
+        tcp_reass_maxqlen = 0x1000000,
     };
     enum {
         no_delay_mask_nagle = 0x1,
@@ -120,6 +121,7 @@ class CTcpTuneables {
 
         m_tcp_do_sack=1;
         m_tcp_cc_algo=0;
+        m_tcp_do_ecn=0;
 
         m_tcp_reass_maxqlen=0;
 
@@ -170,6 +172,7 @@ class CTcpTuneables {
     uint8_t  m_dont_use_inbound_mac;
 
     uint8_t  m_tcp_do_sack;
+    uint8_t  m_tcp_do_ecn;
     uint8_t  m_tcp_cc_algo;
 
     uint16_t  m_tcp_reass_maxqlen;

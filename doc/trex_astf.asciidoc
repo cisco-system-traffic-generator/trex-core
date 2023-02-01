@@ -3881,6 +3881,7 @@ link:cp_astf_docs/index.html[python index]
 |   tcp.do_rfc1323  | bool   |1|-|+| enable timestamp rfc 1323. 
 |   tcp.do_sack     | bool   |1|-|+| enable SACK.
 |   tcp.cc_algo     | 0,1    |0|-|+| select congestion control algorithm (0 - newreno, 1 - cubic).
+|   tcp.do_ecn      | 0,1,2  |0|-|+| enable ECN (1 - active, 2 - passive). limitation can't be used with hardware filter on some NICs.
 |   tcp.reass_maxqlen | 0,1000 |100|-|+| maximum number of TCP segments per reassembly queue.
 |   tcp.keepinit    |2-65533|5|-|+| value in second for TCP keepalive.
 |   tcp.keepidle    |2-65533|5|-|+| value in second for TCP keepidle

@@ -425,7 +425,14 @@ static inline void tcp_flow_input(CTcpFlow *  flow,
                                   TCPHeader    * lpTcp,
                                   CFlowKeyFullTuple &ftuple){
 
-    tcp_int_input(&flow->m_tcp, (struct mbuf*)mbuf, (struct tcphdr*)lpTcp, ftuple.m_l7_offset, ftuple.m_l7_total_len, 0);
+    uint8_t iptos;
+    if (ftuple.m_ipv4) {
+        iptos = (rte_pktmbuf_mtod_offset(mbuf, IPHeader*, ftuple.m_l3_offset))->getTOS();
+    } else {
+        iptos = (rte_pktmbuf_mtod_offset(mbuf, IPv6Header*, ftuple.m_l3_offset))->getTrafficClass();
+    }
+
+    tcp_int_input(&flow->m_tcp, (struct mbuf*)mbuf, (struct tcphdr*)lpTcp, ftuple.m_l7_offset, ftuple.m_l7_total_len, iptos);
 
     flow->check_defer_function();
 }

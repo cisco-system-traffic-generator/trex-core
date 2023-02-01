@@ -166,6 +166,12 @@ void CTcpStats::Dump(FILE *fd){
     MYC(tcps_sack_rcv_blocks);
     MYC(tcps_sack_send_blocks);
     MYC(tcps_sack_sboverflow);
+
+    MYC(tcps_ecn_ce);
+    MYC(tcps_ecn_ect0);
+    MYC(tcps_ecn_ect1);
+    MYC(tcps_ecn_shs);
+    MYC(tcps_ecn_rcwnd);
 }
 
 void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
@@ -537,6 +543,8 @@ void CTcpFlow::to_json(Json::Value& obj) const {
             opts << "/timestamps";
         if (tp->t_flags & TF_SACK_PERMIT)
             opts << "/sack";
+        if (tp->t_flags2 & TF2_ECN_PERMIT)
+            opts << "/ecn";
         if ((tp->t_flags & TF_REQ_SCALE) && (tp->t_flags & TF_RCVD_SCALE)) {
             opts << "/wscale";
             obj["snd_wscale"] = tp->snd_scale;
@@ -699,6 +707,7 @@ CTcpTunableCtx::CTcpTunableCtx() {
     use_inbound_mac = 1;
 
     tcp_cc_algo = 0;
+    tcp_do_ecn = 0;
 
     sb_max = SB_MAX;        /* patchable, not used  */
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
@@ -782,6 +791,10 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_cc_algo)) {
         tcp_cc_algo = (int)tune->m_tcp_cc_algo;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_do_ecn)) {
+        tcp_do_ecn = (int)tune->m_tcp_do_ecn;
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_reass_maxqlen)) {
@@ -1866,6 +1879,17 @@ int
 tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos)
 {
     CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+
+    if (unlikely(iptos)) {
+        if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
+            IPHeader* ipv4 = rte_pktmbuf_mtod_offset(m, IPHeader*, m->l2_len);
+            ipv4->updateTos(ipv4->getTOS() | iptos);
+        }
+        if (m->ol_flags & RTE_MBUF_F_TX_IPV6) {
+            IPv6Header* ipv6 = rte_pktmbuf_mtod_offset(m, IPv6Header*, m->l2_len);
+            ipv6->setTrafficClass(ipv6->getTrafficClass() | iptos);
+        }
+    }
 
     return ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
 }

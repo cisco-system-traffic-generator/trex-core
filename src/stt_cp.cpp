@@ -534,6 +534,13 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_sack_send_blocks,"SACK blocks (options) sent");
     TCP_S_ADD_CNT_E(tcps_sack_sboverflow,"times scoreboard overflowed");
 
+    /* TREX_FBSD: ECN counters */
+    TCP_S_ADD_CNT(tcps_ecn_ce,"ECN Congestion Experienced");
+    TCP_S_ADD_CNT(tcps_ecn_ect0,"ECN Capable Transport");
+    TCP_S_ADD_CNT(tcps_ecn_ect1,"ECN Capable Transport");
+    TCP_S_ADD_CNT(tcps_ecn_shs,"ECN successful handshakes");
+    TCP_S_ADD_CNT(tcps_ecn_rcwnd,"times ECN reduced the cwnd");
+
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"UDP");
     create_bar(&m_clm,"-");
