@@ -600,3 +600,61 @@ class AvcIpfixFields(IpfixFields):
             "enterprise_number": self.CISCO_PEN,
             "data": [0, 0, 0, 0, 0, 0, 0, 0],
         }
+
+        self._fields["applicationCategoryName"] = {
+            "name": "applicationCategoryName",
+            "type": 0xAFC8,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x6F, 0x74, 0x68, 0x65, 0x72] + [0] * 27,  # other
+        }
+
+        self._fields["applicationSubCategoryName"] = {
+            "name": "applicationSubCategoryName",
+            "type": 0xAFC9,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x6F, 0x74, 0x68, 0x65, 0x72] + [0] * 27,  # other
+        }
+
+        self._fields["applicationGroupName"] = {
+            "name": "applicationGroupName",
+            "type": 0xAFCA,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x6F, 0x74, 0x68, 0x65, 0x72] + [0] * 27,  # other
+        }
+
+        self._fields["applicationTrafficClass"] = {
+            "name": "applicationTrafficClass",
+            "type": 0xAFD3,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x6F, 0x70, 0x73, 0x2D, 0x61, 0x64, 0x6D, 0x69, 0x6E, 0x2D, 0x6D, 0x67, 0x6D, 0x74]
+            + [0] * 18,  # ops-admin-mgmt
+        }
+
+        self._fields["applicationBusinessRelevance"] = {
+            "name": "applicationBusinessRelevance",
+            "type": 0xAFD4,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x64, 0x65, 0x66, 0x61, 0x75, 0x6C, 0x74] + [0] * 25,  # default
+        }
+
+        self._fields["applicationFamilyName"] = {
+            "name": "applicationFamilyName",
+            "type": 0xAFC6,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x72, 0x6F, 0x75, 0x74, 0x69, 0x6E, 0x67] + [0] * 25,  # routing
+        }
+
+        self._fields["applicationSetName"] = {
+            "name": "applicationSetName",
+            "type": 0xAFC7,
+            "length": 32,
+            "enterprise_number": self.CISCO_PEN,
+            "data": [0x6E, 0x65, 0x74, 0x77, 0x6F, 0x72, 0x6B, 0x2D, 0x63, 0x6F, 0x6E, 0x74, 0x72, 0x6F, 0x6C]
+            + [0] * 17,  # network-control
+        }
