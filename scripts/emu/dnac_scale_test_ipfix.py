@@ -1,8 +1,7 @@
 import argparse
-from emu.avc_ipfix_generators import AVCGenerators
+from emu.dnac_scale_test_generators import DnacScaleTestGenerators
 from emu.ipfix_profile import *
 from trex.emu.api import *
-
 
 class Prof1:
     def __init__(self):
@@ -84,7 +83,7 @@ class Prof1:
         exporter_params.set_use_emu_client_ip_addr(args.use_emu_client_ip_addr)
         exporter_params.set_raw_socket_interface_name(args.raw_socket_interface_name)
 
-        generators = AVCGenerators(["dnac-scale-test"])
+        generators = DnacScaleTestGenerators(["256-data-tcp-5t", "257-options-applications","258-options-attributes"], args.apps_per_client)
 
         ipfix_plugin = IpfixPlugin(exporter_params, generators)
         ipfix_plugin.set_domain_id(270)
