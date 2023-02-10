@@ -3,6 +3,8 @@ from emu.dnac_scale_test_generators import DnacScaleTestGenerators
 from emu.ipfix_profile import *
 from trex.emu.api import *
 
+DEBUG = False
+
 class Prof1:
     def __init__(self):
         None
@@ -99,6 +101,9 @@ class Prof1:
             client_ipv4 = args.client_ipv4,
             clients_per_device = args.clients_per_device,
             data_records_per_client = args.apps_per_client)
+
+        if DEBUG:
+            print(profile.dump_json())
 
         return profile.get_profile()
 
