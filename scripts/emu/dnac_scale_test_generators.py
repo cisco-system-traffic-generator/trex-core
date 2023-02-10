@@ -295,7 +295,7 @@ class DnacScaleTestGenerators(IpfixGenerators):
                         "size": 55,
                         "offset": 0,
                         "op": "inc",
-                        "list": [protocol.help_string for protocol in self._br_protocols]
+                        "list": [protocol.help_string[:55] for protocol in self._br_protocols]
                     },
                 },
             ],
