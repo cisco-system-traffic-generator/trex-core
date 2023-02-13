@@ -123,8 +123,8 @@ class DnacScaleTestGenerators(IpfixGenerators):
                     "engine_name": "serverIPv4Address",
                     "engine_type": "uint",
                     "params": {
-                        "size": 4,
-                        "offset": 0,
+                        "size": 2,
+                        "offset": 2,
                         "op": "inc",
                         "min": 1,
                         "max": 48,
@@ -258,7 +258,6 @@ class DnacScaleTestGenerators(IpfixGenerators):
             "auto_start": True,
             "template_rate_pps": 0.01,
             "rate_pps": 0.01,
-            "data_records_num": 50,
             "template_id": 257,
             "is_options_template": True,
             "scope_count": 1,
@@ -307,7 +306,6 @@ class DnacScaleTestGenerators(IpfixGenerators):
             "template_rate_pps": 0.01,
             "rate_pps": 0.01,
             "template_id": 258,
-            "data_records_num": 50,
             "is_options_template": True,
             "scope_count": 1,
             "fields": [
