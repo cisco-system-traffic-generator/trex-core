@@ -405,6 +405,8 @@ class IpfixDevicesAutoTriggerProfile:
         device_mac = "00:00:00:70:00:03",
         # IPv4 address of the first device to be created
         device_ipv4 = "1.1.1.3",
+        # Domain ID of the first device to be created. Ignored if value is None.
+        device_domain_id = None,
         # Number of devices to automatically create at the EMU server
         devices_num = 1,
         # rampup_time should be given in Golang duration string format (example: "12s", "5m")
@@ -420,6 +422,7 @@ class IpfixDevicesAutoTriggerProfile:
         self._ns_port = ns_port
         self._device_mac = Mac(device_mac)
         self._device_ipv4 = Ipv4(device_ipv4)
+        self._device_domain_id = device_domain_id
         self._devices_num = devices_num
         self._rampup_time = rampup_time
         self._sites_per_tenant = sites_per_tenant
@@ -475,6 +478,7 @@ class IpfixDevicesAutoTriggerProfile:
         json = {}
         json["device_mac"] = self._device_mac[0].V()
         json["device_ipv4"] = self._device_ipv4[0].V()
+        add_to_json_if_not_none(json, "device_domain_id", self._device_domain_id)
         json["devices_num"] = self._devices_num
         add_to_json_if_not_none(json, "rampup_time", self._rampup_time)
         add_to_json_if_not_none(json, "sites_per_tenant", self._sites_per_tenant)

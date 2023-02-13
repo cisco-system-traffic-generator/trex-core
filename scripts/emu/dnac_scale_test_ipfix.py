@@ -28,12 +28,12 @@ class Prof1:
                             help='Destination port')
         parser.add_argument("--device-mac",
                             type=str,
-                            default="00:00:00:70:00:03",
+                            default="00:00:00:70:00:01",
                             dest="device_mac",
                             help="Mac address of the first device to be generated")
         parser.add_argument("--device-ipv4",
                             type=str,
-                            default="1.1.1.3",
+                            default="128.1.1.1",
                             dest="device_ipv4", help="IPv4 address of the first device to be generated")
         parser.add_argument("--devices-num",
                             type=int,
@@ -94,6 +94,7 @@ class Prof1:
             ipfix_plugin=ipfix_plugin,
             device_mac = args.device_mac,
             device_ipv4 = args.device_ipv4,
+            device_domain_id = 270,
             devices_num = args.devices_num,
             rampup_time = args.rampup_time,
             total_rate_pps = args.total_rate_pps)
