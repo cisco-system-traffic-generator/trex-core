@@ -1166,6 +1166,14 @@ HOT_FUNC bool CTcpRxOffload::append_buf(CTcpFlow* flow,
         if (do_lro && buf->reassemble_mbuf(mbuf, lpTcp, ftuple)) {
             lro_done = true;
         } else {
+            uint8_t flags = lpTcp->getFlags();
+            if ((flags & TCPHeader::Flag::PSH) && (ftuple.m_l7_total_len > 0)) {
+                if (buf->reassemble_mbuf(mbuf, lpTcp, ftuple)) {
+                    buf->m_lpTcp->setFlag(flags);
+                    lro_done = true;
+                }
+            }
+
             /* nullptr ctx prevents unexpected flow closing */
             m_cb(nullptr, flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
             buf->clear_flow();
