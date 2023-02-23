@@ -1629,7 +1629,7 @@ bool CAstfDB::convert_bufs(uint8_t socket_id) {
             if (buf_obj["fill"] != Json::nullValue) {
                 fill_data = base64_decode(buf_obj["fill"].asString());
             }
-            utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), temp_str.size(),buf_len,(uint8_t*)(fill_data.c_str()),fill_data.size(),true);
+            utl_mbuf_buffer_create_and_copy(socket_id, tcp_buf, 2048, (uint8_t *)(temp_str.c_str()), temp_str.size(),buf_len,fill_data,true);
         } else {
             json_buf = m_val["buf_list"][buf_index].asString();
             temp_str = base64_decode(json_buf);

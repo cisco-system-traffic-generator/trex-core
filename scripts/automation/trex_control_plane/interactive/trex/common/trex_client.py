@@ -1993,7 +1993,9 @@ class TRexClient(object):
             :parameters:
                 params: dictionary
                     dictionary of global configuration parameters. Available parameters:
-                    "sched_max_stretch", type = double, default =0.0, units = usec, scheduler's maximum time for stretch in case it is a high value there won't be a scheduler compensation on burst and time will not be stretch. 0.0 means use the default internal value (~100usec). value could not be lower than 100usec will be considered as 100usec.
+                    "sched_max_stretch", type = double, default = 0.0, units = usec, scheduler's maximum time for stretch in case it is a high value there won't be a scheduler compensation on burst and time will not be stretch. 0.0 means use the default internal value (~100usec). value could not be lower than 100usec will be considered as 100usec. The change cannot be applied to the current epoch.
+                    "process_at_cp", type = bool, default = False, ASTF profile needs to prepare for traffic generation. By default, it is performed at DP cores. But when you run multiple profiles, since it consumes DP processing power, it may affect the traffic generation. This parameter can remove the process from DP cores and perform it at CP core.
+                    "do_mbuf_cache", type = bool, default = False, ASTF profile's buffer can be filled with specific pattern. This parameter enables the cached mbuf for the same patterns. It will save 2K mbuf consumption when you run lots of profiles with the same patterns. But, since a pattern consumes a 2K mbuf permanently, please enable this parameter only the patterns are limited.
 
             :raises:
                 + :exc:`TRexError`
@@ -2012,6 +2014,14 @@ class TRexClient(object):
 
     @client_api('command', True)
     def get_global_cfg (self):
+        """
+            Get global configuration parameter values. See `set_global_cfg` for the parameters.
+
+            :raises:
+                + :exc:`TRexError`
+
+        """
+
         rc = self._transmit("get_global_cfg")
         if not rc:
             raise TRexError(rc)
