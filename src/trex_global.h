@@ -1100,6 +1100,7 @@ public:
     static uint32_t              m_nodes_pool_size;
     static double                m_burst_offset_dtime;
     static bool                  m_process_at_cp;
+    static bool                  m_do_mbuf_cache;
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;
