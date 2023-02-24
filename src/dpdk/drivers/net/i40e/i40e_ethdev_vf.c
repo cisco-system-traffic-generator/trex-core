@@ -29,6 +29,7 @@
 #include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_dev.h>
+#include <rte_os_shim.h>
 
 #include "i40e_logs.h"
 #include "base/i40e_prototype.h"
@@ -38,6 +39,8 @@
 #include "i40e_rxtx.h"
 #include "i40e_ethdev.h"
 #include "i40e_pf.h"
+#include "eal_interrupts.h"
+// #include "iavf/iavf_ethdev.c"
 
 /* busy wait delay in msec */
 #define I40EVF_BUSY_WAIT_DELAY 10
@@ -49,7 +52,6 @@
 #else
 #define I40EVF_ALARM_INTERVAL 10000 /* same as ASQ_DELAY_MS */
 #endif
-
 
 struct i40evf_arq_msg_info {
 	enum virtchnl_ops ops;
@@ -221,6 +223,7 @@ static const struct eth_dev_ops i40evf_eth_dev_ops = {
 	.mtu_set              = i40evf_dev_mtu_set,
 	.mac_addr_set         = i40evf_set_default_mac_addr,
 	.tx_done_cleanup      = i40e_tx_done_cleanup,
+	.get_monitor_addr     = i40e_get_monitor_addr,
 };
 
 /*
@@ -693,12 +696,11 @@ i40evf_config_irq_map(struct rte_eth_dev *dev)
 	struct vf_cmd_info args;
 	uint8_t *cmd_buffer = NULL;
 	struct virtchnl_irq_map_info *map_info;
-	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+//	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	uint32_t vec, cmd_buffer_size, max_vectors, nb_msix, msix_base, i;
 	uint16_t rxq_map[vf->vf_res->max_vectors];
 	int err;
-
 	memset(rxq_map, 0, sizeof(rxq_map));
 	if (dev->data->dev_conf.intr_conf.rxq != 0 &&
 		rte_intr_allow_others(intr_handle)) {
@@ -1093,7 +1095,7 @@ i40evf_add_vlan(struct rte_eth_dev *dev, uint16_t vlanid)
 	 * VLAN_STRIP by default. So reconfigure the vlan_offload
 	 * as it was done by the app earlier.
 	 */
-	err = i40evf_vlan_offload_set(dev, ETH_VLAN_STRIP_MASK);
+	err = i40evf_vlan_offload_set(dev, RTE_ETH_VLAN_STRIP_MASK);
 	if (err)
 		PMD_DRV_LOG(ERR, "fail to set vlan_strip");
 
@@ -1229,7 +1231,6 @@ i40evf_check_vf_reset_done(struct rte_eth_dev *dev)
 	if (i >= MAX_RESET_WAIT_CNT)
 		return -1;
 
-	vf->vf_reset = false;
 	vf->pend_msg &= ~PFMSG_RESET_IMPENDING;
 
 	return 0;
@@ -1253,7 +1254,7 @@ i40evf_reset_vf(struct rte_eth_dev *dev)
 	  * it to ACTIVE. In this duration, vf may not catch the moment that
 	  * COMPLETE is set. So, for vf, we'll try to wait a long time.
 	  */
-	rte_delay_ms(200);
+	rte_delay_ms(500);
 
 	ret = i40evf_check_vf_reset_done(dev);
 	if (ret) {
@@ -1408,6 +1409,7 @@ i40evf_handle_pf_event(struct rte_eth_dev *dev, uint8_t *msg,
 	switch (pf_msg->event) {
 	case VIRTCHNL_EVENT_RESET_IMPENDING:
 		PMD_DRV_LOG(DEBUG, "VIRTCHNL_EVENT_RESET_IMPENDING event");
+		vf->vf_reset = true;
 		rte_eth_dev_callback_process(dev,
 				RTE_ETH_EVENT_INTR_RESET, NULL);
 		break;
@@ -1419,28 +1421,28 @@ i40evf_handle_pf_event(struct rte_eth_dev *dev, uint8_t *msg,
 				pf_msg->event_data.link_event_adv.link_status;
 
 			switch (pf_msg->event_data.link_event_adv.link_speed) {
-			case ETH_SPEED_NUM_100M:
+			case RTE_ETH_SPEED_NUM_100M:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_100MB;
 				break;
-			case ETH_SPEED_NUM_1G:
+			case RTE_ETH_SPEED_NUM_1G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_1GB;
 				break;
-			case ETH_SPEED_NUM_2_5G:
+			case RTE_ETH_SPEED_NUM_2_5G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_2_5GB;
 				break;
-			case ETH_SPEED_NUM_5G:
+			case RTE_ETH_SPEED_NUM_5G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_5GB;
 				break;
-			case ETH_SPEED_NUM_10G:
+			case RTE_ETH_SPEED_NUM_10G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_10GB;
 				break;
-			case ETH_SPEED_NUM_20G:
+			case RTE_ETH_SPEED_NUM_20G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_20GB;
 				break;
-			case ETH_SPEED_NUM_25G:
+			case RTE_ETH_SPEED_NUM_25G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_25GB;
 				break;
-			case ETH_SPEED_NUM_40G:
+			case RTE_ETH_SPEED_NUM_40G:
 				vf->link_speed = VIRTCHNL_LINK_SPEED_40GB;
 				break;
 			default:
@@ -1589,7 +1591,7 @@ i40evf_dev_init(struct rte_eth_dev *eth_dev)
 	/* assign ops func pointer */
 	eth_dev->dev_ops = &i40evf_eth_dev_ops;
 	eth_dev->rx_queue_count       = i40e_dev_rx_queue_count;
-	eth_dev->rx_descriptor_done   = i40e_dev_rx_descriptor_done;
+	//eth_dev->rx_descriptor_done   = i40e_dev_rx_descriptor_done;
 	eth_dev->rx_descriptor_status = i40e_dev_rx_descriptor_status;
 	eth_dev->tx_descriptor_status = i40e_dev_tx_descriptor_status;
 	eth_dev->rx_pkt_burst = &i40e_recv_pkts;
@@ -1662,9 +1664,52 @@ i40evf_dev_uninit(struct rte_eth_dev *eth_dev)
 	return 0;
 }
 
+static int
+i40evf_check_driver_handler(__rte_unused const char *key,
+			    const char *value, __rte_unused void *opaque)
+{
+	if (strcmp(value, "i40evf"))
+		return -1;
+
+	return 0;
+}
+
+static int
+i40evf_driver_selected(struct rte_devargs *devargs)
+{
+	struct rte_kvargs *kvlist;
+	int ret = 0;
+
+	if (devargs == NULL)
+		return 0;
+
+	kvlist = rte_kvargs_parse(devargs->args, NULL);
+	if (kvlist == NULL)
+		return 0;
+
+	if (!rte_kvargs_count(kvlist, RTE_DEVARGS_KEY_DRIVER))
+		goto exit;
+
+	/* i40evf driver selected when there's a key-value pair:
+	 * driver=i40evf
+	 */
+	if (rte_kvargs_process(kvlist, RTE_DEVARGS_KEY_DRIVER,
+			       i40evf_check_driver_handler, NULL) < 0)
+		goto exit;
+
+	ret = 1;
+
+exit:
+	rte_kvargs_free(kvlist);
+	return ret;
+}
+
 static int eth_i40evf_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct rte_pci_device *pci_dev)
 {
+	// if (!i40evf_driver_selected(pci_dev->device.devargs))
+	// 	return 1;
+
 	return rte_eth_dev_pci_generic_probe(pci_dev,
 		sizeof(struct i40e_adapter), i40evf_dev_init);
 }
@@ -1687,6 +1732,7 @@ static struct rte_pci_driver rte_i40evf_pmd = {
 RTE_PMD_REGISTER_PCI(net_i40e_vf, rte_i40evf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_i40e_vf, pci_id_i40evf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_i40e_vf, "* igb_uio | vfio-pci");
+RTE_PMD_REGISTER_PARAM_STRING(net_i40e_vf, "driver=i40evf");
 
 static int
 i40evf_dev_configure(struct rte_eth_dev *dev)
@@ -1742,7 +1788,7 @@ static int
 i40evf_init_vlan(struct rte_eth_dev *dev)
 {
 	/* Apply vlan offload setting */
-	i40evf_vlan_offload_set(dev, ETH_VLAN_STRIP_MASK);
+	i40evf_vlan_offload_set(dev, RTE_ETH_VLAN_STRIP_MASK);
 
 	return 0;
 }
@@ -1757,9 +1803,9 @@ i40evf_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 		return -ENOTSUP;
 
 	/* Vlan stripping setting */
-	if (mask & ETH_VLAN_STRIP_MASK) {
+	if (mask & RTE_ETH_VLAN_STRIP_MASK) {
 		/* Enable or disable VLAN stripping */
-		if (dev_conf->rxmode.offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
+		if (dev_conf->rxmode.offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 			i40evf_enable_vlan_strip(dev);
 		else
 			i40evf_disable_vlan_strip(dev);
@@ -1900,33 +1946,19 @@ i40evf_rxq_init(struct rte_eth_dev *dev, struct i40e_rx_queue *rxq)
 	rxq->rx_buf_len = RTE_ALIGN(buf_size, (1 << I40E_RXQ_CTX_DBUFF_SHIFT));
 	len = rxq->rx_buf_len * I40E_MAX_CHAINED_RX_BUFFERS;
 	rxq->max_pkt_len = RTE_MIN(len,
-		dev_data->dev_conf.rxmode.max_rx_pkt_len);
+		dev_data->dev_conf.rxmode.mtu + I40E_ETH_OVERHEAD);
 
-	/**
-	 * Check if the jumbo frame and maximum packet length are set correctly
-	 */
-	if (dev_data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		if (rxq->max_pkt_len <= I40E_ETH_MAX_LEN ||
-		    rxq->max_pkt_len > I40E_FRAME_SIZE_MAX) {
-			PMD_DRV_LOG(ERR, "maximum packet length must be "
-				"larger than %u and smaller than %u, as jumbo "
-				"frame is enabled", (uint32_t)I40E_ETH_MAX_LEN,
-					(uint32_t)I40E_FRAME_SIZE_MAX);
-			return I40E_ERR_CONFIG;
-		}
-	} else {
-		if (rxq->max_pkt_len < RTE_ETHER_MIN_LEN ||
-		    rxq->max_pkt_len > I40E_ETH_MAX_LEN) {
-			PMD_DRV_LOG(ERR, "maximum packet length must be "
-				"larger than %u and smaller than %u, as jumbo "
-				"frame is disabled",
-				(uint32_t)RTE_ETHER_MIN_LEN,
-				(uint32_t)I40E_ETH_MAX_LEN);
-			return I40E_ERR_CONFIG;
-		}
-	}
+	/* Check if maximum packet length is set correctly.  */
+    if (rxq->max_pkt_len <= RTE_ETHER_MIN_LEN  ||
+        rxq->max_pkt_len > I40E_FRAME_SIZE_MAX) {
+		PMD_DRV_LOG(ERR, "maximum packet length must be "
+			    "larger than %u and smaller than %u",
+			    (uint32_t)RTE_ETHER_MIN_LEN,
+			    (uint32_t)I40E_FRAME_SIZE_MAX);
+        return I40E_ERR_CONFIG;
+    }
 
-	if ((dev_data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_SCATTER) ||
+	if ((dev_data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_SCATTER) ||
 	    rxq->max_pkt_len > buf_size)
 		dev_data->scattered_rx = 1;
 
@@ -1975,7 +2007,7 @@ i40evf_enable_queues_intr(struct rte_eth_dev *dev)
 {
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 
 	if (!rte_intr_allow_others(intr_handle)) {
 		I40E_WRITE_REG(hw,
@@ -1995,7 +2027,7 @@ i40evf_disable_queues_intr(struct rte_eth_dev *dev)
 {
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 
 	if (!rte_intr_allow_others(intr_handle)) {
 		I40E_WRITE_REG(hw, I40E_VFINT_DYN_CTL01,
@@ -2011,7 +2043,7 @@ static int
 i40evf_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 {
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	uint16_t interval =
 		i40e_calc_itr_interval(0, 0);
@@ -2044,7 +2076,7 @@ static int
 i40evf_dev_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t queue_id)
 {
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	uint16_t msix_intr;
 
@@ -2099,7 +2131,9 @@ i40evf_add_del_all_mac_addr(struct rte_eth_dev *dev, bool add)
 				continue;
 			rte_memcpy(list->list[j].addr, addr->addr_bytes,
 					 sizeof(addr->addr_bytes));
-			list->list[j].type = VIRTCHNL_ETHER_ADDR_EXTRA;
+			list->list[j].type = (j == 0 ?
+					      VIRTCHNL_ETHER_ADDR_PRIMARY :
+					      VIRTCHNL_ETHER_ADDR_EXTRA);
 			PMD_DRV_LOG(DEBUG, "add/rm mac:%x:%x:%x:%x:%x:%x",
 				    addr->addr_bytes[0], addr->addr_bytes[1],
 				    addr->addr_bytes[2], addr->addr_bytes[3],
@@ -2136,14 +2170,14 @@ i40evf_dev_start(struct rte_eth_dev *dev)
 	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	uint32_t intr_vector = 0;
 
 	PMD_INIT_FUNC_TRACE();
 
 	hw->adapter_stopped = 0;
 
-	vf->max_pkt_len = dev->data->dev_conf.rxmode.max_rx_pkt_len;
+	vf->max_pkt_len = dev->data->dev_conf.rxmode.mtu + I40E_ETH_OVERHEAD;
 	vf->num_queue_pairs = RTE_MAX(dev->data->nb_rx_queues,
 					dev->data->nb_tx_queues);
 
@@ -2212,8 +2246,7 @@ err_queue:
 static int
 i40evf_dev_stop(struct rte_eth_dev *dev)
 {
-	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
-	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 
@@ -2260,35 +2293,35 @@ i40evf_dev_link_update(struct rte_eth_dev *dev,
 	/* Linux driver PF host */
 	switch (vf->link_speed) {
 	case I40E_LINK_SPEED_100MB:
-		new_link.link_speed = ETH_SPEED_NUM_100M;
+		new_link.link_speed = RTE_ETH_SPEED_NUM_100M;
 		break;
 	case I40E_LINK_SPEED_1GB:
-		new_link.link_speed = ETH_SPEED_NUM_1G;
+		new_link.link_speed = RTE_ETH_SPEED_NUM_1G;
 		break;
 	case I40E_LINK_SPEED_10GB:
-		new_link.link_speed = ETH_SPEED_NUM_10G;
+		new_link.link_speed = RTE_ETH_SPEED_NUM_10G;
 		break;
 	case I40E_LINK_SPEED_20GB:
-		new_link.link_speed = ETH_SPEED_NUM_20G;
+		new_link.link_speed = RTE_ETH_SPEED_NUM_20G;
 		break;
 	case I40E_LINK_SPEED_25GB:
-		new_link.link_speed = ETH_SPEED_NUM_25G;
+		new_link.link_speed = RTE_ETH_SPEED_NUM_25G;
 		break;
 	case I40E_LINK_SPEED_40GB:
-		new_link.link_speed = ETH_SPEED_NUM_40G;
+		new_link.link_speed = RTE_ETH_SPEED_NUM_40G;
 		break;
 	default:
 		if (vf->link_up)
-			new_link.link_speed = ETH_SPEED_NUM_UNKNOWN;
+			new_link.link_speed = RTE_ETH_SPEED_NUM_UNKNOWN;
 		else
-			new_link.link_speed = ETH_SPEED_NUM_NONE;
+			new_link.link_speed = RTE_ETH_SPEED_NUM_NONE;
 		break;
 	}
 	/* full duplex only */
-	new_link.link_duplex = ETH_LINK_FULL_DUPLEX;
-	new_link.link_status = vf->link_up ? ETH_LINK_UP : ETH_LINK_DOWN;
+	new_link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
+	new_link.link_status = vf->link_up ? RTE_ETH_LINK_UP : RTE_ETH_LINK_DOWN;
 	new_link.link_autoneg =
-		!(dev->data->dev_conf.link_speeds & ETH_LINK_SPEED_FIXED);
+		!(dev->data->dev_conf.link_speeds & RTE_ETH_LINK_SPEED_FIXED);
 
 	return rte_eth_linkstatus_set(dev, &new_link);
 }
@@ -2337,36 +2370,35 @@ i40evf_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->max_mtu = dev_info->max_rx_pktlen - I40E_ETH_OVERHEAD;
 	dev_info->min_mtu = RTE_ETHER_MIN_MTU;
 	dev_info->hash_key_size = (I40E_VFQF_HKEY_MAX_INDEX + 1) * sizeof(uint32_t);
-	dev_info->reta_size = ETH_RSS_RETA_SIZE_64;
+	dev_info->reta_size = RTE_ETH_RSS_RETA_SIZE_64;
 	dev_info->flow_type_rss_offloads = vf->adapter->flow_types_mask;
 	dev_info->max_mac_addrs = I40E_NUM_MACADDR_MAX;
 	dev_info->rx_queue_offload_capa = 0;
 	dev_info->rx_offload_capa =
-		DEV_RX_OFFLOAD_VLAN_STRIP |
-		DEV_RX_OFFLOAD_QINQ_STRIP |
-		DEV_RX_OFFLOAD_IPV4_CKSUM |
-		DEV_RX_OFFLOAD_UDP_CKSUM |
-		DEV_RX_OFFLOAD_TCP_CKSUM |
-		DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM |
-		DEV_RX_OFFLOAD_SCATTER |
-		DEV_RX_OFFLOAD_JUMBO_FRAME |
-		DEV_RX_OFFLOAD_VLAN_FILTER;
+		RTE_ETH_RX_OFFLOAD_VLAN_STRIP |
+		RTE_ETH_RX_OFFLOAD_QINQ_STRIP |
+		RTE_ETH_RX_OFFLOAD_IPV4_CKSUM |
+		RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+		RTE_ETH_RX_OFFLOAD_TCP_CKSUM |
+		RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM |
+		RTE_ETH_RX_OFFLOAD_SCATTER |
+		RTE_ETH_RX_OFFLOAD_VLAN_FILTER;
 
 	dev_info->tx_queue_offload_capa = 0;
 	dev_info->tx_offload_capa =
-		DEV_TX_OFFLOAD_VLAN_INSERT |
-		DEV_TX_OFFLOAD_QINQ_INSERT |
-		DEV_TX_OFFLOAD_IPV4_CKSUM |
-		DEV_TX_OFFLOAD_UDP_CKSUM |
-		DEV_TX_OFFLOAD_TCP_CKSUM |
-		DEV_TX_OFFLOAD_SCTP_CKSUM |
-		DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-		DEV_TX_OFFLOAD_TCP_TSO |
-		DEV_TX_OFFLOAD_VXLAN_TNL_TSO |
-		DEV_TX_OFFLOAD_GRE_TNL_TSO |
-		DEV_TX_OFFLOAD_IPIP_TNL_TSO |
-		DEV_TX_OFFLOAD_GENEVE_TNL_TSO |
-		DEV_TX_OFFLOAD_MULTI_SEGS;
+		RTE_ETH_TX_OFFLOAD_VLAN_INSERT |
+		RTE_ETH_TX_OFFLOAD_QINQ_INSERT |
+		RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
+		RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_SCTP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+		RTE_ETH_TX_OFFLOAD_TCP_TSO |
+		RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_GRE_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
 	dev_info->default_rxconf = (struct rte_eth_rxconf) {
 		.rx_thresh = {
@@ -2426,13 +2458,11 @@ i40evf_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		stats->ibytes = pstats->rx_bytes;
 		stats->ibytes -= stats->ipackets * RTE_ETHER_CRC_LEN;
 		stats->obytes = pstats->tx_bytes;
-#ifdef TREX_PATCH
-    }
-#else
+#ifndef TREX_PATCH
 	} else {
 		PMD_DRV_LOG(ERR, "Get statistics failed");
+#endif
 	}
-#endif	
 	return ret;
 }
 
@@ -2441,6 +2471,7 @@ i40evf_dev_close(struct rte_eth_dev *dev)
 {
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
 	int ret;
 
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
@@ -2462,6 +2493,16 @@ i40evf_dev_close(struct rte_eth_dev *dev)
 	i40evf_reset_vf(dev);
 	i40e_shutdown_adminq(hw);
 	i40evf_disable_irq0(hw);
+
+	/*
+	 * If the VF is reset via VFLR, the device will be knocked out of bus
+	 * master mode, and the driver will fail to recover from the reset. Fix
+	 * this by enabling bus mastering after every reset. In a non-VFLR case,
+	 * the bus master bit will not be disabled, and this call will have no
+	 * effect.
+	 */
+	if (vf->vf_reset && !rte_pci_set_bus_master(pci_dev, true))
+		vf->vf_reset = false;
 
 	rte_free(vf->vf_res);
 	vf->vf_res = NULL;
@@ -2559,10 +2600,10 @@ i40evf_dev_rss_reta_update(struct rte_eth_dev *dev,
 	uint16_t i, idx, shift;
 	int ret;
 
-	if (reta_size != ETH_RSS_RETA_SIZE_64) {
+	if (reta_size != RTE_ETH_RSS_RETA_SIZE_64) {
 		PMD_DRV_LOG(ERR, "The size of hash lookup table configured "
 			"(%d) doesn't match the number of hardware can "
-			"support (%d)", reta_size, ETH_RSS_RETA_SIZE_64);
+			"support (%d)", reta_size, RTE_ETH_RSS_RETA_SIZE_64);
 		return -EINVAL;
 	}
 
@@ -2575,8 +2616,8 @@ i40evf_dev_rss_reta_update(struct rte_eth_dev *dev,
 	if (ret)
 		goto out;
 	for (i = 0; i < reta_size; i++) {
-		idx = i / RTE_RETA_GROUP_SIZE;
-		shift = i % RTE_RETA_GROUP_SIZE;
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		if (reta_conf[idx].mask & (1ULL << shift))
 			lut[i] = reta_conf[idx].reta[shift];
 	}
@@ -2598,10 +2639,10 @@ i40evf_dev_rss_reta_query(struct rte_eth_dev *dev,
 	uint8_t *lut;
 	int ret;
 
-	if (reta_size != ETH_RSS_RETA_SIZE_64) {
+	if (reta_size != RTE_ETH_RSS_RETA_SIZE_64) {
 		PMD_DRV_LOG(ERR, "The size of hash lookup table configured "
 			"(%d) doesn't match the number of hardware can "
-			"support (%d)", reta_size, ETH_RSS_RETA_SIZE_64);
+			"support (%d)", reta_size, RTE_ETH_RSS_RETA_SIZE_64);
 		return -EINVAL;
 	}
 
@@ -2615,8 +2656,8 @@ i40evf_dev_rss_reta_query(struct rte_eth_dev *dev,
 	if (ret)
 		goto out;
 	for (i = 0; i < reta_size; i++) {
-		idx = i / RTE_RETA_GROUP_SIZE;
-		shift = i % RTE_RETA_GROUP_SIZE;
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		if (reta_conf[idx].mask & (1ULL << shift))
 			reta_conf[idx].reta[shift] = lut[i];
 	}
@@ -2733,7 +2774,7 @@ i40evf_config_rss(struct i40e_vf *vf)
 	uint8_t *lut_info;
 	int ret;
 
-	if (vf->dev_data->dev_conf.rxmode.mq_mode != ETH_MQ_RX_RSS) {
+	if (vf->dev_data->dev_conf.rxmode.mq_mode != RTE_ETH_MQ_RX_RSS) {
 		i40evf_disable_rss(vf);
 		PMD_DRV_LOG(DEBUG, "RSS not configured");
 		return 0;
@@ -2757,7 +2798,7 @@ i40evf_config_rss(struct i40e_vf *vf)
 		}
 
 		for (i = 0; i < rss_lut_size; i++)
-			lut_info[i] = i % vf->num_queue_pairs;
+			lut_info[i] = i % num;
 
 		ret = i40evf_set_rss_lut(&vf->vsi, lut_info,
 					 rss_lut_size);
@@ -2848,13 +2889,15 @@ i40evf_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 		return -EBUSY;
 	}
 
+#ifndef TREX_PATCH
 	if (frame_size > I40E_ETH_MAX_LEN)
 		dev_data->dev_conf.rxmode.offloads |=
 			DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
 		dev_data->dev_conf.rxmode.offloads &=
 			~DEV_RX_OFFLOAD_JUMBO_FRAME;
-	dev_data->dev_conf.rxmode.max_rx_pkt_len = frame_size;
+#endif
+	dev_data->dev_conf.rxmode.mtu = frame_size - I40E_ETH_OVERHEAD;
 
 	return ret;
 }

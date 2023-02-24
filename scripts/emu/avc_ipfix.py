@@ -768,7 +768,7 @@ class AVCGenerators():
             "name": "266",
             "auto_start": True,
             "rate_pps": 100,
-            "data_records_num": 0,
+            "data_records_num": 10,
             "template_id": 266,
             "fields": [
                 self.fields.get_field("clientIPv4Address"),
@@ -956,7 +956,7 @@ class AVCGenerators():
             "name": "267",
             "auto_start": True,
             "rate_pps": 0.1,
-            "data_records_num": 0,
+            "data_records_num": 10,
             "template_id": 267,
             "fields": [
                 self.fields.get_field("clientIPv6Address"),
@@ -1144,7 +1144,7 @@ class AVCGenerators():
             "name": "268",
             "auto_start": True,
             "rate_pps": 6,
-            "data_records_num": 0,
+            "data_records_num": 10,
             "template_id": 268,
             "fields": [
                 self.fields.get_field("sourceIPv4Address"),
@@ -1313,7 +1313,7 @@ class AVCGenerators():
             "name": "269",
             "auto_start": True,
             "rate_pps": 0.1,
-            "data_records_num": 0,
+            "data_records_num": 10,
             "template_id": 269,
             "fields": [
                 self.fields.get_field("sourceIPv6Address"),
@@ -1499,10 +1499,10 @@ class AVCProfiles():
         self.generators = AVCGenerators()
         self.profiles = {} # mapping domain ids with profiles.
 
-    def register_profile(self, netflow_version, host_port, domain_id, generators):
+    def register_profile(self, netflow_version, dst_url, domain_id, generators):
         self.profiles[domain_id] = {
             "netflow_version": netflow_version,
-            "dst": host_port.encode(),
+            "dst": dst_url,
             "domain_id": domain_id,
             "generators": [self.generators.get_generator(template_id) for template_id in generators]
         }
@@ -1524,13 +1524,12 @@ class Prof1():
         self.def_ns_plugs  = {'arp': {'enable': True}}
         self.def_c_plugs  = {'arp': {'enable': True}}
 
-    def register_profiles(self, dst_ipv4, dst_port):
-        host_port = HostPort(dst_ipv4, dst_port)
-        self.avc_profiles.register_profile(10, host_port, 6, [256, 257, 258, 259, 260])
-        self.avc_profiles.register_profile(10, host_port, 256, [266])
-        self.avc_profiles.register_profile(10, host_port, 512, [267])
-        self.avc_profiles.register_profile(10, host_port, 768, [268])
-        self.avc_profiles.register_profile(10, host_port, 1024, [269])
+    def register_profiles(self, dst_url):
+        self.avc_profiles.register_profile(10, dst_url, 6, [256, 257, 258, 259, 260])
+        self.avc_profiles.register_profile(10, dst_url, 256, [266])
+        self.avc_profiles.register_profile(10, dst_url, 512, [267])
+        self.avc_profiles.register_profile(10, dst_url, 768, [268])
+        self.avc_profiles.register_profile(10, dst_url, 1024, [269])
 
     def create_profile(self, mac, ipv4, dgv4, domain_id):
         mac      = Mac(mac)
@@ -1564,13 +1563,19 @@ class Prof1():
         parser.add_argument('--dst-4', type = str, default = '10.56.29.228', dest = 'dst_4',
             help='Ipv4 address of collector')
         parser.add_argument('--dst-port', type = str, default = '2055', dest = 'dst_port',
-            help='Destination port.')
+            help='Destination port')
+        parser.add_argument('--dst-url', type = str, default = None, dest = 'dst_url',
+            help='Destination URL for HTTP/HTTPS exporter')
         parser.add_argument('--domain-id', type = int, default = 256, dest = 'domain_id',
             help='Domain ID. Registered domain IDs are {6, 256, 512, 768, 1024}')
 
         args = parser.parse_args(tuneables)
 
-        self.register_profiles(args.dst_4, args.dst_port)
+        dst_url = args.dst_url
+        if dst_url == None:
+            dst_url = HostPort(args.dst_4, args.dst_port).encode()
+
+        self.register_profiles(dst_url)
 
         domain_ids = self.avc_profiles.get_registered_domain_ids()
 

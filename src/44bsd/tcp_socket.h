@@ -48,40 +48,13 @@
 
 
 
-struct  sockbuf {
-    uint32_t    sb_cc;      /* actual chars in buffer */
-    uint32_t    sb_hiwat;   /* max actual char count */
-    short       sb_flags;   /* flags, see below */
-    //short sb_timeo;   /* timeout for read/write */
-};
+#include "netinet/tcp_socket.h"
+struct mbuf: public rte_mbuf {};
 
-// so_state
-#define US_SS_CANTRCVMORE  1
+#define US_SO_DEBUG     SO_DEBUG
+#define US_SO_KEEPALIVE SO_KEEPALIVE
 
-
-#define US_SO_DEBUG 0x0001      /* turn on debugging info recording */
-#define US_SO_ACCEPTCONN    0x0002      /* socket has had listen() */
-#define US_SO_REUSEADDR 0x0004      /* allow local address reuse */
-#define US_SO_KEEPALIVE 0x0008      /* keep connections alive */
-#define US_SO_DONTROUTE 0x0010      /* just use interface addresses */
-#define US_SO_BROADCAST 0x0020      /* permit sending of broadcast msgs */
-
-#define US_SO_LINGER    0x0080      /* linger on close if data present */
-#define US_SO_OOBINLINE 0x0100      /* leave received OOB data in line */
-//#if __BSD_VISIBLE
-
-#define US_SO_REUSEPORT 0x0200      /* allow local address & port reuse */
-
-#define US_SO_TIMESTAMP 0x0400      /* timestamp received dgram traffic */
-#define US_SO_NOSIGPIPE 0x0800      /* no SIGPIPE from EPIPE */
-#define US_SO_ACCEPTFILTER  0x1000      /* there is an accept filter */
-#define US_SO_BINTIME   0x2000      /* timestamp received dgram traffic */
-//#endif
-#define US_SO_NO_OFFLOAD    0x4000      /* socket cannot be offloaded */
-#define US_SO_NO_DDP    0x8000      /* disable direct data placement */
-
-
-#define SB_MAX      (256*1024)  /* default for max chars in sockbuf */
+//#define SB_MAX      (256*1024)  /* default for max chars in sockbuf */
 #define SB_LOCK     0x01        /* lock on data queue */
 #define SB_WANT     0x02        /* someone is waiting to lock */
 #define SB_WAIT     0x04        /* someone is waiting for data/space */
@@ -93,22 +66,11 @@ struct  sockbuf {
 
 
 
-struct tcp_socket * sonewconn(struct tcp_socket *head, int connstatus);
-
-uint32_t    sbspace(struct sockbuf *sb); 
-//void    sbdrop(struct sockbuf *sb, int len);
-
-int soabort(struct tcp_socket *so);
 void sowwakeup(struct tcp_socket *so);
 void sorwakeup(struct tcp_socket *so);
 
-
 void    soisdisconnected(struct tcp_socket *so);
 void    soisdisconnecting(struct tcp_socket *so);
-
-
-void sbflush (struct sockbuf *sb);
-//void    sbappend(struct sockbuf *sb, struct rte_mbuf *m);
 
 void    sbappend(struct tcp_socket *so,
                  struct sockbuf *sb, 
@@ -267,6 +229,13 @@ typedef enum { tcTX_BUFFER             =1,   /* send buffer of   CMbufBuffer */
                tcTX_MODE               =14,  /* TCP send mode, block, none block */ 
                tcSET_TICK_VAR          =15,  /*  set tick var, used with jmp_dp */
                tcJMPDP                 =16,  /* jump in case time passed from var is less than some duration */
+               tcJMPCMP                =17,  /* conditional/unconditional jump */
+               tcADD_VAR               =18,  /* add value to var */
+               tcADD_TICK_VAR          =19,  /* add value to tick var */
+               tcADD_STATS             =20,  /* add value to statistics counter */
+               tcADD_TICK_STATS        =21,  /* add tick value to statistics counter */
+               tcSET_TEMPLATE          =22,  /* set template to execute */
+               tcEXEC_TEMPLATE         =23,  /* generate a flow from given template */
                tcNO_CMD                =255  /* explicit reset */
 } tcp_app_cmd_enum_t;
 
@@ -312,15 +281,25 @@ struct CEmulAppCmdDelayRnd {
     uint32_t     m_max_ticks;
 };
 
-//tcSET_VAR
+//tcSET_VAR, tcADD_VAR
 struct CEmulAppCmdSetVar {
     uint8_t     m_var_id; /* 2 vars*/
     uint64_t    m_val;
 };
 
-//tcSET_TICK_VAR
+//tcSET_TICK_VAR, tcADD_TICK_VAR
 struct CEmulAppCmdSetTickVar {
-    uint8_t              m_var_id; /* 2 vars */
+    uint8_t     m_var_id; /* 2 vars */
+    uint64_t    m_duration; /* to add duration in ticks */
+};
+
+//tcADD_STATS, tcADD_TICK_STATS
+struct CEmulAppCmdAddStats {
+    uint8_t     m_stats_id;
+    union {
+        uint64_t    m_val; /* value */
+        uint8_t     m_var_id; /* tick variable */
+    };
 };
 
 //tcJMPNZ
@@ -334,6 +313,14 @@ struct CEmulAppCmdJmpDP {
     uint8_t     m_var_id; /* 2 vars*/
     int         m_offset; /* command */
     uint64_t    m_duration; /* duration in ticks */
+};
+
+//tcJMPCMP
+struct CEmulAppCmdJmpCMP {
+    uint8_t     m_var_id; /* 2 vars*/
+    int         m_offset; /* command */
+    bool(*m_cmp_op)(uint64_t,uint64_t); /* comparison function */
+    uint64_t    m_cmp_val; /* comparison value */
 };
 
 /* tcTX_PKT . write pkt. valid for UDP only, should be smaller than MTU */
@@ -359,6 +346,10 @@ struct CEmulAppCmdKeepAlive {
     bool            m_rx_mode; /* keepalive in rx only */
 };
 
+struct CEmulAppCmdTemplate {
+    uint16_t    m_tg_id;
+};
+
 
 /* Commands read-only  */
 struct CEmulAppCmd {
@@ -373,11 +364,14 @@ struct CEmulAppCmd {
         CEmulAppCmdDelayRnd  m_delay_rnd;
         CEmulAppCmdSetVar    m_var;
         CEmulAppCmdSetTickVar m_tick_var;   
+        CEmulAppCmdAddStats  m_stats;
         CEmulAppCmdJmpNZ     m_jmpnz;
-        CEmulAppCmdJmpDP      m_jmpdp;
+        CEmulAppCmdJmpDP     m_jmpdp;
+        CEmulAppCmdJmpCMP    m_jmpcmp;
         CEmulAppCmdTxPkt     m_tx_pkt;
         CEmulAppCmdRxPkt     m_rx_pkt;   
         CEmulAppCmdKeepAlive m_keepalive;   
+        CEmulAppCmdTemplate  m_template;
 
     } u;
 public:
@@ -537,6 +531,39 @@ private:
 };
 
 
+/*****************************************************/
+/* APP Program */
+struct app_stat_int_t {
+    uint64_t    user_counter_A;
+    uint64_t    user_counter_B;
+    uint64_t    user_counter_C;
+    uint64_t    user_counter_D;
+#define NUM_USER_COUNTERS   4
+
+    uint64_t    flows_total;    // total flows generated by the command
+    uint64_t    flows_other;    // generated flows from changed template
+
+};
+
+struct CAppStats {
+    app_stat_int_t* m_sts_tg_id;
+    app_stat_int_t  m_sts;
+    uint16_t        m_num_of_tg_ids;
+public:
+    CAppStats(uint16_t num_of_tg_ids=1);
+    ~CAppStats();
+    void Init(uint16_t num_of_tg_ids);
+    void Clear();
+    void ClearPerTGID(uint16_t tg_id);
+    void Dump(FILE *fd);
+    void Resize(uint16_t new_num_of_tg_ids);
+
+    void AddStatsVal(uint16_t tg_id, const uint8_t id, const uint64_t val);
+};
+
+#define INC_APP_STAT(ctx, tg_id, p) {ctx->m_appstat.m_sts.p++; ctx->m_appstat.m_sts_tg_id[tg_id].p++; }
+#define INC_APP_STAT_CNT(ctx, tg_id, p, cnt) {ctx->m_appstat.m_sts.p += cnt; ctx->m_appstat.m_sts_tg_id[tg_id].p += cnt; }
+
 
 class CEmulApp  {
 public:
@@ -585,6 +612,8 @@ public:
         m_vars[0]=0; /* unroll*/
         m_vars[1]=0;
         assert(apVAR_NUM_SIZE==5);
+        m_next_tg_id = 0;
+        m_last_tg_id = 0;
     }
 
     virtual ~CEmulApp(){
@@ -719,6 +748,10 @@ public:
         return ((m_flags &taRX_DISABLED)?true:false);
     }
 
+    void inc_app_stats(uint8_t id, uint64_t val);
+
+    void exec_template_flow(uint16_t tg_id);
+    void resume_by(CEmulApp* app);
 
     void run_dpc_callbacks();
 
@@ -889,6 +922,9 @@ private:
     /* cache line 3 */
     uint64_t                m_vars[apVAR_NUM_SIZE];
     uint64_t                m_tick_vars[apVAR_NUM_SIZE];
+
+    uint16_t                m_next_tg_id;
+    uint16_t                m_last_tg_id;
 };
 
 
@@ -896,7 +932,7 @@ private:
 class CTcpPerThreadCtx;
 
 
-class   CTcpSockBuf {
+class CTcpSockBuf: public sockbuf {
 
 public:
     void Create(uint32_t max_size){
@@ -930,11 +966,6 @@ public:
     inline void get_by_offset(struct tcp_socket *so,uint32_t offset,
                               CBufMbufRef & res);
 
-public:
-
-    uint32_t    sb_cc;      /* actual chars in buffer */
-    uint32_t    sb_hiwat;   /* max actual char count */
-    uint32_t    sb_flags;   /* flags, see below */
 };
 
 
@@ -944,16 +975,8 @@ public:
  * handle on protocol and pointer to protocol
  * private data and error information.
  */
-struct tcp_socket {
-    short   so_options; 
-    int     so_error;
-    int     so_state;
-/*
- * Variables for socket buffering.
- */
-    struct  sockbuf so_rcv;
-    CTcpSockBuf     so_snd;
-
+struct tcp_socket: public socket {
+public:
     CEmulApp  *      m_app; /* call back pointer */
 };
 

@@ -63,6 +63,7 @@ cleanup_trex_pyc()
 
 TEST_ID = re.compile(r'^(.*?)(\(.*\))$')
 
+
 def id_split(idval):
     m = TEST_ID.match(idval)
     if m:
@@ -284,8 +285,10 @@ class CTRexTestConfiguringPlugin(Plugin):
         return('stateless');
 
 ##### option/configure
-
     def options(self, parser, env = os.environ):
+        """
+        Nose callback for options.
+        """
         super(CTRexTestConfiguringPlugin, self).options(parser, env)
         parser.add_option('--cfg', '--trex-scenario-config', action='store',
                             dest='config_path',
@@ -306,13 +309,16 @@ class CTRexTestConfiguringPlugin(Plugin):
         parser.add_option('--kill-running', action="store_true",
                             help="Kills running TRex process on remote server (useful for regression).")
         parser.add_option('--allow-multi-instance', action="store_true",
-                            help="Allow multiple TRex instance with not kill-running, but only 1 intance can connect via deamon server.")
+                            help="Allow multiple TRex instance with not kill-running, but only 1 instance can connect via deamon server.")
         parser.add_option('--func', '--functional', action="store_true",
                             dest="functional",
                             help="Run functional tests.")
         parser.add_option('--stl', '--stateless', action="store_true",
                             dest="stateless",
                             help="Run stateless tests.")
+        parser.add_option('--stl-sw', '--stateless-software', action="store_true",
+                            dest="stateless_sw",
+                            help="Run stateless software tests.")
         parser.add_option('--bird', action="store_true",
                             help="Run Bird tests.")
         parser.add_option('--emu', action="store_true", help="Run Emu tests.")
@@ -351,9 +357,13 @@ class CTRexTestConfiguringPlugin(Plugin):
                             help = 'Save coredumps (if will be produced) via master daemon.')
 
     def configure(self, options, conf):
+        """
+        Nose callback to configure the options.
+        """
         self.collect_only   = options.collect_only
         self.functional     = options.functional
         self.stateless      = options.stateless
+        self.stateless_sw   = options.stateless_sw
         self.bird           = options.bird
         self.emu            = options.emu # Run regression with Emu tests.
         self.astf           = options.astf
@@ -431,7 +441,7 @@ class CTRexTestConfiguringPlugin(Plugin):
 
         setup = {}
 
-        setup['distro'] = 'None'            #TBD 'Ubunto14.03'
+        setup['distro'] = 'None'           #TBD 'Ubuntu 14.03'
         setup['kernel'] = 'None'           #TBD '2.6.12'
         setup['baremetal'] = True          #TBD
         setup['hypervisor'] = 'None'       #TBD
@@ -441,13 +451,11 @@ class CTRexTestConfiguringPlugin(Plugin):
         setup['cores'] = 0                 #TBD 16
         setup['cpu-speed'] = -1            #TBD 3.5
 
-        setup['dut'] = 'None'             #TBD 'loopback'
+        setup['dut'] = 'None'              #TBD 'loopback'
         setup['drv-name'] = 'None'         #TBD 'mlx5'
         setup['nic-ports'] = 0             #TBD 2
         setup['total-nic-ports'] = 0       #TBD 2
-        setup['nic-speed'] = "None"      #"40GbE" TBD
-
-
+        setup['nic-speed'] = "None"        #"40GbE" TBD
 
         info['image'] = img
         info['setup'] = setup
@@ -501,6 +509,9 @@ class CTRexTestConfiguringPlugin(Plugin):
             fatal('Hash does not match (%s), stuck with old package.' % master_pkg_sha1)
 
     def begin (self):
+        """
+        Called by nose when the beginning a nose.run().
+        """
         client = CTRexScenario.trex
         if self.pkg and not CTRexScenario.pkg_updated:
             self._update_trex()
@@ -537,6 +548,9 @@ class CTRexTestConfiguringPlugin(Plugin):
             CustomLogger.setup_custom_logger('TRexLogger')
 
     def finalize(self, result):
+        """
+        Called by nose when the finishing a nose.run().
+        """
         while self._capture_stack:
             self._endCapture()
 
@@ -547,7 +561,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             CTRexScenario.trex.master_daemon.save_coredump()
         if self.stateful:
             CTRexScenario.trex = None
-        elif self.stateless:
+        elif self.stateless or self.stateless_sw:
             if CTRexScenario.stl_trex and CTRexScenario.stl_trex.is_connected():
                 CTRexScenario.stl_trex.disconnect()
             if not self.no_daemon:
@@ -641,35 +655,45 @@ if __name__ == "__main__":
             if key in sys_args:
                 CTRexScenario.test_types['functional_tests'].append('functional_tests')
                 sys_args.remove(key)
+
         for key in ('--stf', '--stateful'):
             if key in sys_args:
                 CTRexScenario.test_types['stateful_tests'].append('stateful_tests')
                 sys_args.remove(key)
+
         for key in ('--stl', '--stateless'):
             if key in sys_args:
                 CTRexScenario.test_types['stateless_tests'].append('stateless_tests')
                 sys_args.remove(key)
+
+        for key in ('--stl-sw', '--stateless-software'):
+            if key in sys_args:
+                CTRexScenario.test_types['stl_software_tests'].append('stl_software_tests')
+                sys_args.remove(key)
+
         key = '--bird'
         if key in sys_args:
             CTRexScenario.test_types['bird_tests'].append('bird_tests')
             sys_args.remove(key)
+
         key = '--emu'
         if key in sys_args:
             CTRexScenario.test_types['emu_tests'].append('emu_tests')
             sys_args.remove(key)
+
         key = '--astf'
         if key in sys_args:
             CTRexScenario.test_types['astf_tests'].append('astf_tests')
             sys_args.remove(key)
+
         key = '--wireless'
         if key in sys_args:
             CTRexScenario.test_types['wireless_tests'].append('wireless_tests')
             sys_args.remove(key)
+
         # Run all of the tests or just the selected ones
         if not sum([len(x) for x in CTRexScenario.test_types.values()]):
             for key in CTRexScenario.test_types.keys():
-                if key == 'wireless_tests' and sys.version_info[0] < 3:
-                    continue
                 CTRexScenario.test_types[key].append(key)
 
     nose_argv += sys_args
@@ -680,7 +704,7 @@ if __name__ == "__main__":
     cfg_plugin.options(parser)
     options, _ = parser.parse_known_args(sys.argv)
 
-    trex_tests = options.stateless or options.stateful or options.astf or options.bird or options.emu
+    trex_tests = options.stateless or options.stateless_sw or options.stateful or options.astf or options.bird or options.emu
     if not CTRexScenario.is_test_list and (trex_tests or not (trex_tests or options.functional or options.wireless)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
@@ -709,6 +733,7 @@ if __name__ == "__main__":
     is_wlc = 'wlc' in CTRexScenario.modes
     is_bird = 'bird' in CTRexScenario.modes
     is_emu = 'emu' in CTRexScenario.modes
+    is_stl_software = 'stl_software' in CTRexScenario.modes
 
     addplugins = [RedNose(), cfg_plugin]
     result = True
@@ -731,9 +756,11 @@ if __name__ == "__main__":
             attr_arr.append('!nightly')
             attr_arr.append('!long')
         attrs = ','.join(attr_arr)
+
         if CTRexScenario.test_types['wireless_tests']:
             additional_args = ['--wireless', '../trex_control_plane/interactive/trex/wireless']
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
         if CTRexScenario.test_types['functional_tests']:
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
             if attrs:
@@ -741,6 +768,7 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_functional.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
         if CTRexScenario.test_types['stateless_tests']:
             if is_wlc:
                 additional_args = ['--stl', '-a', 'wlc'] + CTRexScenario.test_types['stateless_tests']
@@ -751,6 +779,15 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateless.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
+        if CTRexScenario.test_types['stl_software_tests'] and not is_wlc and is_stl_software:
+            additional_args = ['--stl-sw', 'stl_software_tests/stl_software_general_test.py:StlSoftwareBasic_Test.test_connectivity'] + CTRexScenario.test_types['stl_software_tests']
+            if attrs:
+                additional_args.extend(['-a', attrs])
+            if xml_arg:
+                additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stl_software.xml')]
+            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
         if CTRexScenario.test_types['astf_tests'] and not is_wlc:
             additional_args = ['--astf', 'astf_tests/astf_general_test.py:ASTFBasic_Test.test_connectivity'] + CTRexScenario.test_types['astf_tests']
             if attrs:
@@ -758,6 +795,7 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_astf.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
         if CTRexScenario.test_types['stateful_tests'] and not is_wlc:
             additional_args = ['--stf']
             if '--warmup' in sys.argv:
@@ -768,6 +806,7 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_stateful.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
+
         if CTRexScenario.test_types['bird_tests'] and not is_wlc and is_bird:
             additional_args = ['--bird', 'bird_tests/bird_general_test.py:BirdBasic_Test.test_connectivity'] + CTRexScenario.test_types['bird_tests']
             if attrs:
@@ -776,6 +815,7 @@ if __name__ == "__main__":
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_bird.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
             CTRexScenario.router.load_clean_config()
+
         if CTRexScenario.test_types['emu_tests'] and not is_wlc and is_emu:
             additional_args = ['--emu', 'emu_tests/emu_general_test.py:EmuBasic_Test.test_connectivity'] + CTRexScenario.test_types['emu_tests']
             if attrs:
@@ -783,7 +823,7 @@ if __name__ == "__main__":
             if xml_arg:
                 additional_args += ['--with-xunit', xml_arg.replace('.xml', '_emu.xml')]
             result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
-            # CTRexScenario.router.load_clean_config()
+
 
     #except Exception as e:
     #    result = False

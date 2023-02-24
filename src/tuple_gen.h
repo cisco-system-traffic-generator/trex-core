@@ -41,7 +41,7 @@ limitations under the License.
 #include "trex_global.h"
 #include <random>
 #include "common/dlist.h"
-#include "tunnels/tunnel_handler.h"
+
 
 struct ActiveClientListNode {
     TCDListNode  m_node;
@@ -97,7 +97,7 @@ public:
 
        CTupleBase() {
            m_client_cfg = NULL;
-         m_tun_handle = NULL;
+           m_tunnel_ctx = NULL;
        }
 
        uint32_t getClient() {
@@ -170,11 +170,11 @@ public:
            id = getServerId();
            ip = getServer();
        }
-       void setTunHandle(void *tun_handle) {
-           m_tun_handle = tun_handle;
+       void setTunnelCtx(void *tun_ctx) {
+           m_tunnel_ctx = tun_ctx;
        }
-       void* getTunHandle(void) {
-           return m_tun_handle;
+       void* getTunnelCtx(void) {
+           return m_tunnel_ctx;
        }
 private:
        uint32_t m_client_ip;
@@ -187,7 +187,7 @@ private:
 
        uint16_t m_client_port;
        uint16_t m_server_port;
-       void    *m_tun_handle;
+       void    *m_tunnel_ctx;
 };
 
 
@@ -235,7 +235,7 @@ class CIpInfoBase {
     public:
         virtual uint16_t get_new_free_port() = 0;
         virtual void return_port(uint16_t a) = 0;
-        virtual void generate_tuple(CTupleBase & tuple) = 0;
+        virtual void generate_tuple(CTupleBase & tuple, void* tunnel_ctx=nullptr) = 0;
         virtual void set_start_port(uint16_t a)=0;
 
         virtual void set_min_port(uint16_t a)=0;
@@ -259,12 +259,20 @@ class CIpInfoBase {
             m_is_active = is_active;
         }
 
-        void set_tunnel_info(void *tunnel) {
-            m_tunnel = tunnel;
+        void set_tunnel_ctx(void *tunnel_ctx) {
+            m_tunnel_ctx = tunnel_ctx;
         }
  
-        void *get_tunnel_info() {
-            return m_tunnel;
+        void *get_tunnel_ctx() {
+            return m_tunnel_ctx;
+        }
+
+        void set_tunnel_handler(void *tunnel_handler) {
+            m_tunnel_handler = tunnel_handler;
+        }
+
+        void set_tunnel_ctx_del_cb(void* del_cb) {
+            m_del_tunnel_ctx_cb = del_cb;
         }
 
         uint32_t ref_cnt() { return m_ref_cnt; }
@@ -297,27 +305,22 @@ class CIpInfoBase {
             return m_active_c_node[idx];
         }
 
-        void set_tunnel_type(uint8_t type) {
-            m_tunnel_type = type;
-        }
-
-        uint8_t get_tunnel_type(){
-            return m_tunnel_type;
-        }
-
         CIpInfoBase() { 
             m_is_active = false; 
-            m_tunnel = NULL;
+            m_tunnel_ctx = nullptr;
+            m_tunnel_handler = nullptr;
+            m_del_tunnel_ctx_cb = nullptr;
             m_ref_cnt = 0;
-            m_tunnel_type = TUNNEL_TYPE_NONE;
         }
 
-        virtual ~CIpInfoBase() {}
+        virtual ~CIpInfoBase();
     protected:
-        uint32_t          m_ip;
-        bool              m_is_active;
-        void              *m_tunnel;
-        uint32_t          m_ref_cnt;    // shared reference count
+        uint32_t            m_ip;
+        bool                m_is_active;
+        void               *m_tunnel_ctx;
+        void               *m_tunnel_handler;
+        void               *m_del_tunnel_ctx_cb;
+        uint32_t            m_ref_cnt;    // shared reference count
  
         /* 1 : 1 maapping between m_ref_pool_ptr and m_active_c_node */
         std::vector<void *> m_ref_pool_ptr;
@@ -551,10 +554,11 @@ public:
      }
 
 
-     void generate_tuple(CTupleBase &tuple) {
+     void generate_tuple(CTupleBase &tuple, void *tunnel_ctx=nullptr) {
          tuple.setClientTuple(T::m_ip,
                               NULL,
                               T::get_new_free_port());
+         tuple.setTunnelCtx(tunnel_ctx);
     }
 };
 
@@ -575,10 +579,11 @@ public:
         return (&m_cfg);
     }
 
-    void generate_tuple(CTupleBase &tuple) {
+    void generate_tuple(CTupleBase &tuple, void *tunnel_ctx=nullptr) {
         tuple.setClientTuple(T::m_ip,
                              &m_cfg,
                              T::get_new_free_port());
+        tuple.setTunnelCtx(tunnel_ctx);
     }
 
 private:
@@ -587,14 +592,16 @@ private:
 
 
 class CServerInfo : public CIpInfo {
-    void generate_tuple(CTupleBase & tuple) {
+    void generate_tuple(CTupleBase & tuple, void* tunnel_ctx=nullptr) {
         tuple.setServer(m_ip);
+        tuple.setTunnelCtx(tunnel_ctx);
     }
 };
 
 class CServerInfoL : public CIpInfoL {
-    void generate_tuple(CTupleBase & tuple) {
+    void generate_tuple(CTupleBase & tuple, void* tunnel_ctx=nullptr) {
         tuple.setServer(m_ip);
+        tuple.setTunnelCtx(tunnel_ctx);
     }
 };
 
@@ -745,10 +752,22 @@ public:
         set_active_list_ptr_to_start();
     }
 
+    uint32_t GenerateTuple(CTupleBase & tuple, CIpInfoBase* ip_info) {
+
+        uint32_t idx = ip_info->get_ip() - m_ip_info[0]->get_ip();
+        ip_info->generate_tuple(tuple, ip_info->get_tunnel_ctx());
+
+        tuple.setClientId(idx);
+        if (tuple.getClientPort()==ILLEGAL_PORT) {
+            m_port_allocation_error++;
+        }
+        m_active_alloc++;
+        return idx;
+    }
+
     uint32_t GenerateTuple(CTupleBase & tuple) {
 
         CIpInfoBase* ip_info;
-        uint32_t idx = 0;
 
         //Round robin. If we are tail , start from head
         // Get index of client and increament for next active client 
@@ -758,17 +777,8 @@ public:
         ActiveClientListNode * ln = (ActiveClientListNode *)m_cur_act_itr.node();
         ip_info = (CIpInfoBase *)ln->client;
         m_cur_act_itr++;
-        
-        idx = ip_info->get_ip() - m_ip_info[0]->get_ip();
-        ip_info->generate_tuple(tuple);
-        tuple.setTunHandle(ip_info->get_tunnel_info());
 
-        tuple.setClientId(idx);
-        if (tuple.getClientPort()==ILLEGAL_PORT) {
-            m_port_allocation_error++;
-        }
-        m_active_alloc++;
-        return idx;
+        return GenerateTuple(tuple, ip_info);
     }
 
     /* Add dll node of client object in active client list */
@@ -783,7 +793,10 @@ public:
 
     /* If node we are deleting is same as current iterator of the active list, move forward and then delete */
     void delete_client_from_active_list(ActiveClientListNode *cn){
-         if (((ActiveClientListNode *)m_cur_act_itr.node())->client == cn->client){
+        if (is_active_list_iterator_at_end()) {
+           set_active_list_ptr_to_start();
+        }
+        if (((ActiveClientListNode *)m_cur_act_itr.node())->client == cn->client){
              m_cur_act_itr++;
          }
          cn->m_node.detach();
@@ -1180,6 +1193,10 @@ public:
     CTupleGeneratorSmart * get_gen() {
         return m_gen;
     }
+
+    CClientPool * get_client_gen() const { return m_client_gen; }
+    CServerPoolBase * get_server_gen() const { return m_server_gen; }
+
 private:
     CTupleGeneratorSmart * m_gen;
     CClientPool          * m_client_gen;

@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <errno.h>
 
-#ifdef __GLIBC__
+#ifdef RTE_EXEC_ENV_LINUX
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,7 +24,7 @@
 #error "Undefined endianness"
 #endif
 
-#else
+#else /* !RTE_EXEC_ENV_LINUX */
 #error Environment not supported!
 #endif
 
@@ -40,31 +40,27 @@
 #define __maybe_unused __rte_unused
 #endif
 
-#if defined(__GLIBC__) && !defined(pr_debug)
-#if !defined(SUPPRESS_PRINTS) && defined(RTA_DEBUG)
-#define pr_debug(fmt, ...) \
-	RTE_LOG(DEBUG, PMD, "%s(): " fmt "\n", __func__, ##__VA_ARGS__)
+#if defined(SUPPRESS_PRINTS)
+#define pr_msg(l, fmt, ...) do { } while (0)
 #else
-#define pr_debug(fmt, ...)     do { } while (0)
+#define pr_msg(l, fmt, ...) \
+	RTE_LOG(l, PMD, "%s(): " fmt "\n", __func__, ##__VA_ARGS__)
+#endif
+
+#if !defined(pr_debug)
+#if defined(RTA_DEBUG)
+#define pr_debug(fmt, ...) pr_msg(DEBUG, fmt, ##__VA_ARGS__)
+#else
+#define pr_debug(fmt, ...) do { } while (0)
 #endif
 #endif /* pr_debug */
 
-#if defined(__GLIBC__) && !defined(pr_err)
-#if !defined(SUPPRESS_PRINTS)
-#define pr_err(fmt, ...) \
-	RTE_LOG(ERR, PMD, "%s(): " fmt "\n", __func__, ##__VA_ARGS__)
-#else
-#define pr_err(fmt, ...)    do { } while (0)
-#endif
+#if !defined(pr_err)
+#define pr_err(fmt, ...) pr_msg(ERR, fmt, ##__VA_ARGS__)
 #endif /* pr_err */
 
-#if defined(__GLIBC__) && !defined(pr_warn)
-#if !defined(SUPPRESS_PRINTS)
-#define pr_warn(fmt, ...) \
-	RTE_LOG(WARNING, PMD, "%s(): " fmt "\n", __func__, ##__VA_ARGS__)
-#else
-#define pr_warn(fmt, ...)    do { } while (0)
-#endif
+#if !defined(pr_warn)
+#define pr_warn(fmt, ...) pr_msg(WARNING, fmt, ##__VA_ARGS__)
 #endif /* pr_warn */
 
 /**
@@ -101,7 +97,7 @@
 #endif
 
 /* Use Linux naming convention */
-#ifdef __GLIBC__
+#if defined(RTE_EXEC_ENV_LINUX) || defined(__GLIBC__)
 	#define swab16(x) rte_bswap16(x)
 	#define swab32(x) rte_bswap32(x)
 	#define swab64(x) rte_bswap64(x)

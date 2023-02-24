@@ -27,6 +27,7 @@ limitations under the License.
 #include "trex_global.h"
 #include "trex_capture.h"
 #include "trex_port.h"
+#include <common/Network/Packet/MPLSHeader.h>
 
 void CSttFlowTableStats::Clear(){
     memset(&m_sts,0,sizeof(m_sts));
@@ -58,6 +59,9 @@ void CSttFlowTableStats::Dump(FILE *fd){
     MYC(m_rss_redirect_rx);
     MYC(m_rss_redirect_tx);
     MYC(m_rss_redirect_drops);
+    MYC(m_rss_redirect_queue_full);
+    MYC(m_ignored_macs);
+    MYC(m_ignored_ips);
 }
 
 
@@ -86,11 +90,26 @@ bool CFlowTable::Create(uint32_t size,
 
     m_service_status        = SERVICE_OFF;
     m_service_filtered_mask = 0;
+
+    m_tcp_lro = nullptr;
+    if (!CGlobalInfo::m_options.preview.get_dev_lro_support() &&
+        !CGlobalInfo::m_options.preview.getLroOffloadDisable()) {
+        using namespace std::placeholders;
+        auto cb = std::bind(&CFlowTable::process_tcp_packet, this, _1, _2, _3, _4, _5);
+
+        m_tcp_lro = new CTcpRxOffload;
+        m_tcp_lro->Create(cb);
+    }
+    m_black_list = 0;
     return(true);
 }
 
 void CFlowTable::Delete(){
     m_ft.Delete();
+    if (m_tcp_lro) {
+        m_tcp_lro->Delete();
+        delete m_tcp_lro;
+    }
 }
 
 
@@ -145,8 +164,6 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
             return;
         }
     }
-
-    TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
 
     uint8_t *p=rte_pktmbuf_mtod(mbuf, uint8_t*);
     uint32_t mbuf_pkt_len=rte_pktmbuf_pkt_len(mbuf);
@@ -233,12 +250,12 @@ void CFlowTable::parse_packet(struct rte_mbuf * mbuf,
     }
     lpf->m_l7_total_len  =  pkt_len - lpf->m_l7_offset;
 
-    if ( (mbuf->ol_flags & PKT_RX_IP_CKSUM_MASK) ==  PKT_RX_IP_CKSUM_BAD ){
+    if ( (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) ==  RTE_MBUF_F_RX_IP_CKSUM_BAD ){
         FT_INC_SCNT(m_err_l3_cs);
         return;
     }
 
-    if ( rx_l4_check &&  ((mbuf->ol_flags & PKT_RX_L4_CKSUM_BAD) ==  PKT_RX_L4_CKSUM_BAD) ){
+    if ( rx_l4_check &&  ((mbuf->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_BAD) ==  RTE_MBUF_F_RX_L4_CKSUM_BAD) ){
         FT_INC_SCNT(m_err_l4_cs);
         return;
     }
@@ -348,8 +365,7 @@ HOT_FUNC void CFlowTable::handle_close(CTcpPerThreadCtx * ctx,
 
 void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple) {
     if ( lpTcp->getAckFlag() ){
-        tcp_respond(flow->m_pctx,
-                     &flow->m_tcp,
+        tcp_int_respond(&flow->m_tcp,
                      0,
                      lpTcp->getAckNumber(),
                      TH_RST);
@@ -366,8 +382,7 @@ void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple
             /* keep-alive packet  */
             seq = lpTcp->getAckNumber();
         }
-        tcp_respond(flow->m_pctx,
-                     &flow->m_tcp,
+        tcp_int_respond(&flow->m_tcp,
                      lpTcp->getSeqNumber()+tlen,
                      seq,
                      TH_RST|TH_ACK);
@@ -376,17 +391,26 @@ void tcp_respond_rst(CTcpFlow* flow, TCPHeader* lpTcp, CFlowKeyFullTuple &ftuple
 
 
 bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
+                                    struct rte_mbuf * mbuf,
                                     CTcpFlow *  flow,
                                     TCPHeader    * lpTcp,
                                     CFlowKeyFullTuple &ftuple){
     assert(!flow->is_activated());
     if (flow->m_template_info) {
         flow->update_new_template_assoc_info();
-        flow->m_app.start(false);
         assert(flow->is_activated()); /* flow is now activated */
+        flow->m_pctx->set_flow_info(flow);
+        flow->m_app.start(false);
     } else {    /* no matched template found, now mbuf should be freed */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
-        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+        uint8_t mask = 3;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
+        // black_list is not empty
+        if (m_black_list & mask && !ignore) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
             tcp_respond_rst(flow, lpTcp, ftuple);
         }
         FT_INC_SCNT(m_err_defer_no_template);
@@ -396,6 +420,15 @@ bool CFlowTable::update_new_template(CTcpPerThreadCtx * ctx,
     return true;
 }
 
+static inline void tcp_flow_input(CTcpFlow *  flow,
+                                  struct rte_mbuf * mbuf,
+                                  TCPHeader    * lpTcp,
+                                  CFlowKeyFullTuple &ftuple){
+
+    tcp_int_input(&flow->m_tcp, (struct mbuf*)mbuf, (struct tcphdr*)lpTcp, ftuple.m_l7_offset, ftuple.m_l7_total_len, 0);
+
+    flow->check_defer_function();
+}
 
 void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
                                     CTcpFlow *  flow,
@@ -407,24 +440,16 @@ void HOT_FUNC CFlowTable::process_tcp_packet(CTcpPerThreadCtx * ctx,
         tcphdr = *lpTcp;
     }
 
-    tcp_flow_input(flow->m_pctx,
-                   &flow->m_tcp,
-                   mbuf,
-                   lpTcp,
-                   ftuple.m_l7_offset,
-                   ftuple.m_l7_total_len
-                   );
-
-    flow->check_defer_function();
+    tcp_flow_input(flow, mbuf, lpTcp, ftuple);
 
     if (unlikely(flow->new_template_identified())) {
         /* identifying new template has been done */
-        if (!update_new_template(ctx, flow, &tcphdr, ftuple)) {
+        if (!update_new_template(ctx, mbuf, flow, &tcphdr, ftuple)) {
             return; /* when update is failed, flow is not available also. */
         }
     }
 
-    if (flow->is_can_close()) {
+    if (flow->is_can_close() && ctx) {
         handle_close(ctx,flow,true);
     }
 }
@@ -434,7 +459,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                          uint32_t dst,
                                          uint16_t src_port,
                                          uint16_t dst_port,
-                                         uint16_t vlan,
+                                         tunnel_cfg_data_t tunnel_data,
                                          bool is_ipv6,
                                         TCPHeader    * lpTcp,
                                         uint8_t *   pkt,
@@ -460,7 +485,7 @@ void       CFlowTable::generate_rst_pkt(CPerProfileCtx * pctx,
                                  dst,
                                  src_port,
                                  dst_port,
-                                 vlan,
+                                 tunnel_data,
                                  is_ipv6,
                                  NULL);
     if (flow==0) {
@@ -483,9 +508,9 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
                                   uint32_t dst,
                                   uint16_t src_port,
                                   uint16_t dst_port,
-                                  uint16_t vlan,
+                                  tunnel_cfg_data_t tunnel_data,
                                   bool is_ipv6,
-                                  void *tun_handle,
+                                  void *tunnel_ctx,
                                   bool client,
                                   uint16_t tg_id,
                                   uint16_t template_id){
@@ -496,7 +521,7 @@ CUdpFlow * CFlowTable::alloc_flow_udp(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, client, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::UDP,tun_handle,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,IPHeader::Protocol::UDP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -507,9 +532,9 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
                                   uint32_t dst,
                                   uint16_t src_port,
                                   uint16_t dst_port,
-                                  uint16_t vlan,
+                                  tunnel_cfg_data_t tunnel_data,
                                   bool is_ipv6,
-                                  void *tun_handle,
+                                  void *tunnel_ctx,
                                   uint16_t tg_id,
                                   uint16_t template_id){
     CTcpFlow * flow = new (std::nothrow) CTcpFlow();
@@ -519,7 +544,7 @@ CTcpFlow * CFlowTable::alloc_flow(CPerProfileCtx * pctx,
     }
     flow->Create(pctx, tg_id);
     flow->m_c_template_idx = template_id;
-    flow->m_template.set_tuple(src,dst,src_port,dst_port,vlan,IPHeader::Protocol::TCP,tun_handle,is_ipv6);
+    flow->m_template.set_tuple(src,dst,src_port,dst_port,tunnel_data,IPHeader::Protocol::TCP,tunnel_ctx,is_ipv6);
     flow->init();
     flow->m_pctx->m_flow_cnt++;
     return(flow);
@@ -537,6 +562,7 @@ HOT_FUNC void CFlowTable::free_flow(CFlowBase * flow){
         delete udp_flow;
     }else{
         CTcpFlow * tcp_flow=(CTcpFlow *)flow;
+        flow->m_pctx->clear_flow_info(tcp_flow);
         tcp_flow->Delete();
         delete tcp_flow;
     }
@@ -600,6 +626,45 @@ void CFlowTable::process_udp_packet(CTcpPerThreadCtx * ctx,
     }
 }
 
+bool CFlowTable::ignore_packet(CTcpPerThreadCtx * ctx,
+                               struct rte_mbuf * mbuf,
+                               CFlowKeyFullTuple &ftuple) {
+
+    if (!ctx->is_ignored_macs_empty()) {
+        uint8_t* p = rte_pktmbuf_mtod(mbuf, uint8_t*);
+        uint64_t mac_addr = 0;
+        uint8_t* mac_p = (uint8_t*)&mac_addr;
+        memcpy((void*)(mac_p + 2), (void*)p, 6);
+        if (ctx->mac_lookup(mac_addr)) {
+            FT_INC_SCNT(m_ignored_macs);
+            return true;
+        }
+    }
+    if (!ctx->is_ignored_ips_empty()) {
+        IPHeader *iph = rte_pktmbuf_mtod_offset (mbuf, IPHeader *, ftuple.m_l3_offset);
+        if (iph->getVersion() == IPHeader::Protocol::IP) {
+            if (ctx->ip_lookup(iph->getSourceIp())) {
+                FT_INC_SCNT(m_ignored_ips);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool CFlowTable::rx_handle_stateless_packet(CTcpPerThreadCtx * ctx,
+                                            struct rte_mbuf * mbuf,
+                                            tvpid_t port_id){
+    TrexStatelessDpCore* dp_core = (TrexStatelessDpCore*)ctx->m_thread->get_dp_core();
+    if (!dp_core->is_feature_set(TrexStatelessDpCore::LATENCY))
+        return false;
+
+    RXLatency* fs_latency = dp_core->get_fs_latency_object_ptr(!m_client_side);
+
+    fs_latency->handle_pkt(mbuf, port_id);
+
+    return true;
+}
 
 bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
                                               struct rte_mbuf * mbuf,
@@ -617,6 +682,7 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
+        rx_handle_stateless_packet(ctx, mbuf, port_id);
         FT_INC_SCNT(m_err_client_pkt_without_flow);
         rte_pktmbuf_free(mbuf);
         return(false);
@@ -637,15 +703,24 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
-    uint16_t vlan=0;
+    tunnel_cfg_data_t tunnel_data;
     if (parser.m_vlan_offset) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        vlan = lpVlan->getVlanTag();
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
+        tunnel_data.m_vlan = lpVlan->getVlanTag();
+    }
+
+    if (parser.m_mpls_offset !=0) {
+        MPLSHeader *lpMpls = (MPLSHeader *)(pkt + 14);
+        tunnel_data.m_mpls.label = lpMpls->getLabel();
+        tunnel_data.m_mpls.tc = lpMpls->getTc();
+        tunnel_data.m_mpls.s = lpMpls->getBottomOfStack();
+        tunnel_data.m_mpls.ttl = lpMpls->getTtl();
     }
 
     uint16_t dst_port = lpUDP->getDestPort();
 
     if (!ctx->is_any_profile()) {
+        rx_handle_stateless_packet(ctx, mbuf, port_id);
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
         return(false);
@@ -661,6 +736,9 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
     CTcpServerInfo *server_info = temp ? temp->get_server_info(): nullptr;
 
     if (!server_info || !pctx->is_open_flow_allowed()){
+        if (!server_info) {
+            rx_handle_stateless_packet(ctx, mbuf, port_id);
+        }
         rte_pktmbuf_free(mbuf);
         FT_INC_SCNT(m_err_no_template);
         return(false);
@@ -681,15 +759,16 @@ bool CFlowTable::rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
 
     flow = ctx->m_ft.alloc_flow_udp(pctx, dest_ip, tuple.get_src_ip(),
                                     dst_port, tuple.get_sport(),
-                                    vlan, is_ipv6, NULL, false, tg_id,
+                                    tunnel_data, is_ipv6, NULL, false, tg_id,
                                     c_template_idx);
-
-
 
     if (flow == 0 ) {
         rte_pktmbuf_free(mbuf);
         return(false);
     }
+
+    //set the tunnel contexts to the server side in gtpu-loopback mode
+    flow->set_tunnel_ctx();
 
     flow->m_template.server_update_mac(pkt, pctx, port_id);
     if (is_ipv6) {
@@ -752,10 +831,18 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     uint8_t *pkt = rte_pktmbuf_mtod(mbuf, uint8_t*);
 
     /* TBD Parser need to be fixed */
-    uint16_t vlan=0;
+    tunnel_cfg_data_t tunnel_data;
     if (parser.m_vlan_offset) {
-        VLANHeader * lpVlan=(VLANHeader *)(pkt+14);
-        vlan = lpVlan->getVlanTag();
+        VLANHeader * lpVlan=(VLANHeader *)(pkt+14+parser.m_mpls_offset);
+        tunnel_data.m_vlan = lpVlan->getVlanTag();
+    }
+
+    if (parser.m_mpls_offset !=0) {
+        MPLSHeader *lpMpls = (MPLSHeader *)(pkt + 14);
+        tunnel_data.m_mpls.label = lpMpls->getLabel();
+        tunnel_data.m_mpls.tc = lpMpls->getTc();
+        tunnel_data.m_mpls.s = lpMpls->getBottomOfStack();
+        tunnel_data.m_mpls.ttl = lpMpls->getTtl();
     }
 
     uint16_t dst_port = lpTcp->getDestPort();
@@ -768,7 +855,14 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         /* not found in flowtable , we are generating the flows*/
     if ( m_client_side ){
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
-        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+        uint8_t mask = 3;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
+        // black_list is not empty
+        if (m_black_list & mask && !ignore) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
 
             uint32_t source_ip;
             if (parser.m_ipv4){
@@ -784,7 +878,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                            source_ip,
                            dst_port,
                            lpTcp->getSourcePort(),
-                           vlan,
+                           tunnel_data,
                            is_ipv6,
                            lpTcp,
                            pkt,parser.m_ipv6,
@@ -802,13 +896,20 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     if (  (lpTcp->getFlags() & TCPHeader::Flag::SYN) ==0 ) {
         /* no syn */
         CPerProfileCtx* pctx = FALLBACK_PROFILE_CTX(ctx);
-        if (pctx->m_tunable_ctx.tcp_blackhole != 2) {
+        uint8_t mask = 3;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
+        // black_list is not empty
+        if (m_black_list & mask && !ignore) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole != 2 && !ignore) {
             generate_rst_pkt(pctx,
                              dest_ip,
                              tuple.get_src_ip(),
                              dst_port,
                              tuple.get_sport(),
-                             vlan,
+                             tunnel_data,
                              is_ipv6,
                              lpTcp,
                              pkt,parser.m_ipv6,
@@ -830,13 +931,20 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         if (!pctx) {
             pctx = FALLBACK_PROFILE_CTX(ctx);
         }
-        if (pctx->m_tunable_ctx.tcp_blackhole == 0) {
+        uint8_t mask = 3;
+        // if gtpu is enable ignore
+        bool ignore = CGlobalInfo::m_options.m_tunnel_enabled;
+        // black_list is not empty
+        if (m_black_list & mask && !ignore) {
+            ignore = ignore_packet(ctx, mbuf, ftuple);
+        }
+        if (pctx->m_tunable_ctx.tcp_blackhole == 0 && !ignore) {
           generate_rst_pkt(pctx,
                          dest_ip,
                          tuple.get_src_ip(),
                          dst_port,
                          tuple.get_sport(),
-                         vlan,
+                         tunnel_data,
                          is_ipv6,
                          lpTcp,
                          pkt,parser.m_ipv6,
@@ -867,7 +975,7 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                    tuple.get_src_ip(),
                                    dst_port,
                                    tuple.get_sport(),
-                                   vlan,
+                                   tunnel_data,
                                    is_ipv6,
                                    NULL,
                                    tg_id,
@@ -879,6 +987,9 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
         rte_pktmbuf_free(mbuf);
         return(false);
     }
+
+    //set the tunnel contexts to the server side in gtpu-loopback mode
+    lptflow->set_tunnel_ctx();
 
     if (unlikely(temp->has_payload_params())) {
         /* payload params can be checked after it is received */
@@ -922,11 +1033,12 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     if (unlikely(temp->has_payload_params())) {
         lptflow->start_identifying_template(pctx, payload_info);
     } else {
+        lptflow->m_pctx->set_flow_info(lptflow);
         app->start(true); /* start the application */
     }
 
     /* start listen */
-    tcp_listen(lptflow->m_pctx,&lptflow->m_tcp);
+    tcp_listen(&lptflow->m_tcp);
 
     /* process SYN packet */
     process_tcp_packet(ctx,lptflow,mbuf,lpTcp,ftuple);
@@ -934,6 +1046,180 @@ bool CFlowTable::rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
     return(true);
 }
 
+
+void CTcpRxOffloadBuf::update_mbuf(struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
+    m_mbuf = mbuf;
+    m_lpTcp = lpTcp;
+    m_ftuple = ftuple;
+}
+
+void CTcpRxOffloadBuf::set(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
+    update_mbuf(mbuf, lpTcp, ftuple);
+    m_flow = flow;
+    flow->m_lro_buf = this;
+}
+
+void CTcpRxOffloadBuf::clear_flow() {
+    if (m_flow) {
+        if (m_flow->m_lro_buf == this) {
+            m_flow->m_lro_buf = nullptr;
+        }
+        m_flow = nullptr;
+    }
+}
+
+void CTcpRxOffloadBuf::reset() {
+    if (m_flow) {
+        if (m_mbuf) {
+            rte_pktmbuf_free(m_mbuf);
+            m_mbuf = nullptr;
+        }
+        clear_flow();
+    }
+}
+
+bool CTcpRxOffloadBuf::reassemble_mbuf(struct rte_mbuf * mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple) {
+#ifndef TREX_SIM
+    /* merge if the two packets are neighbors */
+    if (m_ftuple.m_l7_total_len + ftuple.m_l7_total_len <= TCP_TSO_MAX_DEFAULT &&
+        lpTcp->getHeaderLength() == m_lpTcp->getHeaderLength()) {
+
+        if (likely(lpTcp->getSeqNumber() == m_lpTcp->getSeqNumber() + m_ftuple.m_l7_total_len)) {
+            m_ftuple.m_l7_total_len += ftuple.m_l7_total_len;
+            if (rte_pktmbuf_adj(mbuf, ftuple.m_l7_offset)) {
+                rte_pktmbuf_chain(m_mbuf, mbuf);
+
+                INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
+                return true;
+            }
+        }
+        else if (m_lpTcp->getSeqNumber() == lpTcp->getSeqNumber() + ftuple.m_l7_total_len) {
+            ftuple.m_l7_total_len += m_ftuple.m_l7_total_len;
+            if (rte_pktmbuf_adj(m_mbuf, m_ftuple.m_l7_offset)) {
+                rte_pktmbuf_chain(mbuf, m_mbuf);
+
+                update_mbuf(mbuf, lpTcp, ftuple);
+                INC_STAT(m_flow->m_pctx, m_flow->m_tg_id, tcps_rcvoffloads);
+                return true;
+            }
+        }
+    }
+#endif
+    return false;
+}
+
+
+void CTcpRxOffload::Create(rx_offload_cb_t cb) {
+    m_size = NUM_RX_OFFLOAD;
+    m_bufs = new CTcpRxOffloadBuf[m_size];
+    m_head = 0;
+    m_tail = 0;
+
+    m_cb = cb;
+}
+
+void CTcpRxOffload::Delete() {
+    for (; m_tail < m_head; ++m_tail) {
+        m_bufs[m_tail % m_size].reset();
+    }
+    delete[] m_bufs;
+}
+
+HOT_FUNC CTcpRxOffloadBuf* CTcpRxOffload::new_buf() {
+
+    assert(m_head >= m_tail);
+    if (m_head > m_tail) {
+        uint32_t index = (m_head - 1) % m_size;
+        if (!m_bufs[index].is_active()) {
+            return &m_bufs[index];
+        }
+    }
+    if (m_head - m_tail >= m_size) {
+        if (m_bufs[m_tail % m_size].is_active()) {
+            return nullptr;
+        }
+        ++m_tail;
+    }
+
+    uint32_t index = m_head % m_size;
+    ++m_head;
+    if (m_head > 2*m_size) {
+        m_head -= m_size;
+        m_tail -= m_size;
+    }
+    return &m_bufs[index];
+}
+
+HOT_FUNC CTcpRxOffloadBuf* CTcpRxOffload::find_buf(CTcpFlow* flow) {
+    return flow->m_lro_buf;
+}
+
+HOT_FUNC bool CTcpRxOffload::append_buf(CTcpFlow* flow,
+                                        struct rte_mbuf* mbuf,
+                                        TCPHeader* lpTcp,
+                                        CFlowKeyFullTuple& ftuple) {
+    bool lro_done = false;
+    bool do_lro = (lpTcp->getFlags() == TCPHeader::Flag::ACK) && (ftuple.m_l7_total_len > 0);
+    CTcpRxOffloadBuf* buf = find_buf(flow);
+
+    if (buf) {
+        if (do_lro && buf->reassemble_mbuf(mbuf, lpTcp, ftuple)) {
+            lro_done = true;
+        } else {
+            /* nullptr ctx prevents unexpected flow closing */
+            m_cb(nullptr, flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
+            buf->clear_flow();
+        }
+    }
+
+    if (do_lro && !lro_done) {
+        if (!buf) {
+            buf = new_buf();
+        }
+
+        if (likely(buf)) {
+            buf->set(flow, mbuf, lpTcp, ftuple);
+            lro_done = true;
+        }
+    }
+
+    return lro_done;
+}
+
+bool CTcpRxOffload::is_empty() {
+    return (m_head == m_tail);
+}
+
+inline void CTcpRxOffload::flush_bufs(CTcpPerThreadCtx * ctx) {
+
+    assert(m_head >= m_tail);
+
+    for (; m_tail < m_head; ++m_tail) {
+        CTcpRxOffloadBuf* buf = &m_bufs[m_tail % m_size];
+        CTcpFlow* flow = buf->m_flow;
+
+        if (flow) {
+            buf->clear_flow(); /* to prevent mbuf double-free from flow closing. */
+            m_cb(ctx, flow, buf->m_mbuf, buf->m_lpTcp, buf->m_ftuple);
+        }
+    }
+}
+
+
+HOT_FUNC bool CFlowTable::process_software_lro(CTcpPerThreadCtx * ctx,
+                                    CTcpFlow *  flow,
+                                    struct rte_mbuf * mbuf,
+                                    TCPHeader    * lpTcp,
+                                    CFlowKeyFullTuple &ftuple) {
+
+    return m_tcp_lro && m_tcp_lro->append_buf(flow, mbuf, lpTcp, ftuple);
+}
+
+void CFlowTable::flush_software_lro(CTcpPerThreadCtx * ctx) {
+    if (m_tcp_lro && !m_tcp_lro->is_empty()) {
+        m_tcp_lro->flush_bufs(ctx);
+    }
+}
 
 HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                                   struct rte_mbuf * mbuf,
@@ -969,7 +1255,12 @@ HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
                 action,
                 port_id);
 
+    if ( action != tREDIRECT_RX_CORE ) {
+        TrexCaptureMngr::getInstance().handle_pkt_rx_dp(mbuf, port_id);
+    }
+
     if ( action != tPROCESS ) {
+        rx_handle_stateless_packet(ctx, mbuf, port_id);
         rx_non_process_packet(action, ctx, mbuf);
         return false;
     }
@@ -1004,6 +1295,12 @@ HOT_FUNC bool CFlowTable::rx_handle_packet(CTcpPerThreadCtx * ctx,
             CTcpFlow *flow;
             flow = CTcpFlow::cast_from_hash_obj(lpflow);
             TCPHeader    * lpTcp = (TCPHeader *)parser.m_l4;
+#ifndef TREX_SIM
+            if (process_software_lro(ctx, flow, mbuf, lpTcp, ftuple)) {
+                /* mbuf is consumed by software LRO */
+                return(true);
+            }
+#endif
             process_tcp_packet(ctx,flow,mbuf,lpTcp,ftuple);
         }
         return(true);

@@ -84,9 +84,8 @@ public:
      * release the port from the current user
      * throws TrexException in case of an error
      */
-    void release(void);
+    virtual void release();
 
-    
     uint8_t get_port_id() {
         return m_port_id;
     }
@@ -104,7 +103,7 @@ public:
         (void) profile_id;
         return m_dp_events;
     }
-   
+
     /**
      * returns the number of DP cores linked to this port
      *

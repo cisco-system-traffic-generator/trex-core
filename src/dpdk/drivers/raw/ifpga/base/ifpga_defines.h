@@ -93,9 +93,9 @@ enum fpga_id_type {
 
 #define PORT_FEATURE_ID_HEADER FEATURE_ID_FIU_HEADER
 #define PORT_FEATURE_ID_ERROR 0x10
-#define PORT_FEATURE_ID_UMSG 0x12
-#define PORT_FEATURE_ID_UINT 0x13
-#define PORT_FEATURE_ID_STP 0x14
+#define PORT_FEATURE_ID_UMSG 0x11
+#define PORT_FEATURE_ID_UINT 0x12
+#define PORT_FEATURE_ID_STP 0x13
 #define PORT_FEATURE_ID_UAFU FEATURE_ID_AFU
 
 /*
@@ -1727,6 +1727,7 @@ struct opae_board_info {
 	u8 seu;
 	u8 ptp;
 
+	u32 boot_page;
 	u32 max10_version;
 	u32 nios_fw_version;
 	u32 nums_of_retimer;

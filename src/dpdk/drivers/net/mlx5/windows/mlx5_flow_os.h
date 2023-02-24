@@ -10,6 +10,7 @@
 
 #if defined(HAVE_IBV_FLOW_DV_SUPPORT) || !defined(HAVE_INFINIBAND_VERBS_H)
 extern const struct mlx5_flow_driver_ops mlx5_flow_dv_drv_ops;
+extern const struct mlx5_flow_driver_ops mlx5_flow_hw_drv_ops;
 #endif
 
 /**
@@ -42,6 +43,9 @@ mlx5_flow_os_item_supported(int item)
 	case RTE_FLOW_ITEM_TYPE_ETH:
 	case RTE_FLOW_ITEM_TYPE_IPV4:
 	case RTE_FLOW_ITEM_TYPE_UDP:
+	case RTE_FLOW_ITEM_TYPE_TCP:
+	case RTE_FLOW_ITEM_TYPE_IPV6:
+	case RTE_FLOW_ITEM_TYPE_VLAN:
 		return true;
 	default:
 		return false;

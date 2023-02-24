@@ -153,7 +153,7 @@
                             }
                          }
                  },
-                 "required": ["program_index","ip_gen","cps","port"]
+                 "required": ["program_index","ip_gen","port"]
              },
              
              /* one template type */   
@@ -371,6 +371,84 @@
              "required": ["name", "id"]
             },
 
+          "program_command_add_var_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["add_var"]
+                      },
+
+                     "id" : {
+                          "type" : "integer"
+                      },
+
+                     "val" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","id","val"]
+           },
+
+          "program_command_add_tick_var_t" : {
+                "type": "object",
+                 "properties": {
+                       "name": {
+                           "type" : "string",
+                           "enum" : ["add_tick_var"]
+                       },
+
+                      "id" : {
+                           "type" : "integer"
+                       },
+
+                       "duration" : {
+                           "type" : "number",
+                           "minimum" : 0.0
+                       }
+                 },
+                 "required": ["name","id","duration"]
+            },
+
+          "program_command_add_stats_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["add_stats"]
+                      },
+
+                     "stats_id" : {
+                          "type" : "integer"
+                      },
+
+                     "val" : {
+                          "type" : "integer",
+                          "minimum" : 0
+                      }
+                },
+                "required": ["name","stats_id","val"]
+           },
+
+          "program_command_add_tick_stats_t" : {
+                "type": "object",
+                 "properties": {
+                       "name": {
+                           "type" : "string",
+                           "enum" : ["add_tick_stats"]
+                       },
+
+                      "stats_id" : {
+                           "type" : "integer"
+                       },
+
+                       "var_id" : {
+                           "type" : "integer"
+                       }
+                 },
+                 "required": ["name","stats_id","var_id"]
+            },
+
           "program_command_jmpnz_t" : {
                "type": "object",
                 "properties": {
@@ -414,6 +492,34 @@
              "required": ["name", "id", "offset", "duration"]
         },
 
+          "program_command_jmpcmp_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["jmp_cmp"]
+                      },
+
+                     "id" : {
+                          "type" : "integer"
+                      },
+
+                     "offset" : {
+                          "type" : "integer"
+                      },
+
+                     "cmp_op" : {
+                          "type" : "string",
+                          "enum" : ["gt","lt","eq","ge","le","ne"]
+                      },
+
+                     "cmp_val" : {
+                          "type" : "integer"
+                      }
+                },
+                "required": ["name","offset"]
+           },
+
            "program_command_tx_mode_t" : {
                "type": "object",
                 "properties": {
@@ -428,6 +534,33 @@
                       }
                 },
                 "required": ["name","flags"]
+           },
+
+           "program_command_set_template_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["set_template"]
+                      },
+
+                     "tg_id" : {
+                          "type" : "integer",
+                          "minimum": 1
+                      }
+                },
+                "required": ["name","tg_id"]
+           },
+
+           "program_command_exec_template_t" : {
+               "type": "object",
+                "properties": {
+                      "name": {
+                          "type" : "string",
+                          "enum" : ["exec_template"]
+                      }
+                },
+                "required": ["name"]
            },
 
              
@@ -452,9 +585,16 @@
                                     {"$ref": "#/definitions/program_command_delay_rnd_t"},
                                     {"$ref": "#/definitions/program_command_set_val_t"},
                                     {"$ref": "#/definitions/program_command_set_tick_var_t"},
+                                    {"$ref": "#/definitions/program_command_add_var_t"},
+                                    {"$ref": "#/definitions/program_command_add_tick_var_t"},
+                                    {"$ref": "#/definitions/program_command_add_stats_t"},
+                                    {"$ref": "#/definitions/program_command_add_tick_stats_t"},
                                     {"$ref": "#/definitions/program_command_jmpnz_t"},
                                     {"$ref": "#/definitions/program_command_jmpdp_t"},
-                                    {"$ref": "#/definitions/program_command_tx_mode_t"}
+                                    {"$ref": "#/definitions/program_command_jmpcmp_t"},
+                                    {"$ref": "#/definitions/program_command_tx_mode_t"},
+                                    {"$ref": "#/definitions/program_command_set_template_t"},
+                                    {"$ref": "#/definitions/program_command_exec_template_t"}
                                     
                                     ]
                                 },

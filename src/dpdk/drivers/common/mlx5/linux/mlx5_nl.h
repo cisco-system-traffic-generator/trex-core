@@ -11,6 +11,7 @@
 
 #include "mlx5_common.h"
 
+typedef void (mlx5_nl_event_cb)(struct nlmsghdr *hdr, void *user_data);
 
 /* VLAN netdev for VLAN workaround. */
 struct mlx5_nl_vlan_dev {
@@ -30,7 +31,7 @@ struct mlx5_nl_vlan_vmwa_context {
 };
 
 __rte_internal
-int mlx5_nl_init(int protocol);
+int mlx5_nl_init(int protocol, int groups);
 __rte_internal
 int mlx5_nl_mac_addr_add(int nlsk_fd, unsigned int iface_idx, uint64_t *mac_own,
 			 struct rte_ether_addr *mac, uint32_t index);
@@ -54,6 +55,8 @@ unsigned int mlx5_nl_portnum(int nl, const char *name);
 __rte_internal
 unsigned int mlx5_nl_ifindex(int nl, const char *name, uint32_t pindex);
 __rte_internal
+int mlx5_nl_port_state(int nl, const char *name, uint32_t pindex);
+__rte_internal
 int mlx5_nl_vf_mac_addr_modify(int nlsk_fd, unsigned int iface_idx,
 			       struct rte_ether_addr *mac, int vf_index);
 __rte_internal
@@ -66,15 +69,16 @@ void mlx5_nl_vlan_vmwa_delete(struct mlx5_nl_vlan_vmwa_context *vmwa,
 __rte_internal
 uint32_t mlx5_nl_vlan_vmwa_create(struct mlx5_nl_vlan_vmwa_context *vmwa,
 				  uint32_t ifindex, uint16_t tag);
-__rte_internal
+
 int mlx5_nl_devlink_family_id_get(int nlsk_fd);
-__rte_internal
 int mlx5_nl_enable_roce_get(int nlsk_fd, int family_id, const char *pci_addr,
 			    int *enable);
-__rte_internal
-int mlx5_nl_driver_reload(int nlsk_fd, int family_id, const char *pci_addr);
-__rte_internal
 int mlx5_nl_enable_roce_set(int nlsk_fd, int family_id, const char *pci_addr,
 			    int enable);
+
+__rte_internal
+int mlx5_nl_read_events(int nlsk_fd, mlx5_nl_event_cb *cb, void *cb_arg);
+__rte_internal
+int mlx5_nl_parse_link_status_update(struct nlmsghdr *hdr, uint32_t *ifindex);
 
 #endif /* RTE_PMD_MLX5_NL_H_ */

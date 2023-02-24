@@ -167,7 +167,7 @@ igc_tuple_filter_lookup(const struct igc_adapter *igc,
 		/* search the filter array */
 		for (; i < IGC_MAX_NTUPLE_FILTERS; i++) {
 			if (igc->ntuple_filters[i].hash_val) {
-				/* compare the hase value */
+				/* compare the hash value */
 				if (ntuple->hash_val ==
 					igc->ntuple_filters[i].hash_val)
 					/* filter be found, return index */
@@ -369,24 +369,9 @@ igc_clear_all_filter(struct rte_eth_dev *dev)
 }
 
 int
-eth_igc_filter_ctrl(struct rte_eth_dev *dev, enum rte_filter_type filter_type,
-		enum rte_filter_op filter_op, void *arg)
+eth_igc_flow_ops_get(struct rte_eth_dev *dev __rte_unused,
+		     const struct rte_flow_ops **ops)
 {
-	int ret = 0;
-
-	RTE_SET_USED(dev);
-
-	switch (filter_type) {
-	case RTE_ETH_FILTER_GENERIC:
-		if (filter_op != RTE_ETH_FILTER_GET)
-			return -EINVAL;
-		*(const void **)arg = &igc_flow_ops;
-		break;
-	default:
-		PMD_DRV_LOG(WARNING, "Filter type (%d) not supported",
-							filter_type);
-		ret = -EINVAL;
-	}
-
-	return ret;
+	*ops = &igc_flow_ops;
+	return 0;
 }

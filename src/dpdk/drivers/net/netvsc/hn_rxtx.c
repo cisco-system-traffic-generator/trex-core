@@ -315,8 +315,7 @@ hn_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	}
 
 error:
-	if (txq->txdesc_pool)
-		rte_mempool_free(txq->txdesc_pool);
+	rte_mempool_free(txq->txdesc_pool);
 	rte_memzone_free(txq->tx_rndis_mz);
 	rte_free(txq);
 	return err;
@@ -356,17 +355,16 @@ static void hn_txd_put(struct hn_tx_queue *txq, struct hn_txdesc *txd)
 }
 
 void
-hn_dev_tx_queue_release(void *arg)
+hn_dev_tx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
 {
-	struct hn_tx_queue *txq = arg;
+	struct hn_tx_queue *txq = dev->data->tx_queues[qid];
 
 	PMD_INIT_FUNC_TRACE();
 
 	if (!txq)
 		return;
 
-	if (txq->txdesc_pool)
-		rte_mempool_free(txq->txdesc_pool);
+	rte_mempool_free(txq->txdesc_pool);
 
 	rte_memzone_free(txq->tx_rndis_mz);
 	rte_free(txq);
@@ -578,7 +576,7 @@ static void hn_rxpkt(struct hn_rx_queue *rxq, struct hn_rx_bufinfo *rxb,
 		rte_iova_t iova;
 
 		/*
-		 * Build an external mbuf that points to recveive area.
+		 * Build an external mbuf that points to receive area.
 		 * Use refcount to handle multiple packets in same
 		 * receive buffer section.
 		 */
@@ -615,7 +613,7 @@ static void hn_rxpkt(struct hn_rx_queue *rxq, struct hn_rx_bufinfo *rxb,
 
 	if (info->vlan_info != HN_NDIS_VLAN_INFO_INVALID) {
 		m->vlan_tci = info->vlan_info;
-		m->ol_flags |= PKT_RX_VLAN_STRIPPED | PKT_RX_VLAN;
+		m->ol_flags |= RTE_MBUF_F_RX_VLAN_STRIPPED | RTE_MBUF_F_RX_VLAN;
 
 		/* NDIS always strips tag, put it back if necessary */
 		if (!hv->vlan_strip && rte_vlan_insert(&m)) {
@@ -630,18 +628,18 @@ static void hn_rxpkt(struct hn_rx_queue *rxq, struct hn_rx_bufinfo *rxb,
 
 	if (info->csum_info != HN_NDIS_RXCSUM_INFO_INVALID) {
 		if (info->csum_info & NDIS_RXCSUM_INFO_IPCS_OK)
-			m->ol_flags |= PKT_RX_IP_CKSUM_GOOD;
+			m->ol_flags |= RTE_MBUF_F_RX_IP_CKSUM_GOOD;
 
 		if (info->csum_info & (NDIS_RXCSUM_INFO_UDPCS_OK
 				       | NDIS_RXCSUM_INFO_TCPCS_OK))
-			m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
+			m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_GOOD;
 		else if (info->csum_info & (NDIS_RXCSUM_INFO_TCPCS_FAILED
 					    | NDIS_RXCSUM_INFO_UDPCS_FAILED))
-			m->ol_flags |= PKT_RX_L4_CKSUM_BAD;
+			m->ol_flags |= RTE_MBUF_F_RX_L4_CKSUM_BAD;
 	}
 
 	if (info->hash_info != HN_NDIS_HASH_INFO_INVALID) {
-		m->ol_flags |= PKT_RX_RSS_HASH;
+		m->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
 		m->hash.rss = info->hash_value;
 	}
 
@@ -1004,9 +1002,9 @@ hn_rx_queue_free(struct hn_rx_queue *rxq, bool keep_primary)
 }
 
 void
-hn_dev_rx_queue_release(void *arg)
+hn_dev_rx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
 {
-	struct hn_rx_queue *rxq = arg;
+	struct hn_rx_queue *rxq = dev->data->rx_queues[qid];
 
 	PMD_INIT_FUNC_TRACE();
 
@@ -1018,9 +1016,9 @@ hn_dev_rx_queue_release(void *arg)
  * For this device that means how many packets are pending in the ring.
  */
 uint32_t
-hn_dev_rx_queue_count(struct rte_eth_dev *dev, uint16_t queue_id)
+hn_dev_rx_queue_count(void *rx_queue)
 {
-	struct hn_rx_queue *rxq = dev->data->rx_queues[queue_id];
+	struct hn_rx_queue *rxq = rx_queue;
 
 	return rte_ring_count(rxq->rx_ring);
 }
@@ -1031,7 +1029,7 @@ hn_dev_rx_queue_count(struct rte_eth_dev *dev, uint16_t queue_id)
  * returns:
  *  - -EINVAL               - offset outside of ring
  *  - RTE_ETH_RX_DESC_AVAIL - no data available yet
- *  - RTE_ETH_RX_DESC_DONE  - data is waiting in stagin ring
+ *  - RTE_ETH_RX_DESC_DONE  - data is waiting in staging ring
  */
 int hn_dev_rx_queue_status(void *arg, uint16_t offset)
 {
@@ -1331,17 +1329,17 @@ static void hn_encap(struct rndis_packet_msg *pkt,
 					  NDIS_PKTINFO_TYPE_HASHVAL);
 	*pi_data = queue_id;
 
-	if (m->ol_flags & PKT_TX_VLAN_PKT) {
+	if (m->ol_flags & RTE_MBUF_F_TX_VLAN) {
 		pi_data = hn_rndis_pktinfo_append(pkt, NDIS_VLAN_INFO_SIZE,
 						  NDIS_PKTINFO_TYPE_VLAN);
 		*pi_data = m->vlan_tci;
 	}
 
-	if (m->ol_flags & PKT_TX_TCP_SEG) {
+	if (m->ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
 		pi_data = hn_rndis_pktinfo_append(pkt, NDIS_LSO2_INFO_SIZE,
 						  NDIS_PKTINFO_TYPE_LSO);
 
-		if (m->ol_flags & PKT_TX_IPV6) {
+		if (m->ol_flags & RTE_MBUF_F_TX_IPV6) {
 			*pi_data = NDIS_LSO2_INFO_MAKEIPV6(hlen,
 							   m->tso_segsz);
 		} else {
@@ -1349,23 +1347,23 @@ static void hn_encap(struct rndis_packet_msg *pkt,
 							   m->tso_segsz);
 		}
 	} else if (m->ol_flags &
-		   (PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM | PKT_TX_IP_CKSUM)) {
+		   (RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM)) {
 		pi_data = hn_rndis_pktinfo_append(pkt, NDIS_TXCSUM_INFO_SIZE,
 						  NDIS_PKTINFO_TYPE_CSUM);
 		*pi_data = 0;
 
-		if (m->ol_flags & PKT_TX_IPV6)
+		if (m->ol_flags & RTE_MBUF_F_TX_IPV6)
 			*pi_data |= NDIS_TXCSUM_INFO_IPV6;
-		if (m->ol_flags & PKT_TX_IPV4) {
+		if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
 			*pi_data |= NDIS_TXCSUM_INFO_IPV4;
 
-			if (m->ol_flags & PKT_TX_IP_CKSUM)
+			if (m->ol_flags & RTE_MBUF_F_TX_IP_CKSUM)
 				*pi_data |= NDIS_TXCSUM_INFO_IPCS;
 		}
 
-		if (m->ol_flags & PKT_TX_TCP_CKSUM)
+		if (m->ol_flags & RTE_MBUF_F_TX_TCP_CKSUM)
 			*pi_data |= NDIS_TXCSUM_INFO_MKTCPCS(hlen);
-		else if (m->ol_flags & PKT_TX_UDP_CKSUM)
+		else if (m->ol_flags & RTE_MBUF_F_TX_UDP_CKSUM)
 			*pi_data |= NDIS_TXCSUM_INFO_MKUDPCS(hlen);
 	}
 
@@ -1387,7 +1385,8 @@ static unsigned int hn_get_slots(const struct rte_mbuf *m)
 		unsigned int size = rte_pktmbuf_data_len(m);
 		unsigned int offs = rte_mbuf_data_iova(m) & PAGE_MASK;
 
-		slots += (offs + size + PAGE_SIZE - 1) / PAGE_SIZE;
+		slots += (offs + size + rte_mem_page_size() - 1) /
+				rte_mem_page_size();
 		m = m->next;
 	}
 
@@ -1402,12 +1401,13 @@ static unsigned int hn_fill_sg(struct vmbus_gpa *sg,
 
 	while (m) {
 		rte_iova_t addr = rte_mbuf_data_iova(m);
-		unsigned int page = addr / PAGE_SIZE;
+		unsigned int page = addr / rte_mem_page_size();
 		unsigned int offset = addr & PAGE_MASK;
 		unsigned int len = rte_pktmbuf_data_len(m);
 
 		while (len > 0) {
-			unsigned int bytes = RTE_MIN(len, PAGE_SIZE - offset);
+			unsigned int bytes = RTE_MIN(len,
+					rte_mem_page_size() - offset);
 
 			sg[segs].page = page;
 			sg[segs].ofs = offset;
@@ -1450,7 +1450,7 @@ static int hn_xmit_sg(struct hn_tx_queue *txq,
 	addr = txq->tx_rndis_iova +
 		((char *)txd->rndis_pkt - (char *)txq->tx_rndis);
 
-	sg[0].page = addr / PAGE_SIZE;
+	sg[0].page = addr / rte_mem_page_size();
 	sg[0].ofs = addr & PAGE_MASK;
 	sg[0].len = RNDIS_PACKET_MSG_OFFSET_ABS(hn_rndis_pktlen(txd->rndis_pkt));
 	segs = 1;
@@ -1646,7 +1646,7 @@ hn_dev_free_queues(struct rte_eth_dev *dev)
 	dev->data->nb_rx_queues = 0;
 
 	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		hn_dev_tx_queue_release(dev->data->tx_queues[i]);
+		hn_dev_tx_queue_release(dev, i);
 		dev->data->tx_queues[i] = NULL;
 	}
 	dev->data->nb_tx_queues = 0;

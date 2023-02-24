@@ -4186,7 +4186,7 @@ TEST_F(basic_stl, multi_burst1) {
 /********************************************* Itay Tests Start *************************************/
 
 /**
- * check that continous stream does not point to another stream
+ * check that continuos stream does not point to another stream
  * (makes no sense)
  */
 TEST_F(basic_stl, compile_bad_1) {
@@ -4210,7 +4210,7 @@ TEST_F(basic_stl, compile_bad_1) {
 }
 
 /**
- * check for streams pointing to non exsistant streams
+ * check for streams pointing to non existant streams
  *
  * @author imarom (16-Nov-15)
  */
@@ -4931,7 +4931,7 @@ TEST_F(flow_stat, add_del_stream) {
         0xff, TEST_L4_PROTO, 0xbd,0x04,
         0x10,0x0,0x0,0x1,
         0x30,0x0,0x0,0x1,
-        // TCP heaader
+        // TCP header
         0xab, 0xcd, 0x00, 0x80, // src, dst ports
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // seq num, ack num
         0x50, 0x00, 0xff, 0xff, // Header size, flags, window size
@@ -5255,3 +5255,1474 @@ TEST(latency_stats, out_of_order_ieee_1588) {
     EXPECT_EQ(std::get<0>(results).get_seq_err_ev_low(), 1);
 }
 
+/**************************** Tagged Packet Grouping *********************************/
+
+class TaggedPktGroupTest : public trexStlTest {
+protected:
+  virtual void SetUp() { set_op_debug_mode(OP_MODE_STL); }
+  virtual void TearDown() {}
+
+public:
+    void VALIDATE_STATS_JSON(Json::Value& stats, CTPGTagCntr* tag_cntr) {
+        EXPECT_EQ(stats["pkts"].asUInt64(), tag_cntr->m_pkts);
+        EXPECT_EQ(stats["bytes"].asUInt64(), tag_cntr->m_bytes);
+        EXPECT_EQ(stats["seq_err"].asUInt64(), tag_cntr->m_seq_err);
+        EXPECT_EQ(stats["seq_err_too_big"].asUInt64(), tag_cntr->m_seq_err_too_big);
+        EXPECT_EQ(stats["seq_err_too_small"].asUInt64(), tag_cntr->m_seq_err_too_small);
+        EXPECT_EQ(stats["dup"].asUInt64(), tag_cntr->m_dup);
+        EXPECT_EQ(stats["ooo"].asUInt64(), tag_cntr->m_ooo);
+    }
+
+    void VALIDATE_TX_STATS_JSON(Json::Value& stats, TPGTxGroupCounters* tpgid_cntr) {
+        EXPECT_EQ(stats["pkts"].asUInt64(), tpgid_cntr->m_pkts);
+        EXPECT_EQ(stats["bytes"].asUInt64(), tpgid_cntr->m_bytes);
+    }
+};
+
+TEST_F(TaggedPktGroupTest, PacketGroupTag) {
+    EXPECT_NO_THROW(Dot1QTag(20, 0));
+    EXPECT_THROW(Dot1QTag(0, 0), TrexException);
+    EXPECT_NO_THROW(Dot1QTag(4094, 0));
+    EXPECT_THROW(Dot1QTag(4095, 0), TrexException);
+    EXPECT_THROW(QinQTag(4095, 0, 1), TrexException);
+    EXPECT_THROW(QinQTag(0, 0, 1), TrexException);
+    EXPECT_THROW(QinQTag(1, 10000, 1), TrexException);
+    EXPECT_NO_THROW(QinQTag(1, 1, 1));
+    Dot1QTag vlan = Dot1QTag(10, 7);
+    EXPECT_EQ(vlan.get_vlan(), 10);
+    EXPECT_EQ(vlan.get_tag(), 7);
+    QinQTag qinq = QinQTag(20, 30, 3);
+    EXPECT_EQ(qinq.get_inner_vlan(), 20);
+    EXPECT_EQ(qinq.get_outter_vlan(), 30);
+    EXPECT_EQ(qinq.get_tag(), 3);
+}
+
+TEST_F(TaggedPktGroupTest, PacketGroupTagMgr) {
+
+    PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+    EXPECT_EQ(tag_mgr->get_num_tags(), 0);
+    EXPECT_FALSE(tag_mgr->dot1q_tag_exists(7));
+    EXPECT_FALSE(tag_mgr->qinq_tag_exists(20, 30));
+    EXPECT_THROW(tag_mgr->get_dot1q_tag(7), TrexException);
+    EXPECT_THROW(tag_mgr->get_qinq_tag(20, 30), TrexException);
+    EXPECT_TRUE(tag_mgr->add_dot1q_tag(7, 0));       // Vlan 7 - Tag 0
+    EXPECT_EQ(tag_mgr->get_num_tags(), 1);
+    EXPECT_TRUE(tag_mgr->dot1q_tag_exists(7));
+    EXPECT_EQ(tag_mgr->get_dot1q_tag(7), 0);
+    EXPECT_FALSE(tag_mgr->add_dot1q_tag(7, 0));      // Add the same vlan again - Fail
+    EXPECT_TRUE(tag_mgr->add_qinq_tag(20, 30, 1));   // QinQ(20, 30) - Tag 1
+    EXPECT_EQ(tag_mgr->get_num_tags(), 2);
+    EXPECT_TRUE(tag_mgr->qinq_tag_exists(20, 30));
+    EXPECT_EQ(tag_mgr->get_qinq_tag(20, 30), 1);
+    EXPECT_FALSE(tag_mgr->add_qinq_tag(20, 30, 1));  // Add the same QinQ again - Fail
+    EXPECT_FALSE(tag_mgr->add_dot1q_tag(10000, 3)); // Fail, this is an invalid Vlan
+    EXPECT_FALSE(tag_mgr->add_qinq_tag(1, 10000, 3)); // Fail, this is an invalid QinQ
+    EXPECT_FALSE(tag_mgr->add_qinq_tag(10000, 1, 3)); // Fail, this is an invalid QinQ
+
+    PacketGroupTagMgr* cloned = new PacketGroupTagMgr(tag_mgr);
+    EXPECT_EQ(cloned->get_num_tags(), 2);
+    EXPECT_TRUE(tag_mgr->dot1q_tag_exists(7));
+    EXPECT_TRUE(tag_mgr->qinq_tag_exists(20, 30));
+
+    EXPECT_TRUE(tag_mgr->add_dot1q_tag(10, 0));      // Replace Vlan 7 with Vlan 10
+    EXPECT_EQ(tag_mgr->get_num_tags(), 2);
+    EXPECT_EQ(tag_mgr->get_dot1q_tag(10), 0);
+    EXPECT_EQ(cloned->get_num_tags(), 2);
+    EXPECT_FALSE(cloned->dot1q_tag_exists(10));
+
+    delete cloned;
+    delete tag_mgr;
+}
+
+TEST_F(TaggedPktGroupTest, PacketGroupTagMgr2) {
+
+    PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+    EXPECT_EQ(tag_mgr->get_num_tags(), 0);
+    EXPECT_FALSE(tag_mgr->dot1q_tag_exists(7));
+    EXPECT_FALSE(tag_mgr->qinq_tag_exists(20, 30));
+    EXPECT_TRUE(tag_mgr->add_dot1q_tag(7, 0));       // Vlan 7 - Tag 0
+    EXPECT_EQ(tag_mgr->get_num_tags(), 1);
+    EXPECT_TRUE(tag_mgr->dot1q_tag_exists(7));
+    EXPECT_EQ(tag_mgr->get_dot1q_tag(7), 0);
+    EXPECT_FALSE(tag_mgr->add_dot1q_tag(7, 0));      // Add the same vlan again - Fail
+    EXPECT_TRUE(tag_mgr->add_qinq_tag(20, 30, 1));   // QinQ(20, 30) - Tag 1
+    EXPECT_EQ(tag_mgr->get_num_tags(), 2);
+    EXPECT_TRUE(tag_mgr->qinq_tag_exists(20, 30));
+    EXPECT_EQ(tag_mgr->get_qinq_tag(20, 30), 1);
+    EXPECT_FALSE(tag_mgr->add_qinq_tag(20, 30, 1));  // Add the same QinQ again - Fail
+    EXPECT_TRUE(tag_mgr->add_dot1q_tag(2, 2));       // Vlan 2 - Tag 2
+    EXPECT_EQ(tag_mgr->get_num_tags(), 3);
+
+    EXPECT_FALSE(tag_mgr->remove_tag(3));           // No tag 4 to remove
+    EXPECT_TRUE(tag_mgr->remove_tag(2));            // Remove Tag 2
+    EXPECT_EQ(tag_mgr->get_num_tags(), 3);          // Removing the tag doesn't change the number of tags!
+    EXPECT_FALSE(tag_mgr->dot1q_tag_exists(2));
+    EXPECT_TRUE(tag_mgr->add_dot1q_tag(50, 2));     // Vlan 50 - Tag 2
+
+
+    PacketGroupTagMgr* cloned = new PacketGroupTagMgr(tag_mgr);
+    EXPECT_EQ(cloned->get_num_tags(), 3);
+    EXPECT_TRUE(tag_mgr->dot1q_tag_exists(7));
+    EXPECT_TRUE(tag_mgr->qinq_tag_exists(20, 30));
+    EXPECT_TRUE(tag_mgr->dot1q_tag_exists(50));
+
+    delete cloned;
+    delete tag_mgr;
+}
+
+TEST_F(TaggedPktGroupTest, TPGCpCtx) {
+    std::vector<uint8_t> acquired_ports {0, 1};
+    std::vector<uint8_t> rx_ports {1};
+    std::unordered_map<uint8_t, bool> cores_map {{0, true}};
+    uint32_t num_tpgids = 20;
+    const std::string username = "bdollma";
+    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, username);
+    EXPECT_EQ(num_tpgids, tpg_ctx->get_num_tpgids());
+
+    const std::vector<uint8_t>& rcv_acq_ports = tpg_ctx->get_acquired_ports();
+    ASSERT_EQ(acquired_ports.size(), rcv_acq_ports.size());
+    for (int i = 0; i < acquired_ports.size(); ++i) {
+        EXPECT_EQ(acquired_ports[i], rcv_acq_ports[i]) << "Vectors acquired_ports and rcv_acq_ports differ at index " << i;
+    }
+
+    const std::vector<uint8_t>& rcv_rx_ports = tpg_ctx->get_rx_ports();
+    ASSERT_EQ(rx_ports.size(), rcv_rx_ports.size());
+    for (int i = 0; i < rx_ports.size(); ++i) {
+        EXPECT_EQ(rx_ports[i], rcv_rx_ports[i]) << "Vectors rx_ports and rcv_rx_ports differ at index " << i;
+    }
+    EXPECT_TRUE(tpg_ctx->is_port_collecting(1));      // Port 1 is collecting
+    EXPECT_FALSE(tpg_ctx->is_port_collecting(0));     // Port 2 is not collecting
+    EXPECT_FALSE(tpg_ctx->is_port_collecting(3));     // Port 3 is collecting
+
+    EXPECT_EQ(username, tpg_ctx->get_username());
+
+    const std::unordered_map<uint8_t, bool>& rcv_cores_map = tpg_ctx->get_cores_map();
+    ASSERT_EQ(cores_map.size(), rcv_cores_map.size());
+
+    PacketGroupTagMgr* tag_mgr = tpg_ctx->get_tag_mgr();
+    EXPECT_EQ(tag_mgr->get_num_tags(), 0);
+    EXPECT_FALSE(tag_mgr->dot1q_tag_exists(1));
+    EXPECT_TRUE(tag_mgr->add_dot1q_tag(7, 0));
+
+    // Create another TPG context
+    acquired_ports = {2, 3};
+    rx_ports = {3};
+    cores_map = {{1, true}};
+    num_tpgids = 2;
+    const std::string other_user = "bes";
+    TPGCpCtx* second_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, other_user);
+
+    EXPECT_EQ(num_tpgids, second_ctx->get_num_tpgids());
+    EXPECT_EQ(other_user, second_ctx->get_username());
+    EXPECT_TRUE(second_ctx->is_port_collecting(3));
+    EXPECT_FALSE(second_ctx->is_port_collecting(2));
+    EXPECT_FALSE(second_ctx->is_port_collecting(1));
+
+    tag_mgr = second_ctx->get_tag_mgr();
+    EXPECT_EQ(tag_mgr->get_num_tags(), 0);
+
+    delete tpg_ctx;
+    delete second_ctx;
+}
+
+TEST_F(TaggedPktGroupTest, TPGStreamMgr) {
+
+    uint32_t tpgid = 7;
+
+    uint8_t test_short_pkt[] = {
+        // Ether header
+        0x24, 0x8a, 0x07, 0x14, 0xfc, 0x59, // Dst Mac
+        0x24, 0x8a, 0x07, 0x14, 0xfc, 0x58, // Src Mac
+        0x81, 0x00,                         // Eth Type
+        // QinQ Header
+        0x00, 0x14, 0x81, 0x00, // Vlan 20
+        0x00, 0x1e, 0x08, 0x00, // Vlan 30
+        // IP Header
+        0x45, 0x00, 0x00, 0x24, // Version, Header Length, DSCP, Length
+        0x00, 0x01, 0x00, 0x00, // ID, Flags, Fragment
+        0x40, 0x11, 0x3a, 0xbf, // TTL, Protocol, Checksum
+        0x10, 0x00, 0x00, 0x01, // Src Ip
+        0x30, 0x00, 0x00, 0x01, // Dst Ip
+        // UDP Header
+        0x04, 0x01, 0x00, 0x0c, // Src Port, Dst Port
+        0x00, 0x0a, 0x18, 0x0e,  // Length, Checksum
+        // TPG Header in Half
+        0xc1, 0x5c, 0x0b, 0xe5, 0x07, 0x00, 0x00, 0x00
+    };
+
+    uint8_t test_pkt[] = {
+        // Ether header
+        0x24, 0x8a, 0x07, 0x14, 0xfc, 0x59, // Dst Mac
+        0x24, 0x8a, 0x07, 0x14, 0xfc, 0x58, // Src Mac
+        0x81, 0x00,                         // Eth Type
+        // QinQ Header
+        0x00, 0x14, 0x81, 0x00, // Vlan 20
+        0x00, 0x1e, 0x08, 0x00, // Vlan 30
+        // IP Header
+        0x45, 0x00, 0x00, 0x2c, // Version, Header Length, DSCP, Length
+        0x00, 0x01, 0x00, 0x00, // ID, Flags, Fragment
+        0x40, 0x11, 0x3a, 0xbf, // TTL, Protocol, Checksum
+        0x10, 0x00, 0x00, 0x01, // Src Ip
+        0x30, 0x00, 0x00, 0x01, // Dst Ip
+        // UDP Header
+        0x04, 0x01, 0x00, 0x0c, // Src Port, Dst Port
+        0x00, 0x18, 0x18, 0x0e,  // Length, Checksum
+        // TPG Header
+        0xc1, 0x5c, 0x0b, 0xe5, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    TrexStream stream(TrexStream::stSINGLE_BURST, 0, 0);
+    stream.m_rx_check.m_enabled = true;
+    stream.m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_TPG_PAYLOAD;
+    stream.m_rx_check.m_pg_id = tpgid;
+    stream.m_pkt.binary = (uint8_t *)test_short_pkt;
+    stream.m_pkt.len = sizeof(test_short_pkt);
+
+    // Delete non existing stream
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->del_stream(&stream);
+        } catch (TrexFStatEx& e) {
+            // Validate the type and throw again
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_NON_EXIST_ID);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    // Stop non existing stream
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->stop_stream(&stream);
+        } catch (TrexFStatEx& e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_NON_EXIST_ID);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    // Reset non existing stream
+    try {
+        TPGStreamMgr::instance()->reset_stream(&stream);
+    } catch (TrexFStatEx &e) {
+        assert(e.type() == TrexException::T_FLOW_STAT_NON_EXIST_ID);
+    }
+
+    // Add stream without creating TPG Context.
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_TPG_NOT_ENABLED);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    // Add context but don't enable yet
+    std::vector<uint8_t> acquired_ports = {0, 1};
+    std::vector<uint8_t> rx_ports = {0, 1};
+    std::unordered_map<uint8_t, bool> cores_map = {{0, true}};
+    uint32_t num_tpgids = 5;
+    std::string username = "bdollma";
+    TPGCpCtx* tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, username);
+    TrexStateless* stl = get_stateless_obj();
+    stl->get_port_by_id(0)->set_tpg_ctx(tpg_ctx);
+
+    // TPG is not enabled yet
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_TPG_NOT_ENABLED);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    tpg_ctx->set_tpg_state(TPGState::ENABLED); // Enable TPG
+
+    // Num of tpgids is too small
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_INVALID_TPGID);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    num_tpgids = tpgid+1;
+    delete tpg_ctx;
+    tpg_ctx = new TPGCpCtx(acquired_ports, rx_ports, cores_map, num_tpgids, username);
+    tpg_ctx->set_tpg_state(TPGState::ENABLED);
+    stl->get_port_by_id(0)->set_tpg_ctx(tpg_ctx);
+
+    // Stream too short
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    // Set the packet binary to a long packet
+    stream.m_pkt.binary = (uint8_t *)test_pkt;
+    stream.m_pkt.len = sizeof(test_pkt);
+
+    // Stream added successfully
+    TPGStreamMgr::instance()->add_stream(&stream);
+
+    // Add again
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_ALREADY_EXIST);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    // Change stream id
+    stream.m_stream_id += 1;
+
+    // Same TPGID
+    EXPECT_THROW({
+        try {
+            TPGStreamMgr::instance()->add_stream(&stream);
+        } catch (TrexFStatEx &e) {
+            EXPECT_EQ(e.type(), TrexException::T_FLOW_STAT_DUP_PG_ID);
+            throw;
+        }
+    }, TrexFStatEx);
+
+    // Reset stream id
+    stream.m_stream_id -= 1;
+
+    TPGStreamMgr::instance()->del_stream(&stream);
+    TPGStreamMgr::instance()->add_stream(&stream);
+    TPGStreamMgr::instance()->stop_stream(&stream);
+    TPGStreamMgr::instance()->del_stream(&stream);
+
+    // Do not want the destructor to try to free it
+    stream.m_pkt.binary = NULL;
+
+    delete tpg_ctx;
+}
+
+class TPGDpMgrPerSideTest : public TaggedPktGroupTest {
+public:
+    void TestSeq() {
+        /*
+         * Test Sequence numbers
+         */
+        uint32_t num_tpgids = 3;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        for (int i = 0; i < num_tpgids; ++i) {
+            EXPECT_EQ(dp_mgr->get_seq(i), 0);
+        }
+
+        dp_mgr->inc_seq(1);
+        EXPECT_EQ(dp_mgr->get_seq(1), 1);
+        EXPECT_EQ(dp_mgr->get_seq(0), 0);
+
+        for (int i = 0; i < 10; ++i) {
+            dp_mgr->inc_seq(2);
+        }
+
+        EXPECT_EQ(dp_mgr->get_seq(0), 0);
+        EXPECT_EQ(dp_mgr->get_seq(1), 1);
+        EXPECT_EQ(dp_mgr->get_seq(2), 10);
+
+        /***********************************************
+        This functionality can change in the future.
+        At the moment, if someone tries to increment the
+        sequence on a tpgid that is not in range, we
+        ignore.
+        ************************************************/
+        EXPECT_NO_THROW(dp_mgr->inc_seq(3));
+        EXPECT_NO_THROW(dp_mgr->get_seq(3));
+        EXPECT_EQ(dp_mgr->get_seq(3), 0);
+
+        delete dp_mgr;
+    }
+
+    void TestCounters() {
+        TPGTxGroupCounters cntr = TPGTxGroupCounters();
+        EXPECT_EQ(cntr.m_bytes, 0);
+        EXPECT_EQ(cntr.m_pkts, 0);
+
+        uint8_t num_pkts = 50;
+        uint64_t pkt_size = 64;
+        for (uint8_t i = 0; i < num_pkts; i++) {
+            cntr.update_cntr(1, pkt_size);
+        }
+
+        EXPECT_EQ(cntr.m_pkts, num_pkts);
+        EXPECT_EQ(cntr.m_bytes, num_pkts * pkt_size);
+
+        TPGTxGroupCounters cntr2 = TPGTxGroupCounters();
+        EXPECT_NE(cntr, cntr2);
+
+        cntr2.set_cntrs(cntr.m_pkts, cntr.m_bytes);
+        EXPECT_EQ(cntr, cntr2);
+
+        Json::Value stats;
+        cntr.dump_json(stats);
+
+        VALIDATE_TX_STATS_JSON(stats, &cntr);
+    }
+
+    void TestCounterUpdate() {
+        /**
+         * Check counter dumping and update
+         */
+        uint32_t num_tpgids = 5;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        Json::Value stats;
+
+        TPGTxGroupCounters cntr = TPGTxGroupCounters();
+        for (int i = 0; i < num_tpgids; ++i) {
+            dp_mgr->get_tpg_tx_stats(stats, i);
+            VALIDATE_TX_STATS_JSON(stats[to_string(i)], &cntr);
+        }
+
+
+        uint32_t tpgid = 4;
+        dp_mgr->update_tx_cntrs(tpgid, 2, 120);
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        cntr.set_cntrs(2, 120);
+        VALIDATE_TX_STATS_JSON(stats[to_string(tpgid)], &cntr);
+
+
+        tpgid = 2;
+        for (int i = 0; i < 10; ++i) {
+            dp_mgr->update_tx_cntrs(tpgid, 1, 64);
+        }
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        cntr.set_cntrs(10, 640);
+        VALIDATE_TX_STATS_JSON(stats[to_string(tpgid)], &cntr);
+
+        cntr.set_cntrs(0, 0);
+        dp_mgr->get_tpg_tx_stats(stats, 0);
+        VALIDATE_TX_STATS_JSON(stats["0"], &cntr);
+        dp_mgr->get_tpg_tx_stats(stats, 1);
+        VALIDATE_TX_STATS_JSON(stats["1"], &cntr);
+        dp_mgr->get_tpg_tx_stats(stats, 3);
+        VALIDATE_TX_STATS_JSON(stats["3"], &cntr);
+
+        delete dp_mgr;
+    }
+
+    void TestCounterUpdateSanity() {
+         /**
+         * Check counter dumping sanity
+         */
+        uint32_t num_tpgids = 2;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        Json::Value stats;
+
+
+        uint32_t tpgid = 2;
+        dp_mgr->update_tx_cntrs(tpgid, 10, 1000);
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        // Using invalid tpgid, stats should be empty.
+        EXPECT_EQ(stats.empty(), true);
+
+        tpgid = 1;
+        dp_mgr->update_tx_cntrs(tpgid, 10, 1000);
+        dp_mgr->get_tpg_tx_stats(stats, tpgid);
+        EXPECT_EQ(stats.empty(), false);
+
+        delete dp_mgr;
+    }
+
+    void TestClearCounters() {
+        uint32_t num_tpgids = 2;
+        TPGDpMgrPerSide* dp_mgr = new TPGDpMgrPerSide(num_tpgids);
+        dp_mgr->allocate();
+        Json::Value stats;
+
+        TPGTxGroupCounters cntr = TPGTxGroupCounters();
+        dp_mgr->update_tx_cntrs(0, 10, 1000);
+        dp_mgr->update_tx_cntrs(1, 50, 5000);
+        dp_mgr->get_tpg_tx_stats(stats, 0);
+        dp_mgr->get_tpg_tx_stats(stats, 1);
+
+        cntr.set_cntrs(10, 1000);
+        VALIDATE_TX_STATS_JSON(stats["0"], &cntr);
+
+        cntr.set_cntrs(50, 5000);
+        VALIDATE_TX_STATS_JSON(stats["1"], &cntr);
+
+        dp_mgr->clear_tx_cntrs(0);
+        Json::Value new_stats;
+        dp_mgr->get_tpg_tx_stats(stats, 0);
+        dp_mgr->get_tpg_tx_stats(stats, 1);
+
+        VALIDATE_TX_STATS_JSON(stats["1"], &cntr); // Validate that tpgid 1 remains unchanged
+        cntr.set_cntrs(0, 0);
+        VALIDATE_TX_STATS_JSON(stats["0"], &cntr);
+
+        delete dp_mgr;
+    }
+
+};
+
+TEST_F(TPGDpMgrPerSideTest, TPGDpMgrPerSideTest) {
+    TestSeq();
+    TestCounters();
+    TestCounterUpdate();
+    TestCounterUpdateSanity();
+    TestClearCounters();
+}
+
+class TPGTagCntrTest : public TaggedPktGroupTest {
+    /**
+     * This class is defined as a friend of CTPGTagCntr.
+    **/
+
+public:
+
+    void TestUpdateInOrder() {
+        /**
+         * First few packets are received in order.
+        **/
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(0, 100, false, false); // First packet, 100 bytes
+        expected.set_cntrs(1, 104, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(1, 200, false, false); // Second packet, 200 bytes
+        expected.set_cntrs(2, 308, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestMissFirstPackets() {
+        /**
+         * Test the case we miss the first packets
+        **/
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(10, 100, false, false);   // Start at 10th packet
+        expected.set_cntrs(1, 104, 10, 1, 0, 0, 0);     // Seq too big == 1, Seq Err = 10
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(11, 200, false, false);   // Second packet, 200 bytes
+        expected.set_cntrs(2, 308, 10, 1, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestOutOfOrderDupPackets() {
+        /**
+         * Test the case of a packet received twice out of order.
+        **/
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(0, 100, false, false);
+        expected.set_cntrs(1, 104, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(1, 200, false, false);    // Second packet, 200 bytes
+        expected.set_cntrs(2, 308, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(0, 100, false, false);    // First Packet is received again
+        expected.set_cntrs(3, 412, 0, 0, 1, 0, 1);      // one ooo and one_too_small
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(2, 100, false, false);    // Third Packet
+        expected.set_cntrs(4, 516, 0, 0, 1, 0, 1);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestOutOfOrderPackets() {
+        /**
+         * Test the case of a packet received out of order
+        **/
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(0, 100, false, false);
+        expected.set_cntrs(1, 104, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(3, 200, false, false);    // Fourth packet, 200 bytes
+        expected.set_cntrs(2, 308, 2, 1, 0, 0, 0);      // seq err = 2, seq_err_too_big = 1
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(1, 100, false, false);    // Second Packet is received
+        expected.set_cntrs(3, 412, 1, 1, 1, 0, 1);      // seq err = 1, seq_err_too_big = 1, seq_err_too_small = 1, ooo = 1
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(2, 100, false, false);    // Third Packet
+        expected.set_cntrs(4, 516, 0, 1, 2, 0, 2);      //  seq_err_too_big = 1, seq_err_too_small = 2, ooo = 2
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestDupPackets() {
+        /**
+         * Test the case of a duplicate packet.
+        **/
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(0, 100, false, false);
+        expected.set_cntrs(1, 104, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(1, 200, false, false);  // Second packet, 200 bytes
+        expected.set_cntrs(2, 308, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(1, 100, false, false);  // First Packet is received again
+        expected.set_cntrs(3, 412, 0, 0, 1, 1, 0);    // One dup, one err too low
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(2, 100, false, false);  // Third Packet
+        expected.set_cntrs(4, 516, 0, 0, 1, 1, 0);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestUnknown() {
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+
+        // Duplicate
+        tag_cntr.update_cntrs(0, 60, true, false);
+        expected.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+        tag_cntr.update_cntrs(0, 60, true, false);
+        expected.set_cntrs(2, 128, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+
+        // Seq Too Big
+        tag_cntr.update_cntrs(5, 60, true, false);
+        expected.set_cntrs(3, 192, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+
+        // OOO + Seq Too Small
+        tag_cntr.update_cntrs(2, 60, true, false);
+        expected.set_cntrs(4, 256, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestMulticast() {
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(101, 60, false, true);    // Mcast packets, starts at 101
+        expected.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+
+        tag_cntr.update_cntrs(102, 60, false, true);    // Second Packet
+        expected.set_cntrs(2, 128, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+
+        tag_cntr.update_cntrs(100, 60, false, true);    // Packet 100 received
+        expected.set_cntrs(3, 192, 0, 0, 1, 0, 1);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestMulticastUnknown() {
+        CTPGTagCntr expected = CTPGTagCntr();
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        tag_cntr.update_cntrs(101, 60, true, true);    // Mcast packets, starts at 101
+        expected.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+
+        tag_cntr.update_cntrs(100, 60, true, true);    // Packet 100 received
+        expected.set_cntrs(2, 128, 0, 0, 0, 0, 0);
+        EXPECT_EQ(expected, tag_cntr);
+    }
+
+    void TestDump() {
+        /**
+         * Test the JSON dumping.
+        **/
+        CTPGTagCntr tag_cntr = CTPGTagCntr();
+        Json::Value stats;
+        tag_cntr.set_cntrs(150, 251051, 2, 31, 25, 1, 5);
+        tag_cntr.dump_json(stats, false);
+        VALIDATE_STATS_JSON(stats, &tag_cntr);
+    }
+};
+
+TEST_F(TPGTagCntrTest, RecvSeqLogicTest) {
+    TestUpdateInOrder();
+    TestMissFirstPackets();
+    TestOutOfOrderDupPackets();
+    TestOutOfOrderPackets();
+    TestDupPackets();
+    TestUnknown();
+    TestMulticast();
+    TestMulticastUnknown();
+    TestDump();
+}
+
+class TPGRxStatsTest : public TaggedPktGroupTest {
+    /**
+     * This class is defined as a friend of CTPGTagCntr.
+    **/
+public:
+
+    void TestSanity() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 25;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr));
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        uint16_t tpgid = 3;
+        uint16_t tag = 6;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, tag, false, false, false); // Tag 6
+        rx_tpg_port->update_cntrs(tpgid, 0, 72, 0, true, false, false);    // Unknown
+        tag = 24;
+        rx_tpg_port->update_cntrs(tpgid, 0, 80, tag, false, false, false); // Tag 24
+
+
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, true, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 6, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 7, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 24, num_tags, false, false);
+
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["0-5"], &exp);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["7-23"], &exp);
+        exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["6"], &exp);
+        exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["24"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(tpgid)]["unknown_tag"], &exp);
+
+        tpgid = 0;
+        tag = 0;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, tag, false, false, false); // Tag 0
+
+        CTPGTagCntr* tag_ptr = rx_tpg_port->get_tag_cntr(tpgid, tag);
+        exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        EXPECT_EQ(*tag_ptr, exp);
+
+        // tpgid = 9;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, 0, true, false, false); // Unknown
+        tag_ptr = rx_tpg_port->get_unknown_tag_cntr(tpgid);
+        EXPECT_EQ(*tag_ptr, exp);
+
+        tag_ptr = rx_tpg_port->get_tag_cntr(5, 30);
+        EXPECT_EQ(nullptr, tag_ptr);
+
+        tag_ptr = rx_tpg_port->get_tag_cntr(15, 2);
+        EXPECT_EQ(nullptr, tag_ptr);
+
+        delete(rx_tpg_port);
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+    void TestClearCounters() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 2;
+        uint16_t num_tags = 5;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr));
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            rx_tpg_port->update_cntrs(tpgid, 0, 60, 3, false, false, false); // Tag 3
+            rx_tpg_port->update_cntrs(tpgid, 0, 72, 0, true, false, false);  // Unknown
+            rx_tpg_port->update_cntrs(tpgid, 0, 76, 0, false, true, false);  // Untagged
+            rx_tpg_port->update_cntrs(tpgid, 0, 80, 4, false, false, false); // Tag 4
+        }
+
+        Json::Value stats;
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, true, true);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 3, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 4, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 5, num_tags, false, false);
+        }
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["0-2"], &exp);
+            exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["3"], &exp);
+            exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["4"], &exp);
+            exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["unknown_tag"], &exp);
+            exp.set_cntrs(1, 80, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["untagged"], &exp);
+        }
+
+        // --- Clear tpgid 0
+        uint16_t clear_tpgid = 0;
+        rx_tpg_port->clear_tpg_stats(clear_tpgid, 0, num_tags, true, true); // Cleared everything for 0.
+
+        Json::Value cleared_stats;
+        rx_tpg_port->get_tpg_stats(cleared_stats, clear_tpgid, 0, num_tags, true, true);
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(clear_tpgid)]["0-4"], &exp);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(clear_tpgid)]["unknown_tag"], &exp);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(clear_tpgid)]["untagged"], &exp);
+
+        // Validate that tpgid 1 stats are intact.
+        uint16_t other_tpgid = 1;
+        Json::Value other_tpgid_stats;
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 3, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 4, num_tags, false, false);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-2"], &exp);
+        exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["3"], &exp);
+        exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["4"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+        exp.set_cntrs(1, 80, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+
+        // ----- Clear tpgid 1, tag 3
+        rx_tpg_port->clear_tpg_stats(other_tpgid, 0, 4, false, false); // Cleared [0,3]
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 4, num_tags, false, false);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-3"], &exp);
+        exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["4"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+        exp.set_cntrs(1, 80, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+
+
+        // ----- Clear untagged
+        rx_tpg_port->clear_tpg_stats(other_tpgid, 0, 0, false, true); // Cleared untagged
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 4, num_tags, false, false);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-3"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+        exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["4"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+
+
+        // ----- Clear 4th
+        rx_tpg_port->clear_tpg_stats(other_tpgid, 4, 5, false, false); // Cleared 4th
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-4"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+
+        // ----- Clear unknown
+        rx_tpg_port->clear_tpg_stats(other_tpgid, 0, 0, true, false); // Cleared unknown
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-4"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+
+        delete(rx_tpg_port);
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+    void TestClearCountersList() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 2;
+        uint16_t num_tags = 10;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr));
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            rx_tpg_port->update_cntrs(tpgid, 0, 60, 3, false, false, false); // Tag 3
+            rx_tpg_port->update_cntrs(tpgid, 0, 72, 0, true, false, false);  // Unknown
+            rx_tpg_port->update_cntrs(tpgid, 0, 76, 0, false, true, false);  // Untagged
+            rx_tpg_port->update_cntrs(tpgid, 0, 80, 4, false, false, false); // Tag 4
+            rx_tpg_port->update_cntrs(tpgid, 0, 1400, 7, false, false, false); // Tag 7
+        }
+
+        Json::Value stats;
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, true, true);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 3, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 4, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 5, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 7, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 8, num_tags, false, false);
+        }
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["0-2"], &exp);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["5-6"], &exp);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["8-9"], &exp);
+            exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["3"], &exp);
+            exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["4"], &exp);
+            exp.set_cntrs(1, 1404, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["7"], &exp);
+            exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["unknown_tag"], &exp);
+            exp.set_cntrs(1, 80, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["untagged"], &exp);
+        }
+
+        // --- Clear tpgid 0
+        uint16_t clear_tpgid = 0;
+        std::vector<uint16_t> tag_list = {3, 4, 7};
+        rx_tpg_port->clear_tpg_stats(clear_tpgid, tag_list, true, true); // Cleared everything for 0.
+
+        Json::Value cleared_stats;
+        rx_tpg_port->get_tpg_stats(cleared_stats, clear_tpgid, 0, num_tags, true, true);
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(clear_tpgid)]["0-4"], &exp);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(clear_tpgid)]["unknown_tag"], &exp);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(clear_tpgid)]["untagged"], &exp);
+
+        // Validate that tpgid 1 stats are intact.
+        uint16_t other_tpgid = 1;
+        Json::Value other_tpgid_stats;
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 3, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 4, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 5, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 7, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 8, num_tags, false, false);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["0-2"], &exp);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["5-6"], &exp);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["8-9"], &exp);
+        exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["3"], &exp);
+        exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["4"], &exp);
+        exp.set_cntrs(1, 1404, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["7"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+        exp.set_cntrs(1, 80, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats[to_string(other_tpgid)]["untagged"], &exp);
+
+        // ----- Clear tpgid 1, tag 3, 4
+        tag_list = {3, 4};
+        rx_tpg_port->clear_tpg_stats(other_tpgid, tag_list, false, false);
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 7, num_tags, false, false);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-6"], &exp);
+        exp.set_cntrs(1, 1404, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["7"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+        exp.set_cntrs(1, 80, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+
+
+        // ----- Clear untagged
+        rx_tpg_port->clear_tpg_stats(other_tpgid, 0, 0, false, true); // Cleared untagged
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 7, num_tags, false, false);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-6"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+        exp.set_cntrs(1, 1404, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["7"], &exp);
+        exp.set_cntrs(1, 76, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+
+        // ----- Clear unknown
+        rx_tpg_port->clear_tpg_stats(other_tpgid, 0, 0, true, false); // Cleared unknown
+        other_tpgid_stats.clear();
+        rx_tpg_port->get_tpg_stats(other_tpgid_stats, other_tpgid, 0, num_tags, true, true);
+
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["0-6"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["untagged"], &exp);
+        VALIDATE_STATS_JSON(other_tpgid_stats[to_string(other_tpgid)]["unknown_tag"], &exp);
+
+        delete(rx_tpg_port);
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+    void TestClearCountersTpgid() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 2;
+        uint16_t num_tags = 10;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr));
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            rx_tpg_port->update_cntrs(tpgid, 0, 60, 3, false, false, false); // Tag 3
+            rx_tpg_port->update_cntrs(tpgid, 0, 80, 4, false, false, false); // Tag 4
+            rx_tpg_port->update_cntrs(tpgid, 0, 1400, 7, false, false, false); // Tag 7
+            rx_tpg_port->update_cntrs(tpgid, 0, 600, 9, false, false, false); // Tag 9
+        }
+
+        Json::Value stats;
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 3, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 4, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 5, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 7, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 8, num_tags, false, false);
+            rx_tpg_port->get_tpg_stats(stats, tpgid, 9, num_tags, false, false);
+        }
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        for (uint16_t tpgid = 0; tpgid < num_tpgids; tpgid++) {
+            exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["0-2"], &exp);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["5-6"], &exp);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["8-9"], &exp);
+            exp.set_cntrs(1, 64, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["3"], &exp);
+            exp.set_cntrs(1, 84, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["4"], &exp);
+            exp.set_cntrs(1, 1404, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["7"], &exp);
+            exp.set_cntrs(1, 604, 0, 0, 0, 0, 0);
+            VALIDATE_STATS_JSON(stats[to_string(tpgid)]["9"], &exp);
+        }
+
+        std::vector<uint16_t> tag_list = {3, 4};
+        rx_tpg_port->clear_tpg_stats(0, 2, tag_list);
+
+        Json::Value cleared_stats;
+        rx_tpg_port->get_tpg_stats(cleared_stats, 0, 0, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(cleared_stats, 1, 0, num_tags, false, false);
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(0)]["0-6"], &exp);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(1)]["0-6"], &exp);
+
+        rx_tpg_port->get_tpg_stats(cleared_stats, 0, 7, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(cleared_stats, 0, 8, num_tags, false, false);
+        rx_tpg_port->get_tpg_stats(cleared_stats, 0, 9, num_tags, false, false);
+
+        tag_list = {7, 9};
+        rx_tpg_port->clear_tpg_stats(0, 1, tag_list);
+        rx_tpg_port->get_tpg_stats(cleared_stats, 0, 0, num_tags, false, false);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(0)]["0-9"], &exp);
+
+        rx_tpg_port->get_tpg_stats(cleared_stats, 1, 0, num_tags, false, false);
+        VALIDATE_STATS_JSON(cleared_stats[to_string(1)]["0-6"], &exp);
+
+        delete(rx_tpg_port);
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+    void TestUnknownTags() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 2;
+        uint16_t num_tags = 2;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        tag_mgr->add_qinq_tag(20, 30, 0);   // QinQ (20, 30) = Tag 0
+        tag_mgr->add_dot1q_tag(7, 1);       // Dot1Q(7) = Tag 1
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr)); // 2 Tags + 1 Unknown , 2 TPGIDS
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+
+        uint16_t tpgid = 1;
+        // Sequence 0 and 1 is received with unknown tag
+
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, 0, true, false, false);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60, 0, true, false, false);
+
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, 2, true, false);
+        stats = stats[std::to_string(tpgid)];
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        VALIDATE_STATS_JSON(stats["0-1"], &exp);
+
+        exp.set_cntrs(2, 128, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(stats["unknown_tag"], &exp);
+
+        delete rx_tpg_port;
+        free(port_cntr);
+    }
+
+    void TestWithSomeErrors() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 25;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr)); 
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        uint16_t tpgid = 2;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60,  2, false, false, false); // Tag 2
+        rx_tpg_port->update_cntrs(tpgid, 1, 100, 2, false, false, false);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60,  2, false, false, false);
+        rx_tpg_port->update_cntrs(tpgid, 2, 100, 2, false, false, false);
+
+        rx_tpg_port->update_cntrs(tpgid, 0, 60,  3, false, false, false);  // Tag 3
+        rx_tpg_port->update_cntrs(tpgid, 1, 100, 3, false, false, false);
+        rx_tpg_port->update_cntrs(tpgid, 3, 60,  3, false, false, false);
+        rx_tpg_port->update_cntrs(tpgid, 2, 100, 3, false, false, false);
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, false, false);
+        Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
+
+        VALIDATE_STATS_JSON(tpgid_stats["0-1"], &exp); // Compressed the first ones.
+
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 2, num_tags, false, false);
+        exp.set_cntrs(4, 336, 0, 0, 1, 1, 0);
+        VALIDATE_STATS_JSON(tpgid_stats["2"], &exp);
+
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 3, num_tags, false, false);
+        exp.set_cntrs(4, 336, 0, 1, 1, 0, 1);
+        VALIDATE_STATS_JSON(tpgid_stats["3"], &exp);
+
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 4, num_tags, false, false);
+        exp.set_cntrs(0, 0, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(tpgid_stats["4-9"], &exp);
+
+        delete rx_tpg_port;
+        free(port_cntr);
+    }
+
+    void TestUntagged() {
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 25;
+
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        for (int i = 1; i <= num_tags; i++) {
+            tag_mgr->add_dot1q_tag(i, i-1);
+        }
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr)); // 25 Tags + 1 Unknown , 10 TPGIDS
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        uint16_t tpgid = 2;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60,  0, false, true, false);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60, 10, false, true, false);
+        rx_tpg_port->update_cntrs(tpgid, 2, 60,  5, false, true, false);
+        rx_tpg_port->update_cntrs(tpgid, 3, 60, 19, false, true, false); // Tag Id should be ignored
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, false, true);
+        Json::Value& tpgid_stats = stats[std::to_string(tpgid)];
+
+        VALIDATE_STATS_JSON(tpgid_stats["0-9"], &exp); // Compressed the first ones.
+
+        exp.set_cntrs(4, 256, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(tpgid_stats["untagged"], &exp);
+
+        // Another TPGID with sequence errors
+        tpgid = 5;
+        rx_tpg_port->update_cntrs(tpgid, 0, 60, 0, false, true, false);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60, 0, false, true, false);
+        rx_tpg_port->update_cntrs(tpgid, 2, 60, 0, false, true, false);
+        rx_tpg_port->update_cntrs(tpgid, 1, 60, 0, false, true, false);
+
+        rx_tpg_port->get_tpg_stats(stats, tpgid, 0, num_tags, false, true);
+        Json::Value& new_tpgid_stats = stats[std::to_string(tpgid)];
+        exp.set_cntrs(4, 256, 0, 0, 1, 0, 1);
+        VALIDATE_STATS_JSON(new_tpgid_stats["untagged"], &exp);
+
+        delete rx_tpg_port;
+        free(port_cntr);
+    }
+
+    void TestRxHandleValidTag(bool multicast) {
+
+        /**
+         * Short Sanity Check for TPG Rx Handle, with and without multicast.
+         **/
+
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 1;
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        tag_mgr->add_qinq_tag(20, 30, 0);    // QinQ (20, 30) = Tag 0
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr)); // 1 Tag + 1 Unknown * 10 tpgid
+
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        uint8_t test_pkt[] = {
+            // Ether header
+            0x24, 0x8a, 0x07, 0x14, 0xfc, 0x59, // Dst Mac
+            0x24, 0x8a, 0x07, 0x14, 0xfc, 0x58, // Src Mac
+            0x81, 0x00,                         // Eth Type
+            // QinQ Header
+            0x00, 0x14, 0x81, 0x00, // Vlan 20
+            0x00, 0x1e, 0x08, 0x00, // Vlan 30
+            // IP Header
+            0x45, 0x00, 0x00, 0x2c, // Version, Header Length, DSCP, Length
+            0x00, 0x01, 0x00, 0x00, // ID, Flags, Fragment
+            0x40, 0x11, 0x3a, 0xbf, // TTL, Protocol, Checksum
+            0x10, 0x00, 0x00, 0x01, // Src Ip
+            0x30, 0x00, 0x00, 0x01, // Dst Ip
+            // UDP Header
+            0x04, 0x01, 0x00, 0x0c, // Src Port, Dst Port
+            0x00, 0x18, 0x18, 0x0e,  // Length, Checksum
+            // TPG Header
+            0xc1, 0x5c, 0x0b, 0xe5, 0x00, 0x00, 0x00, 0x00, // Magic, TPGID = 0
+            0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // Seq = 3, Reserved = 0
+        };
+
+        if (multicast) {
+            test_pkt[0] = 0x01;     // Changing the first byte is enough.
+        }
+
+        rte_mempool_t* mp1 = utl_rte_mempool_create("big-const", sizeof(test_pkt), 2048, 32, 0, false);
+        rte_mbuf_t* m1 = rte_pktmbuf_alloc(mp1);
+        char* p1 = rte_pktmbuf_append(m1, sizeof(test_pkt));
+        bcopy(test_pkt, p1, sizeof(test_pkt));
+        EXPECT_EQ(m1->pkt_len, sizeof(test_pkt));
+
+        uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+        struct tpg_payload_header* tpg_header = (tpg_payload_header*)
+            utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct tpg_payload_header), tmp_buf);
+
+        EXPECT_EQ(tpg_header->tpgid, 0);
+        EXPECT_EQ(tpg_header->seq, 3);
+
+        rx_tpg_port->handle_pkt(m1);
+
+        rte_pktmbuf_free(m1);
+
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, false, false);
+
+        Json::Value& tpgid_stats = stats[std::to_string(tpg_header->tpgid)];
+        Json::Value& tag_stats = tpgid_stats[std::to_string(tag_mgr->get_qinq_tag(20, 30))];
+        Json::Value& unknown_stats = tpgid_stats["unknown_tag"];
+        Json::Value& untagged = tpgid_stats["untagged"];
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        VALIDATE_STATS_JSON(unknown_stats, &exp);
+        VALIDATE_STATS_JSON(untagged, &exp);
+
+        if (multicast) {
+            exp.set_cntrs(1, sizeof(test_pkt) + 4, 0, 0, 0, 0, 0);
+        } else {
+            exp.set_cntrs(1, sizeof(test_pkt) + 4, 3, 1, 0, 0, 0);
+        }
+        VALIDATE_STATS_JSON(tag_stats, &exp);
+
+        delete rx_tpg_port;
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+    void TestRxHandleInvalidTag() {
+
+        /**
+         * Short Check if an unknown tag is received.
+         **/
+
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 1;
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        tag_mgr->add_dot1q_tag(7, 0);    // Vlan 7 - Tag 0
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr)); // 1 Tag + 1 Unknown * 10 tpgid
+
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        uint8_t test_pkt[] = {
+            // Ether header
+            0x24, 0x8a, 0x07, 0x14, 0xfc, 0x59, // Dst Mac
+            0x24, 0x8a, 0x07, 0x14, 0xfc, 0x58, // Src Mac
+            0x81, 0x00,                         // Eth Type
+            // QinQ Header
+            0x00, 0x14, 0x81, 0x00, // Vlan 20
+            0x00, 0x1e, 0x08, 0x00, // Vlan 30
+            // IP Header
+            0x45, 0x00, 0x00, 0x2c, // Version, Header Length, DSCP, Length
+            0x00, 0x01, 0x00, 0x00, // ID, Flags, Fragment
+            0x40, 0x11, 0x3a, 0xbf, // TTL, Protocol, Checksum
+            0x10, 0x00, 0x00, 0x01, // Src Ip
+            0x30, 0x00, 0x00, 0x01, // Dst Ip
+            // UDP Header
+            0x04, 0x01, 0x00, 0x0c, // Src Port, Dst Port
+            0x00, 0x18, 0x18, 0x0e,  // Length, Checksum
+            // TPG Header
+            0xc1, 0x5c, 0x0b, 0xe5, 0x00, 0x00, 0x00, 0x00, // Magic, TPGID = 0
+            0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // Seq = 3, Reserved = 0
+        };
+
+        rte_mempool_t* mp1 = utl_rte_mempool_create("big-const", sizeof(test_pkt), 2048, 32, 0, false);
+        rte_mbuf_t* m1 = rte_pktmbuf_alloc(mp1);
+        char* p1 = rte_pktmbuf_append(m1, sizeof(test_pkt));
+        bcopy(test_pkt, p1, sizeof(test_pkt));
+        EXPECT_EQ(m1->pkt_len, sizeof(test_pkt));
+
+        uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+        struct tpg_payload_header* tpg_header = (tpg_payload_header*)
+            utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct tpg_payload_header), tmp_buf);
+
+        EXPECT_EQ(tpg_header->tpgid, 0);
+        EXPECT_EQ(tpg_header->seq, 3);
+
+        rx_tpg_port->handle_pkt(m1);
+
+        rte_pktmbuf_free(m1);
+
+        // let's see the stats are successfully parsed
+
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, true, false);
+
+        Json::Value& tpgid_stats = stats[std::to_string(tpg_header->tpgid)];
+        Json::Value& tag_stats = tpgid_stats[std::to_string(tag_mgr->get_dot1q_tag(7))];
+        Json::Value& unknown_stats = tpgid_stats["unknown_tag"];
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        VALIDATE_STATS_JSON(tag_stats, &exp);
+        exp.set_cntrs(1, sizeof(test_pkt) + 4, 0, 0, 0, 0, 0);
+        VALIDATE_STATS_JSON(unknown_stats, &exp);
+
+        delete rx_tpg_port;
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+    void TestRxHandleUntagged(bool multicast) {
+
+        uint8_t port_id = 0;
+        uint32_t num_tpgids = 10;
+        uint16_t num_tags = 1;
+        PacketGroupTagMgr* tag_mgr = new PacketGroupTagMgr();
+        tag_mgr->add_dot1q_tag(7, 0);    // Dot1Q(7) - Tag 0
+
+        CTPGTagCntr* port_cntr = (CTPGTagCntr*)calloc((num_tags + NUM_EXTRA_TAGS_TPGID) * num_tpgids, sizeof(CTPGTagCntr));
+
+        RxTPGPerPort* rx_tpg_port = new RxTPGPerPort(port_id, num_tpgids, tag_mgr, port_cntr);
+
+        uint8_t test_pkt[] = {
+            // Ether header
+            0x24, 0x8a, 0x07, 0x14, 0xfc, 0x59, // Dst Mac
+            0x24, 0x8a, 0x07, 0x14, 0xfc, 0x58, // Src Mac
+            0x80, 0x00,                         // Eth Type     IPv4 - No Tag.
+            // IP Header
+            0x45, 0x00, 0x00, 0x2c, // Version, Header Length, DSCP, Length
+            0x00, 0x01, 0x00, 0x00, // ID, Flags, Fragment
+            0x40, 0x11, 0x3a, 0xbf, // TTL, Protocol, Checksum
+            0x10, 0x00, 0x00, 0x01, // Src Ip
+            0x30, 0x00, 0x00, 0x01, // Dst Ip
+            // UDP Header
+            0x04, 0x01, 0x00, 0x0c, // Src Port, Dst Port
+            0x00, 0x18, 0x18, 0x0e, // Length, Checksum
+            // TPG Header
+            0xc1, 0x5c, 0x0b, 0xe5, 0x00, 0x00, 0x00, 0x00, // Magic, TPGID = 0
+            0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // Seq = 3, Reserved = 0
+        };
+
+        if (multicast) {
+            test_pkt[0] = 0x01; // Enough to change the first byte only.
+        }
+
+        rte_mempool_t* mp1 = utl_rte_mempool_create("big-const", sizeof(test_pkt), 2048, 32, 0, false);
+        rte_mbuf_t* m1 = rte_pktmbuf_alloc(mp1);
+        char* p1 = rte_pktmbuf_append(m1, sizeof(test_pkt));
+        bcopy(test_pkt, p1, sizeof(test_pkt));
+        EXPECT_EQ(m1->pkt_len, sizeof(test_pkt));
+
+        uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+        struct tpg_payload_header* tpg_header = (tpg_payload_header*)
+            utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct tpg_payload_header), tmp_buf);
+
+        EXPECT_EQ(tpg_header->tpgid, 0);
+        EXPECT_EQ(tpg_header->seq, 3);
+
+        rx_tpg_port->handle_pkt(m1);
+
+        rte_pktmbuf_free(m1);
+
+        Json::Value stats;
+        rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, true, true);
+
+        Json::Value& tpgid_stats = stats[std::to_string(tpg_header->tpgid)];
+        Json::Value& tag_stats = tpgid_stats[std::to_string(tag_mgr->get_dot1q_tag(7))];
+        Json::Value& unknown_stats = tpgid_stats["unknown_tag"];
+        Json::Value& untagged = tpgid_stats["untagged"];
+
+        CTPGTagCntr exp = CTPGTagCntr();
+        VALIDATE_STATS_JSON(tag_stats, &exp);
+        VALIDATE_STATS_JSON(unknown_stats, &exp);
+
+        if (multicast) {
+            exp.set_cntrs(1, sizeof(test_pkt) + 4, 0, 0, 0, 0, 0);
+        } else {
+            exp.set_cntrs(1, sizeof(test_pkt) + 4, 3, 1, 0, 0, 0);
+        }
+
+        VALIDATE_STATS_JSON(untagged, &exp);
+
+        delete rx_tpg_port;
+        free(port_cntr);
+        delete tag_mgr;
+    }
+
+};
+
+TEST_F(TPGRxStatsTest, PortCntrTest) {
+    TestSanity();
+    TestClearCounters();
+    TestClearCountersList();
+    TestClearCountersTpgid();
+    TestUnknownTags();
+    TestWithSomeErrors();
+    TestUntagged();
+    TestRxHandleValidTag(false);    // no multicast
+    TestRxHandleValidTag(true);     // multicast
+    TestRxHandleInvalidTag();
+    TestRxHandleUntagged(false);    // no multicast
+    TestRxHandleUntagged(true);     // multicast
+}

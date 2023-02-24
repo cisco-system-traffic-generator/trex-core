@@ -162,7 +162,10 @@ static inline uint64_t i40e_read64_addr(volatile void *addr)
 	rte_write32_wc_relaxed((rte_cpu_to_le_32(value)), reg)
 
 #define I40E_WRITE_FLUSH(a) I40E_READ_REG(a, I40E_GLGEN_STAT)
+#ifdef TREX_PATCH
+//support for i40evf
 #define I40EVF_WRITE_FLUSH(a) I40E_READ_REG(a, I40E_VFGEN_RSTAT)
+#endif
 
 #define I40E_READ_REG(hw, reg) i40e_read_addr(I40E_PCI_REG_ADDR((hw), (reg)))
 #define I40E_WRITE_REG(hw, reg, value) \
@@ -175,7 +178,7 @@ static inline uint64_t i40e_read64_addr(volatile void *addr)
 	I40E_PCI_REG_WRITE(I40E_PCI_REG_ADDR((a), (reg)), (value))
 #define flush(a) i40e_read_addr(I40E_PCI_REG_ADDR((a), (I40E_GLGEN_STAT)))
 
-#define ARRAY_SIZE(arr) (sizeof(arr)/sizeof(arr[0]))
+#define ARRAY_SIZE(arr) RTE_DIM(arr)
 
 /* memory allocation tracking */
 struct i40e_dma_mem {

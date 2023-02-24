@@ -111,7 +111,7 @@ class IPFIXPlugin(EMUPluginBase):
                 emu_client: :class:`trex.emu.trex_emu_client.EMUClient`
                     Valid EMU client.
         """
-        super(IPFIXPlugin, self).__init__(emu_client, client_cnt_rpc_cmd='ipfix_c_cnt')
+        super(IPFIXPlugin, self).__init__(emu_client, ns_cnt_rpc_cmd='ipfix_ns_cnt', client_cnt_rpc_cmd='ipfix_c_cnt')
 
     # API methods
     @client_api('getter', True)
@@ -225,6 +225,28 @@ class IPFIXPlugin(EMUPluginBase):
         EMUValidator.verify(ver_args)
         return self.emu_c._send_plugin_cmd_to_client('ipfix_c_set_gen_state', c_key=c_key, gen_name=gen_name, enable=enable)
 
+    @client_api('command', True)
+    def enable_ipfix(self, c_key, enable):
+        """
+            Enable/disable IPFix plugin for a client.
+            It enable/disable all generators and the exporter. 
+
+            :parameters:
+
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
+                enable: bool
+                    True if we wish to enable ipfix for the client, False if we wish to disable it.
+
+            :returns:
+               bool : Flag indicating the result of the operation.
+        """
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey},
+                    {'name': 'enable', 'arg': enable, 't': bool}]
+        EMUValidator.verify(ver_args)
+        return self.emu_c._send_plugin_cmd_to_client('ipfix_c_set_state', c_key=c_key, enable=enable)
+
     # Plugins methods
     @plugin_api('ipfix_show_counters', 'emu')
     def ipfix_show_counters_line(self, line):
@@ -240,6 +262,22 @@ class IPFIXPlugin(EMUPluginBase):
 
         opts = parser.parse_args(line.split())
         self.emu_c._base_show_counters(self.client_data_cnt, opts, req_ns = True)
+        return True
+
+    @plugin_api('ipfix_show_ns_counters', 'emu')
+    def ipfix_show_ns_counters_line(self, line):
+        '''Show IPFix namespace counters.\n'''
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_show_ns_counters_line",
+                                        self.ipfix_show_ns_counters_line.__doc__,
+                                        parsing_opts.EMU_SHOW_CNT_GROUP,
+                                        parsing_opts.EMU_ALL_NS,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.EMU_DUMPS_OPT
+                                        )
+
+        opts = parser.parse_args(line.split())
+        self.emu_c._base_show_counters(self.ns_data_cnt, opts, req_ns = True)
         return True
 
     @plugin_api('ipfix_get_gen_info', 'emu')
@@ -307,6 +345,32 @@ class IPFIXPlugin(EMUPluginBase):
         c_key = EMUClientKey(ns_key, opts.mac)
         return self.enable_generator(c_key, opts.gen_name, enable_disable == 'enable')
 
+    @plugin_api('ipfix_enable', 'emu')
+    def ipfix_enable_line(self, line):
+        """Enable IPFix plugin for a client.\n"""
+        res = self._enable_disable_line(line, self.ipfix_enable_line, "enable")
+        self.logger.post_cmd(res)
+
+    @plugin_api('ipfix_disable', 'emu')
+    def ipfix_disable_line(self, line):
+        """Disable IPFix plugin for a client.\n"""
+        res = self._enable_disable_line(line, self.ipfix_enable_line, "disable")
+        self.logger.post_cmd(res)
+
+    def _enable_disable_line(self, line, caller_func, enable_disable):
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_enable",
+                                        caller_func.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.MAC_ADDRESS,
+                                        )
+
+        opts = parser.parse_args(line.split())
+        self._validate_port(opts)
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        c_key = EMUClientKey(ns_key, opts.mac)
+        return self.enable_ipfix(c_key, enable_disable == 'enable')
+
     @plugin_api('ipfix_set_data_rate', 'emu')
     def ipfix_set_data_rate_line(self, line):
         """Set IPFix generator data rate.\n"""
@@ -342,3 +406,93 @@ class IPFIXPlugin(EMUPluginBase):
         ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
         c_key = EMUClientKey(ns_key, opts.mac)
         return self.set_gen_rate(c_key, opts.gen_name, template_rate=opts.rate, rate=0.0), # rate 0 will keep the data rate unchanged
+
+
+    @client_api('getter', True)
+    def get_exporter_info(self, c_key):
+        """
+            Gets information about the exporter used by the client.
+
+            :parameters:
+
+                c_key: :class:`trex.emu.trex_emu_profile.EMUClientKey`
+                    EMUClientKey
+
+            :returns: A json dictionary with the following fields:
+
+                'exporter_type': string
+                    Exporter type - emu-udp, udp, http, file
+
+                'files': list
+                    Only for HTTP exporter - contains a list of objects reporting the status of the most recent (up to 30)
+                    file export sessions.
+
+                { 'name': string
+                     Name of the exported file
+
+                'time': bool
+                    The time when the file was exported
+
+                'status': string
+                    Final status of the export session
+
+                'transport_status': string
+                    Transport status of the export session
+
+                'http_status_code': string
+                    HTTP status code received from the server (collector)
+
+                'http_response_msg': string
+                    HTTP response message received from the server (collector)
+
+                'bytes_uploaded': int
+                    Number of bytes successfully uploaded by the file
+
+                'temp_records_uploaded': int
+                    Number of template records successfully uploaded by the file
+
+                'data_records_uploaded': int
+                    Number of data records successfully uploaded by the file}
+        """
+        ver_args = [{'name': 'c_key', 'arg': c_key, 't': EMUClientKey}]
+        EMUValidator.verify(ver_args)
+        res = self.emu_c._send_plugin_cmd_to_client('ipfix_c_get_exp_info', c_key)
+        return res
+
+    @plugin_api('ipfix_get_exp_info', 'emu')
+    def ipfix_get_exporter_info_line(self, line):
+        """Get IPFix exporter information.\n"""
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_get_exp_info",
+                                        self.ipfix_get_exporter_info_line.__doc__,
+                                        parsing_opts.EMU_NS_GROUP_NOT_REQ,
+                                        parsing_opts.MAC_ADDRESS,
+                                        parsing_opts.EMU_DUMPS_OPT)
+
+        opts = parser.parse_args(line.split())
+        self._validate_port(opts)
+        ns_key = EMUNamespaceKey(opts.port, opts.vlan, opts.tpid)
+        c_key = EMUClientKey(ns_key, opts.mac)
+        
+        res = self.get_exporter_info(c_key)
+
+        if opts.json or opts.yaml:
+            dump_json_yaml(data = res, to_json = opts.json, to_yaml = opts.yaml)
+            return
+
+        keys_to_headers = [ {'key': 'name',                  'header': 'Name'},
+                            {'key': 'time',                  'header': 'Time'},
+                            {'key': 'status',                'header': 'Status'},
+                            {'key': 'transport_status',      'header': 'Trans Status'},
+                            {'key': 'http_status_code',      'header': 'HTTP Status'},
+                            {'key': 'http_response_msg',     'header': 'HTTP Response Message'},
+                            {'key': 'bytes_uploaded',        'header': 'Bytes Uploaded'},
+                            {'key': 'temp_records_uploaded', 'header': 'Temp Records Uploaded'},
+                            {'key': 'data_records_uploaded', 'header': 'Data Records Uploaded'},
+        ]
+
+        print("Exporter type: ", res['exporter_type'])
+        print("\n")
+        
+        if 'files' in res:
+            self.print_table_by_keys(list(res['files']), keys_to_headers, title = "Files Info")

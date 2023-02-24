@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2018-2019 Solarflare Communications Inc.
  */
 
@@ -37,7 +37,7 @@ static const efx_rx_prefix_layout_t rhead_default_rx_prefix_layout = {
 		RHEAD_RX_PREFIX_FIELD(PARTIAL_TSTAMP, B_FALSE),
 		RHEAD_RX_PREFIX_FIELD(RSS_HASH, B_FALSE),
 		RHEAD_RX_PREFIX_FIELD(USER_MARK, B_FALSE),
-		RHEAD_RX_PREFIX_FIELD(INGRESS_VPORT, B_FALSE),
+		RHEAD_RX_PREFIX_FIELD(INGRESS_MPORT, B_FALSE),
 		RHEAD_RX_PREFIX_FIELD(CSUM_FRAME, B_TRUE),
 		RHEAD_RX_PREFIX_FIELD(VLAN_STRIP_TCI, B_TRUE),
 
@@ -88,11 +88,13 @@ rhead_rx_scale_context_alloc(
 	__in		efx_nic_t *enp,
 	__in		efx_rx_scale_context_type_t type,
 	__in		uint32_t num_queues,
+	__in		uint32_t table_nentries,
 	__out		uint32_t *rss_contextp)
 {
 	efx_rc_t rc;
 
-	rc = ef10_rx_scale_context_alloc(enp, type, num_queues, rss_contextp);
+	rc = ef10_rx_scale_context_alloc(enp, type, num_queues, table_nentries,
+		    rss_contextp);
 	if (rc != 0)
 		goto fail1;
 
@@ -162,16 +164,16 @@ fail1:
 	return (rc);
 }
 
-	__checkReturn	efx_rc_t
+	__checkReturn		efx_rc_t
 rhead_rx_scale_tbl_set(
-	__in		efx_nic_t *enp,
-	__in		uint32_t rss_context,
-	__in_ecount(n)	unsigned int *table,
-	__in		size_t n)
+	__in			efx_nic_t *enp,
+	__in			uint32_t rss_context,
+	__in_ecount(nentries)	unsigned int *table,
+	__in			size_t nentries)
 {
 	efx_rc_t rc;
 
-	rc = ef10_rx_scale_tbl_set(enp, rss_context, table, n);
+	rc = ef10_rx_scale_tbl_set(enp, rss_context, table, nentries);
 	if (rc != 0)
 		goto fail1;
 
@@ -628,6 +630,15 @@ rhead_rx_qcreate(
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_RSS_HASH;
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_RSS_HASH_VALID;
 	}
+
+	if (flags & EFX_RXQ_FLAG_INGRESS_MPORT)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_INGRESS_MPORT;
+
+	if (flags & EFX_RXQ_FLAG_USER_MARK)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_USER_MARK;
+
+	if (flags & EFX_RXQ_FLAG_USER_FLAG)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_USER_FLAG;
 
 	/*
 	 * LENGTH is required in EF100 host interface, as receive events

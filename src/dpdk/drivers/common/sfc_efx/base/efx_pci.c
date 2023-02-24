@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2019 Solarflare Communications Inc.
  */
 
@@ -310,7 +310,7 @@ efx_pci_xilinx_cap_tbl_find(
 	__in				boolean_t skip_first,
 	__inout				efsys_dma_addr_t *entry_offsetp)
 {
-	efsys_dma_addr_t offset = *entry_offsetp;
+	efsys_dma_addr_t offset;
 	boolean_t skip = skip_first;
 	efx_qword_t header;
 	uint32_t format;
@@ -322,6 +322,7 @@ efx_pci_xilinx_cap_tbl_find(
 		goto fail1;
 	}
 
+	offset = *entry_offsetp;
 	rc = ENOENT;
 	/*
 	 * SF-119689-TC Riverhead Host Interface section 4.2.2.

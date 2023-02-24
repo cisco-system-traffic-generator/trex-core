@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <rte_alarm.h>
 #include <rte_string_fns.h>
 #include <rte_eal_memconfig.h>
 
@@ -43,7 +44,7 @@ virtio_user_create_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 	file.fd = dev->callfds[queue_sel];
 	ret = dev->ops->set_vring_call(dev, &file);
 	if (ret < 0) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to create queue %u\n", dev->path, queue_sel);
+		PMD_INIT_LOG(ERR, "(%s) Failed to create queue %u", dev->path, queue_sel);
 		return -1;
 	}
 
@@ -107,7 +108,7 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 
 	return 0;
 err:
-	PMD_INIT_LOG(ERR, "(%s) Failed to kick queue %u\n", dev->path, queue_sel);
+	PMD_INIT_LOG(ERR, "(%s) Failed to kick queue %u", dev->path, queue_sel);
 
 	return -1;
 }
@@ -213,7 +214,7 @@ error:
 	pthread_mutex_unlock(&dev->mutex);
 	rte_mcfg_mem_read_unlock();
 
-	PMD_INIT_LOG(ERR, "(%s) Failed to start device\n", dev->path);
+	PMD_INIT_LOG(ERR, "(%s) Failed to start device", dev->path);
 
 	/* TODO: free resource here or caller to check */
 	return -1;
@@ -254,26 +255,89 @@ out:
 err:
 	pthread_mutex_unlock(&dev->mutex);
 
-	PMD_INIT_LOG(ERR, "(%s) Failed to stop device\n", dev->path);
+	PMD_INIT_LOG(ERR, "(%s) Failed to stop device", dev->path);
 
 	return -1;
 }
 
-static inline void
-parse_mac(struct virtio_user_dev *dev, const char *mac)
+int
+virtio_user_dev_set_mac(struct virtio_user_dev *dev)
 {
-	struct rte_ether_addr tmp;
+	int ret = 0;
 
-	if (!mac)
-		return;
+	if (!(dev->device_features & (1ULL << VIRTIO_NET_F_MAC)))
+		return -ENOTSUP;
 
-	if (rte_ether_unformat_addr(mac, &tmp) == 0) {
-		memcpy(dev->mac_addr, &tmp, RTE_ETHER_ADDR_LEN);
+	if (!dev->ops->set_config)
+		return -ENOTSUP;
+
+	ret = dev->ops->set_config(dev, dev->mac_addr,
+			offsetof(struct virtio_net_config, mac),
+			RTE_ETHER_ADDR_LEN);
+	if (ret)
+		PMD_DRV_LOG(ERR, "(%s) Failed to set MAC address in device", dev->path);
+
+	return ret;
+}
+
+int
+virtio_user_dev_get_mac(struct virtio_user_dev *dev)
+{
+	int ret = 0;
+
+	if (!(dev->device_features & (1ULL << VIRTIO_NET_F_MAC)))
+		return -ENOTSUP;
+
+	if (!dev->ops->get_config)
+		return -ENOTSUP;
+
+	ret = dev->ops->get_config(dev, dev->mac_addr,
+			offsetof(struct virtio_net_config, mac),
+			RTE_ETHER_ADDR_LEN);
+	if (ret)
+		PMD_DRV_LOG(ERR, "(%s) Failed to get MAC address from device", dev->path);
+
+	return ret;
+}
+
+static void
+virtio_user_dev_init_mac(struct virtio_user_dev *dev, const char *mac)
+{
+	struct rte_ether_addr cmdline_mac;
+	char buf[RTE_ETHER_ADDR_FMT_SIZE];
+	int ret;
+
+	if (mac && rte_ether_unformat_addr(mac, &cmdline_mac) == 0) {
+		/*
+		 * MAC address was passed from command-line, try to store
+		 * it in the device if it supports it. Otherwise try to use
+		 * the device one.
+		 */
+		memcpy(dev->mac_addr, &cmdline_mac, RTE_ETHER_ADDR_LEN);
 		dev->mac_specified = 1;
+
+		/* Setting MAC may fail, continue to get the device one in this case */
+		virtio_user_dev_set_mac(dev);
+		ret = virtio_user_dev_get_mac(dev);
+		if (ret == -ENOTSUP)
+			goto out;
+
+		if (memcmp(&cmdline_mac, dev->mac_addr, RTE_ETHER_ADDR_LEN))
+			PMD_DRV_LOG(INFO, "(%s) Device MAC update failed", dev->path);
 	} else {
-		/* ignore the wrong mac, use random mac */
-		PMD_DRV_LOG(ERR, "wrong format of mac: %s", mac);
+		ret = virtio_user_dev_get_mac(dev);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "(%s) No valid MAC in devargs or device, use random",
+					dev->path);
+			return;
+		}
+
+		dev->mac_specified = 1;
 	}
+out:
+	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE,
+			(struct rte_ether_addr *)dev->mac_addr);
+	PMD_DRV_LOG(INFO, "(%s) MAC %s specified", dev->path, buf);
 }
 
 static int
@@ -340,25 +404,39 @@ static int
 virtio_user_fill_intr_handle(struct virtio_user_dev *dev)
 {
 	uint32_t i;
-	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->port_id];
+	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->hw.port_id];
 
-	if (!eth_dev->intr_handle) {
-		eth_dev->intr_handle = malloc(sizeof(*eth_dev->intr_handle));
-		if (!eth_dev->intr_handle) {
+	if (eth_dev->intr_handle == NULL) {
+		eth_dev->intr_handle =
+			rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_PRIVATE);
+		if (eth_dev->intr_handle == NULL) {
 			PMD_DRV_LOG(ERR, "(%s) failed to allocate intr_handle", dev->path);
 			return -1;
 		}
-		memset(eth_dev->intr_handle, 0, sizeof(*eth_dev->intr_handle));
 	}
 
-	for (i = 0; i < dev->max_queue_pairs; ++i)
-		eth_dev->intr_handle->efds[i] = dev->callfds[i];
-	eth_dev->intr_handle->nb_efd = dev->max_queue_pairs;
-	eth_dev->intr_handle->max_intr = dev->max_queue_pairs + 1;
-	eth_dev->intr_handle->type = RTE_INTR_HANDLE_VDEV;
+	for (i = 0; i < dev->max_queue_pairs; ++i) {
+		if (rte_intr_efds_index_set(eth_dev->intr_handle, i,
+				dev->callfds[i]))
+			return -rte_errno;
+	}
+
+	if (rte_intr_nb_efd_set(eth_dev->intr_handle, dev->max_queue_pairs))
+		return -rte_errno;
+
+	if (rte_intr_max_intr_set(eth_dev->intr_handle,
+			dev->max_queue_pairs + 1))
+		return -rte_errno;
+
+	if (rte_intr_type_set(eth_dev->intr_handle, RTE_INTR_HANDLE_VDEV))
+		return -rte_errno;
+
 	/* For virtio vdev, no need to read counter for clean */
-	eth_dev->intr_handle->efd_counter_size = 0;
-	eth_dev->intr_handle->fd = dev->ops->get_intr_fd(dev);
+	if (rte_intr_efd_counter_size_set(eth_dev->intr_handle, 0))
+		return -rte_errno;
+
+	if (rte_intr_fd_set(eth_dev->intr_handle, dev->ops->get_intr_fd(dev)))
+		return -rte_errno;
 
 	return 0;
 }
@@ -407,7 +485,7 @@ exit:
 	pthread_mutex_unlock(&dev->mutex);
 
 	if (ret < 0)
-		PMD_DRV_LOG(ERR, "(%s) Failed to update memory table\n", dev->path);
+		PMD_DRV_LOG(ERR, "(%s) Failed to update memory table", dev->path);
 }
 
 static int
@@ -436,17 +514,17 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 	}
 
 	if (dev->ops->setup(dev) < 0) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to setup backend\n", dev->path);
+		PMD_INIT_LOG(ERR, "(%s) Failed to setup backend", dev->path);
 		return -1;
 	}
 
 	if (virtio_user_dev_init_notify(dev) < 0) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to init notifiers\n", dev->path);
+		PMD_INIT_LOG(ERR, "(%s) Failed to init notifiers", dev->path);
 		goto destroy;
 	}
 
 	if (virtio_user_fill_intr_handle(dev) < 0) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to init interrupt handler\n", dev->path);
+		PMD_INIT_LOG(ERR, "(%s) Failed to init interrupt handler", dev->path);
 		goto uninit;
 	}
 
@@ -508,8 +586,6 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 	dev->unsupported_features = 0;
 	dev->backend_type = backend_type;
 
-	parse_mac(dev, mac);
-
 	if (*ifname) {
 		dev->ifname = *ifname;
 		*ifname = NULL;
@@ -536,6 +612,8 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 		PMD_INIT_LOG(ERR, "(%s) Failed to get device features", dev->path);
 		return -1;
 	}
+
+	virtio_user_dev_init_mac(dev, mac);
 
 	if (!mrg_rxbuf)
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MRG_RXBUF);
@@ -572,17 +650,13 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 	if (dev->backend_type == VIRTIO_USER_BACKEND_VHOST_USER)
 		dev->frontend_features |= (1ull << VIRTIO_NET_F_STATUS);
 
-	/*
-	 * Device features =
-	 *     (frontend_features | backend_features) & ~unsupported_features;
-	 */
-	dev->device_features |= dev->frontend_features;
+	dev->frontend_features &= ~dev->unsupported_features;
 	dev->device_features &= ~dev->unsupported_features;
 
 	if (rte_mem_event_callback_register(VIRTIO_USER_MEM_EVENT_CLB_NAME,
 				virtio_user_mem_event_cb, dev)) {
 		if (rte_errno != ENOTSUP) {
-			PMD_INIT_LOG(ERR, "(%s) Failed to register mem event callback\n",
+			PMD_INIT_LOG(ERR, "(%s) Failed to register mem event callback",
 					dev->path);
 			return -1;
 		}
@@ -594,6 +668,11 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 void
 virtio_user_dev_uninit(struct virtio_user_dev *dev)
 {
+	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->hw.port_id];
+
+	rte_intr_instance_free(eth_dev->intr_handle);
+	eth_dev->intr_handle = NULL;
+
 	virtio_user_stop_device(dev);
 
 	rte_mem_event_callback_unregister(VIRTIO_USER_MEM_EVENT_CLB_NAME, dev);
@@ -799,7 +878,7 @@ virtio_user_dev_set_status(struct virtio_user_dev *dev, uint8_t status)
 	dev->status = status;
 	ret = dev->ops->set_status(dev, status);
 	if (ret && ret != -ENOTSUP)
-		PMD_INIT_LOG(ERR, "(%s) Failed to set backend status\n", dev->path);
+		PMD_INIT_LOG(ERR, "(%s) Failed to set backend status", dev->path);
 
 	pthread_mutex_unlock(&dev->mutex);
 	return ret;
@@ -823,7 +902,7 @@ virtio_user_dev_update_status(struct virtio_user_dev *dev)
 			"\t-DRIVER_OK: %u\n"
 			"\t-FEATURES_OK: %u\n"
 			"\t-DEVICE_NEED_RESET: %u\n"
-			"\t-FAILED: %u\n",
+			"\t-FAILED: %u",
 			dev->status,
 			(dev->status == VIRTIO_CONFIG_STATUS_RESET),
 			!!(dev->status & VIRTIO_CONFIG_STATUS_ACK),
@@ -833,7 +912,7 @@ virtio_user_dev_update_status(struct virtio_user_dev *dev)
 			!!(dev->status & VIRTIO_CONFIG_STATUS_DEV_NEED_RESET),
 			!!(dev->status & VIRTIO_CONFIG_STATUS_FAILED));
 	} else if (ret != -ENOTSUP) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to get backend status\n", dev->path);
+		PMD_INIT_LOG(ERR, "(%s) Failed to get backend status", dev->path);
 	}
 
 	pthread_mutex_unlock(&dev->mutex);
@@ -871,13 +950,13 @@ virtio_user_dev_reset_queues_packed(struct rte_eth_dev *eth_dev)
 	/* Vring reset for each Tx queue and Rx queue. */
 	for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
 		rxvq = eth_dev->data->rx_queues[i];
-		virtqueue_rxvq_reset_packed(rxvq->vq);
+		virtqueue_rxvq_reset_packed(virtnet_rxq_to_vq(rxvq));
 		virtio_dev_rx_queue_setup_finish(eth_dev, i);
 	}
 
 	for (i = 0; i < eth_dev->data->nb_tx_queues; i++) {
 		txvq = eth_dev->data->tx_queues[i];
-		virtqueue_txvq_reset_packed(txvq->vq);
+		virtqueue_txvq_reset_packed(virtnet_txq_to_vq(txvq));
 	}
 
 	hw->started = 1;
@@ -885,23 +964,37 @@ virtio_user_dev_reset_queues_packed(struct rte_eth_dev *eth_dev)
 }
 
 void
-virtio_user_dev_delayed_handler(void *param)
+virtio_user_dev_delayed_disconnect_handler(void *param)
 {
 	struct virtio_user_dev *dev = param;
-	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->port_id];
+	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->hw.port_id];
 
 	if (rte_intr_disable(eth_dev->intr_handle) < 0) {
 		PMD_DRV_LOG(ERR, "interrupt disable failed");
 		return;
 	}
-	rte_intr_callback_unregister(eth_dev->intr_handle,
-				     virtio_interrupt_handler, eth_dev);
+	PMD_DRV_LOG(DEBUG, "Unregistering intr fd: %d",
+		    rte_intr_fd_get(eth_dev->intr_handle));
+	if (rte_intr_callback_unregister(eth_dev->intr_handle,
+					 virtio_interrupt_handler,
+					 eth_dev) != 1)
+		PMD_DRV_LOG(ERR, "interrupt unregister failed");
+
 	if (dev->is_server) {
 		if (dev->ops->server_disconnect)
 			dev->ops->server_disconnect(dev);
-		eth_dev->intr_handle->fd = dev->ops->get_intr_fd(dev);
-		rte_intr_callback_register(eth_dev->intr_handle,
-					   virtio_interrupt_handler, eth_dev);
+
+		rte_intr_fd_set(eth_dev->intr_handle,
+			dev->ops->get_intr_fd(dev));
+
+		PMD_DRV_LOG(DEBUG, "Registering intr fd: %d",
+			    rte_intr_fd_get(eth_dev->intr_handle));
+
+		if (rte_intr_callback_register(eth_dev->intr_handle,
+					       virtio_interrupt_handler,
+					       eth_dev))
+			PMD_DRV_LOG(ERR, "interrupt register failed");
+
 		if (rte_intr_enable(eth_dev->intr_handle) < 0) {
 			PMD_DRV_LOG(ERR, "interrupt enable failed");
 			return;
@@ -909,11 +1002,38 @@ virtio_user_dev_delayed_handler(void *param)
 	}
 }
 
+static void
+virtio_user_dev_delayed_intr_reconfig_handler(void *param)
+{
+	struct virtio_user_dev *dev = param;
+	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->hw.port_id];
+
+	PMD_DRV_LOG(DEBUG, "Unregistering intr fd: %d",
+		    rte_intr_fd_get(eth_dev->intr_handle));
+
+	if (rte_intr_callback_unregister(eth_dev->intr_handle,
+					 virtio_interrupt_handler,
+					 eth_dev) != 1)
+		PMD_DRV_LOG(ERR, "interrupt unregister failed");
+
+	rte_intr_fd_set(eth_dev->intr_handle, dev->ops->get_intr_fd(dev));
+
+	PMD_DRV_LOG(DEBUG, "Registering intr fd: %d",
+		    rte_intr_fd_get(eth_dev->intr_handle));
+
+	if (rte_intr_callback_register(eth_dev->intr_handle,
+				       virtio_interrupt_handler, eth_dev))
+		PMD_DRV_LOG(ERR, "interrupt register failed");
+
+	if (rte_intr_enable(eth_dev->intr_handle) < 0)
+		PMD_DRV_LOG(ERR, "interrupt enable failed");
+}
+
 int
 virtio_user_dev_server_reconnect(struct virtio_user_dev *dev)
 {
 	int ret, old_status;
-	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->port_id];
+	struct rte_eth_dev *eth_dev = &rte_eth_devices[dev->hw.port_id];
 	struct virtio_hw *hw = &dev->hw;
 
 	if (!dev->ops->server_reconnect) {
@@ -940,12 +1060,10 @@ virtio_user_dev_server_reconnect(struct virtio_user_dev *dev)
 		return -1;
 	}
 
-	dev->device_features |= dev->frontend_features;
-
 	/* unmask vhost-user unsupported features */
 	dev->device_features &= ~(dev->unsupported_features);
 
-	dev->features &= dev->device_features;
+	dev->features &= (dev->device_features | dev->frontend_features);
 
 	/* For packed ring, resetting queues is required in reconnection. */
 	if (virtio_with_packed_queue(hw) &&
@@ -974,18 +1092,14 @@ virtio_user_dev_server_reconnect(struct virtio_user_dev *dev)
 			PMD_DRV_LOG(ERR, "interrupt disable failed");
 			return -1;
 		}
-		rte_intr_callback_unregister(eth_dev->intr_handle,
-					     virtio_interrupt_handler,
-					     eth_dev);
-
-		eth_dev->intr_handle->fd = dev->ops->get_intr_fd(dev);
-		rte_intr_callback_register(eth_dev->intr_handle,
-					   virtio_interrupt_handler, eth_dev);
-
-		if (rte_intr_enable(eth_dev->intr_handle) < 0) {
-			PMD_DRV_LOG(ERR, "interrupt enable failed");
-			return -1;
-		}
+		/*
+		 * This function can be called from the interrupt handler, so
+		 * we can't unregister interrupt handler here.  Setting
+		 * alarm to do that later.
+		 */
+		rte_eal_alarm_set(1,
+			virtio_user_dev_delayed_intr_reconfig_handler,
+			(void *)dev);
 	}
 	PMD_INIT_LOG(NOTICE, "server mode virtio-user reconnection succeeds!");
 	return 0;

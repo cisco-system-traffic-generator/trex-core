@@ -100,7 +100,8 @@ rte_vdev_remove_custom_scan(rte_vdev_scan_callback callback, void *user_arg)
 	struct vdev_custom_scan *custom_scan, *tmp_scan;
 
 	rte_spinlock_lock(&vdev_custom_scan_lock);
-	TAILQ_FOREACH_SAFE(custom_scan, &vdev_custom_scans, next, tmp_scan) {
+	RTE_TAILQ_FOREACH_SAFE(custom_scan, &vdev_custom_scans, next,
+				tmp_scan) {
 		if (custom_scan->callback != callback ||
 				(custom_scan->user_arg != (void *)-1 &&
 				custom_scan->user_arg != user_arg))
@@ -245,13 +246,14 @@ alloc_devargs(const char *name, const char *args)
 
 	devargs->bus = &rte_vdev_bus;
 	if (args)
-		devargs->args = strdup(args);
+		devargs->data = strdup(args);
 	else
-		devargs->args = strdup("");
+		devargs->data = strdup("");
+	devargs->args = devargs->data;
 
 	ret = strlcpy(devargs->name, name, sizeof(devargs->name));
 	if (ret < 0 || ret >= (int)sizeof(devargs->name)) {
-		free(devargs->args);
+		rte_devargs_reset(devargs);
 		free(devargs);
 		return NULL;
 	}
@@ -305,7 +307,7 @@ insert_vdev(const char *name, const char *args,
 
 	return 0;
 fail:
-	free(devargs->args);
+	rte_devargs_reset(devargs);
 	free(devargs);
 	free(dev);
 	return ret;
@@ -636,4 +638,4 @@ static struct rte_bus rte_vdev_bus = {
 };
 
 RTE_REGISTER_BUS(vdev, rte_vdev_bus);
-RTE_LOG_REGISTER(vdev_logtype_bus, bus.vdev, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(vdev_logtype_bus, NOTICE);

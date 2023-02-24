@@ -48,6 +48,23 @@ bool utl_yaml_read_ip_addr(const YAML::Node& node,
 
 bool utl_yaml_read_uint32(const YAML::Node& node,
                           const std::string &name,
+                          uint32_t & val, uint32_t min, uint32_t max) {
+    bool res = utl_yaml_read_uint32(node, name, val);
+
+    if (res) {
+        if ((val < min) || (val > max)) {
+            fprintf(stderr
+                    , "Parsing error: value of field '%s' must be between %d and %d\n"
+                    , name.c_str(), min, max);
+            exit(1);
+        }
+    }
+
+    return res;
+}
+
+bool utl_yaml_read_uint32(const YAML::Node& node,
+                          const std::string &name,
                           uint32_t & val){
     bool res=false;
     if ( node.FindValue(name) ) {

@@ -282,7 +282,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
     res["state"]     = port->get_state_as_string();
 
     string profile_id = parse_profile(params, result, "");
-    if ( get_is_stateless() && (profile_id != "") ) {
+    if ( get_is_interactive() && (profile_id != "") ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
         Json::Value state_profile =  Json::objectValue;
         stl_port->get_state_as_string(profile_id, state_profile);
@@ -291,7 +291,7 @@ TrexRpcCmdGetPortStatus::_run(const Json::Value &params, Json::Value &result) {
 
     res["service"]       = port->is_service_mode_on();
     res["service_filtered"] = port->is_service_filtered_mode_on();
-    if ( get_is_stateless() ) {
+    if ( get_is_interactive() ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
         result["result"]["profile_count"] = stl_port->get_profile_count();
         result["result"]["max_stream_id"] = stl_port->get_max_stream_id();
@@ -499,7 +499,12 @@ TrexRpcCmdGetSysInfo::_run(const Json::Value &params, Json::Value &result) {
         if (rx_caps & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT) {
             port_json["rx"]["caps"].append("rx_bytes");
         }
-        
+        bool software_mode = !CGlobalInfo::m_dpdk_mode.get_mode()->is_hardware_filter_needed();
+        if (get_is_stateless() && software_mode) {
+            // Tagged Packet Grouping is supported in stateless software mode only.
+            port_json["rx"]["caps"].append("tpg");
+        }
+
         port_json["rx"]["counters"]     = rx_count_num;
         port_json["is_fc_supported"]    = api.getPortAttrObj(i)->is_fc_change_supported();
         port_json["is_led_supported"]   = api.getPortAttrObj(i)->is_led_change_supported();
@@ -1392,11 +1397,13 @@ TrexRpcCmdCapture::_run(const Json::Value &params, Json::Value &result) {
 void
 TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &result) {
     
+    const std::string endpoint  = parse_string(params, "endpoint", result, "");
+
+    /* parse buffering parameters */
     uint32_t limit              = parse_uint32(params, "limit", result);
-    
-    /* parse mode type */
     const string mode_str  = parse_choice(params, "mode", {"fixed", "cyclic"}, result);
     TrexPktBuffer::mode_e mode  = ( (mode_str == "fixed") ? TrexPktBuffer::MODE_DROP_TAIL : TrexPktBuffer::MODE_DROP_HEAD);
+    uint16_t snaplen            = parse_uint16(params, "snaplen", result, 0);
     
     /* parse filters */
     const Json::Value &tx_json  = parse_array(params, "tx", result);
@@ -1440,7 +1447,7 @@ TrexRpcCmdCapture::parse_cmd_start(const Json::Value &params, Json::Value &resul
     reply.reset();
   
     /* send a start message to RX core */
-    TrexRxCaptureStart *start_msg = new TrexRxCaptureStart(filter, limit, mode, reply);
+    TrexRxCaptureStart *start_msg = new TrexRxCaptureStart(filter, limit, mode, snaplen, endpoint, reply);
     get_stx()->send_msg_to_rx(start_msg);
     
       /* wait for reply - might get a timeout */
@@ -1487,6 +1494,7 @@ TrexRpcCmdCapture::parse_cmd_stop(const Json::Value &params, Json::Value &result
             generate_execute_err(result, rc.get_err());
         }
         result["result"]["pkt_count"] = rc.get_pkt_count();
+        result["result"]["endpoint"] = rc.get_endpoint();
     
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
@@ -1536,7 +1544,8 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
     
     uint32_t capture_id = parse_uint32(params, "capture_id", result);
     uint32_t pkt_limit  = parse_uint32(params, "pkt_limit", result);
-    
+    uint16_t snaplen    = parse_uint16(params, "snaplen", result, 0);
+
     /* generate a fetch command */
     
     static MsgReply<TrexCaptureRCFetch> reply;
@@ -1557,7 +1566,7 @@ TrexRpcCmdCapture::parse_cmd_fetch(const Json::Value &params, Json::Value &resul
             
         result["result"]["pending"]     = rc.get_pending();
         result["result"]["start_ts"]    = rc.get_start_ts();
-        result["result"]["pkts"]        = pkt_buffer->to_json();
+        result["result"]["pkts"]        = pkt_buffer->to_json(snaplen);
  
         /* delete the buffer */
         delete pkt_buffer;
@@ -1725,9 +1734,11 @@ TrexRpcCmdCancelAsyncTask::_run(const Json::Value &params, Json::Value &result) 
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdSetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
-    double max_stretch = parse_double(params, "sched_max_stretch", result, -1.0);
-    if (max_stretch >= 0.0) {
-        CGlobalInfo::m_burst_offset_dtime = max_stretch;
+    if (params["sched_max_stretch"] != Json::Value::null) {
+        CGlobalInfo::m_burst_offset_dtime = parse_double(params, "sched_max_stretch", result);
+    }
+    if (params["process_at_cp"] != Json::Value::null) {
+        CGlobalInfo::m_process_at_cp = parse_bool(params, "process_at_cp", result);
     }
     return (TREX_RPC_CMD_OK);
 }
@@ -1737,6 +1748,7 @@ TrexRpcCmdGetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
     Json::Value &section = result["result"];
 
     section["sched_max_stretch"] = CGlobalInfo::m_burst_offset_dtime;
+    section["process_at_cp"] = CGlobalInfo::m_process_at_cp;
 
     return (TREX_RPC_CMD_OK);
 }

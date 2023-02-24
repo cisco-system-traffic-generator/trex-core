@@ -31,17 +31,6 @@
 #define rte_packet_prefetch(p) do {} while (0)
 #endif
 
-/* dummy receive function to replace actual function in
- * order to do safe reconfiguration operations.
- */
-uint16_t
-enic_dummy_recv_pkts(__rte_unused void *rx_queue,
-		     __rte_unused struct rte_mbuf **rx_pkts,
-		     __rte_unused uint16_t nb_pkts)
-{
-	return 0;
-}
-
 static inline uint16_t
 enic_recv_pkts_common(void *rx_queue, struct rte_mbuf **rx_pkts,
 		      uint16_t nb_pkts, const bool use_64b_desc)
@@ -70,7 +59,7 @@ enic_recv_pkts_common(void *rx_queue, struct rte_mbuf **rx_pkts,
 	cq = &enic->cq[enic_cq_rq(enic, sop_rq->index)];
 	cq_idx = cq->to_clean;		/* index of cqd, rqd, mbuf_table */
 	cqd_ptr = (struct cq_desc *)((uintptr_t)(cq->ring.descs) +
-				     cq_idx * desc_size);
+				     (uintptr_t)cq_idx * desc_size);
 	color = cq->last_color;
 
 	data_rq = &enic->rq[sop_rq->data_queue_idx];
@@ -84,6 +73,7 @@ enic_recv_pkts_common(void *rx_queue, struct rte_mbuf **rx_pkts,
 		uint8_t packet_error;
 		uint16_t ciflags;
 		uint8_t tc;
+		uint16_t rq_idx_msbs = 0;
 
 		max_rx--;
 
@@ -94,17 +84,24 @@ enic_recv_pkts_common(void *rx_queue, struct rte_mbuf **rx_pkts,
 
 		/* Get the cq descriptor and extract rq info from it */
 		cqd = *cqd_ptr;
+
 		/*
-		 * The first 16B of 64B descriptor is identical to the
-		 * 16B descriptor, except type_color. Copy type_color
-		 * from the 64B descriptor into the 16B descriptor's
-		 * field, so the code below can assume the 16B
-		 * descriptor format.
+		 * The first 16B of a 64B descriptor is identical to a 16B
+		 * descriptor except for the type_color and fetch index. Extract
+		 * fetch index and copy the type_color from the 64B to where it
+		 * would be in a 16B descriptor so sebwequent code can run
+		 * without further conditionals.
 		 */
-		if (use_64b_desc)
+		if (use_64b_desc) {
+			rq_idx_msbs = (((volatile struct cq_enet_rq_desc_64 *)
+				      cqd_ptr)->fetch_idx_flags
+				      & CQ_ENET_RQ_DESC_FETCH_IDX_MASK)
+				      << CQ_DESC_COMP_NDX_BITS;
 			cqd.type_color = tc;
+		}
 		rq_num = cqd.q_number & CQ_DESC_Q_NUM_MASK;
-		rq_idx = cqd.completed_index & CQ_DESC_COMP_NDX_MASK;
+		rq_idx = rq_idx_msbs +
+			 (cqd.completed_index & CQ_DESC_COMP_NDX_MASK);
 
 		rq = &enic->rq[rq_num];
 		rqd_ptr = ((struct rq_enet_desc *)rq->ring.descs) + rq_idx;
@@ -126,7 +123,7 @@ enic_recv_pkts_common(void *rx_queue, struct rte_mbuf **rx_pkts,
 
 		/* Prefetch next mbuf & desc while processing current one */
 		cqd_ptr = (struct cq_desc *)((uintptr_t)(cq->ring.descs) +
-					     cq_idx * desc_size);
+					     (uintptr_t)cq_idx * desc_size);
 		rte_enic_prefetch(cqd_ptr);
 
 		ciflags = enic_cq_rx_desc_ciflags(
@@ -362,14 +359,19 @@ static inline void enic_free_wq_bufs(struct vnic_wq *wq,
 				     uint16_t completed_index)
 {
 	struct rte_mbuf *buf;
-	struct rte_mbuf *m, *free[ENIC_MAX_WQ_DESCS];
+	struct rte_mbuf *m, *free[ENIC_LEGACY_MAX_WQ_DESCS];
 	unsigned int nb_to_free, nb_free = 0, i;
 	struct rte_mempool *pool;
 	unsigned int tail_idx;
 	unsigned int desc_count = wq->ring.desc_count;
 
-	nb_to_free = enic_ring_sub(desc_count, wq->tail_idx, completed_index)
-				   + 1;
+	/*
+	 * On 1500 Series VIC and beyond, greater than ENIC_LEGACY_MAX_WQ_DESCS
+	 * may be attempted to be freed. Cap it at ENIC_LEGACY_MAX_WQ_DESCS.
+	 */
+	nb_to_free = RTE_MIN(enic_ring_sub(desc_count, wq->tail_idx,
+			     completed_index) + 1,
+			     (uint32_t)ENIC_LEGACY_MAX_WQ_DESCS);
 	tail_idx = wq->tail_idx;
 	pool = wq->bufs[tail_idx]->pool;
 	for (i = 0; i < nb_to_free; i++) {
@@ -381,7 +383,7 @@ static inline void enic_free_wq_bufs(struct vnic_wq *wq,
 		}
 
 		if (likely(m->pool == pool)) {
-			RTE_ASSERT(nb_free < ENIC_MAX_WQ_DESCS);
+			RTE_ASSERT(nb_free < ENIC_LEGACY_MAX_WQ_DESCS);
 			free[nb_free++] = m;
 		} else {
 			rte_mempool_put_bulk(pool, (void *)free, nb_free);
@@ -424,7 +426,7 @@ uint16_t enic_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	for (i = 0; i != nb_pkts; i++) {
 		m = tx_pkts[i];
 		ol_flags = m->ol_flags;
-		if (!(ol_flags & PKT_TX_TCP_SEG)) {
+		if (!(ol_flags & RTE_MBUF_F_TX_TCP_SEG)) {
 			if (unlikely(m->pkt_len > ENIC_TX_MAX_PKT_SIZE)) {
 				rte_errno = EINVAL;
 				return i;
@@ -489,7 +491,7 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	wq_desc_avail = vnic_wq_desc_avail(wq);
 	head_idx = wq->head_idx;
 	desc_count = wq->ring.desc_count;
-	ol_flags_mask = PKT_TX_VLAN | PKT_TX_IP_CKSUM | PKT_TX_L4_MASK;
+	ol_flags_mask = RTE_MBUF_F_TX_VLAN | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_L4_MASK;
 	tx_oversized = &enic->soft_stats.tx_oversized;
 
 	nb_pkts = RTE_MIN(nb_pkts, ENIC_TX_XMIT_MAX);
@@ -500,7 +502,7 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		data_len = tx_pkt->data_len;
 		ol_flags = tx_pkt->ol_flags;
 		nb_segs = tx_pkt->nb_segs;
-		tso = ol_flags & PKT_TX_TCP_SEG;
+		tso = ol_flags & RTE_MBUF_F_TX_TCP_SEG;
 
 		/* drop packet if it's too big to send */
 		if (unlikely(!tso && pkt_len > ENIC_TX_MAX_PKT_SIZE)) {
@@ -517,7 +519,7 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		mss = 0;
 		vlan_id = tx_pkt->vlan_tci;
-		vlan_tag_insert = !!(ol_flags & PKT_TX_VLAN);
+		vlan_tag_insert = !!(ol_flags & RTE_MBUF_F_TX_VLAN);
 		bus_addr = (dma_addr_t)
 			   (tx_pkt->buf_iova + tx_pkt->data_off);
 
@@ -543,20 +545,20 @@ uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			offload_mode = WQ_ENET_OFFLOAD_MODE_TSO;
 			mss = tx_pkt->tso_segsz;
 			/* For tunnel, need the size of outer+inner headers */
-			if (ol_flags & PKT_TX_TUNNEL_MASK) {
+			if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
 				header_len += tx_pkt->outer_l2_len +
 					tx_pkt->outer_l3_len;
 			}
 		}
 
 		if ((ol_flags & ol_flags_mask) && (header_len == 0)) {
-			if (ol_flags & PKT_TX_IP_CKSUM)
+			if (ol_flags & RTE_MBUF_F_TX_IP_CKSUM)
 				mss |= ENIC_CALC_IP_CKSUM;
 
 			/* Nic uses just 1 bit for UDP and TCP */
-			switch (ol_flags & PKT_TX_L4_MASK) {
-			case PKT_TX_TCP_CKSUM:
-			case PKT_TX_UDP_CKSUM:
+			switch (ol_flags & RTE_MBUF_F_TX_L4_MASK) {
+			case RTE_MBUF_F_TX_TCP_CKSUM:
+			case RTE_MBUF_F_TX_UDP_CKSUM:
 				mss |= ENIC_CALC_TCP_UDP_CKSUM;
 				break;
 			}
@@ -634,7 +636,7 @@ static void enqueue_simple_pkts(struct rte_mbuf **pkts,
 		desc->header_length_flags &=
 			((1 << WQ_ENET_FLAGS_EOP_SHIFT) |
 			 (1 << WQ_ENET_FLAGS_CQ_ENTRY_SHIFT));
-		if (p->ol_flags & PKT_TX_VLAN) {
+		if (p->ol_flags & RTE_MBUF_F_TX_VLAN) {
 			desc->header_length_flags |=
 				1 << WQ_ENET_FLAGS_VLAN_TAG_INSERT_SHIFT;
 		}
@@ -643,9 +645,9 @@ static void enqueue_simple_pkts(struct rte_mbuf **pkts,
 		 * is 0, so no need to set offload_mode.
 		 */
 		mss = 0;
-		if (p->ol_flags & PKT_TX_IP_CKSUM)
+		if (p->ol_flags & RTE_MBUF_F_TX_IP_CKSUM)
 			mss |= ENIC_CALC_IP_CKSUM << WQ_ENET_MSS_SHIFT;
-		if (p->ol_flags & PKT_TX_L4_MASK)
+		if (p->ol_flags & RTE_MBUF_F_TX_L4_MASK)
 			mss |= ENIC_CALC_TCP_UDP_CKSUM << WQ_ENET_MSS_SHIFT;
 		desc->mss_loopback = mss;
 
@@ -653,7 +655,7 @@ static void enqueue_simple_pkts(struct rte_mbuf **pkts,
 		 * The app should not send oversized
 		 * packets. tx_pkt_prepare includes a check as
 		 * well. But some apps ignore the device max size and
-		 * tx_pkt_prepare. Oversized packets cause WQ errrors
+		 * tx_pkt_prepare. Oversized packets cause WQ errors
 		 * and the NIC ends up disabling the whole WQ. So
 		 * truncate packets..
 		 */

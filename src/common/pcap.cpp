@@ -25,6 +25,9 @@ limitations under the License.
 static uint32_t MAGIC_NUM_FLIP = 0xd4c3b2a1;
 static uint32_t MAGIC_NUM_DONT_FLIP = 0xa1b2c3d4;
 
+static uint32_t MAGIC_NUM_NS_FLIP = 0x4d3cb2a1;
+static uint32_t MAGIC_NUM_NS_DONT_FLIP = 0xa1b23c4d;
+
 
 LibPCapReader::LibPCapReader()
 {
@@ -106,8 +109,16 @@ bool LibPCapReader::init()
 
 	if (header.magic == MAGIC_NUM_FLIP) {
 		m_is_flip = true;
+        m_time_unit = 1000;
 	} else if (header.magic == MAGIC_NUM_DONT_FLIP){
 		m_is_flip = false;
+        m_time_unit = 1000;
+	} else if (header.magic == MAGIC_NUM_NS_FLIP) {
+		m_is_flip = true;
+        m_time_unit = 1;
+	} else if (header.magic == MAGIC_NUM_NS_DONT_FLIP){
+		m_is_flip = false;
+        m_time_unit = 1;
 	} else {
 		// capture file in not libpcap format.
 		m_is_valid = false;
@@ -161,11 +172,12 @@ bool LibPCapReader::ReadPacket(CCapPktRaw *lpPacket)
    }
 
    lpPacket->pkt_len = fread(lpPacket->raw,1,pkt_header.caplen,m_file_handler);
+   lpPacket->actual_pkt_len = pkt_header.len;
 
    lpPacket->time_sec  = pkt_header.ts.sec;
-   lpPacket->time_nsec = pkt_header.ts.msec*1000;
+   lpPacket->time_nsec = pkt_header.ts.msec*m_time_unit;
 
-   if ( lpPacket->pkt_len < pkt_header.caplen) {
+   if (lpPacket->pkt_len < pkt_header.caplen || lpPacket->pkt_len > lpPacket->actual_pkt_len) {
        lpPacket->pkt_len = 0;
 	   return false;
    }

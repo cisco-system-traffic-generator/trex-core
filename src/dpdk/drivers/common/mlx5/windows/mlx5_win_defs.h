@@ -1,13 +1,9 @@
-/*
+/* SPDX-License-Identifier: BSD-3-Clause
  * Copyright (C) Mellanox Technologies, Ltd. 2001-2020.
- *
  */
+
 #ifndef __MLX5_WIN_DEFS_H__
 #define __MLX5_WIN_DEFS_H__
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 enum {
 	MLX5_CQE_OWNER_MASK	= 1,
@@ -91,6 +87,18 @@ enum {
 enum {
 	MLX5_ETH_WQE_L3_CSUM = (1 << 6),
 	MLX5_ETH_WQE_L4_CSUM = (1 << 7),
+};
+
+enum {
+	MLX5_WQE_CTRL_CQ_UPDATE	= 2 << 2,
+	MLX5_WQE_CTRL_SOLICITED	= 1 << 1,
+	MLX5_WQE_CTRL_FENCE	= 4 << 5,
+	MLX5_WQE_CTRL_INITIATOR_SMALL_FENCE = 1 << 5,
+};
+
+enum {
+	MLX5_SEND_WQE_BB	= 64,
+	MLX5_SEND_WQE_SHIFT	= 6,
 };
 
 /*

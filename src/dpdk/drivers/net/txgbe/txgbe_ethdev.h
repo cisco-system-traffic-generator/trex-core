@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2015-2020
+ * Copyright(c) 2015-2020 Beijing WangXun Technology Co., Ltd.
+ * Copyright(c) 2010-2017 Intel Corporation
  */
 
 #ifndef _TXGBE_ETHDEV_H_
@@ -28,13 +29,13 @@
 #define TXGBE_FLAG_PHY_INTERRUPT    (uint32_t)(1 << 2)
 #define TXGBE_FLAG_MACSEC           (uint32_t)(1 << 3)
 #define TXGBE_FLAG_NEED_LINK_CONFIG (uint32_t)(1 << 4)
+#define TXGBE_FLAG_NEED_AN_CONFIG   (uint32_t)(1 << 5)
 
 /*
  * Defines that were not part of txgbe_type.h as they are not used by the
  * FreeBSD driver.
  */
 #define TXGBE_VFTA_SIZE 128
-#define TXGBE_VLAN_TAG_SIZE 4
 #define TXGBE_HKEY_MAX_INDEX 10
 /*Default value of Max Rx Queue*/
 #define TXGBE_MAX_RX_QUEUE_NUM	128
@@ -53,16 +54,20 @@
 #define TXGBE_5TUPLE_MAX_PRI            7
 #define TXGBE_5TUPLE_MIN_PRI            1
 
+
+/* The overhead from MTU to max frame size. */
+#define TXGBE_ETH_OVERHEAD (RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN)
+
 #define TXGBE_RSS_OFFLOAD_ALL ( \
-	ETH_RSS_IPV4 | \
-	ETH_RSS_NONFRAG_IPV4_TCP | \
-	ETH_RSS_NONFRAG_IPV4_UDP | \
-	ETH_RSS_IPV6 | \
-	ETH_RSS_NONFRAG_IPV6_TCP | \
-	ETH_RSS_NONFRAG_IPV6_UDP | \
-	ETH_RSS_IPV6_EX | \
-	ETH_RSS_IPV6_TCP_EX | \
-	ETH_RSS_IPV6_UDP_EX)
+	RTE_ETH_RSS_IPV4 | \
+	RTE_ETH_RSS_NONFRAG_IPV4_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_UDP | \
+	RTE_ETH_RSS_IPV6 | \
+	RTE_ETH_RSS_NONFRAG_IPV6_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_UDP | \
+	RTE_ETH_RSS_IPV6_EX | \
+	RTE_ETH_RSS_IPV6_TCP_EX | \
+	RTE_ETH_RSS_IPV6_UDP_EX)
 
 #define TXGBE_MISC_VEC_ID               RTE_INTR_VEC_ZERO_OFFSET
 #define TXGBE_RX_VEC_START              RTE_INTR_VEC_RXTX_OFFSET
@@ -138,9 +143,9 @@ struct txgbe_rte_flow_rss_conf {
 struct txgbe_interrupt {
 	uint32_t flags;
 	uint32_t mask_misc;
-	/* to save original mask during delayed handler */
-	uint32_t mask_misc_orig;
-	uint32_t mask[2];
+	uint32_t mask_misc_orig; /* save mask during delayed handler */
+	uint64_t mask;
+	uint64_t mask_orig; /* save mask during delayed handler */
 };
 
 #define TXGBE_NB_STAT_MAPPING  32
@@ -169,13 +174,6 @@ struct txgbe_uta_info {
 	uint8_t  uc_filter_type;
 	uint16_t uta_in_use;
 	uint32_t uta_shadow[TXGBE_MAX_UTA];
-};
-
-#define TXGBE_MAX_MIRROR_RULES 4  /* Maximum nb. of mirror rules. */
-
-struct txgbe_mirror_info {
-	struct rte_eth_mirror_conf mr_conf[TXGBE_MAX_MIRROR_RULES];
-	/* store PF mirror rules configuration */
 };
 
 struct txgbe_vf_info {
@@ -354,7 +352,6 @@ struct txgbe_adapter {
 	struct txgbe_vfta           shadow_vfta;
 	struct txgbe_hwstrip        hwstrip;
 	struct txgbe_dcb_config     dcb_config;
-	struct txgbe_mirror_info    mr_data;
 	struct txgbe_vf_info        *vfdata;
 	struct txgbe_uta_info       uta_info;
 	struct txgbe_filter_info    filter;
@@ -431,9 +428,9 @@ void txgbe_dev_clear_queues(struct rte_eth_dev *dev);
 
 void txgbe_dev_free_queues(struct rte_eth_dev *dev);
 
-void txgbe_dev_rx_queue_release(void *rxq);
+void txgbe_dev_rx_queue_release(struct rte_eth_dev *dev, uint16_t qid);
 
-void txgbe_dev_tx_queue_release(void *txq);
+void txgbe_dev_tx_queue_release(struct rte_eth_dev *dev, uint16_t qid);
 
 int  txgbe_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t rx_queue_id,
 		uint16_t nb_rx_desc, unsigned int socket_id,
@@ -444,8 +441,7 @@ int  txgbe_dev_tx_queue_setup(struct rte_eth_dev *dev, uint16_t tx_queue_id,
 		uint16_t nb_tx_desc, unsigned int socket_id,
 		const struct rte_eth_txconf *tx_conf);
 
-uint32_t txgbe_dev_rx_queue_count(struct rte_eth_dev *dev,
-		uint16_t rx_queue_id);
+uint32_t txgbe_dev_rx_queue_count(void *rx_queue);
 
 int txgbe_dev_rx_descriptor_status(void *rx_queue, uint16_t offset);
 int txgbe_dev_tx_descriptor_status(void *tx_queue, uint16_t offset);
@@ -474,6 +470,12 @@ void txgbe_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 
 void txgbe_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_txq_info *qinfo);
+
+int txgbevf_dev_rx_init(struct rte_eth_dev *dev);
+
+void txgbevf_dev_tx_init(struct rte_eth_dev *dev);
+
+void txgbevf_dev_rxtx_start(struct rte_eth_dev *dev);
 
 uint16_t txgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		uint16_t nb_pkts);

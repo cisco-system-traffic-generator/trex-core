@@ -549,19 +549,12 @@ class CFlowStatHwIdMap {
 
 class CFlowStatRuleMgr {
  public:
-    enum flow_stat_rule_types_e {
-        FLOW_STAT_RULE_TYPE_NONE,
-        FLOW_STAT_RULE_TYPE_IPV4_ID,
-        FLOW_STAT_RULE_TYPE_PAYLOAD,
-        FLOW_STAT_RULE_TYPE_IPV6_FLOW_LABEL,
-    };
-
     enum flow_stat_mode_e {
         FLOW_STAT_MODE_NORMAL,
         FLOW_STAT_MODE_PASS_ALL,
     };
 
-    // make the clase singelton
+    // make the class singelton
     static CFlowStatRuleMgr *instance() {
          if (!m_pInstance) {
              m_pInstance = new CFlowStatRuleMgr;

@@ -118,17 +118,17 @@ struct enic {
 	uint32_t flow_filter_mode;
 	uint8_t filter_actions; /* HW supported actions */
 	uint64_t cq_entry_sizes; /* supported CQ entry sizes */
+	bool geneve;
 	bool vxlan;
 	bool cq64;            /* actually using 64B CQ entry */
 	bool cq64_request;    /* devargs cq64=1 */
 	bool disable_overlay; /* devargs disable_overlay=1 */
 	uint8_t enable_avx2_rx;  /* devargs enable-avx2-rx=1 */
-	uint8_t geneve_opt_avail;    /* Geneve with options offload available */
-	uint8_t geneve_opt_enabled;  /* Geneve with options offload enabled */
 	uint8_t geneve_opt_request;  /* devargs geneve-opt=1 */
 	bool nic_cfg_chk;     /* NIC_CFG_CHK available */
 	bool udp_rss_weak;    /* Bodega style UDP RSS */
 	uint8_t ig_vlan_rewrite_mode; /* devargs ig-vlan-rewrite */
+	uint16_t geneve_port; /* current geneve port pushed to NIC */
 	uint16_t vxlan_port;  /* current vxlan port pushed to NIC */
 	int use_simple_tx_handler;
 	int use_noscatter_vec_rx_handler;
@@ -178,7 +178,7 @@ struct enic {
 	 */
 	uint8_t rss_hash_type; /* NIC_CFG_RSS_HASH_TYPE flags */
 	uint8_t rss_enable;
-	uint64_t rss_hf; /* ETH_RSS flags */
+	uint64_t rss_hf; /* RTE_ETH_RSS flags */
 	union vnic_rss_key rss_key;
 	union vnic_rss_cpu rss_cpu;
 
@@ -426,9 +426,6 @@ uint16_t enic_recv_pkts_64(void *rx_queue, struct rte_mbuf **rx_pkts,
 			   uint16_t nb_pkts);
 uint16_t enic_noscatter_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 				  uint16_t nb_pkts);
-uint16_t enic_dummy_recv_pkts(void *rx_queue,
-			      struct rte_mbuf **rx_pkts,
-			      uint16_t nb_pkts);
 uint16_t enic_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			uint16_t nb_pkts);
 uint16_t enic_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,

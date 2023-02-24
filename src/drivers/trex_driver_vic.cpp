@@ -41,7 +41,6 @@ void CTRexExtendedDriverBaseVIC::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.pthresh = TX_PTHRESH;
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
-    cfg->m_port_conf.rxmode.max_rx_pkt_len =9*1000-10;
     cfg->m_port_conf.fdir_conf.mask.ipv4_mask.tos = 0x01;
     cfg->m_port_conf.fdir_conf.mask.ipv6_mask.tc  = 0x01;
     if (get_is_tcp_mode()){

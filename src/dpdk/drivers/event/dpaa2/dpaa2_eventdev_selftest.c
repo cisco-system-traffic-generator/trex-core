@@ -118,7 +118,7 @@ _eventdev_setup(int mode)
 	struct rte_event_dev_info info;
 	const char *pool_name = "evdev_dpaa2_test_pool";
 
-	/* Create and destrory pool for each test case to make it standalone */
+	/* Create and destroy pool for each test case to make it standalone */
 	eventdev_test_mempool = rte_pktmbuf_pool_create(pool_name,
 					MAX_EVENTS,
 					0 /*MBUF_CACHE_SIZE*/,
@@ -468,7 +468,7 @@ wait_workers_to_join(int lcore, const rte_atomic32_t *count)
 	RTE_SET_USED(count);
 
 	print_cycles = cycles = rte_get_timer_cycles();
-	while (rte_eal_get_lcore_state(lcore) != FINISHED) {
+	while (rte_eal_get_lcore_state(lcore) != WAIT) {
 		uint64_t new_cycles = rte_get_timer_cycles();
 
 		if (new_cycles - print_cycles > rte_get_timer_hz()) {

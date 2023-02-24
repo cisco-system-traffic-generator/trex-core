@@ -122,6 +122,9 @@ class ASTFGlobalInfo(ASTFGlobalInfoBase):
                 {"name": "delay_ack_msec", "type": [int]},
                 {"name": "no_delay", "type": [int]},
                 {"name": "no_delay_counter", "type": [int]},
+                {"name": "do_sack", "type": [int]},
+                {"name": "cc_algo", "type": [int]},
+                {"name": "reass_maxqlen", "type": [int]},
             ],
         "ip": [
             {"name": "tos", "type": [int]},

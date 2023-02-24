@@ -70,7 +70,7 @@ private:
     /* which session of the user holds this port*/
     uint32_t     m_session_id;
 
-    /* handler genereated internally */
+    /* handler generated internally */
     std::string  m_handler;
 
     /* seed for generating random values */

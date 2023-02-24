@@ -35,6 +35,7 @@
 #define IAVF_PROT_L2TPV3OIP	    (1ULL << 24)
 #define IAVF_PROT_PFCP		    (1ULL << 25)
 #define IAVF_PROT_ECPRI		    (1ULL << 26)
+#define IAVF_PROT_L2TPV2	    (1ULL << 27)
 
 
 /* field */
@@ -61,6 +62,8 @@
 #define IAVF_PFCP_S_FIELD	    (1ULL << 44)
 #define IAVF_PFCP_SEID		    (1ULL << 43)
 #define IAVF_ECPRI_PC_RTC_ID	    (1ULL << 42)
+#define IAVF_IP_PKID		    (1ULL << 41)
+#define IAVF_L2TPV2_SESSION_ID	    (1ULL << 40)
 
 /* input set */
 
@@ -84,6 +87,8 @@
 	(IAVF_PROT_IPV4_OUTER | IAVF_IP_PROTO)
 #define IAVF_INSET_IPV4_TTL \
 	(IAVF_PROT_IPV4_OUTER | IAVF_IP_TTL)
+#define IAVF_INSET_IPV4_ID \
+	(IAVF_PROT_IPV4_OUTER | IAVF_IP_PKID)
 #define IAVF_INSET_IPV6_SRC \
 	(IAVF_PROT_IPV6_OUTER | IAVF_IP_SRC)
 #define IAVF_INSET_IPV6_DST \
@@ -94,6 +99,29 @@
 	(IAVF_PROT_IPV6_OUTER | IAVF_IP_TTL)
 #define IAVF_INSET_IPV6_TC \
 	(IAVF_PROT_IPV6_OUTER | IAVF_IP_TOS)
+#define IAVF_INSET_IPV6_ID \
+	(IAVF_PROT_IPV6_OUTER | IAVF_IP_PKID)
+
+#define IAVF_INSET_TUN_IPV4_SRC \
+	(IAVF_PROT_IPV4_INNER | IAVF_IP_SRC)
+#define IAVF_INSET_TUN_IPV4_DST \
+	(IAVF_PROT_IPV4_INNER | IAVF_IP_DST)
+#define IAVF_INSET_TUN_IPV4_TOS \
+	(IAVF_PROT_IPV4_INNER | IAVF_IP_TOS)
+#define IAVF_INSET_TUN_IPV4_PROTO \
+	(IAVF_PROT_IPV4_INNER | IAVF_IP_PROTO)
+#define IAVF_INSET_TUN_IPV4_TTL \
+	(IAVF_PROT_IPV4_INNER | IAVF_IP_TTL)
+#define IAVF_INSET_TUN_IPV6_SRC \
+	(IAVF_PROT_IPV6_INNER | IAVF_IP_SRC)
+#define IAVF_INSET_TUN_IPV6_DST \
+	(IAVF_PROT_IPV6_INNER | IAVF_IP_DST)
+#define IAVF_INSET_TUN_IPV6_NEXT_HDR \
+	(IAVF_PROT_IPV6_INNER | IAVF_IP_PROTO)
+#define IAVF_INSET_TUN_IPV6_HOP_LIMIT \
+	(IAVF_PROT_IPV6_INNER | IAVF_IP_TTL)
+#define IAVF_INSET_TUN_IPV6_TC \
+	(IAVF_PROT_IPV6_INNER | IAVF_IP_TOS)
 
 #define IAVF_INSET_TCP_SRC_PORT \
 	(IAVF_PROT_TCP_OUTER | IAVF_SPORT)
@@ -103,6 +131,16 @@
 	(IAVF_PROT_UDP_OUTER | IAVF_SPORT)
 #define IAVF_INSET_UDP_DST_PORT \
 	(IAVF_PROT_UDP_OUTER | IAVF_DPORT)
+
+#define IAVF_INSET_TUN_TCP_SRC_PORT \
+	(IAVF_PROT_TCP_INNER | IAVF_SPORT)
+#define IAVF_INSET_TUN_TCP_DST_PORT \
+	(IAVF_PROT_TCP_INNER | IAVF_DPORT)
+#define IAVF_INSET_TUN_UDP_SRC_PORT \
+	(IAVF_PROT_UDP_INNER | IAVF_SPORT)
+#define IAVF_INSET_TUN_UDP_DST_PORT \
+	(IAVF_PROT_UDP_INNER | IAVF_DPORT)
+
 #define IAVF_INSET_SCTP_SRC_PORT \
 	(IAVF_PROT_SCTP_OUTER | IAVF_SPORT)
 #define IAVF_INSET_SCTP_DST_PORT \
@@ -139,6 +177,8 @@
 	(IAVF_PROT_PFCP | IAVF_PFCP_S_FIELD | IAVF_PFCP_SEID)
 #define IAVF_INSET_ECPRI \
 	(IAVF_PROT_ECPRI | IAVF_ECPRI_PC_RTC_ID)
+#define IAVF_INSET_L2TPV2 \
+	(IAVF_PROT_L2TPV2 | IAVF_L2TPV2_SESSION_ID)
 
 /* empty pattern */
 extern enum rte_flow_item_type iavf_pattern_empty[];
@@ -172,6 +212,9 @@ extern enum rte_flow_item_type iavf_pattern_eth_qinq_ipv4_icmp[];
 extern enum rte_flow_item_type iavf_pattern_eth_ipv6[];
 extern enum rte_flow_item_type iavf_pattern_eth_vlan_ipv6[];
 extern enum rte_flow_item_type iavf_pattern_eth_qinq_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_frag_ext[];
+extern enum rte_flow_item_type iavf_pattern_eth_vlan_ipv6_frag_ext[];
+extern enum rte_flow_item_type iavf_pattern_eth_qinq_ipv6_frag_ext[];
 extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp[];
 extern enum rte_flow_item_type iavf_pattern_eth_vlan_ipv6_udp[];
 extern enum rte_flow_item_type iavf_pattern_eth_qinq_ipv6_udp[];
@@ -204,6 +247,94 @@ extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gtpu_ipv4[];
 extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gtpu_ipv4_udp[];
 extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gtpu_ipv4_tcp[];
 extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gtpu_ipv4_icmp[];
+
+/* IPv4 GRE IPv4 UDP GTPU IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_ipv4_tcp[];
+
+/* IPv4 GRE IPv4 UDP GTPU IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_ipv6_tcp[];
+
+/* IPv4 GRE IPv6 UDP GTPU IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_ipv4_tcp[];
+
+/* IPv4 GRE IPv6 UDP GTPU IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_ipv6_tcp[];
+
+/* IPv6 GRE IPv4 UDP GTPU IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_ipv4_tcp[];
+
+/* IPv6 GRE IPv4 UDP GTPU IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_ipv6_tcp[];
+
+/* IPv6 GRE IPv6 UDP GTPU IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_ipv4_tcp[];
+
+/* IPv6 GRE IPv6 UDP GTPU IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_ipv6_tcp[];
+
+/* IPv4 GRE IPv4 UDP GTPU EH IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh_ipv4_tcp[];
+
+/* IPv4 GRE IPv4 UDP GTPU EH IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_gtpu_eh_ipv6_tcp[];
+
+/* IPv4 GRE IPv6 UDP GTPU EH IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh_ipv4_tcp[];
+
+/* IPv4 GRE IPv6 UDP GTPU EH IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_gtpu_eh_ipv6_tcp[];
+
+/* IPv6 GRE IPv4 UDP GTPU EH IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh_ipv4_tcp[];
+
+/* IPv6 GRE IPv4 UDP GTPU EH IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_gtpu_eh_ipv6_tcp[];
+
+/* IPv6 GRE IPv6 UDP GTPU EH IPv4 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh_ipv4_tcp[];
+
+/* IPv6 GRE IPv6 UDP GTPU EH IPv6 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_gtpu_eh_ipv6_tcp[];
 
 /* IPv4 GTPU IPv6 */
 extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gtpu_ipv6[];
@@ -269,6 +400,41 @@ extern enum rte_flow_item_type iavf_pattern_eth_ipv6_pfcp[];
 extern enum rte_flow_item_type iavf_pattern_eth_ecpri[];
 extern enum rte_flow_item_type iavf_pattern_eth_ipv4_ecpri[];
 
+/* GRE */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_gre_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_gre_ipv6_udp[];
+
+/* L2TPv2 */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp[];
+
+/* PPPoL2TPv2oUDP */
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp_ipv4_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv4_udp_l2tpv2_ppp_ipv6_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp_ipv4[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp_ipv6[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp_ipv4_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp_ipv4_tcp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp_ipv6_udp[];
+extern enum rte_flow_item_type iavf_pattern_eth_ipv6_udp_l2tpv2_ppp_ipv6_tcp[];
+
+
 extern const struct rte_flow_ops iavf_flow_ops;
 
 /* pattern structure */
@@ -308,6 +474,7 @@ typedef int (*parse_pattern_action_t)(struct iavf_adapter *ad,
 /* engine types. */
 enum iavf_flow_engine_type {
 	IAVF_FLOW_ENGINE_NONE = 0,
+	IAVF_FLOW_ENGINE_IPSEC_CRYPTO,
 	IAVF_FLOW_ENGINE_FDIR,
 	IAVF_FLOW_ENGINE_HASH,
 	IAVF_FLOW_ENGINE_MAX,
@@ -321,6 +488,7 @@ enum iavf_flow_engine_type {
  */
 enum iavf_flow_classification_stage {
 	IAVF_FLOW_STAGE_NONE = 0,
+	IAVF_FLOW_STAGE_IPSEC_CRYPTO,
 	IAVF_FLOW_STAGE_RSS,
 	IAVF_FLOW_STAGE_DISTRIBUTOR,
 	IAVF_FLOW_STAGE_MAX,

@@ -93,6 +93,9 @@ public:
         VLAN_MODE_NONE = 0,
         VLAN_MODE_NORMAL = 1,
         VLAN_MODE_LOAD_BALANCE = 2,
+        MPLS_MODE_NORMAL = 4,
+        EoMPLS_MODE_NORMAL = 5,
+        EoMPLS_WITH_VLAN_MODE = 6,
     };
 
     CPreviewMode(){
@@ -244,11 +247,11 @@ public:
     }
 
     uint8_t get_vlan_mode() {
-        return (btGetMaskBit32(m_flags, 29, 28));
+        return (btGetMaskBit32(m_flags, 30, 28));
     }
 
     void set_vlan_mode(uint8_t mode) {
-        btSetMaskBit32(m_flags, 29, 28, mode);
+        btSetMaskBit32(m_flags, 30, 28, mode);
     }
 
     void set_vlan_mode_verify(uint8_t mode);
@@ -447,6 +450,22 @@ public:
         return (btGetMaskBit32(m_flags1, 24, 24) ? true : false);
     }
 
+    void set_dev_lro_support(bool enable) {
+        btSetMaskBit32(m_flags1, 25, 25, (enable ? 1 : 0) );
+    }
+
+    bool get_dev_lro_support() {
+        return (btGetMaskBit32(m_flags1, 25, 25) ? true : false);
+    }
+
+    void set_latency_diag(bool enable) {
+        btSetMaskBit32(m_flags1, 26, 26, (enable ? 1 : 0) );
+    }
+
+    bool get_latency_diag() {
+        return (btGetMaskBit32(m_flags1, 26, 26) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 
@@ -479,23 +498,36 @@ public:
     } u;
 } __rte_cache_aligned;
 
+typedef struct tunnel_cfg_data_t{
+    uint16_t m_vlan;
+    mpls_tag_t m_mpls;
+    tunnel_cfg_data_t() {
+        m_vlan = 0;
+        m_mpls = {0};
+    }
+} tunnel_cfg_data_t;
+
 class CPerPortIPCfg {
  public:
     uint32_t get_ip() {return m_ip;}
     uint32_t get_mask() {return m_mask;}
     uint32_t get_def_gw() {return m_def_gw;}
-    uint32_t get_vlan() {return m_vlan;}
+    uint32_t get_vlan() {return m_tunnel_cfg_data.m_vlan;}
+    mpls_tag_t get_mpls() {return m_tunnel_cfg_data.m_mpls;}
+    tunnel_cfg_data_t get_tunnel_cfg_data() {return m_tunnel_cfg_data;}
     bool get_vxlan_fs() {return m_vxlan_fs;}
     void set_ip(uint32_t val) {m_ip = val;}
     void set_mask(uint32_t val) {m_mask = val;}
     void set_def_gw(uint32_t val) {m_def_gw = val;}
-    void set_vlan(uint16_t val) {m_vlan = val;}
+    void set_vlan(uint16_t val) {m_tunnel_cfg_data.m_vlan = val;}
+    void set_mpls(mpls_tag_t val) {m_tunnel_cfg_data.m_mpls = val;}
+    void set_tunnel_cfg_data(tunnel_cfg_data_t val) {m_tunnel_cfg_data = val;}
     void set_vxlan_fs(bool val) {m_vxlan_fs = val;}
  private:
     uint32_t m_def_gw;
     uint32_t m_ip;
     uint32_t m_mask;
-    uint16_t m_vlan;
+    tunnel_cfg_data_t m_tunnel_cfg_data;
     bool m_vxlan_fs = false;
 };
 
@@ -586,12 +618,16 @@ public:
         m_ezmq_ch_enabled     = false;
         m_emzq_ch_tcp         = false;
         m_emzq_ipc_file_path  = "/tmp/emu";
+        m_cmds_ipc_file_path = "/tmp/cmds";
         m_stack_type          = "legacy";
         m_dummy_count=0;
         m_reta_mask=0;
         m_hdrh = false;
         m_tx_ring_size = 0;
         m_astf_best_effort_mode = false;
+        m_tunnel_loopback = false;
+        m_tunnel_enabled = false;
+        m_rx_dp_ring_size = 0;
     }
 
     CParserOption(){
@@ -641,9 +677,10 @@ public:
     bool            m_hdrh;        /* enable HDR histograms for latency */
     bool            m_is_bird_enabled;
     bool            m_ezmq_ch_enabled;
-    uint8_t         m_enable_tunnel_port;
+    bool            m_tunnel_enabled;
     bool            m_emzq_ch_tcp;
     std::string     m_emzq_ipc_file_path;
+    std::string     m_cmds_ipc_file_path;
     std::string     m_stack_type;
 
     
@@ -662,7 +699,8 @@ public:
     uint32_t        m_lowend_core;
     uint16_t        m_tx_ring_size;
     bool            m_astf_best_effort_mode;
-    uint8_t         m_tunnel_type;
+    bool            m_tunnel_loopback;
+    uint16_t        m_rx_dp_ring_size;              // Size of rings between Dp and Rx.
 
 
 public:
@@ -746,11 +784,6 @@ public:
     }
     void dump(FILE *fd);
     bool is_valid_opt_val(int val, int min, int max, const std::string &opt_name);
-
-    bool is_tunnel_enabled() {
-        return (m_enable_tunnel_port != 0xFF);
-    }
-
     void verify();
 };
 
@@ -1066,6 +1099,7 @@ public:
     static CRteMemPool       m_mem_pool[MAX_SOCKETS_SUPPORTED];
     static uint32_t              m_nodes_pool_size;
     static double                m_burst_offset_dtime;
+    static bool                  m_process_at_cp;
     static CParserOption         m_options;
     static CGlobalMemory         m_memory_cfg;
     static CPlatformSocketInfo   m_socket;

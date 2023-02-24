@@ -301,6 +301,20 @@ public:
         return ( m_socket_id );
     }
 
+    /**
+     * Get the statistics Packet Group Identifier for the stream.
+     *
+     * @return uint32_t
+     *   Packet Group Identifier
+     **/
+    uint32_t get_stat_pgid() {
+        /**
+        NOTE: This is not stored as a local attribute, but rather accessed through the Control Plane.
+              It affects performance, but performance is not key for Tagged Packet Grouping.
+        **/
+        return m_ref_stream_info->m_rx_check.m_pg_id;
+    }
+
     void set_stat_hw_id(uint16_t hw_id) {
         m_stat_hw_id = hw_id;
     }
@@ -317,8 +331,25 @@ public:
         return ((m_flags & SL_NODE_STATS_NEEDED) != 0);
     }
 
-    inline bool is_latency_stream() {
-        return m_ref_stream_info->is_latency_stream();
+    /**
+     * Does the stream have a fixed rate? For example Latency streams, by definition have
+     * fixed rates.
+     *
+     * @return bool
+     *  True iff the stream has fixed rate.
+     **/
+    inline bool is_fixed_rate_stream() const {
+        return m_ref_stream_info->is_fixed_rate_stream();
+    }
+
+    /**
+     * Is the stream a Tagged Packet Group stream?
+     *
+     * @return bool
+     *   True iff the stream is a Tagged Packet Group stream.
+     **/
+    inline bool is_tpg_stream() const {
+        return m_ref_stream_info->is_tpg_stream();
     }
 
     inline bool is_latency_ieee_1588_enabled() {
@@ -375,7 +406,7 @@ public:
         m_flags= ( m_flags & ~SL_NODE_CONST_MBUF );
     }
 
-    /* prefix header exits only in non cache mode size is 64/128/512  other are not possible right now */
+    /* prefix header exist only in non cache mode size is 64/128/512  other are not possible right now */
     inline void alloc_prefix_header(uint16_t size){
          set_prefix_header_size(size);
          m_original_packet_data_prefix = (uint8_t *)malloc(size);
@@ -389,7 +420,7 @@ public:
          }
     }
 
-    /* prefix headr could be 64/128/512 */
+    /* prefix header could be 64/128/512 */
     inline void set_prefix_header_size(uint16_t size){
         m_src_port=size;
     }
@@ -402,6 +433,25 @@ public:
                                         , bool is_const);
     rte_mbuf_t   * alloc_flow_stat_mbuf_ieee_1588(rte_mbuf_t *m,
                                             struct flow_stat_payload_header_ieee_1588 * &fsp_head);
+
+    /**
+     * Allocate a mbuf for a Tagged Packet Group Packet. In case of TPG we append a TPG header to the payload,
+     * as such we need a new mbuf.
+     *
+     * @param m
+     *  The original mbuf
+     *
+     * @param tpg_header
+     *  A pointer reference to the TPG header in the new mbuf. This will point to the TPG header offset
+     *  in the new mbuf after it is allocated.
+     *
+     * @param is_const
+     *  Is the mbuf of const size?
+     *
+     * @return rte_mbuf_t*
+     *  Pointer to the new mbuf with extra space for the TPG header.
+     **/
+    rte_mbuf_t*  alloc_tpg_mbuf(rte_mbuf_t* m, struct tpg_payload_header* &tpg_header, bool is_const);
 
     bool alloc_flow_stat_mbuf_test_const();
     rte_mbuf_t   * alloc_node_with_vm();
@@ -574,10 +624,10 @@ public:
     inline rte_mbuf_t *get_pkt() {
         assert(m_state != PCAP_INVALID);
 
-        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), m_raw_packet->getTotalLen());
+        rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), m_raw_packet->getActualLen());
         assert(m);
 
-        char *p = rte_pktmbuf_append(m, m_raw_packet->getTotalLen());
+        char *p = rte_pktmbuf_append(m, m_raw_packet->getActualLen());
         assert(p);
 
         /* copy the packet */

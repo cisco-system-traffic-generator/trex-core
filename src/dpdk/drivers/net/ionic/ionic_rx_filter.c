@@ -7,6 +7,7 @@
 
 #include <rte_malloc.h>
 
+#include "ionic.h"
 #include "ionic_lif.h"
 #include "ionic_rx_filter.h"
 
@@ -16,20 +17,6 @@ ionic_rx_filter_free(struct ionic_rx_filter *f)
 	LIST_REMOVE(f, by_id);
 	LIST_REMOVE(f, by_hash);
 	rte_free(f);
-}
-
-int
-ionic_rx_filter_del(struct ionic_lif *lif, struct ionic_rx_filter *f)
-{
-	struct ionic_admin_ctx ctx = {
-		.pending_work = true,
-		.cmd.rx_filter_del = {
-			.opcode = IONIC_CMD_RX_FILTER_DEL,
-			.filter_id = rte_cpu_to_le_32(f->filter_id),
-		},
-	};
-
-	return ionic_adminq_post(lif, &ctx);
 }
 
 int

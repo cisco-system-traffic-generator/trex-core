@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2015-2019 Solarflare Communications Inc.
  */
 
@@ -111,6 +111,7 @@ ef10_ev_qcreate(
 	__in		uint32_t id,
 	__in		uint32_t us,
 	__in		uint32_t flags,
+	__in		uint32_t irq,
 	__in		efx_evq_t *eep);
 
 LIBEFX_INTERNAL
@@ -1136,6 +1137,7 @@ ef10_rx_scale_context_alloc(
 	__in		efx_nic_t *enp,
 	__in		efx_rx_scale_context_type_t type,
 	__in		uint32_t num_queues,
+	__in		uint32_t table_nentries,
 	__out		uint32_t *rss_contextp);
 
 LIBEFX_INTERNAL
@@ -1162,12 +1164,12 @@ ef10_rx_scale_key_set(
 	__in		size_t n);
 
 LIBEFX_INTERNAL
-extern	__checkReturn	efx_rc_t
+extern	__checkReturn		efx_rc_t
 ef10_rx_scale_tbl_set(
-	__in		efx_nic_t *enp,
-	__in		uint32_t rss_context,
-	__in_ecount(n)	unsigned int *table,
-	__in		size_t n);
+	__in			efx_nic_t *enp,
+	__in			uint32_t rss_context,
+	__in_ecount(nentries)	unsigned int *table,
+	__in			size_t nentries);
 
 LIBEFX_INTERNAL
 extern	__checkReturn	uint32_t
@@ -1371,7 +1373,8 @@ extern	__checkReturn			efx_rc_t
 efx_mcdi_get_function_info(
 	__in				efx_nic_t *enp,
 	__out				uint32_t *pfp,
-	__out_opt			uint32_t *vfp);
+	__out_opt			uint32_t *vfp,
+	__out_opt			efx_pcie_interface_t *intfp);
 
 LIBEFX_INTERNAL
 extern	__checkReturn		efx_rc_t

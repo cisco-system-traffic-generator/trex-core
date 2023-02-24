@@ -66,7 +66,7 @@
 #include "common/basic_utils.h"
 #include "utl_sync_barrier.h"
 #include "trex_build_info.h"
-#include "tunnels/tunnel_factory.h"
+#include "tunnels/tunnel_handler.h"
 
 extern "C" {
 #include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
@@ -223,8 +223,8 @@ enum {
        OPT_IGNORE_528_ISSUE,
        OPT_HDRH,
        OPT_BNXT_SO,
-       OPT_GTPU,
        OPT_DISABLE_IEEE_1588,
+       OPT_LATENCY_DIAG,
 
        /* no more pass this */
        OPT_MAX
@@ -322,8 +322,8 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_QUEUE_DROP,             "--queue-drop",      SO_NONE},
         { OPT_SLEEPY_SCHEDULER,       "--sleeps",          SO_NONE},
         { OPT_BNXT_SO,                "--bnxt-so",         SO_NONE},
-        { OPT_GTPU,                   "--gtpu",            SO_REQ_SEP},
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
+        { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -400,7 +400,7 @@ static int COLD_FUNC  usage() {
     printf(" --no-termio                : Do not use TERMIO. useful when using GDB and ctrl+c is needed. \n");
     printf(" --no-watchdog              : Disable watchdog \n");
     printf(" --rt                       : Run TRex DP/RX cores in realtime priority \n");
-    printf(" -p                         : Send all flow packets from the same interface (choosed randomly between client ad server ports) without changing their src/dst IP \n");
+    printf(" -p                         : Send all flow packets from the same interface (chosen randomly between client ad server ports) without changing their src/dst IP \n");
     printf(" -pm                        : Platform factor. If you have splitter in the setup, you can multiply the total results by this factor \n");
     printf("                              e.g --pm 2.0 will multiply all the results bps in this factor \n");
     printf(" --prefix <nam>             : For running multi TRex instances on the same machine. Each instance should have different name \n");
@@ -425,10 +425,11 @@ static int COLD_FUNC  usage() {
     printf(" --emu-zmq                  : For debug, just enable emu zmq channel. \n");
     printf(" --emu-zmq-tcp              : Use TCP over ZMQ. Default is IPC. \n");
     printf(" --bird-server              : Enable bird service \n");
-    printf(" --gtpu                     : Enable GTPU mode \n");
     printf(" --disable-ieee-1588        : Enable Latency Measurement using HW timestamping and DPDK APIs. Currently works only for Stateless mode. \n");
     printf("                              Need to Enable COMPILE time DPDK config RTE_LIBRTE_IEEE1588 inorder to use this feature \n");
     printf("                              Uses PTP (IEEE 1588v2) Protocol to have the packets timestamped at NIC \n");
+    printf(" --latency-diag             : STL flow latency counts all duplicated packets with more CPU load consumption.\n");
+    printf("                              To see the duplicated packets, please use -v 7.\n");
 
     printf("\n");
     printf(" Examples: ");
@@ -652,12 +653,12 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     po->preview.setFileWrite(true);
     po->preview.setRealTime(true);
     /*By Default tunnel is disabled , and port number is garbage here*/
-    po->m_enable_tunnel_port = (uint16_t)0xFF;
-    po->m_tunnel_type = TUNNEL_TYPE_NONE;
+    po->m_tunnel_enabled = false;
+    po->m_tunnel_loopback = false;
     uint32_t tmp_data;
     float tmp_double;
     
-    /* first run - pass all parameters for existance */
+    /* first run - pass all parameters for existence */
     OptHash args_set = args_first_pass(argc, argv, po);
     
     
@@ -961,13 +962,11 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
             case OPT_SLEEPY_SCHEDULER:
                 CGlobalInfo::m_options.m_is_sleepy_scheduler = true;
                 break;
-            case OPT_GTPU:
-                sscanf(args.OptionArg(),"%d", &tmp_data);
-                po->m_enable_tunnel_port = (uint16_t)tmp_data;
-                po->m_tunnel_type = TUNNEL_TYPE_GTP;
-                break;                
             case OPT_DISABLE_IEEE_1588:
                 po->preview.setLatencyIEEE1588Disable(true);
+                break;
+            case OPT_LATENCY_DIAG:
+                po->preview.set_latency_diag(true);
                 break;
 
             default:
@@ -995,7 +994,7 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     }
 
     if (CGlobalInfo::is_learn_mode() && po->preview.get_ipv6_mode_enable()) {
-        parse_err("--learn mode is not supported with --ipv6, beacuse there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
+        parse_err("--learn mode is not supported with --ipv6, because there is no such thing as NAT66 (ipv6 to ipv6 translation) \n" \
                   "If you think it is important, please open a defect or write to TRex mailing list\n");
     }
 
@@ -1010,14 +1009,14 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
     }
 
     if (po->m_platform_factor==0.0){
-        parse_err(" you must provide a non zero multipler for platform -pm 0 is not valid \n");
+        parse_err(" you must provide a non zero multiplier for platform -pm 0 is not valid \n");
     }
 
-    /* if we have a platform factor we need to devided by it so we can still work with normalized yaml profile  */
+    /* if we have a platform factor we need to divided by it so we can still work with normalized yaml profile  */
     po->m_factor = po->m_factor/po->m_platform_factor;
 
     if (po->m_factor==0.0) {
-        parse_err(" you must provide a non zero multipler -m 0 is not valid \n");
+        parse_err(" you must provide a non zero multiplier -m 0 is not valid \n");
     }
 
 
@@ -1284,12 +1283,12 @@ COLD_FUNC void CPhyEthIF::configure(uint16_t nb_rx_queue,
 
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
         /* check if the device supports TCP and UDP checksum offloading */
-        if ((m_dev_info->tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) == 0) {
+        if ((m_dev_info->tx_offload_capa & RTE_ETH_TX_OFFLOAD_UDP_CKSUM) == 0) {
             rte_exit(EXIT_FAILURE, "Device does not support UDP checksum offload: "
                      "port=%u\n",
                      m_repid);
         }
-        if ((m_dev_info->tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) == 0) {
+        if ((m_dev_info->tx_offload_capa & RTE_ETH_TX_OFFLOAD_TCP_CKSUM) == 0) {
             rte_exit(EXIT_FAILURE, "Device does not support TCP checksum offload: "
                      "port=%u\n",
                      m_repid);
@@ -1362,14 +1361,14 @@ COLD_FUNC void CPhyEthIF::stop(){
     }
 }
 
-#define DEV_OFFLOAD_CAPA    (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
+#define DEV_OFFLOAD_CAPA    (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_UDP_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM)
 
 COLD_FUNC void CPhyEthIF::start(){
 
     const struct rte_eth_dev_info *m_dev_info = m_port_attr->get_dev_info();
 
     if ((m_dev_info->tx_offload_capa & DEV_OFFLOAD_CAPA) != DEV_OFFLOAD_CAPA ){
-        m_dev_tx_offload_needed = DEV_TX_OFFLOAD_VLAN_INSERT; /* make everyting by software, deriver do not report the right capability e.g. vxnet3 does not support TCP/UDP  */
+        m_dev_tx_offload_needed = RTE_ETH_TX_OFFLOAD_VLAN_INSERT; /* make everyting by software, deriver do not report the right capability e.g. vxnet3 does not support TCP/UDP  */
     }else{
         m_dev_tx_offload_needed = 0;
     }
@@ -1418,7 +1417,7 @@ COLD_FUNC void CPhyEthIF::disable_flow_control() {
   // see trex-64 issue with loopback on the same NIC
   struct rte_eth_fc_conf fc_conf;
   memset(&fc_conf, 0, sizeof(fc_conf));
-  fc_conf.mode = RTE_FC_NONE;
+  fc_conf.mode = RTE_ETH_FC_NONE;
   fc_conf.autoneg = 1;
   fc_conf.pause_time = 100;
   int i;
@@ -1649,6 +1648,7 @@ public:
     __attribute__ ((noinline)) int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
                                                        , CCorePerPort *  lp_port
                                                        , CVirtualIFPerSideStats  * lp_stats);
+    __attribute__ ((noinline)) rte_mbuf*  update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const);
     __attribute__ ((noinline)) rte_mbuf * update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl
                                                        , CCorePerPort *  lp_port
                                                        , CVirtualIFPerSideStats  * lp_stats, bool is_const);
@@ -1676,6 +1676,14 @@ public:
         return m_ports;
     }
 
+    /**
+     * Set DP Core back pointer in Virtual Interface.
+     *
+     * @param dp_core
+     *   Pointer to Dp core
+     **/
+    virtual void set_dp_core(TrexDpCore* dp_core) { m_dp_core = dp_core; }
+
 protected:
 
     int send_burst(CCorePerPort * lp_port,
@@ -1700,6 +1708,7 @@ protected:
     uint16_t     m_mbuf_cache;
     CCorePerPort m_ports[CS_NUM]; /* each core has 2 tx queues 1. client side and server side */
     CNodeRing *  m_ring_to_rx;
+    TrexDpCore*  m_dp_core;       // Back Pointer to Dp Core
 
 } __rte_cache_aligned;
 
@@ -1707,10 +1716,10 @@ class CCoreEthIFStateless : public CCoreEthIF {
 public:
     virtual int send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats);
-
+    virtual rte_mbuf* update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const, pkt_dir_t dir);
     virtual rte_mbuf* update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                     , CVirtualIFPerSideStats  * lp_stats, bool is_const);
-
+    virtual void update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, uint32_t seq);
     virtual void update_fsp_head_lat(struct flow_stat_payload_header *fsp_head, CVirtualIFPerSideStats  * lp_stats,
                                      uint16_t hw_id_payload);
 
@@ -1729,6 +1738,20 @@ public:
     virtual int send_node_service_mode(CGenNode *node);
 
 protected:
+
+    /**
+     * Update mbuf in case of flow stats/latency/TPG.
+     *
+     * @param node_sl
+     *   Node that we are going to update.
+     * @param m
+     *   Mbuf generated from the node prior to updating
+     *
+     * @return rte_mbuf_t*
+     *    Mbuf after updating
+     **/
+
+    rte_mbuf_t* update_stat_node(CGenNodeStateless* node_sl, rte_mbuf_t* m);
     template <bool SERVICE_MODE> inline int send_node_common(CGenNode *no);
 
     inline rte_mbuf_t * generate_node_pkt(CGenNodeStateless *node_sl)   __attribute__ ((always_inline));
@@ -1745,11 +1768,22 @@ public:
         m_rx_queue_id[CLIENT_SIDE]=client_qid;
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
+
+    /**
+     * Get a pointer to the Stateless DP core.
+     *
+     * @return TrexStatelessDpCore*
+     *  A pointer to the Dp core that contains this VIF.
+     **/
+    TrexStatelessDpCore* get_dp_core() {
+        return (TrexStatelessDpCore*)m_dp_core;
+    }
+
 public:
     uint16_t     m_rx_queue_id[CS_NUM]; 
 };
 
-class CCoreEthIFTcp : public CCoreEthIF {
+class CCoreEthIFTcp : public CCoreEthIFStateless {
 public:
     CCoreEthIFTcp() {
         m_rx_queue_id[CLIENT_SIDE]=0xffff;
@@ -1766,21 +1800,39 @@ public:
 
     void set_rx_queue_id(uint16_t client_qid,
                          uint16_t server_qid){
+        CCoreEthIFStateless::set_rx_queue_id(client_qid, server_qid);
         m_rx_queue_id[CLIENT_SIDE]=client_qid;
         m_rx_queue_id[SERVER_SIDE]=server_qid;
     }
 
-    void update_tunnel() {
-        m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
+    void set_tunnel(CTunnelHandler* tunnel_handler, bool loopback=false) {
+        m_tunnel_handler = tunnel_handler;
         if (m_tunnel_handler) {
-            m_tunnel_port = CGlobalInfo::m_options.m_enable_tunnel_port;
-            m_tunnel_handler->set_port(m_tunnel_port);
-            m_tunnel_handler->parse_options();
+            m_tunnel_loopback = loopback;
+            m_tunnel_port = tunnel_handler->m_port_id;
             m_tunnel_callback = new CTunnelTxRxCallback(m_tunnel_handler);
         }
     }
+
+    void delete_tunnel() {
+        delete m_tunnel_callback;
+        m_tunnel_handler = nullptr;
+        m_tunnel_callback = nullptr;
+    }
+
+    CTunnelHandler* get_tunnel_handler() {
+        return m_tunnel_handler;
+    }
+
+    /**
+     * Get a pointer to the ASTF DP core.
+     *
+     * @return TrexAstfDpCore*
+     *  A pointer to the Dp core that contains this VIF.
+     **/
+    TrexAstfDpCore* get_dp_core() { return (TrexAstfDpCore*)m_dp_core; }
+
     ~CCoreEthIFTcp(){
-        delete(m_tunnel_handler);
         delete(m_tunnel_callback);
     }
 public:
@@ -1790,6 +1842,7 @@ private:
     CTunnelTxRxCallback *m_tunnel_callback;
     CTunnelHandler      *m_tunnel_handler;
     uint8_t             m_tunnel_port;
+    bool                m_tunnel_loopback;
 };
 
 
@@ -1801,6 +1854,14 @@ COLD_FUNC uint16_t get_client_side_vlan(CVirtualIF * _ifs){
     return(vlan);
 }
 
+
+COLD_FUNC tunnel_cfg_data_t get_client_side_tunnel_cfg_data(CVirtualIF * _ifs){
+    CCoreEthIFTcp * lpif=(CCoreEthIFTcp *)_ifs;
+    CCorePerPort *lp_port = (CCorePerPort *)lpif->get_ports();
+    uint8_t port_id = lp_port->m_port->get_tvpid();
+    tunnel_cfg_data_t tunnel_data=CGlobalInfo::m_options.m_ip_cfg[port_id].get_tunnel_cfg_data();
+    return(tunnel_data);
+}
 
 COLD_FUNC bool CCoreEthIF::Create(uint8_t             core_id,
                         uint8_t             tx_client_queue_id,
@@ -2018,7 +2079,7 @@ HOT_FUNC int CCoreEthIF::send_ieee_1588_pkt_lat(CCorePerPort *lp_port, rte_mbuf_
         fsp_head_ieee_1588->ptp_message.origin_tstamp.sec_lsb = htonl((uint32_t)(tstamp_tx.tv_sec & UINT32_MAX));
 
 
-        m->ol_flags &= ~PKT_TX_IEEE1588_TMST; /* FUP packet doesnt need to be timestampped */
+        m->ol_flags &= ~RTE_MBUF_F_TX_IEEE1588_TMST; /* FUP packet doesnt need to be timestampped */
 
         ret =  send_one_pkt_lat( lp_port, m, lp_stats);
 
@@ -2053,27 +2114,39 @@ HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,
                                  struct rte_mbuf **rx_pkts,
                                  uint16_t nb_pkts){
     uint16_t res = m_ports[dir].m_port->rx_burst(m_rx_queue_id[dir],rx_pkts,nb_pkts);
-    if (m_tunnel_callback != nullptr){
-        int i;
+    if (m_tunnel_callback != nullptr && dir == m_tunnel_port){
+        int i, num=0;
+        struct rte_mbuf *rx_pkts_tmp[nb_pkts];
         for (i=0;i<res;i++) {
-            m_tunnel_callback->on_rx(dir, rx_pkts[i]);
+            if (m_tunnel_callback->on_rx(dir, rx_pkts[i])) {
+                rte_pktmbuf_free(rx_pkts[i]);
+                continue;
+            }
+            rx_pkts_tmp[num] = rx_pkts[i];
+            num++;
         }
+        for (i=0;i<num;i++) {
+            rx_pkts[i]=rx_pkts_tmp[i];
+        }
+        res=num;
     }
     return (res);
 }
 
 
 HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
+    if (unlikely(node->m_type == CGenNode::STATELESS_PKT)) {
+        return CCoreEthIFStateless::send_node_service_mode(node);
+    }
     CNodeTcp * node_tcp = (CNodeTcp *) node;
     uint8_t dir=node_tcp->dir;
     CCorePerPort *lp_port = &m_ports[dir];
     CVirtualIFPerSideStats *lp_stats = &m_stats[dir];
-    if (m_tunnel_callback && m_tunnel_port == dir) {
+    if (m_tunnel_callback && (m_tunnel_port == dir || m_tunnel_loopback)) {
         lp_port->m_port->tx_offload_csum(node_tcp->mbuf, 0);
-        int res = m_tunnel_callback->on_tx(lp_port->m_port->get_tvpid(), node_tcp->mbuf);
+        int res = m_tunnel_callback->on_tx(dir, node_tcp->mbuf);
         if (res) {
             rte_pktmbuf_free(node_tcp->mbuf);
-            lp_stats->m_tx_drop+=1;
             return (0);
         }
     }
@@ -2082,12 +2155,37 @@ HOT_FUNC int CCoreEthIFTcp::send_node(CGenNode *node){
     return (0);
 }
 
+HOT_FUNC void CCoreEthIFStateless::update_tpg_header(struct tpg_payload_header* tpg_header, uint32_t tpgid, uint32_t seq) {
+    tpg_header->magic = TPG_PAYLOAD_MAGIC;
+    tpg_header->tpgid = tpgid;
+    tpg_header->seq = seq;
+    tpg_header->reserved = 0;
+}
+
 HOT_FUNC void CCoreEthIFStateless::update_fsp_head_lat(struct flow_stat_payload_header *fsp_head, CVirtualIFPerSideStats  * lp_stats,
                                                         uint16_t hw_id_payload) {
     fsp_head->seq = lp_stats->m_lat_data[hw_id_payload].get_seq_num();
     fsp_head->hw_id = hw_id_payload;
     fsp_head->flow_seq = lp_stats->m_lat_data[hw_id_payload].get_flow_seq();
     fsp_head->magic = FLOW_STAT_PAYLOAD_MAGIC;
+}
+
+HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_tpg(rte_mbuf* m, CGenNodeStateless* node_sl, bool is_const, pkt_dir_t dir) {
+    struct tpg_payload_header* tpg_header;
+    uint32_t tpgid = node_sl->get_stat_pgid();
+    rte_mbuf* mi = node_sl->alloc_tpg_mbuf(m, tpg_header, is_const);
+
+    uint32_t INVALID_SEQ = 0xBADF00D;
+    uint32_t seq = INVALID_SEQ;
+    auto tpg_dp_mgr = get_dp_core()->get_tpg_dp_mgr(dir);
+    if (tpg_dp_mgr) {
+        seq = tpg_dp_mgr->get_seq(tpgid);
+        tpg_dp_mgr->inc_seq(tpgid);
+        tpg_dp_mgr->update_tx_cntrs(tpgid, 1, mi->pkt_len + 4); // 1 Pkt, +4 for CRC
+    }
+
+    update_tpg_header(tpg_header, tpgid, seq);
+    return mi;
 }
 
 HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
@@ -2133,7 +2231,7 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
             fsp_head_ieee_1588->ptp_message.hdr.seq_id = htons(fsp_head_ieee_1588->fsp_hdr.seq);
             fsp_head_ieee_1588->ptp_message.hdr.log_message_interval = 0;
 
-            mi->ol_flags |= PKT_TX_IEEE1588_TMST;
+            mi->ol_flags |= RTE_MBUF_F_TX_IEEE1588_TMST;
 
             /* Set up clock id. */
             memcpy(&src_mac,(uint8_t *)CGlobalInfo::m_options.get_src_mac_addr(0),6);
@@ -2185,7 +2283,7 @@ HOT_FUNC rte_mbuf* CCoreEthIFStateless::update_node_flow_stat(rte_mbuf *m, CGenN
 HOT_FUNC int CCoreEthIFStateless::send_node_flow_stat(rte_mbuf *m, CGenNodeStateless * node_sl, CCorePerPort *  lp_port
                                              , CVirtualIFPerSideStats  * lp_stats) {
     uint16_t hw_id = node_sl->get_stat_hw_id();
-    if (hw_id >= MAX_FLOW_STATS) {
+    if (hw_id >= MAX_FLOW_STATS || node_sl->is_tpg_stream()) {
         send_pkt_lat(lp_port, node_sl, m, lp_stats);
     } else {
         send_pkt(lp_port, m, lp_stats);
@@ -2249,6 +2347,25 @@ HOT_FUNC int CCoreEthIFStateless::send_node_service_mode(CGenNode *node) {
     return send_node_common<true>(node);
 }
 
+rte_mbuf_t* CCoreEthIFStateless::update_stat_node(CGenNodeStateless* node_sl, rte_mbuf_t* m) {
+    if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
+        // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
+        // assert here just to make sure.
+        assert(1);
+    }
+    bool is_const                     = (node_sl->get_cache_mbuf()) ? true : false;
+    pkt_dir_t dir                     = (pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    CCorePerPort *lp_port             = &m_ports[dir];
+    CVirtualIFPerSideStats *lp_stats  = &m_stats[dir];
+
+    if ( unlikely(node_sl->is_tpg_stream())) {
+        m = update_node_tpg(m, node_sl, is_const, dir);
+    } else {
+        m = update_node_flow_stat(m, node_sl, lp_port, lp_stats, is_const);
+    }
+    return m;
+}
+
 /**
  * this is the common function and it is templated
  * for two compiler evaluation for performance
@@ -2266,12 +2383,7 @@ int CCoreEthIFStateless::send_node_common(CGenNode *node) {
     rte_mbuf_t *m = generate_node_pkt(node_sl);
 
     if (unlikely(node_sl->is_stat_needed())) {
-        if ( unlikely(node_sl->is_cache_mbuf_array()) ) {
-            // No support for latency + cache. If user asks for cache on latency stream, we change cache to 0.
-            // assert here just to make sure.
-            assert(1);
-        }
-        m = update_node_flow_stat(m, node_sl, lp_port, lp_stats, (node_sl->get_cache_mbuf()) ? true : false);
+        m = update_stat_node(node_sl, m);
     }
 
     /* template boolean - this will be removed at compile time */
@@ -3183,13 +3295,6 @@ public:
         }
     }
 
-    void update_tunnel() {
-        int i;
-        for(i=0;i<BP_MAX_CORES;++i){
-            m_cores_vif_tcp[i].update_tunnel();
-        }
-    }
-
 private:
     bool is_all_dp_cores_finished();
     bool is_all_cores_finished();
@@ -3497,6 +3602,9 @@ COLD_FUNC void CGlobalTRex::apply_pretest_results_to_stack(void) {
             continue;
         }
         TrexPort *port = m_stx->get_port_by_id(port_id);
+        while ( port->is_rx_running_cfg_tasks() ) {
+            rte_pause_or_delay_lowend();
+        }
         uint32_t src_ipv4 = CGlobalInfo::m_options.m_ip_cfg[port_id].get_ip();
         uint32_t dg = CGlobalInfo::m_options.m_ip_cfg[port_id].get_def_gw();
         std::string dst_mac((char*)CGlobalInfo::m_options.m_mac_addr[port_id].u.m_mac.dest, 6);
@@ -3791,7 +3899,7 @@ CGlobalTRex::init_vif_cores() {
         port_offset+=2;
         if (port_offset == m_max_ports) {
             port_offset = 0;
-            // We want to allow sending latency packets only from first core handling a port
+            // We want to allow sending latency/TPG packets only from first core handling a port
             lat_q_id = CCoreEthIF::INVALID_Q_ID;
         }
     }
@@ -3815,7 +3923,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
     register_signals();
 
     m_stats_cnt =0;
-    
+
     /* End update pre flags */
 
     device_prob_init();
@@ -3829,17 +3937,26 @@ COLD_FUNC bool CGlobalTRex::Create(){
     }
     m_zmq_publisher.set_interactive_mode(get_mode()->is_interactive());
 
+
+    CTrexDpdkParams dpdk_p;
+    get_dpdk_drv_params(dpdk_p);
+    if (isVerbose(0)) {
+        dpdk_p.dump(stdout);
+    }
+
     bool is_astf_best_effort_mode = get_mode()->is_astf_best_effort_mode();
     if (is_astf_best_effort_mode) {
         // set data needed for this mode
-        CTrexDpdkParams dpdk_p;
-        get_dpdk_drv_params(dpdk_p);
         CGlobalInfo::m_options.m_tx_ring_size = dpdk_p.tx_desc_num;
         CGlobalInfo::m_options.m_reta_mask = 0xFF;
         CGlobalInfo::m_options.m_astf_best_effort_mode = true;
     }
+
+    bool stl_software_mode = get_is_stateless() && !get_dpdk_mode()->is_hardware_filter_needed();
+    CGlobalInfo::m_options.m_rx_dp_ring_size = stl_software_mode ? dpdk_p.rx_desc_num_data_q : 1024;
+
     /* allocate rings */
-    assert( CMsgIns::Ins()->Create(get_cores_tx(), is_astf_best_effort_mode) );
+    assert(CMsgIns::Ins()->Create(get_cores_tx(), is_astf_best_effort_mode));
 
     if ( sizeof(CGenNodeNatInfo) != sizeof(CGenNode)  ) {
         printf("ERROR sizeof(CGenNodeNatInfo) %lu != sizeof(CGenNode) %lu must be the same size \n",sizeof(CGenNodeNatInfo),sizeof(CGenNode));
@@ -3852,13 +3969,6 @@ COLD_FUNC bool CGlobalTRex::Create(){
     }
 
     /* allocate the memory */
-    CTrexDpdkParams dpdk_p;
-    get_dpdk_drv_params(dpdk_p);
-
-    if (isVerbose(0)) {
-        dpdk_p.dump(stdout);
-    }
-
     bool use_hugepages = !(CGlobalInfo::m_options.m_is_vdev && CGlobalInfo::m_options.m_pdevs_in_vdev.empty());
     CGlobalInfo::init_pools( m_max_ports * dpdk_p.get_total_rx_desc(),
                              dpdk_p.rx_mbuf_type,
@@ -3866,7 +3976,7 @@ COLD_FUNC bool CGlobalTRex::Create(){
 
     device_start();
     dump_config(stdout);
-    m_sync_barrier =new CSyncBarrier(get_cores_tx(),1.0);
+    m_sync_barrier = new CSyncBarrier(get_cores_tx(), 1.0);
 
 
     switch (get_op_mode()) {
@@ -3891,7 +4001,6 @@ COLD_FUNC bool CGlobalTRex::Create(){
         assert(0);
     }
 
-    
     return (true);
 
 }
@@ -3958,7 +4067,7 @@ COLD_FUNC void CGlobalTRex::init_stl() {
 }
 
 COLD_FUNC void CGlobalTRex::init_stl_stats() {
-    if (get_dpdk_mode()->dp_rx_queues()) {
+    if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
         std::vector<TrexStatelessDpCore*> dp_core_ptrs;
         for (int thread_id = 0; thread_id < (int)m_fl.m_threads_info.size(); thread_id++) {
             TrexStatelessDpCore* stl_dp_core = (TrexStatelessDpCore*)m_fl.m_threads_info[thread_id]->get_dp_core();
@@ -3987,10 +4096,10 @@ COLD_FUNC void CGlobalTRex::init_astf() {
     init_vif_cores();
     init_astf_vif_rx_queues();
     rx_interactive_conf();
-    TrexAstf* astf = new TrexAstf(get_stx_cfg());
-    astf->set_tunnel_handler(get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_CP)));
-    m_stx = astf;
+    m_stx = new TrexAstf(get_stx_cfg());
     start_master_astf();
+
+    init_stl_stats();
 }
 
 
@@ -4088,6 +4197,20 @@ COLD_FUNC void  dump_dpdk_devices(void){
             }
         }
         printf("-----\n");
+}
+
+
+uint32_t trex_dev_get_overhead_len(uint32_t max_rx_pktlen, uint16_t max_mtu)
+{
+    uint32_t overhead_len;
+
+    if (max_mtu != UINT16_MAX && max_rx_pktlen > max_mtu) {
+        overhead_len = max_rx_pktlen - max_mtu;
+    } else {
+        overhead_len = RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN;
+    }
+
+    return overhead_len;
 }
 
 
@@ -4196,13 +4319,16 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
         }
     }
 
+    /*update mtu based on the dev info*/
+    m_port_cfg.m_port_conf.rxmode.mtu = dev_info.max_rx_pktlen - trex_dev_get_overhead_len(dev_info.max_rx_pktlen, 
+                                                                                      dev_info.max_mtu);
     m_port_cfg.update_var();
 
-    if (m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len > dev_info.max_rx_pktlen ) {
+    if (m_port_cfg.m_port_conf.rxmode.mtu > dev_info.max_rx_pktlen ) {
         printf("WARNING: reduce max packet len from %d to %d \n",
-               (int)m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len,
+               (int)m_port_cfg.m_port_conf.rxmode.mtu,
                (int)dev_info.max_rx_pktlen);
-         m_port_cfg.m_port_conf.rxmode.max_rx_pkt_len = dev_info.max_rx_pktlen;
+         m_port_cfg.m_port_conf.rxmode.mtu = dev_info.max_rx_pktlen;
     }
 
     uint16_t tx_queues = get_dpdk_mode()->dp_rx_queues();
@@ -4508,6 +4634,8 @@ COLD_FUNC void CGlobalTRex::update_stats(){
     if ( get_is_interactive() && get_is_tcp_mode() ) {
         stx = get_astf_object();
         sttcp_list = stx->get_sttcp_list();
+        vector<CSTTCp *> sttcp_dynamic_counters = stx->get_dyn_sttcp_list();
+        sttcp_list.insert(sttcp_list.end(), sttcp_dynamic_counters.begin(), sttcp_dynamic_counters.end());
     }
     else if ( m_fl.m_stt_cp ) {
         sttcp_list.push_back(m_fl.m_stt_cp);
@@ -4545,6 +4673,20 @@ COLD_FUNC void CGlobalTRex::update_stats(){
 }
 
 COLD_FUNC tx_per_flow_t CGlobalTRex::get_flow_tx_stats(uint8_t port, uint16_t index) {
+    uint8_t port0;
+    CFlowGenListPerThread * lpt;
+
+    m_stats.m_port[port].m_tx_per_flow[index].clear();
+
+    for (int i=0; i < get_cores_tx(); i++) {
+        lpt = m_fl.m_threads_info[i];
+        port0 = lpt->getDualPortId() * 2;
+        if ((port == port0) || (port == port0 + 1)) {
+            m_stats.m_port[port].m_tx_per_flow[index] +=
+                lpt->m_node_gen.m_v_if->get_stats()[port - port0].m_tx_per_flow[index];
+        }
+    }
+
     return m_stats.m_port[port].m_tx_per_flow[index] - m_stats.m_port[port].m_prev_tx_per_flow[index];
 }
 
@@ -5340,6 +5482,7 @@ COLD_FUNC int CGlobalTRex::start_master_stateless(){
         CVirtualIF * erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
         lpt->set_sync_barrier(m_sync_barrier);
+        erf_vif->set_dp_core(lpt->get_dp_core());
     }
     m_fl_was_init=true;
 
@@ -5369,6 +5512,7 @@ COLD_FUNC int CGlobalTRex::start_master_astf_common() {
         CVirtualIF *erf_vif = m_cores_vif[i+1];
         lpt->set_vif(erf_vif);
         lpt->set_sync_barrier(m_sync_barrier);
+        erf_vif->set_dp_core(lpt->get_dp_core());
     }
 
     m_fl_was_init = true;
@@ -5593,7 +5737,7 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
         return;
     }
 
-    int reta_conf_size = std::max(1, dev_info.reta_size / RTE_RETA_GROUP_SIZE);
+    int reta_conf_size = std::max(1, dev_info.reta_size / RTE_ETH_RETA_GROUP_SIZE);
 
     struct rte_eth_rss_reta_entry64 reta_conf[reta_conf_size];
 
@@ -5602,7 +5746,7 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
     uint16_t indx=0;
     for (int j = 0; j < reta_conf_size; j++) {
         reta_conf[j].mask = ~0ULL;
-        for (int i = 0; i < RTE_RETA_GROUP_SIZE; i++) {
+        for (int i = 0; i < RTE_ETH_RETA_GROUP_SIZE; i++) {
             while (true) {
                 q=(indx + skip) % numer_of_queues;
                 if (q != skip_queue) {
@@ -5623,8 +5767,8 @@ COLD_FUNC void CPhyEthIF::configure_rss_astf(bool is_client,
      printf(" RSS port  %d \n",m_tvpid);
      /* verification */
      for (j = 0; j < reta_conf_size; j++) {
-         for (i = 0; i<RTE_RETA_GROUP_SIZE; i++) {
-             printf(" R %d  %d \n",(j*RTE_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
+         for (i = 0; i<RTE_ETH_RETA_GROUP_SIZE; i++) {
+             printf(" R %d  %d \n",(j*RTE_ETH_RETA_GROUP_SIZE+i),reta_conf[j].reta[i]);
          }
      }
     #endif
@@ -5643,6 +5787,11 @@ COLD_FUNC void CPhyEthIF::configure_rss(){
         configure_rss_astf(false,
                            dpdk_p.get_total_rx_queues(),
                            MAIN_DPDK_RX_Q);
+
+        /* disable HW flow statistics on ASTF mode due to conflicts with STL flow stats. */
+        if (get_is_interactive() && !get_is_stateless()) {
+            CGlobalInfo::m_options.preview.set_disable_hw_flow_stat(true);
+        }
     }
 }
 
@@ -5656,22 +5805,25 @@ COLD_FUNC void CPhyEthIF::conf_multi_rx() {
           hash_key_size = dev_info->hash_key_size;
      }
 
-    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
-
     struct rte_eth_rss_conf *lp_rss = 
         &g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
 
     if (dev_info->flow_type_rss_offloads){
-        lp_rss->rss_hf = (dev_info->flow_type_rss_offloads & (ETH_RSS_NONFRAG_IPV4_TCP |
-                         ETH_RSS_NONFRAG_IPV4_UDP |
-                         ETH_RSS_NONFRAG_IPV6_TCP |
-                         ETH_RSS_NONFRAG_IPV6_UDP));
+        lp_rss->rss_hf = (dev_info->flow_type_rss_offloads & (RTE_ETH_RSS_NONFRAG_IPV4_TCP |
+                         RTE_ETH_RSS_NONFRAG_IPV4_UDP |
+                         RTE_ETH_RSS_NONFRAG_IPV6_TCP |
+                         RTE_ETH_RSS_NONFRAG_IPV6_UDP));
         lp_rss->rss_key =  (uint8_t*)&server_rss_key[0];
     }else{                 
 	lp_rss->rss_hf = 0;
         lp_rss->rss_key = NULL;
     }
     lp_rss->rss_key_len = hash_key_size;
+
+    if (lp_rss->rss_hf)
+	g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+    else
+	g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
 }
 
 COLD_FUNC void CPhyEthIF::conf_hardware_astf_rss() {
@@ -5700,12 +5852,12 @@ COLD_FUNC void CPhyEthIF::conf_hardware_astf_rss() {
             exit(1);
         }
     }
-    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
+    g_trex.m_port_cfg.m_port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
     struct rte_eth_rss_conf *lp_rss =&g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;
-    lp_rss->rss_hf = ETH_RSS_NONFRAG_IPV4_TCP |
-                     ETH_RSS_NONFRAG_IPV4_UDP |
-                     ETH_RSS_NONFRAG_IPV6_TCP |
-                     ETH_RSS_NONFRAG_IPV6_UDP;
+    lp_rss->rss_hf = RTE_ETH_RSS_NONFRAG_IPV4_TCP |
+                     RTE_ETH_RSS_NONFRAG_IPV4_UDP |
+                     RTE_ETH_RSS_NONFRAG_IPV6_TCP |
+                     RTE_ETH_RSS_NONFRAG_IPV6_UDP;
 
     bool is_client_side = ((get_tvpid()%2==0)?true:false);
     if (is_client_side) {
@@ -5760,7 +5912,7 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
     /* we don't want to enable this in Stateless as mlx5 will have a big performance effect
     other driver enable this without asking  */
     if (get_mode()->get_opt_mode() != OP_MODE_STL){
-        tx_offloads |= DEV_TX_OFFLOAD_VLAN_INSERT;
+        tx_offloads |= RTE_ETH_TX_OFFLOAD_VLAN_INSERT;
     }
 
     // disable non-supported best-effort offloads
@@ -5771,8 +5923,8 @@ COLD_FUNC void CPhyEthIF::_conf_queues(uint16_t tx_qs,
 
     if ( CGlobalInfo::m_options.preview.getTsoOffloadDisable() ) {
         tx_offloads &= ~(
-            DEV_TX_OFFLOAD_TCP_TSO | 
-            DEV_TX_OFFLOAD_UDP_TSO);
+            RTE_ETH_TX_OFFLOAD_TCP_TSO | 
+            RTE_ETH_TX_OFFLOAD_UDP_TSO);
     }
 
     /* configure global rte_eth_conf  */
@@ -5824,7 +5976,7 @@ COLD_FUNC void CPhyEthIF::conf_queues(void){
        rx_qs_descs.push_back(dpdk_p.rx_desc_num_data_q);
        rx_qs_drop_qid=0;
     }else{
-       tx_qs = g_trex.m_max_queues_per_port;
+       tx_qs = get_dpdk_mode()->total_tx_queues();
        int i;
        for (i=0; i<rx_qs; i++) {
            uint16_t desc;
@@ -5965,12 +6117,17 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
     uint32_t diff_bytes[MAX_FLOW_STATS];
     bool hw_rx_stat_supported = get_ex_drv()->hw_rx_stat_supported();
 
+    // reset allowed only when rx_stats and tx_stats are given.
+    if (reset && !(rx_stats && tx_stats)) {
+        return -1;
+    }
+
     if (hw_rx_stat_supported) {
         if (get_ex_drv()->get_rx_stats(this, diff_pkts, m_stats.m_fdir_prev_pkts
                                        , diff_bytes, m_stats.m_fdir_prev_bytes, min, max) < 0) {
             return -1;
         }
-    } else {
+    } else if (rx_stats != NULL) {
         get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_IPV4_ID, get_core_list());
     }
 
@@ -6009,7 +6166,14 @@ COLD_FUNC int CPhyEthIF::get_flow_stats(rx_per_flow_t *rx_stats, tx_per_flow_t *
 }
 
 COLD_FUNC int CPhyEthIF::get_flow_stats_payload(rx_per_flow_t *rx_stats, tx_per_flow_t *tx_stats, int min, int max, bool reset) {
-    get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    // reset allowed only when rx_stats and tx_stats are given.
+    if (reset && !(rx_stats && tx_stats)) {
+        return -1;
+    }
+
+    if (rx_stats != NULL) {
+        get_stateless_obj()->get_stats()->get_rx_stats(get_tvpid(), rx_stats, min, max, reset, TrexPlatformApi::IF_STAT_PAYLOAD, get_core_list());
+    }
     
     for (int i = min; i <= max; i++) {
         if ( reset ) {
@@ -6169,9 +6333,23 @@ COLD_FUNC int update_global_info_from_platform_file(){
             g_opts->m_ip_cfg[i].set_ip(cg->m_mac_info[i].get_ip());
             g_opts->m_ip_cfg[i].set_mask(cg->m_mac_info[i].get_mask());
             g_opts->m_ip_cfg[i].set_vlan(cg->m_mac_info[i].get_vlan());
+            g_opts->m_ip_cfg[i].set_mpls(cg->m_mac_info[i].get_mpls());
             // If one of the ports has vlan, work in vlan mode
             if (cg->m_mac_info[i].get_vlan() != 0) {
-                g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+                // Check if MPLS configuration also specified, tunnel in tunnel EoMPLS[vlan]
+                if (cg->m_mac_info[i].get_mpls().label && !cg->m_mac_info[i].get_is_eompls()) {
+                    printf("\n");
+                    printf("Error: Both MPLS and VLAN configuration is not allowed. Please remove one of them and try again.\n");
+                    exit(1);
+                }
+                if (cg->m_mac_info[i].get_mpls().label) {
+                    g_opts->preview.set_vlan_mode_verify(CPreviewMode::EoMPLS_WITH_VLAN_MODE );
+                } else {
+                    g_opts->preview.set_vlan_mode_verify(CPreviewMode::VLAN_MODE_NORMAL);
+                }
+            } else if (cg->m_mac_info[i].get_mpls().label) {
+                // Currenlty with MPLS Simple MPLS and EoMPLS supported
+                g_opts->preview.set_vlan_mode_verify(cg->m_mac_info[i].get_is_eompls() ? CPreviewMode::EoMPLS_MODE_NORMAL : CPreviewMode::MPLS_MODE_NORMAL);
             }
         }
     }
@@ -6499,7 +6677,9 @@ COLD_FUNC int  update_dpdk_args(void){
     }
 
 #ifndef DPDK_NEW_MEMORY
-    SET_ARGS("--legacy-mem");
+    if (!cg->m_new_memory) {
+        SET_ARGS("--legacy-mem");
+    }
 #endif
 
     if ( lpop->prefix.length() ) {
@@ -6870,7 +7050,6 @@ COLD_FUNC int main_test(int argc , char * argv[]){
         g_trex.stop_master();
         return (0);
     }
-    g_trex.update_tunnel();
     rte_eal_mp_remote_launch(slave_one_lcore, NULL, CALL_MAIN);
     RTE_LCORE_FOREACH_WORKER(lcore_id) {
         if (rte_eal_wait_lcore(lcore_id) < 0)
@@ -6914,7 +7093,7 @@ COLD_FUNC void wait_x_sec(int sec, bool dev_flush) {
     fflush(stdout);
 }
 
-#define TCP_UDP_OFFLOAD (DEV_TX_OFFLOAD_IPV4_CKSUM |DEV_TX_OFFLOAD_UDP_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM)
+#define TCP_UDP_OFFLOAD (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |RTE_ETH_TX_OFFLOAD_UDP_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM)
 
 /* should be called after rte_eal_init() */
 COLD_FUNC void set_driver() {
@@ -6966,15 +7145,31 @@ COLD_FUNC void set_driver() {
         printf(" TCP_UDP_OFFLOAD ");
     }
 
-    if ( (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) == DEV_TX_OFFLOAD_TCP_TSO ){
+    if ( (dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_TCP_TSO) == RTE_ETH_TX_OFFLOAD_TCP_TSO ){
         printf(" TSO ");
         lp->set_dev_tso_support(true);
+    }
+
+    if ( (dev_info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_LRO) == RTE_ETH_RX_OFFLOAD_TCP_LRO ){
+        printf(" LRO ");
+        lp->set_dev_lro_support(true);
+    } else {
+        printf(" SLRO ");
     }
     printf("\n");
 
     if (lp->getTsoOffloadDisable() && lp->get_dev_tso_support()){
         printf("Warning TSO is supported and asked to be disabled by user \n");
         lp->set_dev_tso_support(false);
+    }
+
+    if (lp->getLroOffloadDisable()) {
+        if (lp->get_dev_lro_support()) {
+            printf("Warning LRO is supported and asked to be disabled by user \n");
+            lp->set_dev_lro_support(false);
+        } else {
+            printf("Warning SLRO is supported and asked to be disabled by user \n");
+        }
     }
 
 
@@ -7010,6 +7205,17 @@ COLD_FUNC void reorder_dpdk_ports() {
         if ( isVerbose(0) ){
            printf(" size of interfaces_vdevs %d \n",(int)cg->m_if_list_vdevs.size());
         }
+        if ( CGlobalInfo::m_options.m_pdevs_in_vdev.size() ) {
+            /* mapping virtual tvpid for bonding device driver usage.
+             * real tvpid will be updated by next m_if_list_vdevs loop. */
+            int tvpid = cg->m_if_list_vdevs.size();
+            uint8_t cnt = rte_eth_dev_count_avail();
+            for (int repid = 0; repid < cnt; repid++) {
+                lp->set_map(tvpid,repid);
+                lp->set_rmap(repid,tvpid);
+                tvpid++;
+            }
+        }
         int if_index = 0;
         for (std::string &opts : cg->m_if_list_vdevs) {
             if ( CTVPort(if_index).is_dummy() ) {
@@ -7031,6 +7237,7 @@ COLD_FUNC void reorder_dpdk_ports() {
                 printf(" ===>>>found %s %d \n",opts.c_str(),port_id);
             }
             lp->set_map(if_index,port_id);
+            lp->set_rmap(port_id,if_index);
             if_index++;
         }
         return;
@@ -7043,6 +7250,7 @@ COLD_FUNC void reorder_dpdk_ports() {
                     continue;
                 }
                 lp->set_map(i, if_index);
+                lp->set_rmap(if_index, i);
                 if_index++;
             }
             return;
@@ -7248,6 +7456,10 @@ COLD_FUNC int TrexDpdkPlatformApi::del_rx_flow_stat_rule(uint8_t port_id, uint16
 }
 
 COLD_FUNC int TrexDpdkPlatformApi::get_active_pgids(flow_stat_active_t_new &result) const {
+    /**
+    NOTE: The active pgids don't include Tagged Packet Group Identifiers.
+    This is because the number of tpgids can be enormous.
+    **/
     return CFlowStatRuleMgr::instance()->get_active_pgids(result);
 }
 
@@ -7279,7 +7491,6 @@ COLD_FUNC int TrexDpdkPlatformApi::get_mbuf_util(Json::Value &mbuf_pool) const {
 }
 
 COLD_FUNC int TrexDpdkPlatformApi::get_pgid_stats(Json::Value &json, std::vector<uint32_t> pgids) const {
-    g_trex.sync_threads_stats();
     CFlowStatRuleMgr::instance()->dump_json(json, pgids);
     return 0;
 }
@@ -7474,15 +7685,16 @@ COLD_FUNC int CGlobalTRex::run_in_master() {
   const int FASTPATH_DELAY_MS = 10;
   const int SLOWPATH_DELAY_MS = 500;
 
-  m_monitor.create("master", 2);
-  TrexWatchDog::getInstance().register_monitor(&m_monitor);
-
-  TrexWatchDog::getInstance().start();
 
   if ( get_is_interactive() ) {
     apply_pretest_results_to_stack();
     run_bird_with_ns();
   }
+
+  m_monitor.create("master", 2);
+  TrexWatchDog::getInstance().register_monitor(&m_monitor);
+
+  TrexWatchDog::getInstance().start();
   while (!is_marked_for_shutdown()) {
 
     /* fast path */

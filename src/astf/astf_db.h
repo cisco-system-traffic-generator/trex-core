@@ -82,6 +82,11 @@ class CTcpTuneables {
         ip_tos          =  0x40000,
         tcp_no_delay_counter = 0x80000,
         dont_use_inbound_mac = 0x100000,
+
+        tcp_do_sack     = 0x200000,
+        tcp_cc_algo     = 0x400000,
+
+        tcp_reass_maxqlen = 0x800000,
     };
     enum {
         no_delay_mask_nagle = 0x1,
@@ -107,11 +112,16 @@ class CTcpTuneables {
         m_tcp_blackhole=0;
         m_tcp_delay_ack_msec=0;
         m_tcp_no_delay_counter=0;
-        m_tcp_no_delay=0; /* disable nagel */
+        m_tcp_no_delay=0; /* disable Nagle Algorithm */
         m_scheduler_rampup=0;
         m_ip_ttl=0;
         m_ip_tos=0;
         m_dont_use_inbound_mac=0;
+
+        m_tcp_do_sack=1;
+        m_tcp_cc_algo=0;
+
+        m_tcp_reass_maxqlen=0;
 
         memset(m_ipv6_src,0,16);
         memset(m_ipv6_dst,0,16);
@@ -158,6 +168,11 @@ class CTcpTuneables {
     uint8_t  m_ip_ttl;
     uint8_t  m_ip_tos;
     uint8_t  m_dont_use_inbound_mac;
+
+    uint8_t  m_tcp_do_sack;
+    uint8_t  m_tcp_cc_algo;
+
+    uint16_t  m_tcp_reass_maxqlen;
 
  private:
     uint32_t m_bitfield;
@@ -426,6 +441,11 @@ class CAstfDB  : public CTRexDummyCommand  {
         return m_topo_mngr;
     }
 
+    CTunnelsTopo* get_tunnel_topo() {
+        assert(m_tunnel_topo);
+        return m_tunnel_topo;
+    }
+
     virtual ~CAstfDB();
 
     void Create();
@@ -493,7 +513,8 @@ class CAstfDB  : public CTRexDummyCommand  {
     void get_tuple_info(CTupleGenYamlInfo & tuple_info);
     bool get_latency_info(uint32_t & src_ipv4,
                           uint32_t & dst_ipv4,
-                          uint32_t & dual_port_mask);
+                          uint32_t & c_ip_info,
+                          uint32_t & s_ip_info);
 
     void get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id,
             std::string ip_start, std::string ip_end, std::string ip_offset, bool per_core_dist, CIpPortion &portion);
@@ -526,8 +547,14 @@ private:
     void fill_delay_rnd(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_set_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_set_tick_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_tick_var(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_jmpnz(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
     void fill_jmpdp(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_jmpcmp(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_stats(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_add_tick_stats(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
+    void fill_set_template(uint32_t program_index, uint32_t cmd_index, CEmulAppCmd &res);
 
     void fill_tx_pkt(uint32_t program_index, 
                      uint32_t cmd_index,
@@ -625,12 +652,14 @@ private:
     ClientCfgDB        *m_client_config_info;
     static CAstfJsonValidator *m_validator;
     TopoMngr           *m_topo_mngr;
+    CTunnelsTopo       *m_tunnel_topo;
 
     uint16_t m_num_of_tg_ids;
     std::vector<std::string> m_tg_names; /* A vector that contains the names of the tg_ids 
     starting from tg_id = 1,2... . Remember that tg_id = 0 is unnamed */
 
     double m_factor; /* initial multiplier factor */
+    uint16_t m_core_base; /* preferred core base hint for the limited flow distribution */
 
     std::unordered_map<uint16_t,CTupleGeneratorSmart*> m_smart_gen;
 public:

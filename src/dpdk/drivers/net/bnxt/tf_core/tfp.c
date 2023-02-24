@@ -28,7 +28,7 @@
  * Returns success or failure code.
  */
 int
-tfp_send_msg_direct(struct tf *tfp,
+tfp_send_msg_direct(struct bnxt *bp,
 		    struct tfp_send_msg_parms *parms)
 {
 	int      rc = 0;
@@ -40,9 +40,7 @@ tfp_send_msg_direct(struct tf *tfp,
 	if (parms->mailbox == TF_CHIMP_MB)
 		use_kong_mb = 0;
 
-	rc = bnxt_hwrm_tf_message_direct(container_of(tfp,
-					       struct bnxt,
-					       tfp),
+	rc = bnxt_hwrm_tf_message_direct(bp,
 					 use_kong_mb,
 					 parms->tf_type,
 					 parms->req_data,
@@ -54,41 +52,7 @@ tfp_send_msg_direct(struct tf *tfp,
 }
 
 /**
- * Sends preformatted TruFlow msg to the TruFlow Firmware using
- * the Truflow tunnel HWRM message type.
- *
- * Returns success or failure code.
- */
-int
-tfp_send_msg_tunneled(struct tf *tfp,
-		      struct tfp_send_msg_parms *parms)
-{
-	int      rc = 0;
-	uint8_t  use_kong_mb = 1;
-
-	if (parms == NULL)
-		return -EINVAL;
-
-	if (parms->mailbox == TF_CHIMP_MB)
-		use_kong_mb = 0;
-
-	rc = bnxt_hwrm_tf_message_tunneled(container_of(tfp,
-						  struct bnxt,
-						  tfp),
-					   use_kong_mb,
-					   parms->tf_type,
-					   parms->tf_subtype,
-					   &parms->tf_resp_code,
-					   parms->req_data,
-					   parms->req_size,
-					   parms->resp_data,
-					   parms->resp_size);
-
-	return rc;
-}
-
-/**
- * Allocates zero'ed memory from the heap.
+ * Allocates zeroed memory from the heap.
  *
  * Returns success or failure code.
  */
@@ -170,7 +134,7 @@ tfp_get_fid(struct tf *tfp, uint16_t *fw_fid)
 	if (tfp == NULL || fw_fid == NULL)
 		return -EINVAL;
 
-	bp = container_of(tfp, struct bnxt, tfp);
+	bp = (struct bnxt *)tfp->bp;
 	if (bp == NULL)
 		return -EINVAL;
 
@@ -187,7 +151,7 @@ tfp_get_pf(struct tf *tfp, uint16_t *pf)
 	if (tfp == NULL || pf == NULL)
 		return -EINVAL;
 
-	bp = container_of(tfp, struct bnxt, tfp);
+	bp = (struct bnxt *)tfp->bp;
 	if (BNXT_VF(bp) && bp->parent) {
 		*pf = bp->parent->fid - 1;
 		return 0;

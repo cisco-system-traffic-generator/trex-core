@@ -361,7 +361,17 @@ def check_mac_addr (addr):
         
     return addr
 
-    
+def check_valid_port(port_str):
+    try:
+        port = int(port_str)
+    except ValueError:
+        raise argparse.ArgumentTypeError("invalid port type: '{0}'".format(port_str))
+
+    if not (1 <= port and port <= 65535):
+        raise argparse.ArgumentTypeError("invalid port number: '{0}' - valid range is 1 to 65535".format(port))
+
+    return port
+
 def decode_tunables (tunable_str):
     tunables = {}
 
@@ -376,6 +386,10 @@ def decode_tunables (tunable_str):
         val = m.group(2)           # string
         if val.startswith(("'", '"')) and val.endswith(("'", '"')) and len(val) > 1: # need to remove the quotes from value
             val = val[1:-1]
+        elif val.lower() in ('true', 'on', 'yes'): # bool(True)
+            val = True
+        elif val.lower() in ('false', 'off', 'no'): # bool(False)
+            val = False
         elif val.startswith('0x'): # hex
             val = int(val, 16)
         else:
@@ -389,6 +403,41 @@ def decode_tunables (tunable_str):
         tunables[m.group(1)] = val
 
     return tunables
+
+class TunnelType:
+      NONE = 0
+      GTPU  = 1
+
+tunnel_types = TunnelType()
+supported_tunnels = [attr for attr in dir(tunnel_types) if not callable(getattr(tunnel_types, attr)) and not attr.startswith("__") and attr != 'NONE']
+supported_tunnels = str(supported_tunnels).replace('[', '').replace(']', '')
+
+
+def get_tunnel_type(tunnel_type_str):
+    tunnel_type_str = tunnel_type_str.lower()
+    if tunnel_type_str == "gtpu":
+        return TunnelType.GTPU
+    else:
+        raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_str))
+
+def get_tunnel_type_str(tunnel_type_num):
+    if tunnel_type_num == TunnelType.GTPU:
+        return "gtpu"
+    else:
+        raise argparse.ArgumentTypeError("bad tunnel type : {0}".format(tunnel_type_num))
+
+def convert_old_tunables_to_new_tunables(tunable_str, help=False):
+    try:
+        tunable_dict = decode_tunables(tunable_str)
+    except argparse.ArgumentTypeError as e:
+        raise TRexError(e)
+    tunable_list = []
+    # converting from tunables dictionary to list 
+    for tunable_key in tunable_dict:
+        tunable_list.extend(["--{}".format(tunable_key), str(tunable_dict[tunable_key])])
+    if help:
+        tunable_list.append("--help")
+    return tunable_list
 
 
 class OPTIONS_DB_ARGS:
@@ -599,6 +648,20 @@ class OPTIONS_DB_ARGS:
          'default':  1000,
          'type': int})
 
+    ENDPOINT = ArgumentPack(
+        ['-e', '--endpoint'],
+        {'help': 'Specify endpoint to write the packets',
+         'dest': 'endpoint',
+         'default': '',
+         'type': str})
+
+    SNAPLEN = ArgumentPack(
+        ['-s', '--snaplen'],
+        {'help': 'Limit the packet size to be written to the endpoint',
+         'dest': 'snaplen',
+         'default': 0,
+         'type': int})
+
     SUPPORTED = ArgumentPack(
         ['--supp'],
         {'help': 'Show which attributes are supported by current NICs',
@@ -714,6 +777,15 @@ class OPTIONS_DB_ARGS:
          'default': 0.0,
          'help': "Set time limit waiting for all the flow to terminate gracefully."})
 
+    DUMP_INTERVAL = ArgumentPack(
+        ['--dump_interval'],
+        {'action': "store",
+         'metavar': 'TIME',
+         'dest': 'dump_interval',
+         'type': match_time_unit,
+         'default': 0.0,
+         'help': "Set interval time for dumping TCP flow information"})
+
     TIMEOUT = ArgumentPack(
         ['-t'],
         {'action': "store",
@@ -727,7 +799,70 @@ class OPTIONS_DB_ARGS:
         ['--force'],
         {"action": "store_true",
          'default': False,
-         'help': "Set if you want to stop active ports before appyling command."})
+         'help': "Set if you want to stop active ports before applying command."})
+
+    LOOPBACK = ArgumentPack(
+        ['--loopback'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to enable tunnel-loopback mode."})
+
+    TUNNEL_OFF = ArgumentPack(
+        ['--off'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to deactivate tunnel mode."})
+
+    TUNNEL_TYPE = ArgumentPack(
+        ['--type'],
+        {'required': True,
+         'type': get_tunnel_type,
+         'help': "The tunnel type for example --type gtpu. " +
+                 "Currently the supported tunnels are: " + supported_tunnels + "."})
+
+    CLIENT_START = ArgumentPack(
+        ['--c_start'],
+        {"required": True,
+         'type': check_ipv4_addr,
+         'help': "The first client that you want to update its tunnel."})
+
+    CLIENT_END = ArgumentPack(
+        ['--c_end'],
+        {"required": True,
+         'type': check_ipv4_addr,
+         'help': "The last client that you want to update its tunnel."})
+
+    VERSION = ArgumentPack(
+        ['--ipv6'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want ipv6 instead of ipv4."})
+
+    TEID = ArgumentPack(
+        ['--teid'],
+        {'type' : int,
+         'required': True,
+         'help': "The tunnel teid of the first client. The teid of the second client is going to be teid+1"})
+
+    SRC_IP = ArgumentPack(
+        ['--src_ip'],
+        {'type' : str,
+         'required': True,
+         'help': "The tunnel src ip."})
+
+    DST_IP = ArgumentPack(
+        ['--dst_ip'],
+        {'type' : str,
+         'required': True,
+         'help': "The tunnel dst ip."})
+
+    SPORT = ArgumentPack(
+        ['--sport'],
+        {'type' : check_valid_port,
+         'required': True,
+         'help': '''The source port of the tunnel.
+                    Use --sport 0 if you want to set the same source port as the inner L4 header source port.
+                 '''})
 
     REMOVE = ArgumentPack(
         ['--remove'],
@@ -745,7 +880,7 @@ class OPTIONS_DB_ARGS:
         ['-r', '--remote'],
         {"action": "store_true",
          'default': False,
-         'help': "file path should be interpeted by the server (remote file)"})
+         'help': "file path should be interpreted by the server (remote file)"})
 
     DUAL = ArgumentPack(
         ['--dual'],
@@ -805,7 +940,7 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'dest': 'sync',
          'default': False,
-         'help': 'Run the traffic with syncronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'})
+         'help': 'Run the traffic with synchronized time at adjacent ports. Need to ensure effective ipg is at least 1000 usec.'})
 
     XTERM = ArgumentPack(
         ['-x', '--xterm'],
@@ -948,7 +1083,7 @@ class OPTIONS_DB_ARGS:
         {'action': 'store_true',
          'dest': 'pin_cores',
          'default': False,
-         'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boot for symetric profiles)"})
+         'help': "Pin cores to interfaces - cores will be divided between interfaces (performance boost for symmetric profiles)"})
 
     CORE_MASK = ArgumentPack(
         ['--core_mask'],
@@ -1539,8 +1674,7 @@ class OPTIONS_DB_ARGS:
         ['-6', '--ipv6'],
         {'help': 'Send query using Ipv6',
         'dest': 'ipv6',
-        'action': 'store_true'}
-    )
+        'action': 'store_true'})
 
     MDNS_HOSTS_LIST = ArgumentPack(
         ['--hosts'], # -h is taken by help
@@ -1549,8 +1683,174 @@ class OPTIONS_DB_ARGS:
          'type': str, 
          'nargs': '+', # at least one argument must be provided , -h Host1 Host2 Host3
          'required': True
+        })
+
+    # Tagged Packet Group
+    TPG_PORT = ArgumentPack(
+        ['-p', '--port'],
+        {'help': 'Port to perform the action.',
+         'dest': 'port',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_PORTS = ArgumentPack(
+        ['-p', '--ports'],
+        {'nargs': '+',
+         'dest': 'ports',
+         'action': 'merge',
+         'type': int,
+         'help': 'A list of ports to collect TPG stats. Defaults to all acquired ports.',
+         'default': []})
+
+    TPG_ID = ArgumentPack(
+        ['--tpgid'],
+        {'help': 'Tpgid for which we perform the action.',
+         'dest': 'tpgid',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_MIN_TAG = ArgumentPack(
+        ['--min-tag'],
+        {'help': 'Min Tag for which we perform the action. Defaults to 0.',
+         'dest': 'min_tag',
+         'required': False,
+         'default': 0,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_MAX_TAG = ArgumentPack(
+        ['--max-tag'],
+        {'help': 'Max Tag for which we perform the action.',
+         'dest': 'max_tag',
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0})
+
+    TPG_MAX_TAG_NOT_REQ = ArgumentPack(
+        ['--max-tag'],
+        {'help': 'Max Tag for which we perform the action. Defaults to None',
+         'dest': 'max_tag',
+         'required': False,
+         'default': None,
+         'type': int
         }
     )
+
+    TPG_TAG_LIST = ArgumentPack(
+        ["--tag-list"],
+        {"help": "List of Tags.",
+         "dest": "tag_list",
+         "required": False,
+         "default": None,
+         "type": int,
+         "nargs": "+"
+        }
+    )
+
+    TPG_UNKNOWN_TAG = ArgumentPack(
+        ['--unknown'],
+        {'help': "Show Unknown Tag Stats. Defaults to False.",
+         'dest': "unknown_tag",
+         'default': False,
+         'action': "store_true"})
+
+    TPG_UNTAGGED = ArgumentPack(
+        ['--untagged'],
+        {'help': "Show Untagged Stats. Defaults to False.",
+         'dest': "untagged",
+         'default': False,
+         'action': "store_true"})
+
+    TPG_NUM_TPGIDS = ArgumentPack(
+        ["--num-tpgids"],
+        {'help': "Number of Tagged Packet Groups.",
+         'dest': "num_tpgids",
+         'required': True,
+         'action': action_check_min_max(),
+         'min_val': 0,
+         'max_val': (2**32)-1})
+
+    TPG_TAGS_CONF = ArgumentPack(
+        ["--tags"],
+        {'help': "Json/Python file of TPG Tag Configuration.",
+         'dest': "tags_conf",
+         'required': True,
+         'type': is_valid_file})
+
+    TPG_USERNAME = ArgumentPack(
+        ["-u", "--username"],
+        {"help": "TPG username. Defaults to actual username.",
+         "dest": "username",
+         "default": None,
+         "type": str,
+        }
+    )
+
+    TPG_TAG_TYPE = ArgumentPack(
+        ["--type"],
+        {"help": "Type of the new tag.",
+         "dest": "tag_type",
+         "choices": ["Dot1Q", "QinQ", "Invalidate"],
+         "type": str,
+         "required": True
+        }
+    )
+
+    TPG_TAG_VALUE = ArgumentPack(
+        ["--value"],
+        {"help": "Value for the new tag.",
+         "dest": "value",
+         "type": int,
+         "required": False,     # Not required in case of invalidate, we will ensure in code it is provided otherwise.
+         "default": None,
+         "nargs": "+"
+        }
+    )
+
+    TPG_TAG_ID = ArgumentPack(
+        ["--tag_id"],
+        {"help": "Tag Identifier to change.",
+         "dest": "tag_id",
+         "type": int,
+         "required": True,
+        }
+    )
+
+    TPG_CLEAR = ArgumentPack(
+        ["--clear"],
+        {"help": "Clear TPG stats for tag.",
+         "dest": "clear",
+         "action": "store_true"
+        }
+    )
+
+    MAC_ADDRS = ArgumentPack(
+        ['--macs'],
+        {'help': "One or more MAC addresses",
+         'required': False,
+         'dest': 'macs',
+         'default': None,
+         'nargs': '*',
+         'action': "merge",
+         'type': check_mac_addr})
+
+    IPV4_ADDRS= ArgumentPack(
+        ['--ipv4'],
+        {"required": False,
+         'dest': 'ipv4',
+         'default': None,
+         'type': check_ipv4_addr,
+         'nargs': '*',
+         'action': "merge",
+         'help': "One ore more IPv4 addresses."})
+
+    UPLOAD = ArgumentPack(
+        ['--upload'],
+        {"action": "store_true",
+         'default': False,
+         'help': "Set if you want to upload the black list after the changes."})
 
 OPTIONS_DB = {}
 opt_index = 0
@@ -1637,6 +1937,59 @@ class OPTIONS_DB_GROUPS:
         ],
         {})
 
+    TPG_STL_STATS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORT,
+            TPG_ID,
+            TPG_MIN_TAG,
+            TPG_MAX_TAG,
+            TPG_UNKNOWN_TAG,
+            TPG_UNTAGGED,
+        ],
+        {})
+
+    TPG_STL_CLEAR_STATS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORT,
+            TPG_ID,
+            TPG_MIN_TAG,
+            TPG_MAX_TAG_NOT_REQ,
+            TPG_TAG_LIST,
+            TPG_UNKNOWN_TAG,
+            TPG_UNTAGGED,
+        ],
+        {})
+
+    TPG_STL_TX_STATS = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORT,
+            TPG_ID,
+        ],
+        {})
+
+    TPG_ENABLE = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_PORTS,
+            TPG_NUM_TPGIDS,
+            TPG_TAGS_CONF,
+            ARGPARSE_TUNABLES,
+        ],
+        {})
+
+    TPG_UPDATE = ArgumentGroup(
+        NON_MUTEX,
+        [
+            TPG_TAG_TYPE,
+            TPG_TAG_VALUE,
+            TPG_TAG_ID,
+            TPG_CLEAR,
+        ],
+        {})
+
     ASTF_STATS_GROUP = ArgumentGroup(
         MUTEX,
         [
@@ -1652,6 +2005,7 @@ class OPTIONS_DB_GROUPS:
             EXTENDED_INC_ZERO_STATS,
             ASTF_STATS,
             ASTF_INC_ZERO_STATS,
+            STREAMS_STATS,
         ],
         {})
 
@@ -1785,6 +2139,14 @@ class OPTIONS_DB_GROUPS:
             PING_SIZE,
         ], {}
     )
+
+    BLACK_LIST_ADDR = ArgumentGroup(
+        NON_MUTEX,
+        [
+            MAC_ADDRS,
+            IPV4_ADDRS,
+            UPLOAD,
+        ],{})
 
 for var_name in dir(OPTIONS_DB_GROUPS):
     var = getattr(OPTIONS_DB_GROUPS, var_name)
@@ -1946,6 +2308,8 @@ def populate_parser (parser, *args):
         except KeyError as e:
             cause = e.args[0]
             raise KeyError("The attribute '{0}' is missing as a field of the {1} option.\n".format(cause, param))
+
+
 
 def gen_parser(client, op_name, description, *args, **kw):
     parser = CCmdArgParser(client, prog=op_name, conflict_handler='resolve',

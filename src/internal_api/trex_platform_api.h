@@ -48,7 +48,9 @@ public:
         IF_STAT_IPV4_ID = 1,
         IF_STAT_PAYLOAD = 2,
         IF_STAT_IPV6_FLOW_LABEL = 4,
-        IF_STAT_RX_BYTES_COUNT = 8, // Card support counting rx bytes
+        IF_STAT_RX_BYTES_COUNT = 8,  // Card support counting rx bytes
+        IF_STAT_TPG_PAYLOAD = 16,    // Tagged Packet Group
+
     };
 
     /**

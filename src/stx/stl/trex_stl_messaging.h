@@ -28,6 +28,9 @@ limitations under the License.
 class TrexDpCore;
 class TrexStreamsCompiledObj;
 class CFlowGenListPerThread;
+class TPGCpCtx;
+class PacketGroupTagMgr;
+class TPGDpMgrPerSide;
 
 
 /**
@@ -258,7 +261,7 @@ private:
 
 
 /**
- * psuh a PCAP message
+ * push a PCAP message
  */
 class TrexStatelessDpPushPCAP : public TrexCpToDpMsgBase {
 public:
@@ -375,9 +378,9 @@ class TrexStatelessRxEnableLatency : public TrexCpToRxMsgBase {
 public:
     TrexStatelessRxEnableLatency(MsgReply<bool> &reply) : m_reply(reply) {
     }
-    
+
     bool handle (CRxCore *rx_core);
-    
+
 private:
     MsgReply<bool>    &m_reply;
 };
@@ -386,6 +389,136 @@ private:
 class TrexStatelessRxDisableLatency : public TrexCpToRxMsgBase {
 public:
     bool handle (CRxCore *rx_core);
+};
+
+class TrexStatelessRxEnableTaggedPktGroup: public TrexCpToRxMsgBase {
+public:
+    TrexStatelessRxEnableTaggedPktGroup(TPGCpCtx* tpg_ctx)
+                                        : m_tpg_ctx(tpg_ctx) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    TPGCpCtx*                  m_tpg_ctx;          // Pointer to Control Plane TPG Context.
+};
+
+class TrexStatelessRxDisableTaggedPktGroup: public TrexCpToRxMsgBase {
+public:
+    TrexStatelessRxDisableTaggedPktGroup(const std::string& username)
+                                         : m_username(username) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    const std::string       m_username;     // User for whom we are disabling TPG
+
+};
+
+class TrexStatelessRxGetTPGState: public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxGetTPGState(const std::string& username, MsgReply<int>& reply)
+                                         : m_username(username), m_reply(reply) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    const std::string         m_username;     // User for whom we are checking if TPG is enabled.
+    MsgReply<int>&            m_reply;        // Reply object
+};
+
+class TrexStatelessRxUpdateTPGTags: public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxUpdateTPGTags(MsgReply<bool>& reply, const std::string& username, PacketGroupTagMgr* tag_mgr)
+                                         :  m_reply(reply), m_username(username), m_tag_mgr(tag_mgr) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+
+    MsgReply<bool>&           m_reply;        // Reply object
+    const std::string         m_username;     // User for whom we are checking if TPG is enabled.
+    PacketGroupTagMgr*        m_tag_mgr;      // Tag Manager to copy
+};
+
+class TrexStatelessRxClearTPGStatsTpgid : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxClearTPGStatsTpgid(MsgReply<bool>& reply, uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list)
+                                            : m_reply(reply), m_port_id(port_id), m_min_tpgid(min_tpgid), m_max_tpgid(max_tpgid), m_tag_list(tag_list){}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<bool>&                 m_reply;        // Reply object
+    uint8_t                         m_port_id;      // Port Id
+    uint32_t                        m_min_tpgid;    // Min Tpgid
+    uint32_t                        m_max_tpgid;    // Max Tpgid
+    const std::vector<uint16_t>     m_tag_list;     // List of Tags to clear
+};
+
+class TrexStatelessRxClearTPGStatsList : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxClearTPGStatsList(MsgReply<bool>& reply, uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged)
+                                            : m_reply(reply), m_port_id(port_id), m_tpgid(tpgid), m_tag_list(tag_list), m_unknown_tag(unknown_tag), m_untagged(untagged) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<bool>&                 m_reply;        // Reply object
+    uint8_t                         m_port_id;      // Port Id
+    uint32_t                        m_tpgid;        // Tpgid
+    const std::vector<uint16_t>     m_tag_list;     // List of Tags to clear
+    bool                            m_unknown_tag;  // Should clear unknown tag stats?
+    bool                            m_untagged;     // Should clear untagged stats?
+};
+
+class TrexStatelessRxClearTPGStats : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxClearTPGStats(MsgReply<bool>& reply, uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged)
+                                            : m_reply(reply), m_port_id(port_id), m_tpgid(tpgid), m_min_tag(min_tag), m_max_tag(max_tag), m_unknown_tag(unknown_tag), m_untagged(untagged) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<bool>&      m_reply;        // Reply object
+    uint8_t              m_port_id;      // Port Id
+    uint32_t             m_tpgid;        // Tpgid
+    uint16_t             m_min_tag;      // Min Tag to clear
+    uint16_t             m_max_tag;      // Max Tag to clear
+    bool                 m_unknown_tag;  // Should clear unknown tag stats?
+    bool                 m_untagged;     // Should clear untagged stats?
+};
+
+class TrexStatelessRxGetTPGUnknownTags : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxGetTPGUnknownTags(MsgReply<bool>& reply, Json::Value& result, uint8_t port_id)
+                                            : m_reply(reply), m_result(result), m_port_id(port_id) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+
+    MsgReply<bool>&      m_reply;        // Reply object
+    Json::Value&         m_result;       // Json to write result to
+    uint8_t              m_port_id;      // Port Id
+};
+
+class TrexStatelessRxClearTPGUnknownTags : public TrexCpToRxMsgBase {
+public:
+
+    TrexStatelessRxClearTPGUnknownTags(MsgReply<bool>& reply, uint8_t port_id)
+                                            : m_reply(reply), m_port_id(port_id) {}
+
+    bool handle(CRxCore *rx_core);
+
+private:
+    MsgReply<bool>&      m_reply;        // Reply object
+    uint8_t              m_port_id;      // Port Id
 };
 
 class TrexStatelessDpSetLatencyFeature : public TrexCpToDpMsgBase {
@@ -430,6 +563,52 @@ public:
 
 private:
     MsgReply<bool>      &m_reply;
+};
+
+class TrexStatelessDpSetTPGFeature : public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpSetTPGFeature(MsgReply<int>& reply, uint32_t num_pgids, bool designated_core) :
+                                m_reply(reply), m_num_pgids(num_pgids), m_designated_core(designated_core) {}
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<int>&      m_reply;
+    uint32_t            m_num_pgids;                    // Number of Tagged Packet Group Identifiers
+    bool                m_designated_core;              // This core actually sends TPG packets (sequenced packets are send from one core only)
+};
+
+class TrexStatelessDpUnsetTPGFeature: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpUnsetTPGFeature(MsgReply<bool>& reply) : m_reply(reply) {}
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>&     m_reply;
+};
+
+class TrexStatelessDpGetTPGMgr: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpGetTPGMgr(MsgReply<TPGDpMgrPerSide*>& reply, uint8_t port) : m_reply(reply), m_port(port) {}
+    virtual TrexCpToDpMsgBase * clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<TPGDpMgrPerSide*>&     m_reply;
+    uint8_t                         m_port;
+};
+
+class TrexStatelessDpClearTPGTxStats: public TrexCpToDpMsgBase {
+public:
+    TrexStatelessDpClearTPGTxStats(MsgReply<bool>& reply, uint8_t port, uint32_t tpgid) : m_reply(reply), m_port(port), m_tpgid(tpgid) {}
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore* dp_core);
+
+private:
+    MsgReply<bool>&     m_reply;
+    uint8_t             m_port;
+    uint32_t            m_tpgid;
 };
 
 

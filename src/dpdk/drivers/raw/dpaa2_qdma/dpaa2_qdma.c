@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2018-2020 NXP
+ * Copyright 2018-2021 NXP
  */
 
 #include <string.h>
@@ -653,7 +653,7 @@ dpdmai_dev_dequeue_multijob_prefetch(
 	rte_prefetch0((void *)(size_t)(dq_storage + 1));
 
 	/* Prepare next pull descriptor. This will give space for the
-	 * prefething done on DQRR entries
+	 * prefetching done on DQRR entries
 	 */
 	q_storage->toggle ^= 1;
 	dq_storage1 = q_storage->dq_storage[q_storage->toggle];
@@ -1115,11 +1115,9 @@ dpaa2_qdma_reset(struct rte_rawdev *rawdev)
 
 	/* Reset and free virtual queues */
 	for (i = 0; i < qdma_dev->max_vqs; i++) {
-		if (qdma_dev->vqs[i].status_ring)
-			rte_ring_free(qdma_dev->vqs[i].status_ring);
+		rte_ring_free(qdma_dev->vqs[i].status_ring);
 	}
-	if (qdma_dev->vqs)
-		rte_free(qdma_dev->vqs);
+	rte_free(qdma_dev->vqs);
 	qdma_dev->vqs = NULL;
 
 	/* Reset per core info */
@@ -1146,8 +1144,12 @@ dpaa2_qdma_configure(const struct rte_rawdev *rawdev,
 
 	DPAA2_QDMA_FUNC_TRACE();
 
-	if (config_size != sizeof(*qdma_config))
+	if (config_size != sizeof(*qdma_config)) {
+		DPAA2_QDMA_ERR("Config size mismatch. Expected %" PRIu64
+			", Got: %" PRIu64, (uint64_t)(sizeof(*qdma_config)),
+			(uint64_t)config_size);
 		return -EINVAL;
+	}
 
 	/* In case QDMA device is not in stopped state, return -EBUSY */
 	if (qdma_dev->state == 1) {
@@ -1247,8 +1249,12 @@ dpaa2_qdma_queue_setup(struct rte_rawdev *rawdev,
 
 	DPAA2_QDMA_FUNC_TRACE();
 
-	if (conf_size != sizeof(*q_config))
+	if (conf_size != sizeof(*q_config)) {
+		DPAA2_QDMA_ERR("Config size mismatch. Expected %" PRIu64
+			", Got: %" PRIu64, (uint64_t)(sizeof(*q_config)),
+			(uint64_t)conf_size);
 		return -EINVAL;
+	}
 
 	rte_spinlock_lock(&qdma_dev->lock);
 
@@ -1306,8 +1312,7 @@ dpaa2_qdma_queue_setup(struct rte_rawdev *rawdev,
 
 	if (qdma_dev->vqs[i].hw_queue == NULL) {
 		DPAA2_QDMA_ERR("No H/W queue available for VQ");
-		if (qdma_dev->vqs[i].status_ring)
-			rte_ring_free(qdma_dev->vqs[i].status_ring);
+		rte_ring_free(qdma_dev->vqs[i].status_ring);
 		qdma_dev->vqs[i].status_ring = NULL;
 		rte_spinlock_unlock(&qdma_dev->lock);
 		return -ENODEV;
@@ -1383,13 +1388,6 @@ dpaa2_qdma_enqueue(struct rte_rawdev *rawdev,
 		&dpdmai_dev->qdma_dev->vqs[e_context->vq_id];
 	int ret;
 
-	/* Return error in case of wrong lcore_id */
-	if (rte_lcore_id() != qdma_vq->lcore_id) {
-		DPAA2_QDMA_ERR("QDMA enqueue for vqid %d on wrong core",
-				e_context->vq_id);
-		return -EINVAL;
-	}
-
 	ret = qdma_vq->enqueue_job(qdma_vq, e_context->job, nb_jobs);
 	if (ret < 0) {
 		DPAA2_QDMA_ERR("DPDMAI device enqueue failed: %d", ret);
@@ -1420,13 +1418,6 @@ dpaa2_qdma_dequeue(struct rte_rawdev *rawdev,
 		/** Make sure there are enough space to get jobs.*/
 		if (unlikely(nb_jobs < DPAA2_QDMA_MAX_SG_NB))
 			return -EINVAL;
-	}
-
-	/* Return error in case of wrong lcore_id */
-	if (rte_lcore_id() != (unsigned int)(qdma_vq->lcore_id)) {
-		DPAA2_QDMA_WARN("QDMA dequeue for vqid %d on wrong core",
-				context->vq_id);
-		return -1;
 	}
 
 	/* Only dequeue when there are pending jobs on VQ */
@@ -1522,14 +1513,12 @@ dpaa2_qdma_queue_release(struct rte_rawdev *rawdev,
 	if (qdma_vq->exclusive_hw_queue)
 		free_hw_queue(qdma_vq->hw_queue);
 	else {
-		if (qdma_vq->status_ring)
-			rte_ring_free(qdma_vq->status_ring);
+		rte_ring_free(qdma_vq->status_ring);
 
 		put_hw_queue(qdma_vq->hw_queue);
 	}
 
-	if (qdma_vq->fle_pool)
-		rte_mempool_free(qdma_vq->fle_pool);
+	rte_mempool_free(qdma_vq->fle_pool);
 
 	memset(qdma_vq, 0, sizeof(struct qdma_virt_queue));
 
@@ -1606,7 +1595,7 @@ remove_hw_queues_from_list(struct dpaa2_dpdmai_dev *dpdmai_dev)
 
 	DPAA2_QDMA_FUNC_TRACE();
 
-	TAILQ_FOREACH_SAFE(queue, &qdma_queue_list, next, tqueue) {
+	RTE_TAILQ_FOREACH_SAFE(queue, &qdma_queue_list, next, tqueue) {
 		if (queue->dpdmai_dev == dpdmai_dev) {
 			TAILQ_REMOVE(&qdma_queue_list, queue, next);
 			rte_free(queue);

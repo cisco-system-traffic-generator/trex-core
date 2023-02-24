@@ -47,7 +47,7 @@ public:
     virtual bool get_promiscuous() = 0;
     virtual bool get_multicast() = 0;
     virtual void get_hw_src_mac(struct rte_ether_addr *mac_addr) = 0;
-    virtual uint32_t get_link_speed() { return m_link.link_speed < ETH_SPEED_NUM_100G? m_link.link_speed: ETH_SPEED_NUM_100G; } // L1 Mbps
+    virtual uint32_t get_link_speed() { return m_link.link_speed < RTE_ETH_SPEED_NUM_100G? m_link.link_speed: RTE_ETH_SPEED_NUM_100G; } // L1 Mbps
     virtual bool is_link_duplex() { return (m_link.link_duplex ? true : false); }
     virtual bool is_link_autoneg() { return (m_link.link_autoneg ? true : false); }
     virtual bool is_link_up() { return (m_link.link_status ? true : false); }
@@ -72,6 +72,7 @@ public:
         return &m_pci_dev;
     }
     virtual const struct rte_eth_dev_info* get_dev_info() const { return &m_dev_info; }
+    virtual uint32_t get_mtu() const { return m_mtu; };
 
     virtual std::string get_rx_filter_mode() const;
     virtual bool is_device_flush_needed() = 0;
@@ -105,6 +106,7 @@ protected:
 
     uint8_t                   m_port_id;
     rte_eth_link              m_link;
+    uint32_t                  m_mtu;
 
     struct rte_eth_dev_info   m_dev_info;
     struct rte_pci_device     m_pci_dev;
@@ -198,6 +200,7 @@ public:
         m_link.link_duplex  = 1;
         m_link.link_autoneg = 0;
         m_link.link_status  = 1;
+        m_mtu = 1500;
         flag_has_pci = false;
         flag_is_virtual = true;
         flag_is_fc_change_supported = false;

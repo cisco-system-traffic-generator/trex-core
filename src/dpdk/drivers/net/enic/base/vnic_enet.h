@@ -31,6 +31,28 @@ struct vnic_enet_config {
 	uint32_t rdma_mr_id;
 	uint32_t rdma_mr_count;
 	uint32_t max_pkt_size;
+	uint16_t vf_subvnic_count;
+	uint16_t mq_subvnic_count;
+	uint32_t mq_flags;
+
+	/* the following 3 fields are per-MQ-vnic counts */
+	uint32_t mq_rdma_mr_count;
+	uint16_t mq_rdma_qp_count;
+	uint16_t mq_rdma_resgrp;
+
+	uint16_t rdma_max_sq_ring_sz;
+	uint16_t rdma_max_rq_ring_sz;
+	uint32_t rdma_max_cq_ring_sz;
+	uint16_t rdma_max_wr_sge;
+	uint16_t rdma_max_mr_sge;
+	uint8_t rdma_max_rd_per_qp;
+	uint8_t unused;			/* available */
+	uint16_t mq_rdma_engine_count;
+	uint32_t intr_coal_tick_ns;	/* coalescing timer tick in nsec */
+	uint32_t max_rq_ring;		/* MAX RQ ring size */
+	uint32_t max_wq_ring;		/* MAX WQ ring size */
+	uint32_t max_cq_ring;		/* MAX CQ ring size */
+	uint32_t rdma_rsvd_lkey;	/* Reserved (privileged) LKey */
 };
 
 #define VENETF_TSO		0x1	/* TSO enabled */
@@ -55,6 +77,7 @@ struct vnic_enet_config {
 #define VENETF_NICSWITCH        0x80000 /* NICSWITCH enabled */
 #define VENETF_RSSHASH_UDPIPV4  0x100000 /* Hash on UDP + IPv4 fields */
 #define VENETF_RSSHASH_UDPIPV6  0x200000 /* Hash on UDP + IPv6 fields */
+#define VENETF_GENEVE		0x400000 /* GENEVE offload */
 
 #define VENET_INTR_TYPE_MIN	0	/* Timer specs min interrupt spacing */
 #define VENET_INTR_TYPE_IDLE	1	/* Timer specs idle time before irq */

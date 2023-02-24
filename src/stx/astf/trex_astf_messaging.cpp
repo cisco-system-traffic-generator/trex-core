@@ -21,6 +21,7 @@ limitations under the License.
 */
 
 #include "trex_astf_dp_core.h"
+#include "trex_astf.h"
 #include "trex_astf_messaging.h"
 #include "trex_rx_core.h"
 
@@ -34,22 +35,23 @@ TrexAstfDpCore* astf_core(TrexDpCore *dp_core) {
 /*************************
   start traffic message
  ************************/
-TrexAstfDpStart::TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration) {
+TrexAstfDpStart::TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
     m_profile_id = profile_id;
     m_duration = duration;
     m_nc_flow_close = nc;
     m_establish_timeout = establish_timeout;
     m_terminate_duration = terminate_duration;
+    m_dump_interval = dump_interval;
 }
 
 
 bool TrexAstfDpStart::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->start_transmit(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration);
+    astf_core(dp_core)->start_transmit(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration, m_dump_interval);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpStart::clone() {
-    return new TrexAstfDpStart(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration);
+    return new TrexAstfDpStart(m_profile_id, m_duration, m_nc_flow_close, m_establish_timeout, m_terminate_duration, m_dump_interval);
 }
 
 /*************************
@@ -156,15 +158,16 @@ TrexCpToDpMsgBase* TrexAstfDpDeleteTcp::clone() {
 /*************************
   parse ASTF JSON from string
  ************************/
-TrexAstfLoadDB::TrexAstfLoadDB(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB* astf_db) {
-    m_profile_id     = profile_id;
-    m_profile_buffer = profile_buffer;
-    m_topo_buffer    = topo_buffer;
-    m_astf_db        = astf_db;
+TrexAstfLoadDB::TrexAstfLoadDB(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB* astf_db, const string* tunnel_topo_buffer) {
+    m_profile_id         = profile_id;
+    m_profile_buffer     = profile_buffer;
+    m_topo_buffer        = topo_buffer;
+    m_astf_db            = astf_db;
+    m_tunnel_topo_buffer = tunnel_topo_buffer;
 }
 
 bool TrexAstfLoadDB::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer, m_astf_db);
+    astf_core(dp_core)->parse_astf_json(m_profile_id, m_profile_buffer, m_topo_buffer, m_astf_db, m_tunnel_topo_buffer);
     return true;
 }
 
@@ -235,12 +238,47 @@ TrexCpToDpMsgBase* TrexAstfDpActivateClient::clone() {
 + ************************/
 
 bool TrexAstfDpGetClientStats::handle(TrexDpCore *dp_core) {
-    astf_core(dp_core)->get_client_stats(m_astf_db, m_msg_data, m_is_range, m_reply);
+    astf_core(dp_core)->get_client_stats(m_msg_data, m_is_range);
     return true;
 }
 
 TrexCpToDpMsgBase* TrexAstfDpGetClientStats::clone() {
-    return new TrexAstfDpGetClientStats(m_astf_db, m_msg_data, m_is_range, m_reply);
+    return new TrexAstfDpGetClientStats(m_msg_data, m_is_range);
+}
+
+/*************************
++  Set ignored mac addresses
++ ************************/
+
+bool TrexAstfDpIgnoredMacAddrs::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->insert_ignored_mac_addresses(m_mac_addresses);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpIgnoredMacAddrs::clone() {
+    return new TrexAstfDpIgnoredMacAddrs(m_mac_addresses);
+}
+
+/*************************
++  Set ignored IPv4 addresses
++ ************************/
+
+bool TrexAstfDpIgnoredIpAddrs::handle(TrexDpCore *dp_core) {
+    astf_core(dp_core)->insert_ignored_ip_addresses(m_ip_addresses);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexAstfDpIgnoredIpAddrs::clone() {
+    return new TrexAstfDpIgnoredIpAddrs(m_ip_addresses);
+}
+
+/*************************
++  Sending Client Stats MSG
++ ************************/
+
+bool TrexAstfDpSentClientStats::handle(void) {
+    ((TrexAstf*)get_stx())->add_clients_info(m_client_sts);
+    return true;
 }
 
 /*************************
@@ -260,5 +298,23 @@ TrexCpToDpMsgBase* TrexAstfDpUpdateTunnelClient::clone() {
     return new TrexAstfDpUpdateTunnelClient(m_astf_db, m_msg_data);
 }
 
+/*************************
+*  Init dps tunnel handler
+*************************/
+bool TrexAstfDpInitTunnelHandler::handle(TrexDpCore *dp_core) {
+    m_reply.set_reply(astf_core(dp_core)->activate_tunnel_handler(m_activate, m_tunnel_type, m_loopback_mode));
+    return true;
+}
 
+TrexCpToDpMsgBase* TrexAstfDpInitTunnelHandler::clone() {
+    return new TrexAstfDpInitTunnelHandler(m_activate, m_tunnel_type, m_loopback_mode, m_reply);
+}
 
+/*************************
++  Report flows per profile
++ ************************/
+
+bool TrexAstfDpFlowInfo::handle(void) {
+    ((TrexAstf*)get_stx())->add_flows_info(m_dp_profile_id, m_flows);
+    return true;
+}

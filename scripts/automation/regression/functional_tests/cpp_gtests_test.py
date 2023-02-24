@@ -63,6 +63,20 @@ class CPP_Test(functional_general_test.CGeneralFunctional_Test):
             print('\nOutput:\n%s' % out)
             raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
 
+    def test_gtest_dyn_sts_valgrind(self):
+        command = os.path.join(cur_dir, 'run-gtest-tcp-clean "gt_dyn_sts.*"')
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
+        if ret:
+            print('\nOutput:\n%s' % out)
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
+
+    def test_gtests_tunnel_topo_valgrind(self):
+        command = os.path.join(cur_dir, 'run-gtest-tcp-clean "gt_tunnel_topo.*"')
+        ret, out = run_command(command, cwd = CTRexScenario.scripts_path)
+        if ret:
+            print('\nOutput:\n%s' % out)
+            raise Exception('Non zero return status of Valgrind gtests (%s)' % ret)
+
     def test_gtests_astf_positive(self):
         command = os.path.join(cur_dir, 'run-gtest-tcp-clean "*.astf_positive*"')
         ret, out = run_command(command, cwd = CTRexScenario.scripts_path)

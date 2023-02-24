@@ -333,6 +333,64 @@ bool TrexStatelessRxDisableLatency::handle (CRxCore *rx_core) {
     return true;
 }
 
+/*************************
+  Tagged Packet Group
+ ************************/
+bool TrexStatelessRxEnableTaggedPktGroup::handle(CRxCore* rx_core) {
+    rx_core->enable_tpg_ctx(m_tpg_ctx);
+    return true;
+}
+
+bool TrexStatelessRxDisableTaggedPktGroup::handle(CRxCore* rx_core) {
+    rx_core->disable_tpg_ctx(m_username);
+    return true;
+}
+
+bool TrexStatelessRxGetTPGState::handle(CRxCore* rx_core) {
+    int state = rx_core->get_tpg_state(m_username);
+    m_reply.set_reply(state);
+    return true;
+}
+
+bool TrexStatelessRxUpdateTPGTags::handle(CRxCore* rx_core) {
+    bool result = rx_core->update_tpg_ctx_tags(m_username, m_tag_mgr);
+    m_reply.set_reply(result);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGStatsTpgid::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_stats(m_port_id, m_min_tpgid, m_max_tpgid, m_tag_list);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGStatsList::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_stats(m_port_id, m_tpgid, m_tag_list, m_unknown_tag, m_untagged);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGStats::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_stats(m_port_id, m_tpgid, m_min_tag, m_max_tag, m_unknown_tag, m_untagged);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxGetTPGUnknownTags::handle(CRxCore* rx_core) {
+    rx_core->get_tpg_unknown_tags(m_result, m_port_id);
+    m_reply.set_reply(true);
+    return true;
+}
+
+bool TrexStatelessRxClearTPGUnknownTags::handle(CRxCore* rx_core) {
+    rx_core->clear_tpg_unknown_tags(m_port_id);
+    m_reply.set_reply(true);
+    return true;
+}
+
+/*************************
+  DP Features
+ ************************/
 bool TrexStatelessDpSetLatencyFeature::handle(TrexDpCore *dp_core) {
     TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
     stl_core->set_latency_feature();
@@ -340,8 +398,7 @@ bool TrexStatelessDpSetLatencyFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpSetLatencyFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpSetLatencyFeature::clone() {
     TrexStatelessDpSetLatencyFeature *new_msg = new TrexStatelessDpSetLatencyFeature(m_reply);
     return new_msg;
 }
@@ -353,8 +410,7 @@ bool TrexStatelessDpUnsetLatencyFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpUnsetLatencyFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpUnsetLatencyFeature::clone() {
     TrexStatelessDpUnsetLatencyFeature *new_msg = new TrexStatelessDpUnsetLatencyFeature(m_reply);
     return new_msg;
 }
@@ -366,8 +422,7 @@ bool TrexStatelessDpSetCaptureFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpSetCaptureFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpSetCaptureFeature::clone() {
     TrexStatelessDpSetCaptureFeature *new_msg = new TrexStatelessDpSetCaptureFeature(m_reply);
     return new_msg;
 }
@@ -379,8 +434,57 @@ bool TrexStatelessDpUnsetCaptureFeature::handle(TrexDpCore *dp_core) {
     return true;
 }
 
-TrexCpToDpMsgBase*
-TrexStatelessDpUnsetCaptureFeature::clone() {
+TrexCpToDpMsgBase* TrexStatelessDpUnsetCaptureFeature::clone() {
     TrexStatelessDpUnsetCaptureFeature *new_msg = new TrexStatelessDpUnsetCaptureFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpSetTPGFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    int rc = stl_core->enable_tpg(m_num_pgids, m_designated_core);
+    m_reply.set_reply(rc);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpSetTPGFeature::clone() {
+    TrexStatelessDpSetTPGFeature *new_msg = new TrexStatelessDpSetTPGFeature(m_reply, m_num_pgids, m_designated_core);
+    return new_msg;
+}
+
+bool TrexStatelessDpUnsetTPGFeature::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    stl_core->disable_tpg();
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpUnsetTPGFeature::clone() {
+    TrexStatelessDpUnsetTPGFeature *new_msg = new TrexStatelessDpUnsetTPGFeature(m_reply);
+    return new_msg;
+}
+
+bool TrexStatelessDpGetTPGMgr::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    uint8_t dir = m_port % 2;
+    auto mgr = stl_core->get_tpg_dp_mgr(dir);
+    m_reply.set_reply(mgr);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpGetTPGMgr::clone() {
+    TrexStatelessDpGetTPGMgr *new_msg = new TrexStatelessDpGetTPGMgr(m_reply, m_port);
+    return new_msg;
+}
+
+bool TrexStatelessDpClearTPGTxStats::handle(TrexDpCore *dp_core) {
+    TrexStatelessDpCore *stl_core = dynamic_cast<TrexStatelessDpCore *>(dp_core);
+    uint8_t dir = m_port % 2;
+    stl_core->clear_tpg_tx_stats(dir, m_tpgid);
+    m_reply.set_reply(true);
+    return true;
+}
+
+TrexCpToDpMsgBase* TrexStatelessDpClearTPGTxStats::clone() {
+    TrexStatelessDpClearTPGTxStats *new_msg = new TrexStatelessDpClearTPGTxStats(m_reply, m_port, m_tpgid);
     return new_msg;
 }

@@ -450,6 +450,7 @@ SimStateless::cleanup() {
     
     flush_messages();
     CFlowStatRuleMgr::cleanup();
+    TPGStreamMgr::cleanup();
 }
 
 uint64_t 

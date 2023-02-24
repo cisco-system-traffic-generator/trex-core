@@ -1984,7 +1984,7 @@ ice_sched_cfg_vsi(struct ice_port_info *pi, u16 vsi_handle, u8 tc, u16 maxqs,
 }
 
 /**
- * ice_sched_rm_agg_vsi_entry - remove aggregator related VSI info entry
+ * ice_sched_rm_agg_vsi_info - remove aggregator related VSI info entry
  * @pi: port information structure
  * @vsi_handle: software VSI handle
  *
@@ -2841,8 +2841,8 @@ static enum ice_status
 ice_sched_assoc_vsi_to_agg(struct ice_port_info *pi, u32 agg_id,
 			   u16 vsi_handle, ice_bitmap_t *tc_bitmap)
 {
-	struct ice_sched_agg_vsi_info *agg_vsi_info;
-	struct ice_sched_agg_info *agg_info;
+	struct ice_sched_agg_vsi_info *agg_vsi_info, *old_agg_vsi_info = NULL;
+	struct ice_sched_agg_info *agg_info, *old_agg_info;
 	enum ice_status status = ICE_SUCCESS;
 	struct ice_hw *hw = pi->hw;
 	u8 tc;
@@ -2852,6 +2852,20 @@ ice_sched_assoc_vsi_to_agg(struct ice_port_info *pi, u32 agg_id,
 	agg_info = ice_get_agg_info(hw, agg_id);
 	if (!agg_info)
 		return ICE_ERR_PARAM;
+	/* If the vsi is already part of another aggregator then update
+	 * its vsi info list
+	 */
+	old_agg_info = ice_get_vsi_agg_info(hw, vsi_handle);
+	if (old_agg_info && old_agg_info != agg_info) {
+		struct ice_sched_agg_vsi_info *vtmp;
+
+		LIST_FOR_EACH_ENTRY_SAFE(old_agg_vsi_info, vtmp,
+					 &old_agg_info->agg_vsi_list,
+					 ice_sched_agg_vsi_info, list_entry)
+			if (old_agg_vsi_info->vsi_handle == vsi_handle)
+				break;
+	}
+
 	/* check if entry already exist */
 	agg_vsi_info = ice_get_agg_vsi_info(agg_info, vsi_handle);
 	if (!agg_vsi_info) {
@@ -2876,6 +2890,12 @@ ice_sched_assoc_vsi_to_agg(struct ice_port_info *pi, u32 agg_id,
 			break;
 
 		ice_set_bit(tc, agg_vsi_info->tc_bitmap);
+		if (old_agg_vsi_info)
+			ice_clear_bit(tc, old_agg_vsi_info->tc_bitmap);
+	}
+	if (old_agg_vsi_info && !old_agg_vsi_info->tc_bitmap[0]) {
+		LIST_DEL(&old_agg_vsi_info->list_entry);
+		ice_free(pi->hw, old_agg_vsi_info);
 	}
 	return status;
 }
@@ -2925,6 +2945,9 @@ ice_sched_update_elem(struct ice_hw *hw, struct ice_sched_node *node,
 	u16 num_elems = 1;
 
 	buf = *info;
+	/* For TC nodes, CIR config is not supported */
+	if (node->info.data.elem_type == ICE_AQC_ELEM_TYPE_TC)
+		buf.data.valid_sections &= ~ICE_AQC_ELEM_VALID_CIR;
 	/* Parent TEID is reserved field in this aq call */
 	buf.parent_teid = 0;
 	/* Element type is reserved field in this aq call */
@@ -3360,7 +3383,7 @@ ice_cfg_vsi_bw_lmt_per_tc(struct ice_port_info *pi, u16 vsi_handle, u8 tc,
 }
 
 /**
- * ice_cfg_dflt_vsi_bw_lmt_per_tc - configure default VSI BW limit per TC
+ * ice_cfg_vsi_bw_dflt_lmt_per_tc - configure default VSI BW limit per TC
  * @pi: port information structure
  * @vsi_handle: software VSI handle
  * @tc: traffic class
@@ -3515,7 +3538,7 @@ ice_cfg_agg_bw_no_shared_lmt(struct ice_port_info *pi, u32 agg_id)
 }
 
 /**
- * ice_cfg_agg_bw_shared_lmt_per_tc - configure aggregator BW shared limit per tc
+ * ice_cfg_agg_bw_shared_lmt_per_tc - config aggregator BW shared limit per tc
  * @pi: port information structure
  * @agg_id: aggregator ID
  * @tc: traffic class
@@ -3535,7 +3558,7 @@ ice_cfg_agg_bw_shared_lmt_per_tc(struct ice_port_info *pi, u32 agg_id, u8 tc,
 }
 
 /**
- * ice_cfg_agg_bw_shared_lmt_per_tc - configure aggregator BW shared limit per tc
+ * ice_cfg_agg_bw_no_shared_lmt_per_tc - cfg aggregator BW shared limit per tc
  * @pi: port information structure
  * @agg_id: aggregator ID
  * @tc: traffic class
@@ -3553,7 +3576,7 @@ ice_cfg_agg_bw_no_shared_lmt_per_tc(struct ice_port_info *pi, u32 agg_id, u8 tc)
 }
 
 /**
- * ice_config_vsi_queue_priority - config VSI queue priority of node
+ * ice_cfg_vsi_q_priority - config VSI queue priority of node
  * @pi: port information structure
  * @num_qs: number of VSI queues
  * @q_ids: queue IDs array
@@ -3649,7 +3672,6 @@ ice_cfg_agg_vsi_priority_per_tc(struct ice_port_info *pi, u32 agg_id,
 		LIST_FOR_EACH_ENTRY(agg_vsi_info, &agg_info->agg_vsi_list,
 				    ice_sched_agg_vsi_info, list_entry)
 			if (agg_vsi_info->vsi_handle == vsi_handle) {
-				/* cppcheck-suppress unreadVariable */
 				vsi_handle_valid = true;
 				break;
 			}

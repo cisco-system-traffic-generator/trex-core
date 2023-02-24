@@ -43,20 +43,20 @@ octeontx_dev_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 
 	rxmode = &dev->data->dev_conf.rxmode;
 
-	if (mask & ETH_VLAN_FILTER_MASK) {
-		if (rxmode->offloads & DEV_RX_OFFLOAD_VLAN_FILTER) {
+	if (mask & RTE_ETH_VLAN_FILTER_MASK) {
+		if (rxmode->offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER) {
 			rc = octeontx_vlan_hw_filter(nic, true);
 			if (rc)
 				goto done;
 
-			nic->rx_offloads |= DEV_RX_OFFLOAD_VLAN_FILTER;
+			nic->rx_offloads |= RTE_ETH_RX_OFFLOAD_VLAN_FILTER;
 			nic->rx_offload_flags |= OCCTX_RX_VLAN_FLTR_F;
 		} else {
 			rc = octeontx_vlan_hw_filter(nic, false);
 			if (rc)
 				goto done;
 
-			nic->rx_offloads &= ~DEV_RX_OFFLOAD_VLAN_FILTER;
+			nic->rx_offloads &= ~RTE_ETH_RX_OFFLOAD_VLAN_FILTER;
 			nic->rx_offload_flags &= ~OCCTX_RX_VLAN_FLTR_F;
 		}
 	}
@@ -108,8 +108,7 @@ octeontx_dev_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 	if (rc != 0) {
 		octeontx_log_err("Fail to configure vlan filter entry "
 				 "for port %d", nic->port_id);
-		if (entry)
-			rte_free(entry);
+		rte_free(entry);
 
 		goto done;
 	}
@@ -139,7 +138,7 @@ octeontx_dev_vlan_offload_init(struct rte_eth_dev *dev)
 
 	TAILQ_INIT(&nic->vlan_info.fltr_tbl);
 
-	rc = octeontx_dev_vlan_offload_set(dev, ETH_VLAN_FILTER_MASK);
+	rc = octeontx_dev_vlan_offload_set(dev, RTE_ETH_VLAN_FILTER_MASK);
 	if (rc)
 		octeontx_log_err("Failed to set vlan offload rc=%d", rc);
 
@@ -219,13 +218,13 @@ octeontx_dev_flow_ctrl_get(struct rte_eth_dev *dev,
 		return rc;
 
 	if (conf.rx_pause && conf.tx_pause)
-		fc_conf->mode = RTE_FC_FULL;
+		fc_conf->mode = RTE_ETH_FC_FULL;
 	else if (conf.rx_pause)
-		fc_conf->mode = RTE_FC_RX_PAUSE;
+		fc_conf->mode = RTE_ETH_FC_RX_PAUSE;
 	else if (conf.tx_pause)
-		fc_conf->mode = RTE_FC_TX_PAUSE;
+		fc_conf->mode = RTE_ETH_FC_TX_PAUSE;
 	else
-		fc_conf->mode = RTE_FC_NONE;
+		fc_conf->mode = RTE_ETH_FC_NONE;
 
 	/* low_water & high_water values are in Bytes */
 	fc_conf->low_water = conf.low_water;
@@ -272,10 +271,10 @@ octeontx_dev_flow_ctrl_set(struct rte_eth_dev *dev,
 		return -EINVAL;
 	}
 
-	rx_pause = (fc_conf->mode == RTE_FC_FULL) ||
-			(fc_conf->mode == RTE_FC_RX_PAUSE);
-	tx_pause = (fc_conf->mode == RTE_FC_FULL) ||
-			(fc_conf->mode == RTE_FC_TX_PAUSE);
+	rx_pause = (fc_conf->mode == RTE_ETH_FC_FULL) ||
+			(fc_conf->mode == RTE_ETH_FC_RX_PAUSE);
+	tx_pause = (fc_conf->mode == RTE_ETH_FC_FULL) ||
+			(fc_conf->mode == RTE_ETH_FC_TX_PAUSE);
 
 	conf.high_water = fc_conf->high_water;
 	conf.low_water = fc_conf->low_water;

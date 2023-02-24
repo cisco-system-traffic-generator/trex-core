@@ -1012,7 +1012,7 @@ class CPlatform(object):
                 raise Exception("Trying to set boot image that's not found in router, please copy it first.")
 
         boot_img_cmd = "boot system flash %s" % self.needed_image_path
-        config_register_cmd = "config-register 0x2021"
+        config_register_cmd = "config-register 0x2102"
         cache.add('CONF', ["no boot system", boot_img_cmd, config_register_cmd, '\r'])
         response = self.cmd_link.run_single_command( cache )
         print("RESPONSE:")

@@ -22,7 +22,9 @@ class ASTFTemplateGroup_Test(CASTFGeneral_Test):
     def setUp(self):
         CASTFGeneral_Test.setUp(self)
         self.c = self.astf_trex;
-        setup = CTRexScenario.setup_name
+        self.setup = CTRexScenario.setup_name
+        if self.setup in ['trex16']:
+            self.skip("skipping templates' tests in trex16")
 
 
     def udp_http_prog(self):

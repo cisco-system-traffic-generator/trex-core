@@ -114,6 +114,7 @@ public:
     uint64_t	 pkt_cnt;
 
     uint16_t     pkt_len;
+    uint16_t     actual_pkt_len;
 private:
     uint16_t     flags;
     CAlignMalloc  m_handle;
@@ -155,6 +156,9 @@ public:
 public:
 	inline uint16_t getTotalLen(void) {
 		return (pkt_len);
+	}
+	inline uint16_t getActualLen(void) {
+		return (actual_pkt_len);
 	}
 	void Dump(FILE *fd,int verbose);
 };

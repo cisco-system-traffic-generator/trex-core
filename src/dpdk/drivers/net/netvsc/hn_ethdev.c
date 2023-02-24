@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <netinet/in.h>
 #include <sys/ioctl.h>
 
 #include <rte_ethdev.h>
@@ -39,16 +40,16 @@
 #include "hn_nvs.h"
 #include "ndis.h"
 
-#define HN_TX_OFFLOAD_CAPS (DEV_TX_OFFLOAD_IPV4_CKSUM | \
-			    DEV_TX_OFFLOAD_TCP_CKSUM  | \
-			    DEV_TX_OFFLOAD_UDP_CKSUM  | \
-			    DEV_TX_OFFLOAD_TCP_TSO    | \
-			    DEV_TX_OFFLOAD_MULTI_SEGS | \
-			    DEV_TX_OFFLOAD_VLAN_INSERT)
+#define HN_TX_OFFLOAD_CAPS (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | \
+			    RTE_ETH_TX_OFFLOAD_TCP_CKSUM  | \
+			    RTE_ETH_TX_OFFLOAD_UDP_CKSUM  | \
+			    RTE_ETH_TX_OFFLOAD_TCP_TSO    | \
+			    RTE_ETH_TX_OFFLOAD_MULTI_SEGS | \
+			    RTE_ETH_TX_OFFLOAD_VLAN_INSERT)
 
-#define HN_RX_OFFLOAD_CAPS (DEV_RX_OFFLOAD_CHECKSUM | \
-			    DEV_RX_OFFLOAD_VLAN_STRIP | \
-			    DEV_RX_OFFLOAD_RSS_HASH)
+#define HN_RX_OFFLOAD_CAPS (RTE_ETH_RX_OFFLOAD_CHECKSUM | \
+			    RTE_ETH_RX_OFFLOAD_VLAN_STRIP | \
+			    RTE_ETH_RX_OFFLOAD_RSS_HASH)
 
 #define NETVSC_ARG_LATENCY "latency"
 #define NETVSC_ARG_RXBREAK "rx_copybreak"
@@ -132,9 +133,9 @@ eth_dev_vmbus_allocate(struct rte_vmbus_device *dev, size_t private_data_size)
 	eth_dev->device = &dev->device;
 
 	/* interrupt is simulated */
-	dev->intr_handle.type = RTE_INTR_HANDLE_EXT;
+	rte_intr_type_set(dev->intr_handle, RTE_INTR_HANDLE_EXT);
 	eth_dev->data->dev_flags |= RTE_ETH_DEV_INTR_LSC;
-	eth_dev->intr_handle = &dev->intr_handle;
+	eth_dev->intr_handle = dev->intr_handle;
 
 	return eth_dev;
 }
@@ -237,21 +238,21 @@ hn_dev_link_update(struct rte_eth_dev *dev,
 	hn_rndis_get_linkspeed(hv);
 
 	link = (struct rte_eth_link) {
-		.link_duplex = ETH_LINK_FULL_DUPLEX,
-		.link_autoneg = ETH_LINK_SPEED_FIXED,
+		.link_duplex = RTE_ETH_LINK_FULL_DUPLEX,
+		.link_autoneg = RTE_ETH_LINK_SPEED_FIXED,
 		.link_speed = hv->link_speed / 10000,
 	};
 
 	if (hv->link_status == NDIS_MEDIA_STATE_CONNECTED)
-		link.link_status = ETH_LINK_UP;
+		link.link_status = RTE_ETH_LINK_UP;
 	else
-		link.link_status = ETH_LINK_DOWN;
+		link.link_status = RTE_ETH_LINK_DOWN;
 
 	if (old.link_status == link.link_status)
 		return 0;
 
 	PMD_INIT_LOG(DEBUG, "Port %d is %s", dev->data->port_id,
-		     (link.link_status == ETH_LINK_UP) ? "up" : "down");
+		     (link.link_status == RTE_ETH_LINK_UP) ? "up" : "down");
 
 	return rte_eth_linkstatus_set(dev, &link);
 }
@@ -262,14 +263,14 @@ static int hn_dev_info_get(struct rte_eth_dev *dev,
 	struct hn_data *hv = dev->data->dev_private;
 	int rc;
 
-	dev_info->speed_capa = ETH_LINK_SPEED_10G;
+	dev_info->speed_capa = RTE_ETH_LINK_SPEED_10G;
 	dev_info->min_rx_bufsize = HN_MIN_RX_BUF_SIZE;
 	dev_info->max_rx_pktlen  = HN_MAX_XFER_LEN;
 	dev_info->max_mac_addrs  = 1;
 
 	dev_info->hash_key_size = NDIS_HASH_KEYSIZE_TOEPLITZ;
 	dev_info->flow_type_rss_offloads = hv->rss_offloads;
-	dev_info->reta_size = ETH_RSS_RETA_SIZE_128;
+	dev_info->reta_size = RTE_ETH_RSS_RETA_SIZE_128;
 
 	dev_info->max_rx_queues = hv->max_queues;
 	dev_info->max_tx_queues = hv->max_queues;
@@ -305,8 +306,8 @@ static int hn_rss_reta_update(struct rte_eth_dev *dev,
 	}
 
 	for (i = 0; i < NDIS_HASH_INDCNT; i++) {
-		uint16_t idx = i / RTE_RETA_GROUP_SIZE;
-		uint16_t shift = i % RTE_RETA_GROUP_SIZE;
+		uint16_t idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		uint16_t shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		uint64_t mask = (uint64_t)1 << shift;
 
 		if (reta_conf[idx].mask & mask)
@@ -345,8 +346,8 @@ static int hn_rss_reta_query(struct rte_eth_dev *dev,
 	}
 
 	for (i = 0; i < NDIS_HASH_INDCNT; i++) {
-		uint16_t idx = i / RTE_RETA_GROUP_SIZE;
-		uint16_t shift = i % RTE_RETA_GROUP_SIZE;
+		uint16_t idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		uint16_t shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		uint64_t mask = (uint64_t)1 << shift;
 
 		if (reta_conf[idx].mask & mask)
@@ -361,17 +362,17 @@ static void hn_rss_hash_init(struct hn_data *hv,
 	/* Convert from DPDK RSS hash flags to NDIS hash flags */
 	hv->rss_hash = NDIS_HASH_FUNCTION_TOEPLITZ;
 
-	if (rss_conf->rss_hf & ETH_RSS_IPV4)
+	if (rss_conf->rss_hf & RTE_ETH_RSS_IPV4)
 		hv->rss_hash |= NDIS_HASH_IPV4;
-	if (rss_conf->rss_hf & ETH_RSS_NONFRAG_IPV4_TCP)
+	if (rss_conf->rss_hf & RTE_ETH_RSS_NONFRAG_IPV4_TCP)
 		hv->rss_hash |= NDIS_HASH_TCP_IPV4;
-	if (rss_conf->rss_hf & ETH_RSS_IPV6)
+	if (rss_conf->rss_hf & RTE_ETH_RSS_IPV6)
 		hv->rss_hash |=  NDIS_HASH_IPV6;
-	if (rss_conf->rss_hf & ETH_RSS_IPV6_EX)
+	if (rss_conf->rss_hf & RTE_ETH_RSS_IPV6_EX)
 		hv->rss_hash |=  NDIS_HASH_IPV6_EX;
-	if (rss_conf->rss_hf & ETH_RSS_NONFRAG_IPV6_TCP)
+	if (rss_conf->rss_hf & RTE_ETH_RSS_NONFRAG_IPV6_TCP)
 		hv->rss_hash |= NDIS_HASH_TCP_IPV6;
-	if (rss_conf->rss_hf & ETH_RSS_IPV6_TCP_EX)
+	if (rss_conf->rss_hf & RTE_ETH_RSS_IPV6_TCP_EX)
 		hv->rss_hash |= NDIS_HASH_TCP_IPV6_EX;
 
 	memcpy(hv->rss_key, rss_conf->rss_key ? : rss_default_key,
@@ -426,22 +427,22 @@ static int hn_rss_hash_conf_get(struct rte_eth_dev *dev,
 
 	rss_conf->rss_hf = 0;
 	if (hv->rss_hash & NDIS_HASH_IPV4)
-		rss_conf->rss_hf |= ETH_RSS_IPV4;
+		rss_conf->rss_hf |= RTE_ETH_RSS_IPV4;
 
 	if (hv->rss_hash & NDIS_HASH_TCP_IPV4)
-		rss_conf->rss_hf |= ETH_RSS_NONFRAG_IPV4_TCP;
+		rss_conf->rss_hf |= RTE_ETH_RSS_NONFRAG_IPV4_TCP;
 
 	if (hv->rss_hash & NDIS_HASH_IPV6)
-		rss_conf->rss_hf |= ETH_RSS_IPV6;
+		rss_conf->rss_hf |= RTE_ETH_RSS_IPV6;
 
 	if (hv->rss_hash & NDIS_HASH_IPV6_EX)
-		rss_conf->rss_hf |= ETH_RSS_IPV6_EX;
+		rss_conf->rss_hf |= RTE_ETH_RSS_IPV6_EX;
 
 	if (hv->rss_hash & NDIS_HASH_TCP_IPV6)
-		rss_conf->rss_hf |= ETH_RSS_NONFRAG_IPV6_TCP;
+		rss_conf->rss_hf |= RTE_ETH_RSS_NONFRAG_IPV6_TCP;
 
 	if (hv->rss_hash & NDIS_HASH_TCP_IPV6_EX)
-		rss_conf->rss_hf |= ETH_RSS_IPV6_TCP_EX;
+		rss_conf->rss_hf |= RTE_ETH_RSS_IPV6_TCP_EX;
 
 	return 0;
 }
@@ -564,7 +565,7 @@ static void netvsc_hotplug_retry(void *args)
 	struct rte_ether_addr eth_addr;
 	int s;
 
-	PMD_DRV_LOG(DEBUG, "%s: retry count %d\n",
+	PMD_DRV_LOG(DEBUG, "%s: retry count %d",
 		    __func__, hv->eal_hot_plug_retry);
 
 	if (hv->eal_hot_plug_retry++ > NETVSC_MAX_HOTADD_RETRY)
@@ -574,7 +575,7 @@ static void netvsc_hotplug_retry(void *args)
 	di = opendir(buf);
 	if (!di) {
 		PMD_DRV_LOG(DEBUG, "%s: can't open directory %s, "
-			    "retrying in 1 second\n", __func__, buf);
+			    "retrying in 1 second", __func__, buf);
 		goto retry;
 	}
 
@@ -586,7 +587,7 @@ static void netvsc_hotplug_retry(void *args)
 		/* trying to get mac address if this is a network device*/
 		s = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 		if (s == -1) {
-			PMD_DRV_LOG(ERR, "Failed to create socket errno %d\n",
+			PMD_DRV_LOG(ERR, "Failed to create socket errno %d",
 				    errno);
 			break;
 		}
@@ -594,8 +595,9 @@ static void netvsc_hotplug_retry(void *args)
 		ret = ioctl(s, SIOCGIFHWADDR, &req);
 		close(s);
 		if (ret == -1) {
-			PMD_DRV_LOG(ERR, "Failed to send SIOCGIFHWADDR for "
-				    "device %s\n", dir->d_name);
+			PMD_DRV_LOG(ERR,
+				    "Failed to send SIOCGIFHWADDR for device %s",
+				    dir->d_name);
 			break;
 		}
 		if (req.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
@@ -606,14 +608,14 @@ static void netvsc_hotplug_retry(void *args)
 		       RTE_DIM(eth_addr.addr_bytes));
 
 		if (rte_is_same_ether_addr(&eth_addr, dev->data->mac_addrs)) {
-			PMD_DRV_LOG(NOTICE, "Found matching MAC address, "
-				    "adding device %s network name %s\n",
+			PMD_DRV_LOG(NOTICE,
+				    "Found matching MAC address, adding device %s network name %s",
 				    d->name, dir->d_name);
 			ret = rte_eal_hotplug_add(d->bus->name, d->name,
 						  d->args);
 			if (ret) {
 				PMD_DRV_LOG(ERR,
-					    "Failed to add PCI device %s\n",
+					    "Failed to add PCI device %s",
 					    d->name);
 				break;
 			}
@@ -638,7 +640,7 @@ netvsc_hotadd_callback(const char *device_name, enum rte_dev_event_type type,
 	struct rte_devargs *d = &hv->devargs;
 	int ret;
 
-	PMD_DRV_LOG(INFO, "Device notification type=%d device_name=%s\n",
+	PMD_DRV_LOG(INFO, "Device notification type=%d device_name=%s",
 		    type, device_name);
 
 	switch (type) {
@@ -650,7 +652,7 @@ netvsc_hotadd_callback(const char *device_name, enum rte_dev_event_type type,
 		ret = rte_devargs_parse(d, device_name);
 		if (ret) {
 			PMD_DRV_LOG(ERR,
-				    "devargs parsing failed ret=%d\n", ret);
+				    "devargs parsing failed ret=%d", ret);
 			return;
 		}
 
@@ -684,8 +686,8 @@ static int hn_dev_configure(struct rte_eth_dev *dev)
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (dev_conf->rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
+	if (dev_conf->rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG)
+		dev_conf->rxmode.offloads |= RTE_ETH_RX_OFFLOAD_RSS_HASH;
 
 	unsupported = txmode->offloads & ~HN_TX_OFFLOAD_CAPS;
 	if (unsupported) {
@@ -703,7 +705,7 @@ static int hn_dev_configure(struct rte_eth_dev *dev)
 		return -EINVAL;
 	}
 
-	hv->vlan_strip = !!(rxmode->offloads & DEV_RX_OFFLOAD_VLAN_STRIP);
+	hv->vlan_strip = !!(rxmode->offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP);
 
 	err = hn_rndis_conf_offload(hv, txmode->offloads,
 				    rxmode->offloads);
@@ -961,7 +963,7 @@ hn_dev_start(struct rte_eth_dev *dev)
 	error = rte_dev_event_callback_register(NULL, netvsc_hotadd_callback,
 						hv);
 	if (error) {
-		PMD_DRV_LOG(ERR, "failed to register device event callback\n");
+		PMD_DRV_LOG(ERR, "failed to register device event callback");
 		return error;
 	}
 
@@ -1240,7 +1242,7 @@ static int eth_hn_probe(struct rte_vmbus_driver *drv __rte_unused,
 
 	ret = rte_dev_event_monitor_start();
 	if (ret) {
-		PMD_DRV_LOG(ERR, "Failed to start device event monitoring\n");
+		PMD_DRV_LOG(ERR, "Failed to start device event monitoring");
 		return ret;
 	}
 
@@ -1294,8 +1296,8 @@ static struct rte_vmbus_driver rte_netvsc_pmd = {
 
 RTE_PMD_REGISTER_VMBUS(net_netvsc, rte_netvsc_pmd);
 RTE_PMD_REGISTER_KMOD_DEP(net_netvsc, "* uio_hv_generic");
-RTE_LOG_REGISTER(hn_logtype_init, pmd.net.netvsc.init, NOTICE);
-RTE_LOG_REGISTER(hn_logtype_driver, pmd.net.netvsc.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(hn_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(hn_logtype_driver, driver, NOTICE);
 RTE_PMD_REGISTER_PARAM_STRING(net_netvsc,
 			      NETVSC_ARG_LATENCY "=<uint32> "
 			      NETVSC_ARG_RXBREAK "=<uint32> "

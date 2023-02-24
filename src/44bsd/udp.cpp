@@ -61,6 +61,7 @@ void CUdpFlow::Delete(){
     INC_UDP_STAT(m_pctx, m_tg_id, udps_closed);
     disconnect();
     m_pctx->set_time_closed();
+    CFlowBase::Delete();
 }
 
 void CUdpFlow::init(){
@@ -81,16 +82,22 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
     UDPHeader * udp =(UDPHeader*)(p+ftp->m_offset_l4);
     /*Check if we need to update the stats when handle is not present for Special case*/
     if (ftp->is_tunnel()){
-        if (!ftp->is_tunnel_aware() && m_pctx->m_ctx->is_client_side()){
-            INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
+        if (m_pctx->m_ctx->is_client_side()) {
+            if (!ftp->is_tunnel_aware()){
+                INC_UDP_STAT(m_pctx, m_tg_id, udps_notunnel);
+            }
+            m->dynfield_ptr = ftp->m_tunnel_ctx;
         }
-        m->dynfield_ptr = ftp->m_tun_handle;
+        //add the server tunnel ctx, works in gtpu-loopback mode
+        else {
+            m->dynfield_ptr = ftp->m_tunnel_ctx;
+        }
     }
     if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM) {
         if (!ftp->m_is_ipv6) {
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
+            m->ol_flags |= (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM);
             IPHeader * ipv4=(IPHeader *)(p+ftp->m_offset_ip);
             ipv4->ClearCheckSum();
             ipv4->setTotalLength(udp_pyld_bytes+UDP_HEADER_LEN+IPV4_HDR_LEN);
@@ -98,7 +105,7 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
         }else {
             m->l2_len = ftp->m_offset_ip;
             m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
-            m->ol_flags |= ( PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);
+            m->ol_flags |= ( RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM);
             IPv6Header * ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
             ipv6->setPayloadLen(udp_pyld_bytes+UDP_HEADER_LEN);
             udp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(udp_pyld_bytes+UDP_HEADER_LEN)));

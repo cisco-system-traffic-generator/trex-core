@@ -70,7 +70,8 @@ struct cpu_vct_st {
 
 enum pgid_types_e {
     PGID_FLOW_STAT,
-    PGID_LATENCY
+    PGID_LATENCY,
+    PGID_TPG, // Tagged Packet Group Identifier
 };
 
 struct active_pgid {
@@ -98,6 +99,12 @@ typedef std::vector<stack_task_t> task_list_t;
 typedef std::unordered_map<std::string,std::string> err_per_mac_t;
 typedef std::set<std::string> str_set_t;
 typedef std::vector<uint16_t> vlan_list_t;
+typedef struct {
+    uint32_t label;
+    uint8_t tc;
+    bool s;
+    uint8_t ttl;
+} mpls_tag_t;
 typedef struct {
     bool            is_ready;
     err_per_mac_t   err_per_mac;

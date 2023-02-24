@@ -1,16 +1,13 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
  * Copyright (c) 2008-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017,2021 NXP
  *
  */
 
 #ifndef HEADER_COMPAT_H
 #define HEADER_COMPAT_H
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -84,7 +81,7 @@ do { \
 #define __raw_readl(p)	(*(const volatile unsigned int *)(p))
 #define __raw_writel(v, p) {*(volatile unsigned int *)(p) = (v); }
 
-#define dma_wmb()		rte_smp_mb()
+#define dma_wmb()		rte_io_wmb()
 
 #define atomic_t                rte_atomic32_t
 #define atomic_read(v)          rte_atomic32_read(v)

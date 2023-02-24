@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2018-2019 Hisilicon Limited.
+ * Copyright(c) 2018-2021 HiSilicon Limited.
  */
 
 #ifndef _HNS3_RSS_H_
@@ -8,20 +8,20 @@
 #include <rte_flow.h>
 
 #define HNS3_ETH_RSS_SUPPORT ( \
-	ETH_RSS_FRAG_IPV4 | \
-	ETH_RSS_NONFRAG_IPV4_TCP | \
-	ETH_RSS_NONFRAG_IPV4_UDP | \
-	ETH_RSS_NONFRAG_IPV4_SCTP | \
-	ETH_RSS_NONFRAG_IPV4_OTHER | \
-	ETH_RSS_FRAG_IPV6 | \
-	ETH_RSS_NONFRAG_IPV6_TCP | \
-	ETH_RSS_NONFRAG_IPV6_UDP | \
-	ETH_RSS_NONFRAG_IPV6_SCTP | \
-	ETH_RSS_NONFRAG_IPV6_OTHER | \
-	ETH_RSS_L3_SRC_ONLY | \
-	ETH_RSS_L3_DST_ONLY | \
-	ETH_RSS_L4_SRC_ONLY | \
-	ETH_RSS_L4_DST_ONLY)
+	RTE_ETH_RSS_FRAG_IPV4 | \
+	RTE_ETH_RSS_NONFRAG_IPV4_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_UDP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_SCTP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_OTHER | \
+	RTE_ETH_RSS_FRAG_IPV6 | \
+	RTE_ETH_RSS_NONFRAG_IPV6_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_UDP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_SCTP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_OTHER | \
+	RTE_ETH_RSS_L3_SRC_ONLY | \
+	RTE_ETH_RSS_L3_DST_ONLY | \
+	RTE_ETH_RSS_L4_SRC_ONLY | \
+	RTE_ETH_RSS_L4_DST_ONLY)
 
 #define HNS3_RSS_IND_TBL_SIZE	512 /* The size of hash lookup table */
 #define HNS3_RSS_IND_TBL_SIZE_MAX 2048
@@ -41,7 +41,7 @@ struct hns3_rss_tuple_cfg {
 struct hns3_rss_conf {
 	/* RSS parameters :algorithm, flow_types,  key, queue */
 	struct rte_flow_action_rss conf;
-	uint8_t hash_algo; /* hash function type definited by hardware */
+	uint8_t hash_algo; /* hash function type defined by hardware */
 	uint8_t key[HNS3_RSS_KEY_SIZE];  /* Hash key */
 	struct hns3_rss_tuple_cfg rss_tuple_sets;
 	uint16_t rss_indirection_tbl[HNS3_RSS_IND_TBL_SIZE_MAX];

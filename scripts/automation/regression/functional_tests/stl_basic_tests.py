@@ -164,9 +164,9 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
     def run_sim (self, yaml, output, options = "", silent = False, obj = None, tunables = None):
         if output:
-            user_cmd = "-f {0} -o {1} {2} -p {3}".format(yaml, output, options, self.scripts_path)
+            user_cmd = "-f {0} -o {1} -p {2} {3}".format(yaml, output, self.scripts_path, options)
         else:
-            user_cmd = "-f {0} {1} -p {2}".format(yaml, options, self.scripts_path)
+            user_cmd = "-f {0} -p {1} {2}".format(yaml, self.scripts_path, options)
 
         if silent:
             user_cmd += " --silent"
@@ -290,6 +290,7 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
             'udp_1pkt_vxlan.py',    # uses custom Scapy layer
             'icmpv6_fix_cs.py',     # cannot parse layer name from offset correctly (ICMPv6ND_NS classname and layer name do not match)
             'udp_1pkt_src_ip_split_latency_ieee_1588.py', # cannot be tested on sim as IEEE 1588 is only supported on specific NICs
+            'tpg_tags_conf.py'      # Tagged Packet Group Tag Configuration, this is not a profile.
             ]
         exclude_dict = {}.fromkeys(exclude_list)
         output_file = os.path.join(self.generated_path, 'exported_to_code.py')
@@ -374,18 +375,18 @@ class CStlBasic_Test(functional_general_test.CGeneralFunctional_Test):
 
         # test with simple vars
         print(format_text("\nTesting multiple flow vars for multicore\n", 'underline'))
-        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -t test_type=vars,seed={0} -m 2kpps'.format(seed), silent = True)
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -m 2kpps -t test_type=vars,seed={0}'.format(seed), silent = True)
         assert_equal(rc, True)
 
 
         # test with tuple
         print(format_text("\nTesting multiple tuple generators for multicore\n", 'underline'))
-        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -t test_type=tuple,seed={0} -m 2kpps'.format(seed), silent = True)
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -m 2kpps -t test_type=tuple,seed={0}'.format(seed), silent = True)
         assert_equal(rc, True)
 
         # test with complex topology
         print(format_text("\nTesting complex topology for multicore\n", 'underline'))
-        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -t test_type=topology,seed={0} -m 2kpps'.format(seed), silent = True)
+        rc = self.run_sim('stl/tests/multi_core_test.py', output = None, options = '--test_multi_core -d=1.0001 -m 2kpps -t test_type=topology,seed={0}'.format(seed), silent = True)
         assert_equal(rc, True)
 
         # some tests

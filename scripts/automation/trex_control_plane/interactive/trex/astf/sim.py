@@ -13,6 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import argparse
+from ..utils import parsing_opts
 import os
 import sys
 import subprocess
@@ -51,36 +52,6 @@ def get_valgrind():
     valgrind_exe=valgrind_loc+"/bin/valgrind";
     os.environ['VALGRIND_EXE']=valgrind_exe
     return(valgrind_exe);
-
-
-def decode_tunables (tunable_str):
-    tunables = {}
-
-    # split by comma to tokens
-    tokens = tunable_str.split(',')
-
-    # each token is of form X=Y
-    for token in tokens:
-        m = re.search('(\S+)=(.+)', token)
-        if not m:
-            raise argparse.ArgumentTypeError("bad syntax for tunables: {0}".format(token))
-        val = m.group(2)           # string
-        if val.startswith(("'", '"')) and val.endswith(("'", '"')) and len(val) > 1: # need to remove the quotes from value
-            val = val[1:-1]
-        elif val.startswith('0x'): # hex
-            val = int(val, 16)
-        else:
-            try:
-                if '.' in val:     # float
-                    val = float(val)
-                else:              # int
-                    val = int(val)
-            except:
-                pass
-        tunables[m.group(1)] = val
-
-    return tunables
-
 
 
 def execute_bp_sim(opts):
@@ -233,8 +204,9 @@ def setParserOptions():
     parser.add_argument('-t',
                         help = 'sets tunable for a profile',
                         dest = 'tunables',
-                        default = None,
-                        type = decode_tunables)
+                        default = [],
+                        nargs =  argparse.REMAINDER,
+                        type = str)
 
     fix_pcap = parser.add_argument_group(title = 'Processing input pcap (-f option is pcap, most of other options will be ignored)')
 
@@ -270,9 +242,11 @@ def profile_from_pcap(pcap, mss):
                        cap_list = [ASTFCapInfo(file = pcap,
                                                cps = 1)])
 
+
 def fatal(msg):
     print(msg)
     sys.exit(1)
+
 
 def main(args=None):
 
@@ -282,7 +256,7 @@ def main(args=None):
     else:
         opts = parser.parse_args(args)
 
-    tun=opts.tunables if opts.tunables else {};
+    tunables=opts.tunables if opts.tunables else []
 
     profile = None
     if opts.rtt or opts.fix_timing or opts.mss:
@@ -312,14 +286,30 @@ def main(args=None):
             opts.cmd = '"--rtt=%s"' % (opts.rtt * 1000)
 
     else:
+        tunable_dict = {}
+        help_flags = ('-h', '--help')
+        if len(tunables):
+            # if the user chose to pass the tunables arguments in previous version (-t var1=x1,var2=x2..)
+            # we decode the tunables and then convert the output from dictionary to list in order to have the same format with the
+            # newer version.
+            if '=' in tunables[0]:
+                tunable_parameter = tunables[0]
+                help = False
+                if any(h in tunables for h in help_flags):
+                    help = True
+                tunable_dict = parsing_opts.decode_tunables(tunable_parameter)
+                tunables = parsing_opts.convert_old_tunables_to_new_tunables(tunable_parameter, help=help)
+        
+        tunable_dict["tunables"] = tunables
         if opts.dev:
-            profile = ASTFProfile.load(opts.input_file, **tun);
+            profile = ASTFProfile.load(opts.input_file, **tunable_dict)
         else:
             try:
-                profile = ASTFProfile.load(opts.input_file, **tun);
+                profile = ASTFProfile.load(opts.input_file, **tunable_dict)
             except Exception as e:
                 fatal(e)
-
+        if any(h in opts.tunables for h in help_flags):
+            return
         if opts.json:
             print(profile.to_json_str())
             return
@@ -343,6 +333,7 @@ def main(args=None):
         if not opts.full:
             proc_file += '_c.pcap'
         try:
+            print("check")
             pcap = CPcapFixTime(proc_file)
             pcap.fix_timing(opts.output_file)
         except Exception as e:
@@ -354,8 +345,8 @@ def execute_inplace (opts):
         execute_bp_sim(opts)
     except Exception as e:
         fatal(e)
-        
-        
+
+
 def execute_with_chdir (opts):
     
     

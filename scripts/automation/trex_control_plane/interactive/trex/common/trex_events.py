@@ -8,6 +8,8 @@ from .trex_types import listify
 from .trex_exceptions import TRexError
 from ..utils.text_opts import format_text
 
+from collections import deque
+
 
 # an event
 class Event(object):
@@ -37,7 +39,7 @@ class EventsHandler(object):
 
     def __init__ (self):
 
-        self.events = []
+        self.events = deque([], 1000)
 
         # events are disabled by default until explicitly enabled
         self.enabled = False
@@ -65,12 +67,10 @@ class EventsHandler(object):
 
     def pop_event (self):
         """
-            returns a event from the head of 
-
-            'ev_type_filter' - 'info', 'warning' or a list of them
+            returns a event from the head and remove it.
         """
         if not self.empty ():
-           return self.events.pop(0)
+           return self.events.popleft()
         else:
            return None
 
@@ -91,7 +91,7 @@ class EventsHandler(object):
         """
             clears all the current events
         """
-        self.events = []
+        self.events.clear()
 
 
     def register_event_handler (self, event_name, on_event_cb):
@@ -123,3 +123,4 @@ class EventsHandler(object):
         event = self.events_handlers[event_name](*args, **kwargs)
         if event:
             self.events.append(event)
+

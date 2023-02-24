@@ -25,6 +25,7 @@ limitations under the License.
 #include <vector>
 
 #include "common/trex_stx.h"
+#include "trex_stl_tpg.h"
 
 class TrexStatelessPort;
 class TrexStateless;
@@ -85,6 +86,7 @@ public:
      * create stateless object 
      */
     TrexStateless(const TrexSTXCfg &cfg);
+    TrexStateless(const TrexSTXCfg &cfg, bool base);
     virtual ~TrexStateless();
 
     
@@ -144,6 +146,202 @@ public:
 
     void unset_latency_feature();
 
+    /**
+     * Create a new Tagged Packet Group Control Plane Context.
+     *
+     * @param username
+     *   Username that is creating the TPG context.
+     *
+     * @param acquired_ports
+     *   Vector of ports on which TPG will be active.
+     *
+     * @param rx_ports
+     *   Vector of ports on which TPG will collect.
+     *
+     * @param num_tpgids
+     *   Number of TPGIDs
+     *
+     * @return bool
+     *   True iff the context was created successfully.
+    **/
+    bool create_tpg_ctx(const std::string& username,
+                        const std::vector<uint8_t>& acquired_ports,
+                        const std::vector<uint8_t>& rx_ports,
+                        const uint32_t num_tpgids);
+
+    /**
+     * Destroy the Tagged Packet Group Control Plane Context.
+     *
+     * @param username
+     *   Username whose TPG context we destroy.
+     *
+     * @return bool
+     *   True iff the context was destroyed successfully.
+    **/
+    bool destroy_tpg_ctx(const std::string& username);
+
+    /**
+     * Get Tagged Packet Group Control Plane Context.
+     * If the context doesn't exist, it return nullptr.
+     *
+     * @param username
+     *   Username whose TPG context we are trying to get.
+     *
+     * @return TPGCpCtx
+     *   Pointer to context if context exists, else nullptr.
+     **/
+    TPGCpCtx* get_tpg_ctx(const std::string& username);
+
+    /**
+     * Update/Sync the state of Tagged Packet Grouping by checking if Rx has finished
+     * using a blocking message.
+     *
+     * @param username
+     *   Username for whom we update the TPG State.
+     *
+     * @return TPGState
+     *   The updated state.
+     **/
+    TPGState update_tpg_state(const std::string& username);
+
+    /**
+     * Enable Tagged Packet Grouping in Control Plane and send an Enable Message to the Rx core.
+     * The message is non blocking/async.
+     *
+     * @param username
+     *   Username for whom we enable TPG.
+     *
+     * @return bool
+     *   True iff TPG was enabled successfully in Control Plane and message was sent to Rx.
+    **/
+    bool enable_tpg_cp_rx(const std::string& username);
+
+    /**
+     * Enable Tagged Packet Grouping in Data Plane by sending a message to all data planes.
+     * The message is blocking.
+     *
+     * @param username
+     *   Username for whom we enable TPG.
+     *
+     * @return bool
+     **  True iff TPG was enabled successfully in Data Plane.
+    **/
+    bool enable_tpg_dp(const std::string& username);
+
+    /**
+     * Disable Tagged Packet Grouping by sending disable messages to Dps and Rx.
+     * The message to DP is blocking.
+     * The message to Rx is non blocking.
+     *
+     * @param username
+     *   Username for whom we disable TPG.
+     *
+     * @return bool
+     **  True iff TPG was disabled successfully in Data Plane.
+    **/
+    bool disable_tpg(const std::string& username);
+
+    /**
+     * Update Tagged Packet Group Tags in Rx.
+     *
+     * @param username
+     *   Username whose Tags we want to update.
+     *
+     * @return bool
+     *   Success indicator
+     **/
+    bool update_tpg_tags(const std::string& username);
+
+    /**
+     * Clear Tagged Packet Group stats.
+     *
+     * @param port_id
+     *   Receiveing port on which we want to clear stats.
+     *
+     * @param min_tpgid
+     *   Min Tpgid on which we want to clear the stats.
+     *
+     * @param max_tpgid
+     *   Max Tpgid on which we want to clear the stats.
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list);
+
+    /**
+     * Clear Tagged Packet Group stats.
+     *
+     * @param port_id
+     *   Receiveing port on which we want to clear stats.
+     *
+     * @param tpgid
+     *   Tpgid on which we want to clear the stats.
+     *
+     * @param tag_list
+     *   List of tags to clear.
+     *
+     * @param unknown_tag
+     *   Boolean indicating if we should clear unknown tag stats.
+     *
+     * @param untagged
+     *   Boolean indicating if we should clear untagged stats.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged);
+
+    /**
+     * Clear Tagged Packet Group stats.
+     *
+     * @param port_id
+     *   Receiveing port on which we want to clear stats.
+     *
+     * @param tpgid
+     *   Tpgid on which we want to clear the stats.
+     *
+     * @param min_tag
+     *   Tag from which we start clearing. We clear range [min, max).
+     *
+     * @param max_tag
+     *   Tag where we stop clearing. Non inclusive. We clear range [min, max).
+     *
+     * @param unknown_tag
+     *   Boolean indicating if we should clear unknown tag stats.
+     *
+     * @param untagged
+     *   Boolean indicating if we should clear untagged stats.
+     **/
+    void clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged);
+
+    /**
+     * Clear Tagged Packet Group Tx stats.
+     *
+     * @param port_id
+     *   Transmitting port on which we want to clear stats.
+     *
+     * @param tpgid
+     *   Tpgid on which we want to clear the stats.
+     **/
+    void clear_tpg_tx_stats(uint8_t port_id, uint32_t tpgid);
+
+    /**
+     * Get Tagged Packet Group unknown tag on this port.
+     *
+     * @param result
+     *   Json on which we dump the tags.
+     *
+     * @param port_id
+     *   Collecting port on which we collected the tags.
+     **/
+    void get_tpg_unknown_tags(Json::Value& result, uint8_t port_id);
+
+    /**
+     * Clear Tagged Packet Group unknown tags on this port.
+     *
+     * @param port_id
+     *   Collecting port on which we want to clear the unknown tags.
+     **/
+    void clear_tpg_unknown_tags(uint8_t port_id);
+
     virtual void set_capture_feature(const std::set<uint8_t>& rx_ports);
 
     virtual void unset_capture_feature();
@@ -152,13 +350,28 @@ public:
 
     friend TrexStatelessMulticoreSoftwareFSLatencyStats;
 
-    
+
 protected:
-    
+
     void _shutdown();
 
+    /**
+     * Check if Tagged Packet Group Control Plane Context exists per username.
+     *
+     * @param username
+     *   Username that we are trying to check if he has a TPG Context.
+     *
+     * @return bool
+     *   True if the context exists.
+    **/
+    bool tpg_ctx_exists(const std::string& username) {
+        return m_tpg_ctx_per_user.find(username) != m_tpg_ctx_per_user.end();
+    }
+
 public:
-    TrexStatelessFSLatencyStats*        m_stats;
+    TrexStatelessFSLatencyStats*                    m_stats;                // TRex Stateless Flow Stats and Latency Statistics
+
+    std::unordered_map<std::string, TPGCpCtx*>      m_tpg_ctx_per_user;     // Tagged Packet Group Control Plane Manager per User
 };
 
 

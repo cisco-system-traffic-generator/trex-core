@@ -158,27 +158,27 @@ class CPhyEthIF  {
             return;
         csum = (csum != 0xffff) ? ~csum: csum;
 
-        if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) &&
-            !(tx_offload & DEV_TX_OFFLOAD_TCP_CKSUM)) {
+        if (((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_TCP_CKSUM) &&
+            !(tx_offload & RTE_ETH_TX_OFFLOAD_TCP_CKSUM)) {
             struct rte_tcp_hdr *tcp_hdr = rte_pktmbuf_mtod_offset(m, struct rte_tcp_hdr *, csum_start);
 
             tcp_hdr->cksum = csum;
-            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
-        } else if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM) &&
-                    !(tx_offload & DEV_TX_OFFLOAD_UDP_CKSUM)) {
+            m->ol_flags &= ~RTE_MBUF_F_TX_L4_MASK;     /* RTE_MBUF_F_TX_L4_NO_CKSUM is 0 */
+        } else if (((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_UDP_CKSUM) &&
+                    !(tx_offload & RTE_ETH_TX_OFFLOAD_UDP_CKSUM)) {
             struct rte_udp_hdr *udp_hdr = rte_pktmbuf_mtod_offset(m, struct rte_udp_hdr *, csum_start);
 
             udp_hdr->dgram_cksum = csum;
-            m->ol_flags &= ~PKT_TX_L4_MASK;     /* PKT_TX_L4_NO_CKSUM is 0 */
+            m->ol_flags &= ~RTE_MBUF_F_TX_L4_MASK;     /* RTE_MBUF_F_TX_L4_NO_CKSUM is 0 */
         }
 
-        if ((m->ol_flags & PKT_TX_IPV4) && (m->ol_flags & PKT_TX_IP_CKSUM) &&
-            !(tx_offload & DEV_TX_OFFLOAD_IPV4_CKSUM)) {
+        if ((m->ol_flags & RTE_MBUF_F_TX_IPV4) && (m->ol_flags & RTE_MBUF_F_TX_IP_CKSUM) &&
+            !(tx_offload & RTE_ETH_TX_OFFLOAD_IPV4_CKSUM)) {
             struct rte_ipv4_hdr *iph = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *, m->l2_len);
 
             if (!iph->hdr_checksum) {
                 iph->hdr_checksum = rte_ipv4_cksum(iph);
-                m->ol_flags &= ~PKT_TX_IP_CKSUM;
+                m->ol_flags &= ~RTE_MBUF_F_TX_IP_CKSUM;
             }
         }
     }
@@ -188,8 +188,8 @@ class CPhyEthIF  {
         for (nb_tx = 0; nb_tx < nb_pkts; nb_tx++) {
             struct rte_mbuf *m = tx_pkts[nb_tx];
 
-            if (((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_TCP_CKSUM) ||
-                ((m->ol_flags & PKT_TX_L4_MASK) == PKT_TX_UDP_CKSUM)) {
+            if (((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_TCP_CKSUM) ||
+                ((m->ol_flags & RTE_MBUF_F_TX_L4_MASK) == RTE_MBUF_F_TX_UDP_CKSUM)) {
                 tx_offload_csum(m, tx_offload);
             }
         }
@@ -333,6 +333,7 @@ class CGlobalTRexInterface  {
 
 bool fill_pci_dev(struct rte_eth_dev_info *dev_info, struct rte_pci_device* pci_dev);
 void wait_x_sec(int sec, bool dev_sync = false);
+uint32_t trex_dev_get_overhead_len(uint32_t max_rx_pktlen, uint16_t max_mtu);
 
 typedef uint8_t tvpid_t; /* port ID of trex 0,1,2,3 up to MAX_PORTS*/
 typedef uint8_t repid_t; /* DPDK port id  */

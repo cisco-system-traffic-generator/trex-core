@@ -1,11 +1,13 @@
 from __future__ import print_function
+from argparse import ArgumentParser
 import hashlib
 import sys
 import time
 import os
 import shlex
 
-from ..utils.common import get_current_user, user_input, PassiveTimer
+from trex.astf.ignored_ips_macs import MacsIpsMngr
+from ..utils.common import get_current_user, ip2int, user_input, PassiveTimer
 from ..utils import parsing_opts, text_tables
 
 from ..common.trex_api_annotators import client_api, console_api
@@ -15,9 +17,12 @@ from ..common.trex_exceptions import TRexError, TRexTimeoutError
 from ..common.trex_types import *
 from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 
+from ..stl.trex_stl_client import STLClient
+
 from .trex_astf_port import ASTFPort
 from .trex_astf_profile import ASTFProfile
 from .topo import ASTFTopologyManager
+from .tunnels_topo import TunnelsTopo
 from .stats.traffic import CAstfTrafficStats
 from .stats.latency import CAstfLatencyStats
 from ..utils.common import  is_valid_ipv4, is_valid_ipv6
@@ -33,12 +38,15 @@ astf_states = [
     'STATE_ASTF_CLEANUP',
     'STATE_ASTF_DELETE']
 
-class TunnelType:
-      NONE = 0
-      GTP  = 1
-      
+class Tunnel:
+    def __init__(self, sip, dip, sport, teid, version):
+        self.sip      = sip
+        self.dip      = dip
+        self.sport = sport
+        self.teid     = teid
+        self.version  = version
 
-class ASTFClient(TRexClient):
+class ASTFClient(STLClient):
     port_states = [getattr(ASTFPort, state, 0) for state in astf_states]
 
     def __init__(self,
@@ -83,7 +91,7 @@ class ASTFClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 1}
+        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 3}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -99,6 +107,8 @@ class ASTFClient(TRexClient):
         self.traffic_stats = CAstfTrafficStats(self.conn.rpc)
         self.latency_stats = CAstfLatencyStats(self.conn.rpc)
         self.topo_mngr     = ASTFTopologyManager(self)
+        self.tunnels_topo = TunnelsTopo(self)
+        self.macs_ips_mngr = MacsIpsMngr(self)
         self.sync_waiting = False
         self.last_error = ''
         self.last_profile_error = {}
@@ -114,6 +124,8 @@ class ASTFClient(TRexClient):
         self.astf_profile_state = {'_': 0}
         self.profile_state_change = {}
 
+        STLClient.init(self)
+
     def get_mode(self):
         return "ASTF"
 
@@ -126,6 +138,7 @@ class ASTFClient(TRexClient):
         self.last_error = ''
         self.sync()
         self.topo_mngr.sync_with_server()
+        self.macs_ips_mngr.sync_with_server()
         return RC_OK()
 
     def _on_connect_create_ports(self, system_info):
@@ -146,6 +159,8 @@ class ASTFClient(TRexClient):
         self.latency_stats.reset()
         with self.ctx.logger.suppress(verbose = "warning"):
             self.clear_stats(ports = self.get_all_ports(), clear_xstats = False, clear_traffic = False)
+            self.clear_dynamic_traffic_stats()
+            self.clear_pgid_stats(clear_flow_stats=True, clear_latency_stats=True)
         return RC_OK()
 
     def _on_astf_state_chg(self, ctx_state, error, epoch):
@@ -331,7 +346,7 @@ class ASTFClient(TRexClient):
         else:
             return self.state
 
-    def _transmit_async(self, rpc_func, ok_states, bad_states = None, ready_state = None, **k):
+    def _transmit_wait_on_state(self, rpc_func, ok_states, bad_states = None, ready_state = None, **k):
         profile_id = k['params']['profile_id'] 
         ok_states = listify(ok_states)
         if bad_states is not None:
@@ -411,6 +426,11 @@ class ASTFClient(TRexClient):
             with self.ctx.logger.suppress():
             # force take the port and ignore any streams on it
                 self.acquire(force = True)
+
+                # clear STL first
+                self.clear_stl_profiles(ports)
+                self.clear_pgid_stats(clear_flow_stats=True, clear_latency_stats=True)
+
                 self.stop(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_ASTF_LOADED, self.STATE_IDLE])
                 self.stop_latency()
@@ -419,6 +439,7 @@ class ASTFClient(TRexClient):
                 self.clear_profile(False, pid_input=ALL_PROFILE_ID)
                 self.check_states(ok_states=[self.STATE_IDLE])
                 self.clear_stats(ports)
+                self.clear_dynamic_traffic_stats()
                 self.set_port_attr(ports,
                                    promiscuous = False if self.any_port.is_prom_supported() else None,
                                    link_up = True if restart else None)
@@ -667,8 +688,8 @@ class ASTFClient(TRexClient):
                     'profile_id': profile_id
                 }
                 self.ctx.logger.pre_cmd('Clearing loaded profile.')
-                if block:
-                    rc = self._transmit_async('profile_clear', params = params, ok_states = self.STATE_IDLE)
+                if block and profile_state is self.STATE_ASTF_LOADED:
+                    rc = self._transmit_wait_on_state('profile_clear', params = params, ok_states = self.STATE_IDLE)
                 else:
                     rc = self._transmit('profile_clear', params = params)
                 self.ctx.logger.post_cmd(rc)
@@ -678,7 +699,7 @@ class ASTFClient(TRexClient):
                 self.logger.info(format_text("Cannot remove a profile: %s is not state IDLE and state LOADED.\n" % profile_id, "bold", "magenta"))
 
     @client_api('command', True)
-    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff, e_duration = 0, t_duration = 0):
+    def start(self, mult = 1, duration = -1, nc = False, block = True, latency_pps = 0, ipv6 = False, pid_input = DEFAULT_PROFILE_ID, client_mask = 0xffffffff, e_duration = 0, t_duration = 0, dump_interval = 0):
         """
             Start the traffic on loaded profile. Procedure is async.
 
@@ -718,6 +739,10 @@ class ASTFClient(TRexClient):
                     Stop immediately (overrides nc pararmeter) when this time is over.
                     Disabled by default. Enabled by non-zero values.
 
+                dump_interval: float
+                    Interval time for periodic dump of TCP flow information: RTT, CWND, etc.
+                    TCP flow dump enabled by non-zero values.
+
             :raises:
                 + :exc:`TRexError`
         """
@@ -733,6 +758,7 @@ class ASTFClient(TRexClient):
             'client_mask': client_mask,
             'e_duration': e_duration,
             't_duration': t_duration,
+            'dump_interval': dump_interval,
             }
 
         self.ctx.logger.pre_cmd('Starting traffic.')
@@ -742,7 +768,7 @@ class ASTFClient(TRexClient):
         for profile_id in valid_pids:
 
             if block:
-                rc = self._transmit_async('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED, ready_state = self.STATE_ASTF_LOADED)
+                rc = self._transmit_wait_on_state('start', params = params, ok_states = self.STATE_TX, bad_states = self.STATE_ASTF_LOADED, ready_state = self.STATE_ASTF_LOADED)
             else:
                 rc = self._transmit('start', params = params)
             self.ctx.logger.post_cmd(rc)
@@ -789,7 +815,7 @@ class ASTFClient(TRexClient):
                     }
                 self.ctx.logger.pre_cmd('Stopping traffic.')
                 if block or is_remove:
-                    rc = self._transmit_async('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
+                    rc = self._transmit_wait_on_state('stop', params = params, ok_states = [self.STATE_IDLE, self.STATE_ASTF_LOADED])
                 else:
                     rc = self._transmit('stop', params = params)
                 self.ctx.logger.post_cmd(rc)
@@ -836,20 +862,122 @@ class ASTFClient(TRexClient):
             if not rc:
                 raise TRexError(rc.err())
 
-    @client_api('command', True)
-    def get_profiles(self):
+    @client_api('getter', True)
+    def get_profiles(self, profiles_in_ports = False):
         """
             Get profile list from Server.
 
+            :parameters:
+                profiles_in_ports: bool
+                    Get Stateless profiles also in all available ports
+                    Default is False
+
+            :returns:
+                List of profile names. When profiles_in_ports parameter is specified,
+                a dictionary for all available ports is included in the list.
         """
         params = {
             'handler': self.handler,
+            'profiles_in_ports': profiles_in_ports,
             }
         self.ctx.logger.pre_cmd('Getting profile list.')
         rc = self._transmit('get_profile_list', params = params)
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc.err())
+
+        return rc.data()
+
+    @client_api('getter', True)
+    def get_flow_info(self, profile_id = DEFAULT_PROFILE_ID, duration = 0, index = None):
+        """
+            Get TCP flow information
+
+            :parameters:
+                profile_id: string
+                    Input profile ID
+
+                duration: float
+                    Requests stacked TCP flow information during duration time
+                    Default value is 0 which means one time request.
+
+                index: int
+                    Retreive TCP flow information from the index of stacked data to the last index.
+                    For the first call, use 0 for all stacked data.
+                    And the next call, use "next_index" value in flows from the previous result.
+
+            :returns:
+                dictionary of <flow_id> : [ <flow_info>, ... ] pair.
+                - <flow_id> is represented by "<src_ip>:<src_port>-<dst_ip>:<dst_port>".
+                - <flow_info> is dictionary that contains following key-value pairs.
+
+                    - "origin" : "client" or "server"
+                    - "duration" : elapsed time after established, msec as TCP timer resolution(10 msec)
+
+                    - "state" : TCP state as a number.
+                        0 - CLOSED, 1 - LISTEN, 2 - SYN_SENT, 3 - SYN_RECCEIVED,
+                        4 - ESTABLISHED, 5 - CLOSE_WAIT, ...
+
+                    - "options" : "/timestamps", "/sack", "/wscale"
+                    - "snd_wscale" : window scaling for send window, with "/wscale" only
+                    - "rcv_wscale" : window scaling for recv window, with "/wscale" only
+                    - "rto" : current retransmit value (msec)
+                    - "last_data_recv" : inactivity time (msec)
+                    - "rtt" : smoothed round-trip time, msec >> TCP_RTT_SHIFT(5)
+                    - "rttvar" : variance in round-trip time, msec >> TCP_RTTVAR_SHIFT(4)
+                    - "snd_ssthresh" : snd_cwnd size threshold for slow start exponential to linear switch
+                    - "snd_cwnd" : congestion-controlled window size
+
+                    - "rcv_space" : receive window size
+                    - "rcv_nxt" : receive next, distance value from initial receive sequence number
+                    - "snd_wnd" : send window size
+                    - "snd_nxt" : send next, distance value from initial send sequence number
+                    - "snd_mss" : maximum segment size
+                    - "rcv_mss" : maximum segment size
+                    - "snd_rexmitpack" : retransmit packets sent count
+                    - "rcv_ooopack" : out-of-order packets received count
+                    - "snd_zerowin" : zero-window updates sent count
+
+                - When the index parameter is specified, "next_index" key is added as <flow_id>.
+
+            :raises:
+                + :exc:`TRexError`
+
+        """
+        flows = {}
+        next_index = index if index else 0
+
+        timer = PassiveTimer(duration)
+        while self._get_profile_state(profile_id) is not self.STATE_IDLE:
+            params = {
+                'profile_id': profile_id,
+                'index': next_index,
+                }
+            rc = self._transmit('get_flow_info', params = params)
+            if not rc:
+                raise TRexError(rc.err())
+
+            for rc_flows in rc.data():
+                for flow_id in rc_flows:
+                    if flow_id == 'index':
+                        next_index = rc_flows[flow_id] + 1
+                    else:
+                        flows[flow_id] = flows.get(flow_id, [])
+                        flows[flow_id].append(rc_flows[flow_id])
+
+            if not duration or timer.has_expired():
+                break
+
+            # stop when no additional flow info is expected.
+            if flows and self._get_profile_state(profile_id) is self.STATE_ASTF_LOADED:
+                break
+
+            time.sleep(min(1.0, duration))
+
+        if index is not None:
+            flows['next_index'] = next_index
+
+        return flows
 
     @client_api('command', True)
     def wait_on_traffic(self, timeout = None, profile_id = None):
@@ -874,6 +1002,10 @@ class ASTFClient(TRexClient):
             TRexClient.wait_on_traffic(self, ports, timeout)
         else:
             self.wait_for_profile_state(profile_id, self.STATE_ASTF_LOADED, timeout)
+
+    
+    
+    wait_on_traffic_stl = STLClient.wait_on_traffic
 
     # get stats
     @client_api('getter', True)
@@ -990,6 +1122,23 @@ class ASTFClient(TRexClient):
         """
         return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input, is_sum = is_sum)
 
+    #get dynamic counters
+    @client_api('getter', True)
+    def get_dynamic_traffic_stats(self, skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        """
+            Gets the dynamic counters stats
+
+            ::parameters:
+                skip_zero: boolean
+
+                pid_input: string
+                    Input profile ID
+
+                is_sum: boolean
+                    Get total counter values
+        """
+        return self.traffic_stats.get_stats(skip_zero, pid_input = pid_input, is_sum = is_sum, is_dynamic = True)
+
     @client_api('getter', True)
     def get_profiles_state(self):
         """
@@ -1016,6 +1165,41 @@ class ASTFClient(TRexClient):
         return self.traffic_stats.is_traffic_stats_error(stats)
 
     @client_api('getter', True)
+    def is_dynamic_traffic_stats_error(self, stats, pid_input=DEFAULT_PROFILE_ID, is_sum=False):
+        '''
+        Return Tuple if there is an error and what is the error (Bool,Errors)
+
+        :parameters:
+            stats: dict from get_dynamic_traffic_stats output from the same profile id and is_sum parameters
+
+            pid_input: str
+                the profile id
+
+            is_sum: boolean
+                if the stats are sum of all the profiles.
+
+        '''
+        return self.traffic_stats.is_dynamic_stats_error(stats, pid_input = pid_input, is_sum = is_sum)
+
+    @client_api('getter', True)
+    def clear_dynamic_traffic_stats(self, pid_input = None, clear_all = False):
+        """
+            Clears dynamic traffic statistics.
+
+            :parameters:
+                pid_input: string
+                    Input profile ID
+
+                clear_all: boolean
+                    clear all the profiles sts
+        """
+        if clear_all:
+            self.traffic_stats.clear_dynamic_stats(clear_all)
+        if pid_input:
+            self.traffic_stats.clear_dynamic_stats(pid_input)
+        return self.traffic_stats.clear_dynamic_stats(is_sum = True)
+
+    @client_api('getter', True)
     def clear_traffic_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         """
             Clears traffic statistics.
@@ -1039,7 +1223,7 @@ class ASTFClient(TRexClient):
         return self.latency_stats.get_stats(skip_zero)
 
     @client_api('command', True)
-    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0"):
+    def start_latency(self, mult = 1, src_ipv4="16.0.0.1", dst_ipv4="48.0.0.1", ports_mask=0x7fffffff, dual_ipv4 = "1.0.0.0", port_ipv4_offset_s = None):
         '''
            Start ICMP latency traffic.
 
@@ -1059,6 +1243,10 @@ class ASTFClient(TRexClient):
                 dual_ipv4: IP string
                     IPv4 address to be added for each pair of ports (starting from second pair)
 
+                port_ipv4_offset_s: IP string
+                    In case of different offset per side, the port_ipv4_offset_s should hold the server side offset.
+                    The default value is dual_ipv4
+
             .. note::
                 VLAN will be taken from interface configuration
 
@@ -1066,6 +1254,9 @@ class ASTFClient(TRexClient):
                 + :exc:`TRexError`
 
         '''
+        if not port_ipv4_offset_s:
+            port_ipv4_offset_s = dual_ipv4
+
         if not is_valid_ipv4(src_ipv4):
             raise TRexError("src_ipv4 is not a valid IPv4 address: '{0}'".format(src_ipv4))
 
@@ -1075,12 +1266,16 @@ class ASTFClient(TRexClient):
         if not is_valid_ipv4(dual_ipv4):
             raise TRexError("dual_ipv4 is not a valid IPv4 address: '{0}'".format(dual_ipv4))
 
+        if not is_valid_ipv4(port_ipv4_offset_s):
+            raise TRexError("port_ipv4_offset_s is not a valid IPv4 address: '{0}'".format(port_ipv4_offset_s))
+
         params = {
             'handler': self.handler,
             'mult': mult,
             'src_addr': src_ipv4,
             'dst_addr': dst_ipv4,
             'dual_port_addr': dual_ipv4,
+            'port_s_offset' : port_ipv4_offset_s,
             'mask': ports_mask,
             }
 
@@ -1214,22 +1409,57 @@ class ASTFClient(TRexClient):
 
         self.ctx.logger.post_cmd(True)
 
+
+    @client_api('command', True)
+    def tunnels_topo_load(self, topology, tunables = {}):
+        ''' Load network topology
+
+            :parameters:
+                topology: string or TunnelTopo
+                    | Path to topology filename or topology object
+                    | Supported file formats:
+                    | * JSON
+                    | * YAML
+                    | * Python
+
+                tunables: dict
+                    forward those key-value pairs to the topology Python file
+
+            :raises:
+                + :exc:`TRexError`
+        '''
+        self.tunnels_topo.load(topology, **tunables)
+        print('')
+
+    @client_api('command', True)
+    def tunnels_topo_clear(self):
+        ''' Clear network topology '''
+
+        self.tunnels_topo.clear()
+
+    @client_api('command', False)
+    def tunnels_topo_show(self):
+        ''' Show current network topology status '''
+        self.tunnels_topo.show()
+        print('')
+
     # private function to form json data for GTP tunnel
     def _update_gtp_tunnel(self, client_list):
 
         json_attr = []
 
         for key, value in client_list.items():
-            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'teid' : value.teid, "version" :value.version})
+            json_attr.append({'client_ip' : key, 'sip': value.sip, 'dip' : value.dip, 'sport' : value.sport, 'teid' : value.teid, "version" :value.version})
  
         return json_attr
 
     # execute 'method' for inserting/updateing tunnel info for clients
+    @client_api('command', True)
     def update_tunnel_client_record (self, client_list, tunnel_type):
 
         json_attr = []
         
-        if tunnel_type == TunnelType.GTP:
+        if tunnel_type == parsing_opts.TunnelType.GTPU:
            json_attr = self._update_gtp_tunnel(client_list)
         else:
            raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
@@ -1237,7 +1467,58 @@ class ASTFClient(TRexClient):
         params = {"tunnel_type": tunnel_type,
                   "attr": json_attr }
 
-        return self._transmit("update_tunnel_client", params)
+        self.ctx.logger.pre_cmd("update_tunnel_client.\n")
+        rc = self._transmit("update_tunnel_client", params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+
+    # check if the tunnel-type is supported
+    @client_api('command', True)
+    def is_tunnel_supported(self, tunnel_type=1):
+        '''
+        parameters:
+            tunnel_type: currently only type 1 (gtpu) is supported
+        ret: 
+            dict {is_tunnel_supported: true/false,
+                  error_msg: why the tunnel is not supported}
+        '''
+        params = {'tunnel_type': tunnel_type}
+        rc = self._transmit("is_tunnel_supported", params = params)
+        if not rc:
+            raise TRexError(rc.err())
+        return rc.data()
+
+    #activate/deactivate tunnel mode
+    @client_api('command', True)
+    def activate_tunnel(self, tunnel_type=1 ,activate=True, loopback=False):
+        if activate == True:
+            tunnel_supported_info = self.is_tunnel_supported(tunnel_type)
+            if not tunnel_supported_info['is_tunnel_supported']:
+                raise TRexError(tunnel_supported_info['error_msg'])
+
+        params = {
+            'tunnel_type': tunnel_type,
+            'activate': activate,
+            'loopback': loopback
+            }
+
+        if tunnel_type != parsing_opts.TunnelType.GTPU:
+           raise TRexError('Invalid Tunnel Type: %d' % tunnel_type)
+
+        prefix = "Activating"
+        if not activate:
+            prefix = "Deactivating"
+        pre_cmd = prefix + ' tunnel mode'
+        if loopback:
+            pre_cmd += ' with loopback'
+
+        self.ctx.logger.pre_cmd(pre_cmd + '.\n')
+        rc = self._transmit("activate_tunnel_mode", params = params)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc.err())
+        return True
 
     # execute 'method' for Making  a client active/inactive
     def set_client_enable(self, client_list, is_enable):
@@ -1275,9 +1556,24 @@ class ASTFClient(TRexClient):
 
         return self._transmit("enable_disable_client", params)
 
+    def _get_client_info(self, params, timeout):
+        # starting the gathering of the clients info
+        rc = self._transmit("get_clients_info_start", params)
+        if not rc:
+            raise TRexError(rc.err())
+
+        rc = False
+        # getting the client info using get_clients_info_pull asynchronously
+        while not rc and timeout > 0:
+            rc = self._transmit("get_clients_info_pull")
+            time.sleep(1)
+            timeout-=1
+        if not rc:
+            raise TRexError(rc.err())
+        return rc
 
      # execute 'method' for getting clients stats
-    def get_clients_info (self, client_list):
+    def get_clients_info (self, client_list, timeout = 10):
         '''
         Version 1 
         API to get client information: Currently only state and if client is present. 
@@ -1291,11 +1587,11 @@ class ASTFClient(TRexClient):
         params = {"is_range": False,
                   "attr": json_attr }
 
-        return self._transmit("get_clients_info", params)
+        return self._get_client_info(params, timeout)
 
 
      # execute 'method' for getting clients stats
-    def get_clients_info_range (self, client_start, client_end):
+    def get_clients_info_range (self, client_start, client_end, timeout=10):
         '''
         Version 2 
         API to get client information: Currently only state and if client is present. 
@@ -1309,9 +1605,42 @@ class ASTFClient(TRexClient):
         params = {"is_range": True,
                   "attr": json_attr }
 
-        return self._transmit("get_clients_info", params)
+        return self._get_client_info(params, timeout)
 
 
+    @client_api('command', True)
+    def get_ignored_macs_ips(self, to_str=True):
+        ''' 
+        getting the ignore MAC and IPv4 addresses from the server
+            :parameters:
+                to_str: Boolean
+                    True: getting the addresses as str format.
+                    False: getting the addresses as numbers.
+        '''
+        d = {}
+        d["ips"] = self.macs_ips_mngr.get_ips_list(to_str=to_str)
+        d["macs"] = self.macs_ips_mngr.get_mac_list(to_str=to_str)
+        return d
+
+
+    @client_api('command', True)
+    def set_ignored_macs_ips(self, mac_list = None, ip_list=None, is_str=True):
+        ''' 
+        setting the ignore MAC and IPv4 addresses and push to the server
+            :parameters:
+                mac_list:
+                    List that holds MAC addresses
+
+                ip_list:
+                    List that holds IPv4 addresses
+
+                is_str: Boolean
+                    boolean that indicates whether the MAC and IPv4 addresses are in str format.
+
+            :raises:
+                + :exc:`TRexError`
+        '''
+        return self.macs_ips_mngr.set_ignored_macs_ips(mac_list=mac_list, ip_list=ip_list, is_str=is_str)
 
 ############################   console   #############################
 ############################   commands  #############################
@@ -1352,16 +1681,6 @@ class ASTFClient(TRexClient):
     def start_line(self, line):
         '''Start traffic command'''
 
-        # parse tunables with the previous form. (-t var1=x1,var2=x2..)
-        def parse_tunables_old_version(tunables_parameters):
-            parser = parsing_opts.gen_parser(self,
-                                "start",
-                                self.start_line.__doc__,
-                                parsing_opts.TUNABLES)
-
-            args = parser.parse_args(tunables_parameters.split())
-            return args.tunables
-
         # parser for parsing the start command arguments
         parser = parsing_opts.gen_parser(self,
                                          'start',
@@ -1371,6 +1690,7 @@ class ASTFClient(TRexClient):
                                          parsing_opts.DURATION,
                                          parsing_opts.ESTABLISH_DURATION,
                                          parsing_opts.TERMINATE_DURATION,
+                                         parsing_opts.DUMP_INTERVAL,
                                          parsing_opts.ARGPARSE_TUNABLES,
                                          parsing_opts.ASTF_NC,
                                          parsing_opts.ASTF_LATENCY,
@@ -1387,15 +1707,10 @@ class ASTFClient(TRexClient):
         # newer version.
         tunable_dict = {}
         if "-t" in line and '=' in line:
-            tunable_parameter = "-t " + line.split("-t")[1].strip("-h").strip("--help").strip()
-            tunable_dict = parse_tunables_old_version(tunable_parameter)
-            tunable_list = []
-            # converting from tunables dictionary to list 
-            for tunable_key in tunable_dict:
-                tunable_list.extend(["--{}".format(tunable_key), str(tunable_dict[tunable_key])])
-            if any(h in opts.tunables for h in help_flags):
-                tunable_list.append("--help")
-            opts.tunables = tunable_list
+            tun_list = opts.tunables
+            tunable_dict = parsing_opts.decode_tunables(tun_list[0])
+            opts.tunables = parsing_opts.convert_old_tunables_to_new_tunables(tun_list[0])
+            opts.tunables.extend(tun_list[1:])
 
         tunable_dict["tunables"] = opts.tunables
 
@@ -1419,7 +1734,11 @@ class ASTFClient(TRexClient):
             elif opts.servers_only:
                 kw['client_mask'] = 0
 
-            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, pid_input = profile_id, e_duration = opts.e_duration, t_duration = opts.t_duration, **kw)
+            kw['e_duration'] = opts.e_duration
+            kw['t_duration'] = opts.t_duration
+            kw['dump_interval'] = opts.dump_interval
+
+            self.start(opts.mult, opts.duration, opts.nc, False, opts.latency_pps, opts.ipv6, pid_input = profile_id, **kw)
 
         return True
 
@@ -1541,6 +1860,51 @@ class ASTFClient(TRexClient):
 
         return True
 
+
+    @console_api('tunnels_topo', 'ASTF', True, True)
+    def tunnels_topo_line(self, line):
+        '''Tunnel Topology-related commands'''
+        parser = parsing_opts.gen_parser(
+            self,
+            'tunnel_topo',
+            self.topo_line.__doc__)
+
+        def topology_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        load_parser = topology_add_parsers(subparsers, 'load', help = 'Load topology from file,  push to server on success')
+        show_parser = topology_add_parsers(subparsers, 'show', help = 'Show current topology status')
+        topology_add_parsers(subparsers, 'clear', help = 'Clear current topology')
+
+        load_parser.add_arg_list(
+            parsing_opts.FILE_PATH,
+            parsing_opts.TUNABLES,
+            )
+
+        show_parser.add_arg_list(
+            parsing_opts.PORT_LIST_NO_DEFAULT,
+            )
+
+        opts = parser.parse_args(shlex.split(line))
+
+        if opts.command == 'load':
+            self.tunnels_topo_load(opts.file[0], opts.tunables)
+            return False
+
+        elif opts.command == 'show' or not opts.command:
+            self.tunnels_topo_show()
+            return False
+
+        elif opts.command == 'clear':
+            self.tunnels_topo_clear()
+
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+        return True
+
+
     @console_api('topo', 'ASTF', True, True)
     def topo_line(self, line):
         '''Topology-related commands'''
@@ -1612,6 +1976,7 @@ class ASTFClient(TRexClient):
 
         opts = parser.parse_args(line.split())
         self.clear_stats(opts.ports, pid_input = ALL_PROFILE_ID)
+        self.clear_dynamic_traffic_stats(clear_all=True)
 
         return RC_OK()
 
@@ -1686,6 +2051,9 @@ class ASTFClient(TRexClient):
         elif opts.stats == 'latency_counters':
             self._show_latency_counters()
 
+        elif opts.stats == 'streams': # STLClient
+            self._show_streams_stats()
+
         else:
             raise TRexError('Unhandled stat: %s' % opts.stats)
 
@@ -1738,8 +2106,8 @@ class ASTFClient(TRexClient):
     def _get_num_of_tgids(self, pid_input = DEFAULT_PROFILE_ID):
         return self.traffic_stats._get_num_of_tgids(pid_input)
 
-    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
-        table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input, is_sum = is_sum)
+    def _show_traffic_stats(self, include_zero_lines, buffer = sys.stdout, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False, is_dynamic = False):
+        table = self.traffic_stats.to_table(include_zero_lines, tgid, pid_input, is_sum = is_sum, is_dynamic=is_dynamic)
         text_tables.print_table_with_header(table, untouched_header = table.title, buffer = buffer)
 
     def _show_latency_stats(self, buffer = sys.stdout):
@@ -1787,3 +2155,146 @@ class ASTFClient(TRexClient):
             self.logger.info(format_text("No profiles found with desired filter.\n", "bold", "magenta"))
 
         text_tables.print_table_with_header(table, header = 'Profile states')
+
+        STLClient.profiles_line(self, line)
+
+
+    @console_api('update_tunnel', 'ASTF', True)
+    def update_clients_tunnel(self, line):
+        '''update the clients tunnel context'''
+        parser = parsing_opts.gen_parser(
+            self,
+            'update_clients_tunnel',
+            self.update_clients_tunnel.__doc__,
+            parsing_opts.CLIENT_START,
+            parsing_opts.CLIENT_END,
+            parsing_opts.TEID,
+            parsing_opts.VERSION,
+            parsing_opts.SPORT,
+            parsing_opts.SRC_IP,
+            parsing_opts.DST_IP,
+            parsing_opts.TUNNEL_TYPE
+            )
+        opts = parser.parse_args(shlex.split(line))
+        if opts.ipv6 and (not is_valid_ipv6(opts.src_ip) or not is_valid_ipv6(opts.dst_ip)):
+            raise TRexError("invalid IPv6 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
+
+        if not opts.ipv6 and (not is_valid_ipv4(opts.src_ip) or not is_valid_ipv4(opts.dst_ip)):
+            raise TRexError("invalid IPv4 address: '{0}', {1}".format(opts.src_ip, opts.dst_ip))
+
+        c_start = ip2int(opts.c_start)
+        c_end = ip2int(opts.c_end)
+        if (c_end < c_start):
+            raise TRexError("invalid Client range: client_start: '{0}', client_end: {1}".format(opts.c_start, opts.c_end))
+        print("src port is:{0}".format(opts.sport))
+        version = 4
+        if opts.ipv6:
+            version = 6
+
+        client_db = dict()
+        count = 0
+        for ip_num in range(c_start, c_end + 1):
+            client_db[ip_num] = Tunnel(opts.src_ip, opts.dst_ip, opts.sport, opts.teid + count, version)
+            count+=1
+
+        self.update_tunnel_client_record(client_db, opts.type)
+
+
+
+    @console_api('tunnel', 'ASTF', True)
+    def activate_tunnel_line(self, line):
+        '''activate/deactivate tunnel mode command'''
+
+        parser = parsing_opts.gen_parser(
+            self,
+            'tunnel',
+            self.activate_tunnel_line.__doc__,
+            parsing_opts.TUNNEL_TYPE,
+            parsing_opts.TUNNEL_OFF,
+            parsing_opts.LOOPBACK
+            )
+        opts = parser.parse_args(shlex.split(line))
+        self.activate_tunnel(opts.type, not opts.off, opts.loopback)
+
+
+    @console_api('black_list', 'ASTF', True, True)
+    def black_list_line(self, line):
+        '''Black_list of MAC and IPv4 addresses related commands'''
+        parser = parsing_opts.gen_parser(
+            self,
+            'black_list',
+            self.black_list_line.__doc__)
+
+        def black_list_add_parsers(subparsers, cmd, help = '', **k):
+            return subparsers.add_parser(cmd, description = help, help = help, **k)
+
+        subparsers = parser.add_subparsers(title = 'commands', dest = 'command', metavar = '')
+        set_parser = black_list_add_parsers(subparsers, 'set', help = 'Set black list of MAC and IPv4 addresses')
+        get_parser = black_list_add_parsers(subparsers, 'get', help = 'Override the local list of black list with the server list')
+        remove_parser = black_list_add_parsers(subparsers, 'remove', help = 'Remove MAC and IPv4 addresses from the black list')
+        upload_parser = black_list_add_parsers(subparsers, 'upload', help = "Upload to the server the current black list")
+        clear_parser = black_list_add_parsers(subparsers, 'clear', help = 'Clear the current black list')
+        show_parser = black_list_add_parsers(subparsers, 'show', help = 'Show the current black list')
+        
+
+        set_parser.add_arg_list(parsing_opts.BLACK_LIST_ADDR)
+        remove_parser.add_arg_list(parsing_opts.BLACK_LIST_ADDR)
+        clear_parser.add_arg_list(parsing_opts.UPLOAD)
+        upload_parser.add_arg_list()
+        show_parser.add_arg_list()
+        get_parser.add_arg_list()
+
+        opts = parser.parse_args(shlex.split(line))
+
+        if opts.command == 'set' or opts.command == 'remove':
+            if not opts.ipv4 and not opts.macs:
+                raise TRexError('Use --macs or --ipv4')
+            if opts.command == 'set':
+                self.macs_ips_mngr.set_ignored_macs_ips(mac_list=opts.macs, ip_list=opts.ipv4, is_str=True, upload_to_server=opts.upload, to_override=False)
+            if opts.command == 'remove':
+                self.macs_ips_mngr._remove_ignored_macs_ips(mac_list=opts.macs, ip_list=opts.ipv4, is_str=True, upload_to_server=opts.upload)
+            return True
+
+        elif opts.command == 'show' or not opts.command:
+            self.macs_ips_mngr._show()
+            return True
+
+        elif opts.command == 'clear':
+            self.macs_ips_mngr._clear_all()
+            if opts.upload:
+                self.macs_ips_mngr._flush_all()
+            return True
+
+        elif opts.command == 'upload':
+            self.macs_ips_mngr._flush_all()
+            return True
+
+        elif opts.command == 'get':
+            self.macs_ips_mngr.sync_with_server()
+            return True
+
+        else:
+            raise TRexError('Unhandled command %s' % opts.command)
+
+    # rename STL console commands
+
+    @console_api('start_stl', 'STL', True)
+    def start_stl_line(self, line):
+        '''Start traffic command'''
+        STLClient.start_line(self, line)
+
+    @console_api('stop_stl', 'STL', True)
+    def stop_stl_line(self, line):
+        '''stop traffic command'''
+        STLClient.stop_line(self, line)
+
+    @console_api('update_stl', 'STL', True)
+    def update_stl_line(self, line):
+        '''update traffic command'''
+        STLClient.update_line(self, line)
+
+    @console_api('stats_stl', 'STL', True)
+    def stats_stl_line(self, line):
+        '''stats traffic command'''
+        STLClient.show_stats_line(self, line)
+

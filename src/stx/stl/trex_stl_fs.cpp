@@ -605,7 +605,7 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
     stream_dump(stream);
 #endif
 
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream()) {
         return 0;
     }
 
@@ -664,14 +664,14 @@ int CFlowStatRuleMgr::add_stream_internal(TrexStream * stream, bool do_action) {
 #endif
             if (CGlobalInfo::m_options.preview.getLatencyIEEE1588Disable()) {
                 stream->m_rx_check.m_ieee_1588 = false;
-                size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header); 
+                size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header);
             }
         } else {
             size_flow_stat_payload_header = sizeof(struct flow_stat_payload_header);
         }
 
         if (payload_len < size_flow_stat_payload_header) {
-            throw TrexFStatEx("Need at least " + std::to_string(sizeof(struct latency_header))
+            throw TrexFStatEx("Need at least " + std::to_string(size_flow_stat_payload_header)
                               + " payload bytes for payload rules. Packet only has " + std::to_string(payload_len) + " bytes"
                               , TrexException::T_FLOW_STAT_PAYLOAD_TOO_SHORT);
         }
@@ -726,7 +726,7 @@ int CFlowStatRuleMgr::del_stream_internal(TrexStream * stream, bool need_to_dele
     stream_dump(stream);
 #endif
 
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream()) {
         return 0;
     }
 
@@ -836,13 +836,13 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     int ret;
     // Streams which does not need statistics might be started, before any stream that do
-    // need statistcs, so start_stream might be called before add_stream
+    // need statistics, so start_stream might be called before add_stream
     if (! m_api ) {
         create();
     }
 
     // first handle streams that do not need rx stat
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream() ) {
         try {
             compile_stream(stream, m_parser_ipid);
         } catch (TrexFStatEx&) {
@@ -864,7 +864,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
         return 0;
     }
 
-    // from here, we know the stream need rx stat
+    // from here, we know the stream needs rx stat
 
     TrexPlatformApi::driver_stat_cap_e rule_type = (TrexPlatformApi::driver_stat_cap_e)stream->m_rx_check.m_rule_type;
 
@@ -982,7 +982,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
 
     if (m_num_started_streams == 0) {
 
-        if (get_dpdk_mode()->dp_rx_queues()) {
+        if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
             get_stateless_obj()->set_latency_feature();
         } else {
             send_start_stop_msg_to_rx(true); // First transmitting stream. Rx core should start reading packets;
@@ -1039,7 +1039,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
 
     int ret = -1;
 
-    if ( !stream->need_flow_stats() ) {
+    if ( !stream->need_flow_stats() || stream->is_tpg_stream()) {
         return -1;
     }
 
@@ -1085,7 +1085,7 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
         ret = m_user_id_map.stop_stream(stream->m_rx_check.m_pg_id);
 
         if (ret == 0) {
-            // If we stopped the last stream trasnimitting on this hw_id,
+            // If we stopped the last stream transimitting on this hw_id,
             // read counters one last time to make sure everything is in sync
             if (rule_type == TrexPlatformApi::IF_STAT_IPV4_ID) {
                 update_counters(false, hw_id, hw_id, HW_ID_INIT, HW_ID_INIT, true);
@@ -1101,10 +1101,10 @@ int CFlowStatRuleMgr::internal_stop_stream(TrexStream * stream) {
     assert (m_num_started_streams >= 0);
     if (m_num_started_streams == 0) {
         DEBUG_PRINT("  Sending stop message to rx\n");
-        if (get_dpdk_mode()->dp_rx_queues()) {
+        if (get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode()) {
             get_stateless_obj()->unset_latency_feature();
         } else {
-            send_start_stop_msg_to_rx(false); // No more transmittig streams. Rx core should get into idle loop.
+            send_start_stop_msg_to_rx(false); // No more transmitting streams. Rx core should get into idle loop.
         }
     }
     return ret;
@@ -1216,7 +1216,7 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
 #endif
     for (auto &port: m_port_ids) {
         if (min_f != HW_ID_INIT) {
-            m_api->get_flow_stats(port, m_rx_stats, (void *)m_tx_stats, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+            m_api->get_flow_stats(port, m_rx_stats, nullptr, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
             for (int i = min_f; i <= max_f; i++) {
                 if (m_rx_stats[i - min_f].get_pkts() != 0) {
                     rx_per_flow_t rx_pkts = m_rx_stats[i - min_f];
@@ -1229,7 +1229,32 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
                                   << (uint16_t)port << ", because no mapping was found." << std::endl;
                     }
                 }
+            }
+        }
+        // payload rules
+        if (min_l != HW_ID_INIT) {
+            m_api->get_flow_stats(port, m_rx_stats_payload, nullptr, min_l, max_l
+                                  , false, TrexPlatformApi::IF_STAT_PAYLOAD);
+            for (int i = min_l; i <= max_l; i++) {
+                if (m_rx_stats_payload[i - min_l].get_pkts() != 0) {
+                    rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
+                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
+                    if (likely(p_user_id != NULL)) {
+                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, update_rate);
+                    } else {
+                        m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
+                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
+                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
+                    }
+                }
+            }
+        }
+    }
 
+    for (auto &port: m_port_ids) {
+        if (min_f != HW_ID_INIT) {
+            m_api->get_flow_stats(port, nullptr, (void *)m_tx_stats, min_f, max_f, false, TrexPlatformApi::IF_STAT_IPV4_ID);
+            for (int i = min_f; i <= max_f; i++) {
                 if (m_tx_stats[i - min_f].get_pkts() != 0) {
                     tx_per_flow_t tx_pkts = m_tx_stats[i - min_f];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map.get_user_id(i));
@@ -1246,21 +1271,9 @@ void CFlowStatRuleMgr::update_counters(bool update_rate, uint16_t min_f, uint16_
         }
         // payload rules
         if (min_l != HW_ID_INIT) {
-            m_api->get_flow_stats(port, m_rx_stats_payload, (void *)m_tx_stats_payload, min_l, max_l
+            m_api->get_flow_stats(port, nullptr, (void *)m_tx_stats_payload, min_l, max_l
                                   , false, TrexPlatformApi::IF_STAT_PAYLOAD);
             for (int i = min_l; i <= max_l; i++) {
-                if (m_rx_stats_payload[i - min_l].get_pkts() != 0) {
-                    rx_per_flow_t rx_pkts = m_rx_stats_payload[i - min_l];
-                    CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
-                    if (likely(p_user_id != NULL)) {
-                        p_user_id->update_rx_vals(port, rx_pkts, is_last, now, update_rate);
-                    } else {
-                        m_rx_cant_count_err[port] += rx_pkts.get_pkts();;
-                        std::cerr <<  __METHOD_NAME__ << i << ":Could not count " << rx_pkts << " rx payload packets, on port "
-                                  << (uint16_t)port << ", because no mapping was found." << std::endl;
-                    }
-                }
-
                 if (m_tx_stats_payload[i - min_l].get_pkts() != 0) {
                     tx_per_flow_t tx_pkts = m_tx_stats_payload[i - min_l];
                     CFlowStatUserIdInfo *p_user_id = m_user_id_map.find_user_id(m_hw_id_map_payload.get_user_id(i));
@@ -1323,7 +1336,7 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
     // build json report
     // general per port data
     for (auto &port: m_port_ids) {
-            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            std::string str_port = std::to_string(int(port));
             if (m_rx_cant_count_err[port] != 0)
                 s_data_section["g"]["rx_err"][str_port] = m_rx_cant_count_err[port];
             if (m_tx_cant_count_err[port] != 0)
@@ -1366,11 +1379,11 @@ bool CFlowStatRuleMgr::dump_json(Json::Value &json, std::vector<uint32> pgids) {
             }
         }
 
-        std::string str_user_id = static_cast<std::ostringstream*>( &(std::ostringstream() << user_id) )->str();
+        std::string str_user_id = std::to_string(user_id);
         v_data_section[str_user_id] = user_id_info->get_ver_id();
         // flow stat json
         for (auto &port: m_port_ids) {
-            std::string str_port = static_cast<std::ostringstream*>( &(std::ostringstream() << int(port) ) )->str();
+            std::string str_port = std::to_string(int(port));
             s_data_section[str_user_id]["rp"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_pkts());
             if (m_cap & TrexPlatformApi::IF_STAT_RX_BYTES_COUNT)
                 s_data_section[str_user_id]["rb"][str_port] = Json::Value::UInt64(user_id_info->get_rx_cntr(port).get_bytes());

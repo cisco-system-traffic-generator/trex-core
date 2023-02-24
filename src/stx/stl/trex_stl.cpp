@@ -163,7 +163,7 @@ TrexStatelessMulticoreSoftwareFSLatencyStats::reset_rx_stats(uint8_t port_id, co
 TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* API core version */
     const int API_VER_MAJOR = 5;
-    const int API_VER_MINOR = 0;
+    const int API_VER_MINOR = 1;
     
     /* init the RPC table */
     TrexRpcCommandsTable::get_instance().init("STL", API_VER_MAJOR, API_VER_MINOR);
@@ -182,30 +182,40 @@ TrexStateless::TrexStateless(const TrexSTXCfg &cfg) : TrexSTX(cfg) {
     /* create RX core */
     CRxCore *rx = new CRxCore();
     rx->create(cfg.m_rx_cfg);
-    
+
     m_rx = rx;
 
     m_stats = nullptr;
 }
 
+TrexStateless::TrexStateless(const TrexSTXCfg &cfg, bool base) : TrexSTX(cfg) {
+    assert(base);
+    m_stats = nullptr;
+}
+
 
 /** 
- * release all memory 
+ * release all memory
  * 
  * @author imarom (08-Oct-15)
  */
 TrexStateless::~TrexStateless() {
-    
+
     /* release memory for ports */
+    m_dp_core_count = 0;
     for (auto &port : m_ports) {
         delete port.second;
     }
 
     delete m_stats;
 
+    /* Remove all TPG Contexts */
+    for (auto itr = m_tpg_ctx_per_user.begin(); itr != m_tpg_ctx_per_user.end(); itr++) {
+        delete itr->second;
+    }
+
     /* RX core */
     delete m_rx;
-    m_rx = nullptr;
 }
 
 
@@ -263,7 +273,7 @@ TrexStateless::publish_async_data() {
 
 void
 TrexStateless::init_stats_multiqueue(const vector<TrexStatelessDpCore*> & dp_core_ptrs) {
-    assert(get_dpdk_mode()->dp_rx_queues());
+    assert(get_dpdk_mode()->dp_rx_queues() || get_is_tcp_mode());
     m_stats = new TrexStatelessMulticoreSoftwareFSLatencyStats(this, dp_core_ptrs);
 }
 
@@ -338,4 +348,279 @@ TrexStateless::unset_capture_feature() {
 TrexStatelessFSLatencyStats* TrexStateless::get_stats() {
     assert(m_stats);
     return m_stats;
+}
+
+/**************************************
+ * Tagged Packet Group
+*************************************/
+bool TrexStateless::create_tpg_ctx(const std::string& username,
+                                   const std::vector<uint8_t>& acquired_ports,
+                                   const std::vector<uint8_t>& rx_ports,
+                                   const uint32_t num_tpgids) {
+
+    if (tpg_ctx_exists(username)) {
+        return false;
+    }
+
+    /**
+     * Collect the relevant cores from the ports on which TPG is enabled.
+     * In order to avoid duplicates (dual ports share cores), keep this a set.
+     * NOTE: all_cores: represents all the cores relevant to the acquired ports.
+     *       designated_cores: represents all the cores that sequenced streams are
+     *                       compiled to.
+     * NOTE: TPG streams are transmitted only from designated cores. Hence Tx counters
+     *       are allocated only in designated cores. However, TPG needs to be enabled
+     *       in all cores so we can redirect to Rx.
+     **/
+    std::set<uint8_t> all_cores;
+    std::set<uint8_t> designated_cores;
+    for (uint8_t port_id : acquired_ports) {
+        TrexStatelessPort* port = get_port_by_id(port_id);
+        const std::vector<uint8_t> core_ids_per_port = port->get_core_id_list();
+        all_cores.insert(core_ids_per_port.begin(), core_ids_per_port.end());
+
+        /**
+         * NOTE: Sequenced streams are compiled to one core, the designated core.
+         */
+        uint8_t designated_core_id = get_port_by_id(port_id)->get_sequenced_stream_core();
+        designated_cores.insert(designated_core_id);
+    }
+
+    // Create (core_id->is_designated) Map
+    std::unordered_map<uint8_t, bool> core_id_map;
+    for (uint8_t core_id : all_cores) {
+        core_id_map[core_id] = designated_cores.find(core_id) != designated_cores.end();
+    }
+
+    m_tpg_ctx_per_user[username] = new TPGCpCtx(acquired_ports, rx_ports, core_id_map, num_tpgids, username);
+
+    return true;
+}
+
+bool TrexStateless::destroy_tpg_ctx(const std::string& username) {
+    if (!tpg_ctx_exists(username)) {
+        return false;
+    }
+    delete m_tpg_ctx_per_user[username];
+    m_tpg_ctx_per_user.erase(username);
+    return true;
+}
+
+TPGCpCtx* TrexStateless::get_tpg_ctx(const std::string& username) {
+    if (!tpg_ctx_exists(username)) {
+        return nullptr;
+    }
+    return m_tpg_ctx_per_user[username];
+}
+
+TPGState TrexStateless::update_tpg_state(const std::string& username) {
+
+    if (!tpg_ctx_exists(username)) {
+        // Nothing to do, TPG disabled.
+        return TPGState::DISABLED;
+    }
+
+    TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
+    TPGState state = tpg_ctx->get_tpg_state();
+
+    if (!tpg_ctx->is_awaiting_rx()) {
+        // Not awaiting Rx, state is synced.
+        return state;
+    }
+
+    // Get Rx State
+    static MsgReply<int> reply;
+    reply.reset();
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxGetTPGState(username, reply);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    int rc = reply.wait_for_reply();
+    TPGStateUpdate rx_state = static_cast<TPGStateUpdate>(rc);
+
+    return tpg_ctx->handle_rx_state_update(rx_state);
+
+}
+
+bool TrexStateless::enable_tpg_cp_rx(const std::string& username) {
+
+    if (!tpg_ctx_exists(username)) {
+        // Context should exist at this stage.
+        return false;
+    }
+
+    TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
+
+    // Add pointers to TPG Context in all the acquired ports (all the ports that can transmit)
+    const std::vector<uint8_t>& ports = tpg_ctx->get_acquired_ports();
+    for (uint8_t port_id : ports) {
+        TrexStatelessPort* stl_port = get_port_by_id(port_id);
+        stl_port->set_tpg_ctx(tpg_ctx);
+    }
+
+    // Enable the feature in Rx, this can take a long time so don't wait.
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxEnableTaggedPktGroup(tpg_ctx);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+
+    tpg_ctx->set_tpg_state(TPGState::ENABLED_CP);
+    return true;
+}
+
+bool TrexStateless::enable_tpg_dp(const std::string& username) {
+
+    if (!tpg_ctx_exists(username)) {
+        return false;
+    }
+
+    TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
+    uint32_t num_tpgids = tpg_ctx->get_num_tpgids();
+    const std::unordered_map<uint8_t, bool>& core_id_map = tpg_ctx->get_cores_map();
+
+    // Set the feature in DP so we can start redirecting packets
+    for (auto const& it : core_id_map) {
+        uint8_t core_id = it.first;
+        bool is_designated = it.second;
+        static MsgReply<int> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpSetTPGFeature(reply, num_tpgids, is_designated);
+        send_msg_to_dp(core_id, msg);
+        int rc = reply.wait_for_reply();
+        TPGStateUpdate dp_state = static_cast<TPGStateUpdate>(rc);
+        if (dp_state == TPGStateUpdate::DP_ALLOC_FAIL) {
+            tpg_ctx->set_tpg_state(TPGState::DP_ALLOC_FAILED);
+            return false;
+        }
+    }
+
+    // Collect pointers to DP Tx counters
+    const std::vector<uint8_t>& acquired_ports = tpg_ctx->get_acquired_ports();
+    for (uint8_t port : acquired_ports) {
+        static MsgReply<TPGDpMgrPerSide*> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpGetTPGMgr(reply, port);
+        send_msg_to_dp(get_port_by_id(port)->get_sequenced_stream_core(), msg);
+        TPGDpMgrPerSide* mgr_ptr = reply.wait_for_reply();
+        tpg_ctx->add_dp_mgr_ptr(port, mgr_ptr);
+    }
+
+    tpg_ctx->set_tpg_state(TPGState::ENABLED);
+    return true;
+}
+
+bool TrexStateless::disable_tpg(const std::string& username) {
+
+    if (!tpg_ctx_exists(username)) {
+        return false;
+    }
+
+    TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
+    const std::unordered_map<uint8_t, bool>& core_id_map = tpg_ctx->get_cores_map();
+
+    // Unset the feature in DP
+    // This needs to be done first so we don't keep redirecting packets when we don't have counters.
+    for (auto const& it : core_id_map) {
+        uint8_t core_id = it.first;
+        static MsgReply<bool> reply;
+        reply.reset();
+        TrexCpToDpMsgBase* msg = new TrexStatelessDpUnsetTPGFeature(reply);
+        send_msg_to_dp(core_id, msg);
+        reply.wait_for_reply();
+    }
+
+    // Invalidate context in ports.
+    const std::vector<uint8_t>& ports = tpg_ctx->get_acquired_ports();
+    for (uint8_t port_id : ports) {
+        TrexStatelessPort* stl_port = get_port_by_id(port_id);
+        stl_port->set_tpg_ctx(nullptr);
+    }
+
+    tpg_ctx->set_tpg_state(TPGState::DISABLED_DP);
+
+    // Unset the feature in Rx. This can take a long time deallocating the packets, hence async.
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxDisableTaggedPktGroup(username);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+
+    /**
+     NOTE: We intentionally don't cleanup the TPGStreamMgr. The states of the streams are relevant even
+     if the user disables and re-enables TPG. However, since TPGStreamMgr is a singleton implemented
+     as a static variable, we will not have any memory leak.
+     **/
+     return true;
+}
+
+bool TrexStateless::update_tpg_tags(const std::string& username) {
+    if (!tpg_ctx_exists(username)) {
+        return false;
+    }
+
+    TPGCpCtx* tpg_ctx = m_tpg_ctx_per_user[username];
+    assert(tpg_ctx);
+
+    // The tag manager in CP is updated as parsed, we need only update Rx.
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxUpdateTPGTags(reply, username, tpg_ctx->get_tag_mgr());
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    return reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t min_tpgid, uint32_t max_tpgid, const std::vector<uint16_t>& tag_list) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    // It is important to keep this message sync. The tag list object is a CP object.
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxClearTPGStatsTpgid(reply, port_id, min_tpgid, max_tpgid, tag_list);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, const std::vector<uint16_t>& tag_list, bool unknown_tag, bool untagged) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    // It is important to keep this message sync. The tag list object is a CP object.
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxClearTPGStatsList(reply, port_id, tpgid, tag_list, unknown_tag, untagged);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_stats(uint8_t port_id, uint32_t tpgid, uint16_t min_tag, uint16_t max_tag, bool unknown_tag, bool untagged) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase* msg = new TrexStatelessRxClearTPGStats(reply, port_id, tpgid, min_tag, max_tag, unknown_tag, untagged);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_tx_stats(uint8_t port_id, uint32_t tpgid) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToDpMsgBase* msg = new TrexStatelessDpClearTPGTxStats(reply, port_id, tpgid);
+    send_msg_to_dp(get_port_by_id(port_id)->get_sequenced_stream_core(), msg);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::get_tpg_unknown_tags(Json::Value& result, uint8_t port_id) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxGetTPGUnknownTags(reply, result, port_id);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
+}
+
+void TrexStateless::clear_tpg_unknown_tags(uint8_t port_id) {
+    static MsgReply<bool> reply;
+    reply.reset();
+    TrexCpToRxMsgBase *msg = new TrexStatelessRxClearTPGUnknownTags(reply, port_id);
+    CNodeRing* ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
+    ring->SecureEnqueue((CGenNode*)msg, true);
+    reply.wait_for_reply();
 }

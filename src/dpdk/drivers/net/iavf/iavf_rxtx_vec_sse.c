@@ -88,7 +88,7 @@ iavf_rxq_rearm(struct iavf_rx_queue *rxq)
 		   rx_id, rxq->rxrearm_start, rxq->rxrearm_nb);
 
 	/* Update the tail pointer on the NIC */
-	IAVF_PCI_REG_WRITE(rxq->qrx_tail, rx_id);
+	IAVF_PCI_REG_WC_WRITE(rxq->qrx_tail, rx_id);
 }
 
 static inline void
@@ -108,42 +108,42 @@ desc_to_olflags_v(struct iavf_rx_queue *rxq, __m128i descs[4],
 			0x1c03804, 0x1c03804, 0x1c03804, 0x1c03804);
 
 	const __m128i cksum_mask = _mm_set_epi32(
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD);
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD);
 
 	/* map rss and vlan type to rss hash and vlan flag */
 	const __m128i vlan_flags = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
-			0, 0, 0, PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED,
+			0, 0, 0, RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED,
 			0, 0, 0, 0);
 
 	const __m128i rss_flags = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
-			PKT_RX_RSS_HASH | PKT_RX_FDIR, PKT_RX_RSS_HASH, 0, 0,
-			0, 0, PKT_RX_FDIR, 0);
+			RTE_MBUF_F_RX_RSS_HASH | RTE_MBUF_F_RX_FDIR, RTE_MBUF_F_RX_RSS_HASH, 0, 0,
+			0, 0, RTE_MBUF_F_RX_FDIR, 0);
 
 	const __m128i l3_l4e_flags = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
 			/* shift right 1 bit to make sure it not exceed 255 */
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
-			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_EIP_CKSUM_BAD |
-			 PKT_RX_L4_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_EIP_CKSUM_BAD) >> 1,
-			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD) >> 1,
-			PKT_RX_IP_CKSUM_BAD >> 1,
-			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_GOOD) >> 1);
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			 RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD |
+			 RTE_MBUF_F_RX_L4_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_BAD | RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD) >> 1,
+			RTE_MBUF_F_RX_IP_CKSUM_BAD >> 1,
+			(RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_GOOD) >> 1);
 
 	vlan0 = _mm_unpackhi_epi32(descs[0], descs[1]);
 	vlan1 = _mm_unpackhi_epi32(descs[2], descs[3]);
@@ -159,7 +159,7 @@ desc_to_olflags_v(struct iavf_rx_queue *rxq, __m128i descs[4],
 	l3_l4e = _mm_shuffle_epi8(l3_l4e_flags, l3_l4e);
 	/* then we shift left 1 bit */
 	l3_l4e = _mm_slli_epi32(l3_l4e, 1);
-	/* we need to mask out the reduntant bits */
+	/* we need to mask out the redundant bits */
 	l3_l4e = _mm_and_si128(l3_l4e, cksum_mask);
 
 	vlan0 = _mm_or_si128(vlan0, rss);
@@ -193,10 +193,10 @@ static inline __m128i
 flex_rxd_to_fdir_flags_vec(const __m128i fdir_id0_3)
 {
 #define FDID_MIS_MAGIC 0xFFFFFFFF
-	RTE_BUILD_BUG_ON(PKT_RX_FDIR != (1 << 2));
-	RTE_BUILD_BUG_ON(PKT_RX_FDIR_ID != (1 << 13));
-	const __m128i pkt_fdir_bit = _mm_set1_epi32(PKT_RX_FDIR |
-			PKT_RX_FDIR_ID);
+	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR != (1 << 2));
+	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << 13));
+	const __m128i pkt_fdir_bit = _mm_set1_epi32(RTE_MBUF_F_RX_FDIR |
+			RTE_MBUF_F_RX_FDIR_ID);
 	/* desc->flow_id field == 0xFFFFFFFF means fdir mismatch */
 	const __m128i fdir_mis_mask = _mm_set1_epi32(FDID_MIS_MAGIC);
 	__m128i fdir_mask = _mm_cmpeq_epi32(fdir_id0_3,
@@ -225,43 +225,43 @@ flex_desc_to_olflags_v(struct iavf_rx_queue *rxq, __m128i descs[4],
 	const __m128i desc_mask = _mm_set_epi32(0x3070, 0x3070,
 						0x3070, 0x3070);
 
-	const __m128i cksum_mask = _mm_set_epi32(PKT_RX_IP_CKSUM_MASK |
-						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
-						 PKT_RX_IP_CKSUM_MASK |
-						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
-						 PKT_RX_IP_CKSUM_MASK |
-						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
-						 PKT_RX_IP_CKSUM_MASK |
-						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD);
+	const __m128i cksum_mask = _mm_set_epi32(RTE_MBUF_F_RX_IP_CKSUM_MASK |
+						 RTE_MBUF_F_RX_L4_CKSUM_MASK |
+						 RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+						 RTE_MBUF_F_RX_IP_CKSUM_MASK |
+						 RTE_MBUF_F_RX_L4_CKSUM_MASK |
+						 RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+						 RTE_MBUF_F_RX_IP_CKSUM_MASK |
+						 RTE_MBUF_F_RX_L4_CKSUM_MASK |
+						 RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+						 RTE_MBUF_F_RX_IP_CKSUM_MASK |
+						 RTE_MBUF_F_RX_L4_CKSUM_MASK |
+						 RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD);
 
 	/* map the checksum, rss and vlan fields to the checksum, rss
 	 * and vlan flag
 	 */
 	const __m128i cksum_flags = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
 			/* shift right 1 bit to make sure it not exceed 255 */
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
-			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
-			 PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
-			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
-			 PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_GOOD) >> 1);
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			 RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			 RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_GOOD |
+			 RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_GOOD |
+			 RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_BAD | RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_BAD | RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1);
 
 	const __m128i rss_vlan_flags = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
 			0, 0, 0, 0,
-			PKT_RX_RSS_HASH | PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED,
-			PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED,
-			PKT_RX_RSS_HASH, 0);
+			RTE_MBUF_F_RX_RSS_HASH | RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED,
+			RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED,
+			RTE_MBUF_F_RX_RSS_HASH, 0);
 
 	/* merge 4 descriptors */
 	flags = _mm_unpackhi_epi32(descs[0], descs[1]);
@@ -363,10 +363,12 @@ static inline void
 flex_desc_to_ptype_v(__m128i descs[4], struct rte_mbuf **rx_pkts,
 		     const uint32_t *type_table)
 {
-	const __m128i ptype_mask = _mm_set_epi16(0, IAVF_RX_FLEX_DESC_PTYPE_M,
-						 0, IAVF_RX_FLEX_DESC_PTYPE_M,
-						 0, IAVF_RX_FLEX_DESC_PTYPE_M,
-						 0, IAVF_RX_FLEX_DESC_PTYPE_M);
+	const __m128i ptype_mask =
+			_mm_set_epi16(IAVF_RX_FLEX_DESC_PTYPE_M, 0x0,
+				IAVF_RX_FLEX_DESC_PTYPE_M, 0x0,
+				IAVF_RX_FLEX_DESC_PTYPE_M, 0x0,
+				IAVF_RX_FLEX_DESC_PTYPE_M, 0x0);
+
 	__m128i ptype_01 = _mm_unpacklo_epi32(descs[0], descs[1]);
 	__m128i ptype_23 = _mm_unpacklo_epi32(descs[2], descs[3]);
 	__m128i ptype_all = _mm_unpacklo_epi64(ptype_01, ptype_23);
@@ -494,7 +496,7 @@ _recv_raw_pkts_vec(struct iavf_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		/* B.1 load 2 (64 bit) or 4 (32 bit) mbuf points */
 		mbp1 = _mm_loadu_si128((__m128i *)&sw_ring[pos]);
 		/* Read desc statuses backwards to avoid race condition */
-		/* A.1 load 4 pkts desc */
+		/* A.1 load desc[3] */
 		descs[3] = _mm_loadu_si128((__m128i *)(rxdp + 3));
 		rte_compiler_barrier();
 
@@ -506,9 +508,9 @@ _recv_raw_pkts_vec(struct iavf_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		mbp2 = _mm_loadu_si128((__m128i *)&sw_ring[pos + 2]);
 #endif
 
+		/* A.1 load desc[2-0] */
 		descs[2] = _mm_loadu_si128((__m128i *)(rxdp + 2));
 		rte_compiler_barrier();
-		/* B.1 load 2 mbuf point */
 		descs[1] = _mm_loadu_si128((__m128i *)(rxdp + 1));
 		rte_compiler_barrier();
 		descs[0] = _mm_loadu_si128((__m128i *)(rxdp));
@@ -590,7 +592,7 @@ _recv_raw_pkts_vec(struct iavf_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 			/* and with mask to extract bits, flipping 1-0 */
 			__m128i eop_bits = _mm_andnot_si128(staterr, eop_check);
 			/* the staterr values are not in order, as the count
-			 * count of dd bits doesn't care. However, for end of
+			 * of dd bits doesn't care. However, for end of
 			 * packet tracking, we do care, so shuffle. This also
 			 * compresses the 32-bit values to 8-bit
 			 */
@@ -611,7 +613,7 @@ _recv_raw_pkts_vec(struct iavf_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		_mm_storeu_si128((void *)&rx_pkts[pos]->rx_descriptor_fields1,
 				 pkt_mb1);
 		desc_to_ptype_v(descs, &rx_pkts[pos], ptype_tbl);
-		/* C.4 calc avaialbe number of desc */
+		/* C.4 calc available number of desc */
 		var = __builtin_popcountll(_mm_cvtsi128_si64(staterr));
 		nb_pkts_recd += var;
 		if (likely(var != IAVF_VPMD_DESCS_PER_LOOP))
@@ -644,7 +646,9 @@ _recv_raw_pkts_vec_flex_rxd(struct iavf_rx_queue *rxq,
 	uint16_t nb_pkts_recd;
 	int pos;
 	uint64_t var;
-	const uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+	struct iavf_adapter *adapter = rxq->vsi->adapter;
+	uint64_t offloads = adapter->dev_data->dev_conf.rxmode.offloads;
+	const uint32_t *ptype_tbl = adapter->ptype_tbl;
 	__m128i crc_adjust = _mm_set_epi16
 				(0, 0, 0,       /* ignore non-length fields */
 				 -rxq->crc_len, /* sub crc on data_len */
@@ -755,7 +759,7 @@ _recv_raw_pkts_vec_flex_rxd(struct iavf_rx_queue *rxq,
 		/* B.1 load 2 (64 bit) or 4 (32 bit) mbuf points */
 		mbp1 = _mm_loadu_si128((__m128i *)&sw_ring[pos]);
 		/* Read desc statuses backwards to avoid race condition */
-		/* A.1 load 4 pkts desc */
+		/* A.1 load desc[3] */
 		descs[3] = _mm_loadu_si128((__m128i *)(rxdp + 3));
 		rte_compiler_barrier();
 
@@ -767,9 +771,9 @@ _recv_raw_pkts_vec_flex_rxd(struct iavf_rx_queue *rxq,
 		mbp2 = _mm_loadu_si128((__m128i *)&sw_ring[pos + 2]);
 #endif
 
+		/* A.1 load desc[2-0] */
 		descs[2] = _mm_loadu_si128((__m128i *)(rxdp + 2));
 		rte_compiler_barrier();
-		/* B.1 load 2 mbuf point */
 		descs[1] = _mm_loadu_si128((__m128i *)(rxdp + 1));
 		rte_compiler_barrier();
 		descs[0] = _mm_loadu_si128((__m128i *)(rxdp));
@@ -817,8 +821,7 @@ _recv_raw_pkts_vec_flex_rxd(struct iavf_rx_queue *rxq,
 		 * needs to load 2nd 16B of each desc for RSS hash parsing,
 		 * will cause performance drop to get into this context.
 		 */
-		if (rxq->vsi->adapter->eth_dev->data->dev_conf.rxmode.offloads &
-				DEV_RX_OFFLOAD_RSS_HASH) {
+		if (offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH) {
 			/* load bottom half of every 32B desc */
 			const __m128i raw_desc_bh3 =
 				_mm_load_si128
@@ -884,7 +887,7 @@ _recv_raw_pkts_vec_flex_rxd(struct iavf_rx_queue *rxq,
 			/* and with mask to extract bits, flipping 1-0 */
 			__m128i eop_bits = _mm_andnot_si128(staterr, eop_check);
 			/* the staterr values are not in order, as the count
-			 * count of dd bits doesn't care. However, for end of
+			 * of dd bits doesn't care. However, for end of
 			 * packet tracking, we do care, so shuffle. This also
 			 * compresses the 32-bit values to 8-bit
 			 */
@@ -1117,9 +1120,6 @@ iavf_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint64_t rs = IAVF_TX_DESC_CMD_RS | flags;
 	int i;
 
-	/* cross rx_thresh boundary is not allowed */
-	nb_pkts = RTE_MIN(nb_pkts, txq->rs_thresh);
-
 	if (txq->nb_free < txq->free_thresh)
 		iavf_tx_free_bufs(txq);
 
@@ -1171,7 +1171,7 @@ iavf_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	PMD_TX_LOG(DEBUG, "port_id=%u queue_id=%u tx_tail=%u nb_pkts=%u",
 		   txq->port_id, txq->queue_id, tx_id, nb_pkts);
 
-	IAVF_PCI_REG_WRITE(txq->qtx_tail, txq->tx_tail);
+	IAVF_PCI_REG_WC_WRITE(txq->qtx_tail, txq->tx_tail);
 
 	return nb_pkts;
 }
@@ -1186,6 +1186,7 @@ iavf_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	while (nb_pkts) {
 		uint16_t ret, num;
 
+		/* cross rs_thresh boundary is not allowed */
 		num = (uint16_t)RTE_MIN(nb_pkts, txq->rs_thresh);
 		ret = iavf_xmit_fixed_burst_vec(tx_queue, &tx_pkts[nb_tx], num);
 		nb_tx += ret;

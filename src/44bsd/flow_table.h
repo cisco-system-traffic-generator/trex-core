@@ -27,6 +27,9 @@ limitations under the License.
 #include "dpdk_port_map.h"
 #include "trex_global.h"
 
+#include "tcpip.h"
+#include "os_time.h"
+
 struct flow_key_t {
   bool operator==(const flow_key_t &k) const {
     return as_uint64[0] == k.as_uint64[0] && as_uint64[1] == k.as_uint64[1];
@@ -193,6 +196,9 @@ struct  CFlowTableIntStats {
     uint32_t        m_rss_redirect_rx;              // Incoming redirected packets
     uint32_t        m_rss_redirect_tx;              // Outgoing Redirected packets 
     uint32_t        m_rss_redirect_drops;           // How many packets were dropped cause of unsuccessful RSS redirect?
+    uint32_t        m_rss_redirect_queue_full;      // How many times the tx queue was full while trying to insert new packets.
+    uint32_t        m_ignored_macs;                 //packets with source mac that was set to be ignored
+    uint32_t        m_ignored_ips;                  //packets with source IP that was set to be ignored
 };
 
 class  CSttFlowTableStats {
@@ -210,6 +216,53 @@ typedef enum { tPROCESS=0x12,
                tREDIRECT_RX_CORE,
                tEOP 
                } tcp_rx_pkt_action_t;
+
+
+class CTcpRxOffloadBuf {
+    friend class CTcpRxOffload;
+
+    struct rte_mbuf*    m_mbuf;
+    TCPHeader*          m_lpTcp;
+    CFlowKeyFullTuple   m_ftuple;
+
+    CTcpFlow*           m_flow;
+
+public:
+    void set(CTcpFlow*, struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
+    void clear_flow();
+    void reset();
+    bool is_active() const { return m_flow != nullptr; }
+    CTcpFlow* get_flow() const { return m_flow; }
+
+    void update_segsz();
+    void update_mbuf(struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
+    bool reassemble_mbuf(struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&);
+};
+
+
+#define NUM_RX_OFFLOAD  0x100
+
+typedef std::function<void(CTcpPerThreadCtx*, CTcpFlow*, struct rte_mbuf*, TCPHeader*, CFlowKeyFullTuple&)> rx_offload_cb_t;
+
+class CTcpRxOffload {
+    uint32_t        m_size;
+    CTcpRxOffloadBuf* m_bufs;
+    uint32_t        m_head;
+    uint32_t        m_tail;
+
+    rx_offload_cb_t m_cb;
+
+public:
+    void Create(rx_offload_cb_t);
+    void Delete();
+
+    CTcpRxOffloadBuf* new_buf();
+
+    CTcpRxOffloadBuf* find_buf(CTcpFlow* flow);
+    bool append_buf(CTcpFlow* flow, struct rte_mbuf* mbuf, TCPHeader* lpTcp, CFlowKeyFullTuple& ftuple);
+    void flush_bufs(CTcpPerThreadCtx * ctx);
+    bool is_empty();
+};
 
 
 class CFlowTable {
@@ -241,7 +294,7 @@ public:
                         tcp_rx_pkt_action_t & action,
                         tvpid_t port_id=0);
 
-      bool rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
+      COLD_FUNC bool rx_handle_packet_tcp_no_flow(CTcpPerThreadCtx * ctx,
                                         struct rte_mbuf * mbuf,
                                         flow_hash_ent_t * lpflow,
                                         CSimplePacketParser & parser,
@@ -257,6 +310,9 @@ public:
                               UDPHeader    * lpUDP,
                               CFlowKeyFullTuple &ftuple);
 
+      bool ignore_packet(CTcpPerThreadCtx * ctx,
+                         struct rte_mbuf * mbuf,
+                         CFlowKeyFullTuple &ftuple);
 
       bool rx_handle_packet_udp_no_flow(CTcpPerThreadCtx * ctx,
                                         struct rte_mbuf * mbuf,
@@ -267,6 +323,10 @@ public:
                                         uint32_t  hash,
                                         tvpid_t port_id
                                         );
+
+      bool rx_handle_stateless_packet(CTcpPerThreadCtx * ctx,
+                                      struct rte_mbuf * mbuf,
+                                      tvpid_t port_id);
 
       bool rx_handle_packet(CTcpPerThreadCtx * ctx,
                             struct rte_mbuf * mbuf,
@@ -281,7 +341,8 @@ public:
                         CFlowBase  * flow,
                         bool remove_from_ft);
 
-      bool update_new_template(CTcpPerThreadCtx * ctx,
+      COLD_FUNC bool update_new_template(CTcpPerThreadCtx * ctx,
+                              struct rte_mbuf * mbuf,
                               CTcpFlow *  flow,
                               TCPHeader    * lpTcp,
                               CFlowKeyFullTuple &ftuple);
@@ -291,6 +352,14 @@ public:
                               struct rte_mbuf * mbuf,
                               TCPHeader    * lpTcp,
                               CFlowKeyFullTuple &ftuple);
+
+      bool process_software_lro(CTcpPerThreadCtx * ctx,
+                              CTcpFlow *  flow,
+                              struct rte_mbuf * mbuf,
+                              TCPHeader    * lpTcp,
+                              CFlowKeyFullTuple &ftuple);
+
+      void flush_software_lro(CTcpPerThreadCtx * ctx);
 
       void dump(FILE *fd);
 
@@ -327,6 +396,10 @@ public:
           m_sts.m_sts.m_rss_redirect_drops += count;
       }
 
+      void inc_rss_redirect_queue_full(uint32_t count) {
+          m_sts.m_sts.m_rss_redirect_queue_full += count;
+      }
+
       bool flow_table_resource_ok(){
           return(m_ft.get_count() < m_ft.get_hash_size()?true:false);
       }
@@ -337,7 +410,7 @@ public:
                       uint32_t dst,
                       uint16_t src_port,
                       uint16_t dst_port,
-                      uint16_t vlan,
+                      tunnel_cfg_data_t tunnel_data,
                       bool is_ipv6,
                       TCPHeader    * lpTcp,
                       uint8_t *   pkt,
@@ -351,7 +424,7 @@ public:
                           uint32_t dst,
                           uint16_t src_port,
                           uint16_t dst_port,
-                          uint16_t vlan,
+                          tunnel_cfg_data_t tunnel_data,
                           bool is_ipv6,
                           void *tun_handle,
                           uint16_t tg_id=0,
@@ -362,7 +435,7 @@ public:
                               uint32_t dst,
                               uint16_t src_port,
                               uint16_t dst_port,
-                              uint16_t vlan,
+                             tunnel_cfg_data_t tunnel_data,
                               bool is_ipv6,
                               void *tun_handle,
                               bool client,
@@ -400,6 +473,7 @@ public:
 
     service_status m_service_status;
     uint8_t        m_service_filtered_mask;
+    uint8_t        m_black_list;
 
 private:
     bool            m_verbose;
@@ -408,6 +482,8 @@ private:
 
     CEmulAppApi    *   m_tcp_api;
     CEmulAppApi    *   m_udp_api;
+
+    CTcpRxOffload*  m_tcp_lro;
 };
 
 

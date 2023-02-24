@@ -26,6 +26,96 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 3.02 ==
+* minor change, build issue with 3.01 for mlx5 driver 
+
+== Release 3.01 ==
+
+* DPDK 
+** mlx5 upgrade to new ofed 
+** XL710 bonding fix 
+
+== Release 3.00 ==
+
+* EMU 
+** Crash in case of bad IGMPv3 packet
+** Update IPfix plugin 
+
+* DPDK : Some driver patch 
+
+== Release 2.99 ==
+
+* E810 add drop mode, latency stream filter does not work yet. 
+* i40evf another fix 
+* EMU add client mode for IPFIX plugin 
+
+== Release 2.98 ==
+
+* Upgrade to DPDK 22.03 
+** i40evf was removed by DPDK but due to an issue with the general driver (iavf) it was return
+** E810 - still not supported 
+* A new and faster way to capture traffic (to file)
+* ASTF
+** Get statistics per flow (in case of low number of active flows)
+* GTPU - minor bud fix 
+
+== Release 2.97 ==
+
+* ASTF 
+** Bug fixes TCP 
+** Add software LRU for better performance 
+** Bigger reassembly window with new tunable 
+* GTPU
+** Topology manager 
+** Add latency support 
+** Add mask per client/server 
+* E810 fix truncate packet issue
+* Add generic black list per MAC/IP in case of EMU usage 
+
+== Release 2.96 ==
+
+* ASTF
+** Upgrade TCP logic 
+*** Major change, TCP logic was upgrade to latest freebsd version (1/1/2022) by @jsmoon and includes SACK and new congestion control algorithms (cubic/newreno) 
+*** The new TCP logic has some effect on performance (usually slower, depends on the scenario)
+*** The behavior in case of drop scenario expected to be better (cubic)
+*** The pattern of packets for the same profile is not backward compatible (e.g. packets is larger due to more tcp options for example SACK), so old benchmark with the same profile might need to be tuned
+* STL 
+** Tagged Packet Group (TPG) -- add dynamic command to update mapping/clear specific tag API for debugging 
+
+== Release 2.95 ==
+
+* STL
+** Fix mlx5 driver in software mode to support TPG without spurious drop packet
+* EMU upgrade to latest version 
+
+== Release 2.94 ==
+
+* STL 
+** Add Tagged Packet Group (TPG) feature. It works in software mode and it is much more advanced than flow-stats (can support multicast counting). For more detail see Stateless manual. 
+
+* ASTF
+** fix default mss value for eflow profiles
+
+* General 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/746[746]
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/640[640] 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/789[789] 
+** fix link:https://github.com/cisco-system-traffic-generator/trex-core/issues/779[779] 
+** fix EMU ZMQ channel starvation 
+
+== Release 2.93 ==
+
+* ASTF 
+** GTPU hardening - see in manual for more info 
+*** More than 2 ports support
+*** Support loopback mode for testing 
+*** Support only software mode (HW RSS is not longer supported)
+*** src port is part of the GTPU tunnel, need to configure in RPC 
+
+* DPDK 
+** mlx5 add timestamp format support to DevX
+
 == Release 2.92 ==
 
 * EMU

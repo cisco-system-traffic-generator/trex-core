@@ -560,6 +560,19 @@ While this allows for counting of full 40G line rate streams, this does not allo
 count available), because the hardware on these NICs lacks this support.
 Starting from version 2.21, new ``--no-hw-flow-stat'' flag will make x710 card behave like other cards. 
 
+===== TPG packets are dropping at low rate
+
+The NIC or software redirecting rings are full.
+Are you sending a burst of packets at the same time? Please increase the number of rx descriptors to be bigger than the burst size,
+or introduce `isg` to avoid the burst.
+
+===== First TPG packets are dropping
+
+You should attempt to warmup the counters using a small rate stream in the beginning. We allocate the counters lazily, and do so on the first
+packet received for each counter. Hence the price to pay for the first packet is higher than the rest of packets. Also please make sure you have waited enough time for the Rx
+to parse the packets before querying for the packets as explained in Tagged Packet Group section in stateless documentation.
+
+
 === Bird Integration
 
 ==== What is BIRD?

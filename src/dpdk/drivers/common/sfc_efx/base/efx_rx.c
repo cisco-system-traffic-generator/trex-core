@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2007-2019 Solarflare Communications Inc.
  */
 
@@ -41,12 +41,12 @@ siena_rx_scale_key_set(
 	__in_ecount(n)	uint8_t *key,
 	__in		size_t n);
 
-static	__checkReturn	efx_rc_t
+static	__checkReturn		efx_rc_t
 siena_rx_scale_tbl_set(
-	__in		efx_nic_t *enp,
-	__in		uint32_t rss_context,
-	__in_ecount(n)	unsigned int *table,
-	__in		size_t n);
+	__in			efx_nic_t *enp,
+	__in			uint32_t rss_context,
+	__in_ecount(nentries)	unsigned int *table,
+	__in			size_t nentries);
 
 static	__checkReturn	uint32_t
 siena_rx_prefix_hash(
@@ -504,6 +504,7 @@ efx_rx_scale_context_alloc(
 	__in		uint32_t num_queues,
 	__out		uint32_t *rss_contextp)
 {
+	uint32_t table_nentries = EFX_RSS_TBL_SIZE;
 	const efx_rx_ops_t *erxop = enp->en_erxop;
 	efx_rc_t rc;
 
@@ -514,8 +515,47 @@ efx_rx_scale_context_alloc(
 		rc = ENOTSUP;
 		goto fail1;
 	}
+
+	if (type == EFX_RX_SCALE_EVEN_SPREAD)
+		table_nentries = 0;
+
+	if ((rc = erxop->erxo_scale_context_alloc(enp, type, num_queues,
+			    table_nentries, rss_contextp)) != 0) {
+		goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+#endif	/* EFSYS_OPT_RX_SCALE */
+
+#if EFSYS_OPT_RX_SCALE
+	__checkReturn	efx_rc_t
+efx_rx_scale_context_alloc_v2(
+	__in		efx_nic_t *enp,
+	__in		efx_rx_scale_context_type_t type,
+	__in		uint32_t num_queues,
+	__in		uint32_t table_nentries,
+	__out		uint32_t *rss_contextp)
+{
+	const efx_rx_ops_t *erxop = enp->en_erxop;
+	efx_rc_t rc;
+
+	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
+	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_RX);
+
+	if (erxop->erxo_scale_context_alloc == NULL) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
 	if ((rc = erxop->erxo_scale_context_alloc(enp, type,
-			    num_queues, rss_contextp)) != 0) {
+			    num_queues, table_nentries, rss_contextp)) != 0) {
 		goto fail2;
 	}
 
@@ -690,12 +730,12 @@ fail1:
 #endif	/* EFSYS_OPT_RX_SCALE */
 
 #if EFSYS_OPT_RX_SCALE
-	__checkReturn	efx_rc_t
+	__checkReturn		efx_rc_t
 efx_rx_scale_tbl_set(
-	__in		efx_nic_t *enp,
-	__in		uint32_t rss_context,
-	__in_ecount(n)	unsigned int *table,
-	__in		size_t n)
+	__in			efx_nic_t *enp,
+	__in			uint32_t rss_context,
+	__in_ecount(nentries)	unsigned int *table,
+	__in			size_t nentries)
 {
 	const efx_rx_ops_t *erxop = enp->en_erxop;
 	efx_rc_t rc;
@@ -703,7 +743,8 @@ efx_rx_scale_tbl_set(
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_RX);
 
-	if ((rc = erxop->erxo_scale_tbl_set(enp, rss_context, table, n)) != 0)
+	if ((rc = erxop->erxo_scale_tbl_set(enp, rss_context, table,
+		    nentries)) != 0)
 		goto fail1;
 
 	return (0);
@@ -1419,12 +1460,12 @@ fail1:
 #endif
 
 #if EFSYS_OPT_RX_SCALE
-static	__checkReturn	efx_rc_t
+static	__checkReturn		efx_rc_t
 siena_rx_scale_tbl_set(
-	__in		efx_nic_t *enp,
-	__in		uint32_t rss_context,
-	__in_ecount(n)	unsigned int *table,
-	__in		size_t n)
+	__in			efx_nic_t *enp,
+	__in			uint32_t rss_context,
+	__in_ecount(nentries)	unsigned int *table,
+	__in			size_t nentries)
 {
 	efx_oword_t oword;
 	int index;
@@ -1438,7 +1479,7 @@ siena_rx_scale_tbl_set(
 		goto fail1;
 	}
 
-	if (n > FR_BZ_RX_INDIRECTION_TBL_ROWS) {
+	if (nentries > FR_BZ_RX_INDIRECTION_TBL_ROWS) {
 		rc = EINVAL;
 		goto fail2;
 	}
@@ -1447,7 +1488,7 @@ siena_rx_scale_tbl_set(
 		uint32_t byte;
 
 		/* Calculate the entry to place in the table */
-		byte = (n > 0) ? (uint32_t)table[index % n] : 0;
+		byte = (nentries > 0) ? (uint32_t)table[index % nentries] : 0;
 
 		EFSYS_PROBE2(table, int, index, uint32_t, byte);
 
@@ -1462,7 +1503,7 @@ siena_rx_scale_tbl_set(
 		uint32_t byte;
 
 		/* Determine if we're starting a new batch */
-		byte = (n > 0) ? (uint32_t)table[index % n] : 0;
+		byte = (nentries > 0) ? (uint32_t)table[index % nentries] : 0;
 
 		/* Read the table */
 		EFX_BAR_TBL_READO(enp, FR_BZ_RX_INDIRECTION_TBL,
@@ -1743,14 +1784,20 @@ siena_rx_qcreate(
 		goto fail2;
 	}
 
-	if (flags & EFX_RXQ_FLAG_SCATTER) {
 #if EFSYS_OPT_RX_SCATTER
-		jumbo = B_TRUE;
+#define SUPPORTED_RXQ_FLAGS EFX_RXQ_FLAG_SCATTER
 #else
+#define SUPPORTED_RXQ_FLAGS EFX_RXQ_FLAG_NONE
+#endif
+	/* Reject flags for unsupported queue features */
+	if ((flags & ~SUPPORTED_RXQ_FLAGS) != 0) {
 		rc = EINVAL;
 		goto fail3;
-#endif	/* EFSYS_OPT_RX_SCATTER */
 	}
+#undef SUPPORTED_RXQ_FLAGS
+
+	if (flags & EFX_RXQ_FLAG_SCATTER)
+		jumbo = B_TRUE;
 
 	/* Set up the new descriptor queue */
 	EFX_POPULATE_OWORD_7(oword,
@@ -1769,10 +1816,8 @@ siena_rx_qcreate(
 
 	return (0);
 
-#if !EFSYS_OPT_RX_SCATTER
 fail3:
 	EFSYS_PROBE(fail3);
-#endif
 fail2:
 	EFSYS_PROBE(fail2);
 fail1:

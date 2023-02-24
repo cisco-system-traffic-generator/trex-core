@@ -379,8 +379,18 @@ public:
         }
     }
 
-    bool is_latency_stream() const {
+    inline bool is_latency_stream() const {
         return (m_rx_check.m_enabled && (m_rx_check.m_rule_type == TrexPlatformApi::IF_STAT_PAYLOAD));
+    }
+
+    /**
+     * Indicate if a stream is a Tagged Packet Group stream.
+     *
+     * @return bool
+     *   True iff the stream is a TPG stream.
+     **/
+    inline bool is_tpg_stream() const {
+        return (m_rx_check.m_enabled && (m_rx_check.m_rule_type) == TrexPlatformApi::IF_STAT_TPG_PAYLOAD);
     }
 
     bool need_flow_stats() const {
@@ -391,14 +401,31 @@ public:
         return get_override_dst_mac_mode() == TrexStream::stPKT;
     }
 
-    bool is_fixed_rate_stream() const {
+    /**
+     * Indicate if the stream has a fixed rate. For example Latency streams have a fixed rate.
+     *
+     * @return bool
+     *   True iff the stream has fixed rate.
+     **/
+    inline bool is_fixed_rate_stream() const {
         return is_latency_stream();
+    }
+
+    /**
+     * Does the stream need sequencing? For example, latency and Tagged Packet Group streams
+     * have sequence numbers in the packet payload.
+     *
+     * @return bool
+     *   True iff the stream needs sequencing.
+     **/
+    inline bool is_sequenced_stream() const {
+        return is_latency_stream() || is_tpg_stream();
     }
 
     /* can this stream be split ? */
     bool is_splitable(uint8_t dp_core_count) const {
 
-        if (is_latency_stream() || m_core_id_specified) {
+        if (is_sequenced_stream() || m_core_id_specified) {
             // because of sequence number, can't split streams with payload rule to different cores
             return false;
         }

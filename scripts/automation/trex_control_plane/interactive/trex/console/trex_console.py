@@ -25,7 +25,6 @@ import cmd
 import json
 import argparse
 import random
-import readline
 import string
 import os
 import sys
@@ -35,6 +34,13 @@ from functools import wraps, partial
 import threading
 import atexit
 import tempfile
+
+
+try:
+    import gnureadline as readline
+except ImportError:
+    import readline
+
 
 if __package__ == None:
     print("TRex console must be launched as a module")
@@ -534,11 +540,11 @@ class TRexConsole(TRexGeneralCmd):
 
     ############### start
 
-    def complete_start(self, text, line, begidx, endidx):
+    def complete_start(self, text, line, begidx, endidx, parse_argument=parsing_opts.FILE_PATH):
         s = line.split()
         l = len(s)
 
-        file_flags = parsing_opts.get_flags(parsing_opts.FILE_PATH)
+        file_flags = parsing_opts.get_flags(parse_argument)
 
         if (l > 1) and (s[l - 1] in file_flags):
             return TRexConsole.tree_autocomplete("")
@@ -549,9 +555,12 @@ class TRexConsole(TRexGeneralCmd):
     complete_push = complete_start
     complete_hello = complete_start
 
-
     def complete_profile(self, text, line, begidx, endidx):
         return self.complete_start(text,line, begidx, endidx)
+
+    # Tagged Packet Group
+    def complete_tpg_enable(self, text, line, begidx, endidx):
+        return self.complete_start(text, line, begidx, endidx, parsing_opts.TPG_TAGS_CONF)
 
     # tui
     @verify_connected
@@ -805,6 +814,11 @@ def setParserOptions():
     parser.add_argument("--emu-server",
                         help="Emulation client server, default is TRex server address")
 
+    parser.add_argument("--emu-server-port", 
+                        help = "Emu server port [default is 4510]\n",
+                        default = 4510,
+                        type = int)
+
     parser.add_argument("--emu-only-server",
                         nargs = "?",
                         const = "localhost",
@@ -903,6 +917,7 @@ def run_console(client, logger, options):
 
         # run emu if needed
         console.emu_server = options.emu_server
+        console.emu_server_port = options.emu_server_port
         if options.emu:
             console.do_plugins('load emu')
 

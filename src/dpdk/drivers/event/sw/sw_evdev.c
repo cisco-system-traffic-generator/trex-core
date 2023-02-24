@@ -526,8 +526,7 @@ sw_dev_configure(const struct rte_eventdev *dev)
 	 * IQ chunk references were cleaned out of the QIDs in sw_stop(), and
 	 * will be reinitialized in sw_start().
 	 */
-	if (sw->chunks)
-		rte_free(sw->chunks);
+	rte_free(sw->chunks);
 
 	sw->chunks = rte_malloc_socket(NULL,
 				       sizeof(struct sw_queue_chunk) *
@@ -561,10 +560,9 @@ sw_eth_rx_adapter_caps_get(const struct rte_eventdev *dev,
 }
 
 static int
-sw_timer_adapter_caps_get(const struct rte_eventdev *dev,
-			  uint64_t flags,
+sw_timer_adapter_caps_get(const struct rte_eventdev *dev, uint64_t flags,
 			  uint32_t *caps,
-			  const struct rte_event_timer_adapter_ops **ops)
+			  const struct event_timer_adapter_ops **ops)
 {
 	RTE_SET_USED(dev);
 	RTE_SET_USED(flags);
@@ -610,7 +608,8 @@ sw_info_get(struct rte_eventdev *dev, struct rte_event_dev_info *info)
 				RTE_EVENT_DEV_CAP_RUNTIME_PORT_LINK |
 				RTE_EVENT_DEV_CAP_MULTIPLE_QUEUE_PORT |
 				RTE_EVENT_DEV_CAP_NONSEQ_MODE |
-				RTE_EVENT_DEV_CAP_CARRY_FLOW_ID),
+				RTE_EVENT_DEV_CAP_CARRY_FLOW_ID |
+				RTE_EVENT_DEV_CAP_MAINTENANCE_FREE),
 	};
 
 	*info = evdev_sw_info;
@@ -712,7 +711,6 @@ sw_dump(struct rte_eventdev *dev, FILE *f)
 			continue;
 		}
 		int affinities_per_port[SW_PORTS_MAX] = {0};
-		uint32_t inflights = 0;
 
 		fprintf(f, "  Queue %d (%s)\n", i, q_type_strings[qid->type]);
 		fprintf(f, "\trx   %"PRIu64"\tdrop %"PRIu64"\ttx   %"PRIu64"\n",
@@ -733,7 +731,6 @@ sw_dump(struct rte_eventdev *dev, FILE *f)
 		for (flow = 0; flow < RTE_DIM(qid->fids); flow++)
 			if (qid->fids[flow].cq != -1) {
 				affinities_per_port[qid->fids[flow].cq]++;
-				inflights += qid->fids[flow].pcount;
 			}
 
 		uint32_t port;
@@ -945,7 +942,7 @@ static int32_t sw_sched_service_func(void *args)
 static int
 sw_probe(struct rte_vdev_device *vdev)
 {
-	static struct rte_eventdev_ops evdev_sw_ops = {
+	static struct eventdev_ops evdev_sw_ops = {
 			.dev_configure = sw_dev_configure,
 			.dev_infos_get = sw_info_get,
 			.dev_close = sw_close,
@@ -1124,6 +1121,8 @@ sw_probe(struct rte_vdev_device *vdev)
 	dev->data->service_inited = 1;
 	dev->data->service_id = sw->service_id;
 
+	event_dev_probing_finish(dev);
+
 	return 0;
 }
 
@@ -1151,4 +1150,4 @@ RTE_PMD_REGISTER_PARAM_STRING(event_sw, NUMA_NODE_ARG "=<int> "
 		SCHED_QUANTA_ARG "=<int>" CREDIT_QUANTA_ARG "=<int>"
 		MIN_BURST_SIZE_ARG "=<int>" DEQ_BURST_SIZE_ARG "=<int>"
 		REFIL_ONCE_ARG "=<int>");
-RTE_LOG_REGISTER(eventdev_sw_log_level, pmd.event.sw, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(eventdev_sw_log_level, NOTICE);

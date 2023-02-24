@@ -104,6 +104,8 @@ class ASTFVLAN_Test(CASTFGeneral_Test):
 
 
     def test_latency_vlan(self):
+        if CTRexScenario.setup_name in ['trex07']:
+            self.skip('Skipping trex07')
         if CTRexScenario.setup_name in ['trex24']:
             self.skip('Skip frpm dpdk virtio stop supporting vlan')
 
