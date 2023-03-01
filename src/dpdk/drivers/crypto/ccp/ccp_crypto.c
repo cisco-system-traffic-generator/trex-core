@@ -20,7 +20,7 @@
 #include <rte_memory.h>
 #include <rte_spinlock.h>
 #include <rte_string_fns.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 
 #include "ccp_dev.h"
 #include "ccp_crypto.h"
@@ -1299,7 +1299,7 @@ ccp_auth_slot(struct ccp_session *session)
 	case CCP_AUTH_ALGO_SHA512_HMAC:
 		/**
 		 * 1. Load PHash1 = H(k ^ ipad); to LSB
-		 * 2. generate IHash = H(hash on meassage with PHash1
+		 * 2. generate IHash = H(hash on message with PHash1
 		 * as init values);
 		 * 3. Retrieve IHash 2 slots for 384/512
 		 * 4. Load Phash2 = H(k ^ opad); to LSB

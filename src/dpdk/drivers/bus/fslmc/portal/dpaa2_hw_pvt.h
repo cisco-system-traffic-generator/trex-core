@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
- *   Copyright 2016-2020 NXP
+ *   Copyright 2016-2021 NXP
  *
  */
 
@@ -116,7 +116,7 @@ struct dpaa2_dpio_dev {
 	uintptr_t qbman_portal_ci_paddr;
 		/**< Physical address of Cache Inhibit Area */
 	uintptr_t ci_size; /**< Size of the CI region */
-	struct rte_intr_handle intr_handle; /* Interrupt related info */
+	struct rte_intr_handle *intr_handle; /* Interrupt related info */
 	int32_t	epoll_fd; /**< File descriptor created for interrupt polling */
 	int32_t hw_id; /**< An unique ID of this DPIO device instance */
 	struct dpaa2_portal_dqrr dpaa2_held_bufs;
@@ -156,7 +156,7 @@ struct dpaa2_queue {
 		struct rte_cryptodev_data *crypto_data;
 	};
 	uint32_t fqid;		/*!< Unique ID of this queue */
-	uint16_t flow_id;	/*!< To be used by DPAA2 frmework */
+	uint16_t flow_id;	/*!< To be used by DPAA2 framework */
 	uint8_t tc_index;	/*!< traffic class identifier */
 	uint8_t cgid;		/*! < Congestion Group id for this queue */
 	uint64_t rx_pkts;
@@ -176,6 +176,7 @@ struct dpaa2_queue {
 	uint16_t nb_desc;
 	uint16_t resv;
 	uint64_t offloads;
+	uint64_t lpbk_cntx;
 } __rte_cache_aligned;
 
 struct swp_active_dqs {
@@ -186,6 +187,18 @@ struct swp_active_dqs {
 #define NUM_MAX_SWP 64
 
 extern struct swp_active_dqs rte_global_active_dqs_list[NUM_MAX_SWP];
+
+/**
+ * A structure describing a DPAA2 container.
+ */
+struct dpaa2_dprc_dev {
+	TAILQ_ENTRY(dpaa2_dprc_dev) next;
+		/**< Pointer to Next device instance */
+	const char *name;
+	struct fsl_mc_io dprc;  /** handle to DPRC portal object */
+	uint16_t token;
+	uint32_t dprc_id; /*HW ID for DPRC object */
+};
 
 struct dpaa2_dpci_dev {
 	TAILQ_ENTRY(dpaa2_dpci_dev) next;
@@ -314,6 +327,7 @@ enum qbman_fd_format {
 #define DPAA2_GET_FD_FLC(fd) \
 	(((uint64_t)((fd)->simple.flc_hi) << 32) + (fd)->simple.flc_lo)
 #define DPAA2_GET_FD_ERR(fd)   ((fd)->simple.ctrl & 0x000000FF)
+#define DPAA2_GET_FD_FA_ERR(fd)   ((fd)->simple.ctrl & 0x00000040)
 #define DPAA2_GET_FLE_OFFSET(fle) (((fle)->fin_bpid_offset & 0x0FFF0000) >> 16)
 #define DPAA2_SET_FLE_SG_EXT(fle) ((fle)->fin_bpid_offset |= (uint64_t)1 << 29)
 #define DPAA2_IS_SET_FLE_SG_EXT(fle)	\
@@ -329,6 +343,11 @@ enum qbman_fd_format {
 		(fd)->simple.bpid_offset |= (uint32_t)format << 28;	\
 } while (0)
 #define DPAA2_FD_GET_FORMAT(fd)	(((fd)->simple.bpid_offset >> 28) & 0x3)
+
+#define DPAA2_SG_SET_FORMAT(sg, format)	do {				\
+		(sg)->fin_bpid_offset &= 0xCFFFFFFF;			\
+		(sg)->fin_bpid_offset |= (uint32_t)format << 28;	\
+} while (0)
 
 #define DPAA2_SG_SET_FINAL(sg, fin)	do {				\
 		(sg)->fin_bpid_offset &= 0x7FFFFFFF;			\

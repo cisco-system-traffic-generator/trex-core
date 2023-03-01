@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2009-2019 Solarflare Communications Inc.
  */
 
@@ -289,11 +289,35 @@ efx_mcdi_phy_module_get_info(
 	__in			size_t len,
 	__out_bcount(len)	uint8_t *data);
 
+LIBEFX_INTERNAL
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_nic_addr_info(
+	__in		efx_nic_t *enp,
+	__out		uint32_t *mapping_typep);
+
+struct efx_nic_dma_region_info_s;
+
+LIBEFX_INTERNAL
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_nic_addr_regions(
+	__in		efx_nic_t *enp,
+	__out		struct efx_nic_dma_region_info_s *endrip);
+
+LIBEFX_INTERNAL
+extern	__checkReturn	efx_rc_t
+efx_mcdi_set_nic_addr_regions(
+	__in		efx_nic_t *enp,
+	__in		const struct efx_nic_dma_region_info_s *endrip);
+
 #define	MCDI_IN(_emr, _type, _ofst)					\
 	((_type *)((_emr).emr_in_buf + (_ofst)))
 
 #define	MCDI_IN2(_emr, _type, _ofst)					\
 	MCDI_IN(_emr, _type, MC_CMD_ ## _ofst ## _OFST)
+
+#define	MCDI_INDEXED_IN2(_emr, _type, _ofst, _idx)			\
+	MCDI_IN(_emr, _type, MC_CMD_ ## _ofst ## _OFST +		\
+		_idx * MC_CMD_ ## _ofst ## _LEN)
 
 #define	MCDI_IN_SET_BYTE(_emr, _ofst, _value)				\
 	EFX_POPULATE_BYTE_1(*MCDI_IN2(_emr, efx_byte_t, _ofst),		\
@@ -311,6 +335,21 @@ efx_mcdi_phy_module_get_info(
 	EFX_SET_DWORD_FIELD(*MCDI_IN2(_emr, efx_dword_t, _ofst),	\
 		MC_CMD_ ## _field, _value)
 
+#define	MCDI_IN_SET_INDEXED_DWORD(_emr, _ofst, _idx, _value)		\
+	EFX_POPULATE_DWORD_1(*(MCDI_IN2(_emr, efx_dword_t, _ofst) +	\
+			     (_idx)), EFX_DWORD_0, _value)		\
+
+#define	MCDI_IN_SET_QWORD(_emr, _ofst, _value)				\
+	EFX_POPULATE_QWORD_2(*MCDI_IN2(_emr, efx_qword_t, _ofst),	\
+		EFX_DWORD_0, ((_value) & 0xffffffff),			\
+		EFX_DWORD_1, ((_value) >> 32))
+
+#define	MCDI_IN_SET_INDEXED_QWORD(_emr, _ofst, _idx, _value)		\
+	EFX_POPULATE_QWORD_2(*(MCDI_IN2(_emr, efx_qword_t, _ofst) +	\
+			(_idx)),					\
+		EFX_DWORD_0, ((_value) & 0xffffffff),	\
+		EFX_DWORD_1, ((_value) >> 32))
+
 #define	MCDI_IN_POPULATE_DWORD_1(_emr, _ofst, _field1, _value1)		\
 	EFX_POPULATE_DWORD_1(*MCDI_IN2(_emr, efx_dword_t, _ofst),	\
 		MC_CMD_ ## _field1, _value1)
@@ -318,6 +357,13 @@ efx_mcdi_phy_module_get_info(
 #define	MCDI_IN_POPULATE_DWORD_2(_emr, _ofst, _field1, _value1,		\
 		_field2, _value2)					\
 	EFX_POPULATE_DWORD_2(*MCDI_IN2(_emr, efx_dword_t, _ofst),	\
+		MC_CMD_ ## _field1, _value1,				\
+		MC_CMD_ ## _field2, _value2)
+
+#define	MCDI_IN_POPULATE_INDEXED_DWORD_2(_emr, _ofst, _idx,		\
+		_field1, _value1, _field2, _value2)			\
+	EFX_POPULATE_DWORD_2(						\
+		*MCDI_INDEXED_IN2(_emr, efx_dword_t, _ofst, _idx),	\
 		MC_CMD_ ## _field1, _value1,				\
 		MC_CMD_ ## _field2, _value2)
 
@@ -451,9 +497,66 @@ efx_mcdi_phy_module_get_info(
 	EFX_DWORD_FIELD(*MCDI_OUT2(_emr, efx_dword_t, _ofst),		\
 			MC_CMD_ ## _field)
 
+#define	MCDI_OUT_INDEXED_DWORD(_emr, _ofst, _idx)			\
+	MCDI_OUT_INDEXED_DWORD_FIELD(_emr, _ofst, _idx, EFX_DWORD_0)
+
 #define	MCDI_OUT_INDEXED_DWORD_FIELD(_emr, _ofst, _idx, _field)		\
 	EFX_DWORD_FIELD(*(MCDI_OUT2(_emr, efx_dword_t, _ofst) +		\
 			(_idx)), _field)
+
+#define	MCDI_OUT_INDEXED_STRUCT_MEMBER(_emr, _type, _arr_ofst, _idx,	\
+		_member_ofst)						\
+	((_type *)(MCDI_OUT2(_emr, uint8_t, _arr_ofst) +		\
+		   _idx * MC_CMD_ ## _arr_ofst ## _LEN +		\
+		   _member_ofst ## _OFST))
+
+#define	MCDI_OUT_INDEXED_MEMBER_DWORD(_emr, _arr_ofst, _idx,		\
+		_member_ofst)						\
+	EFX_DWORD_FIELD(						\
+		*(MCDI_OUT_INDEXED_STRUCT_MEMBER(_emr, efx_dword_t,	\
+						 _arr_ofst, _idx,	\
+						 _member_ofst)),	\
+		EFX_DWORD_0)
+
+#define	MCDI_OUT_INDEXED_MEMBER_QWORD(_emr, _arr_ofst, _idx,		\
+		_member_ofst)						\
+	((uint64_t)EFX_QWORD_FIELD(					\
+		*(MCDI_OUT_INDEXED_STRUCT_MEMBER(_emr, efx_qword_t,	\
+						 _arr_ofst, _idx,	\
+						 _member_ofst)),	\
+		EFX_DWORD_0) |						\
+	(uint64_t)EFX_QWORD_FIELD(					\
+		*(MCDI_OUT_INDEXED_STRUCT_MEMBER(_emr, efx_qword_t,	\
+						 _arr_ofst, _idx,	\
+						 _member_ofst)),	\
+		EFX_DWORD_1) << 32)
+
+#define MCDI_STRUCT_MEMBER(_buf, _type, _ofst)				\
+	((_type *)((char *)_buf + _ofst ## _OFST))	\
+
+#define MCDI_STRUCT_BYTE(_buf, _ofst)					\
+	EFX_BYTE_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_byte_t, _ofst),	\
+		       EFX_BYTE_0)
+
+#define MCDI_STRUCT_BYTE_FIELD(_buf, _ofst, _field)			\
+	EFX_BYTE_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_byte_t, _ofst),	\
+		       _field)
+
+#define MCDI_STRUCT_WORD(_buf, _ofst)					\
+	EFX_WORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_word_t, _ofst),	\
+		       EFX_WORD_0)
+
+#define MCDI_STRUCT_WORD_FIELD(_buf, _ofst, _field)			\
+	EFX_WORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_word_t, _ofst),	\
+		       _field)
+
+#define MCDI_STRUCT_DWORD(_buf, _ofst)					\
+	EFX_DWORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_dword_t, _ofst),	\
+			EFX_DWORD_0)
+
+#define MCDI_STRUCT_DWORD_FIELD(_buf, _ofst, _field)			\
+	EFX_DWORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_dword_t, _ofst),	\
+			_field)
 
 #define	MCDI_EV_FIELD(_eqp, _field)					\
 	EFX_QWORD_FIELD(*_eqp, MCDI_EVENT_ ## _field)

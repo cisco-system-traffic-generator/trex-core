@@ -126,7 +126,6 @@ mp_secondary_handle(const struct rte_mp_msg *mp_msg, const void *peer)
 	switch (param->type) {
 	case MLX4_MP_REQ_START_RXTX:
 		INFO("port %u starting datapath", dev->data->port_id);
-		rte_mb();
 		dev->tx_pkt_burst = mlx4_tx_burst;
 		dev->rx_pkt_burst = mlx4_rx_burst;
 #ifdef HAVE_IBV_MLX4_UAR_MMAP_OFFSET
@@ -144,14 +143,15 @@ mp_secondary_handle(const struct rte_mp_msg *mp_msg, const void *peer)
 			}
 		}
 #endif
+		rte_mb();
 		mp_init_msg(dev, &mp_res, param->type);
 		res->result = 0;
 		ret = rte_mp_reply(&mp_res, peer);
 		break;
 	case MLX4_MP_REQ_STOP_RXTX:
 		INFO("port %u stopping datapath", dev->data->port_id);
-		dev->tx_pkt_burst = mlx4_tx_burst_removed;
-		dev->rx_pkt_burst = mlx4_rx_burst_removed;
+		dev->tx_pkt_burst = rte_eth_pkt_burst_dummy;
+		dev->rx_pkt_burst = rte_eth_pkt_burst_dummy;
 		rte_mb();
 		mp_init_msg(dev, &mp_res, param->type);
 		res->result = 0;

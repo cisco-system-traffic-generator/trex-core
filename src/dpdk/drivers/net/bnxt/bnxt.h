@@ -76,14 +76,13 @@
 	((bp)->pdev->id.subsystem_device_id == BROADCOM_DEV_957508_N2100)
 
 #define BNXT_MAX_MTU		9574
-#define VLAN_TAG_SIZE		4
 #define BNXT_NUM_VLANS		2
 #define BNXT_MAX_PKT_LEN	(BNXT_MAX_MTU + RTE_ETHER_HDR_LEN +\
 				 RTE_ETHER_CRC_LEN +\
-				 (BNXT_NUM_VLANS * VLAN_TAG_SIZE))
+				 (BNXT_NUM_VLANS * RTE_VLAN_HLEN))
 /* FW adds extra 4 bytes for FCS */
 #define BNXT_VNIC_MRU(mtu)\
-	((mtu) + RTE_ETHER_HDR_LEN + VLAN_TAG_SIZE * BNXT_NUM_VLANS)
+	((mtu) + RTE_ETHER_HDR_LEN + RTE_VLAN_HLEN * BNXT_NUM_VLANS)
 #define BNXT_VF_RSV_NUM_RSS_CTX	1
 #define BNXT_VF_RSV_NUM_L2_CTX	4
 /* TODO: For now, do not support VMDq/RFS on VFs. */
@@ -156,6 +155,11 @@
 	HWRM_ASYNC_EVENT_CMPL_DEFAULT_VNIC_CHANGE_EVENT_DATA1_VF_ID_MASK
 #define	BNXT_DEFAULT_VNIC_CHANGE_VF_ID_SFT		\
 	HWRM_ASYNC_EVENT_CMPL_DEFAULT_VNIC_CHANGE_EVENT_DATA1_VF_ID_SFT
+
+#define BNXT_EVENT_ERROR_REPORT_TYPE(data1)				\
+	(((data1) &							\
+	  HWRM_ASYNC_EVENT_CMPL_ERROR_REPORT_BASE_EVENT_DATA1_ERROR_TYPE_MASK)  >>\
+	 HWRM_ASYNC_EVENT_CMPL_ERROR_REPORT_BASE_EVENT_DATA1_ERROR_TYPE_SFT)
 
 #define BNXT_HWRM_CMD_TO_FORWARD(cmd)	\
 		(bp->pf->vf_req_fwd[(cmd) / 32] |= (1 << ((cmd) % 32)))
@@ -235,7 +239,11 @@ struct bnxt_parent_info {
 struct bnxt_pf_info {
 #define BNXT_FIRST_PF_FID	1
 #define BNXT_MAX_VFS(bp)	((bp)->pf->max_vfs)
-#define BNXT_MAX_VF_REPS	64
+#define BNXT_MAX_VF_REPS_WH     64
+#define BNXT_MAX_VF_REPS_TH     256
+#define BNXT_MAX_VF_REPS(bp) \
+				(BNXT_CHIP_P5(bp) ? BNXT_MAX_VF_REPS_TH : \
+				BNXT_MAX_VF_REPS_WH)
 #define BNXT_TOTAL_VFS(bp)	((bp)->pf->total_vfs)
 #define BNXT_FIRST_VF_FID	128
 #define BNXT_PF_RINGS_USED(bp)	bnxt_get_num_queues(bp)
@@ -289,9 +297,10 @@ struct bnxt_link_info {
 	uint8_t			link_signal_mode;
 	uint16_t		force_pam4_link_speed;
 	uint16_t		support_pam4_speeds;
-	uint16_t		auto_pam4_link_speeds;
+	uint16_t		auto_pam4_link_speed_mask;
 	uint16_t		support_pam4_auto_speeds;
 	uint8_t			req_signal_mode;
+	uint8_t			module_status;
 };
 
 #define BNXT_COS_QUEUE_COUNT	8
@@ -306,9 +315,11 @@ struct rte_flow {
 	struct bnxt_vnic_info	*vnic;
 };
 
+#define BNXT_PTP_RX_PND_CNT		10
 #define BNXT_PTP_FLAGS_PATH_TX		0x0
 #define BNXT_PTP_FLAGS_PATH_RX		0x1
 #define BNXT_PTP_FLAGS_CURRENT_TIME	0x2
+#define BNXT_PTP_CURRENT_TIME_MASK	0xFFFF00000000ULL
 
 struct bnxt_ptp_cfg {
 #define BNXT_GRCPF_REG_WINDOW_BASE_OUT  0x400
@@ -358,6 +369,7 @@ struct bnxt_ptp_cfg {
 
 	/* On Thor, the Rx timestamp is present in the Rx completion record */
 	uint64_t			rx_timestamp;
+	uint64_t			current_time;
 };
 
 struct bnxt_coal {
@@ -390,9 +402,17 @@ struct bnxt_coal {
 #define BNXT_MAX_RSS_CTXTS_P5 \
 	(BNXT_RSS_TBL_SIZE_P5 / BNXT_RSS_ENTRIES_PER_CTX_P5)
 
-#define BNXT_MAX_TC    8
-#define BNXT_MAX_QUEUE 8
-#define BNXT_MAX_TC_Q  (BNXT_MAX_TC + 1)
+#define BNXT_MAX_QUEUE			8
+#define BNXT_MAX_TQM_SP_RINGS		1
+#define BNXT_MAX_TQM_FP_LEGACY_RINGS	8
+#define BNXT_MAX_TQM_FP_RINGS		9
+#define BNXT_MAX_TQM_LEGACY_RINGS	\
+	(BNXT_MAX_TQM_SP_RINGS + BNXT_MAX_TQM_FP_LEGACY_RINGS)
+#define BNXT_MAX_TQM_RINGS		\
+	(BNXT_MAX_TQM_SP_RINGS + BNXT_MAX_TQM_FP_RINGS)
+#define BNXT_BACKING_STORE_CFG_LEGACY_LEN	256
+#define BNXT_BACKING_STORE_CFG_LEN	\
+	sizeof(struct hwrm_func_backing_store_cfg_input)
 #define BNXT_PAGE_SHFT 12
 #define BNXT_PAGE_SIZE (1 << BNXT_PAGE_SHFT)
 #define MAX_CTX_PAGES  (BNXT_PAGE_SIZE / 8)
@@ -461,7 +481,7 @@ struct bnxt_ctx_mem_info {
 	struct bnxt_ctx_pg_info cq_mem;
 	struct bnxt_ctx_pg_info vnic_mem;
 	struct bnxt_ctx_pg_info stat_mem;
-	struct bnxt_ctx_pg_info *tqm_mem[BNXT_MAX_TC_Q];
+	struct bnxt_ctx_pg_info *tqm_mem[BNXT_MAX_TQM_RINGS];
 };
 
 struct bnxt_ctx_mem_buf_info {
@@ -484,9 +504,9 @@ struct bnxt_ctx_mem_buf_info {
 struct bnxt_error_recovery_info {
 	/* All units in milliseconds */
 	uint32_t	driver_polling_freq;
-	uint32_t	master_func_wait_period;
+	uint32_t	primary_func_wait_period;
 	uint32_t	normal_func_wait_period;
-	uint32_t	master_func_wait_period_after_reset;
+	uint32_t	primary_func_wait_period_after_reset;
 	uint32_t	max_bailout_time_after_reset;
 #define BNXT_FW_STATUS_REG		0
 #define BNXT_FW_HEARTBEAT_CNT_REG	1
@@ -503,7 +523,7 @@ struct bnxt_error_recovery_info {
 	uint8_t		delay_after_reset[BNXT_NUM_RESET_REG];
 #define BNXT_FLAG_ERROR_RECOVERY_HOST	BIT(0)
 #define BNXT_FLAG_ERROR_RECOVERY_CO_CPU	BIT(1)
-#define BNXT_FLAG_MASTER_FUNC		BIT(2)
+#define BNXT_FLAG_PRIMARY_FUNC		BIT(2)
 #define BNXT_FLAG_RECOVERY_ENABLED	BIT(3)
 	uint32_t	flags;
 
@@ -552,47 +572,37 @@ struct bnxt_rep_info {
 #define BNXT_FW_STATUS_SHUTDOWN		0x100000
 
 #define BNXT_ETH_RSS_SUPPORT (	\
-	ETH_RSS_IPV4 |		\
-	ETH_RSS_NONFRAG_IPV4_TCP |	\
-	ETH_RSS_NONFRAG_IPV4_UDP |	\
-	ETH_RSS_IPV6 |		\
-	ETH_RSS_NONFRAG_IPV6_TCP |	\
-	ETH_RSS_NONFRAG_IPV6_UDP |	\
-	ETH_RSS_LEVEL_MASK)
+	RTE_ETH_RSS_IPV4 |		\
+	RTE_ETH_RSS_NONFRAG_IPV4_TCP |	\
+	RTE_ETH_RSS_NONFRAG_IPV4_UDP |	\
+	RTE_ETH_RSS_IPV6 |		\
+	RTE_ETH_RSS_NONFRAG_IPV6_TCP |	\
+	RTE_ETH_RSS_NONFRAG_IPV6_UDP |	\
+	RTE_ETH_RSS_LEVEL_MASK)
 
-#define BNXT_DEV_TX_OFFLOAD_SUPPORT (DEV_TX_OFFLOAD_VLAN_INSERT | \
-				     DEV_TX_OFFLOAD_IPV4_CKSUM | \
-				     DEV_TX_OFFLOAD_TCP_CKSUM | \
-				     DEV_TX_OFFLOAD_UDP_CKSUM | \
-				     DEV_TX_OFFLOAD_TCP_TSO | \
-				     DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM | \
-				     DEV_TX_OFFLOAD_VXLAN_TNL_TSO | \
-				     DEV_TX_OFFLOAD_GRE_TNL_TSO | \
-				     DEV_TX_OFFLOAD_IPIP_TNL_TSO | \
-				     DEV_TX_OFFLOAD_GENEVE_TNL_TSO | \
-				     DEV_TX_OFFLOAD_QINQ_INSERT | \
-				     DEV_TX_OFFLOAD_MULTI_SEGS)
+#define BNXT_DEV_TX_OFFLOAD_SUPPORT (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | \
+				     RTE_ETH_TX_OFFLOAD_TCP_CKSUM | \
+				     RTE_ETH_TX_OFFLOAD_UDP_CKSUM | \
+				     RTE_ETH_TX_OFFLOAD_TCP_TSO | \
+				     RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM | \
+				     RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO | \
+				     RTE_ETH_TX_OFFLOAD_GRE_TNL_TSO | \
+				     RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO | \
+				     RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO | \
+				     RTE_ETH_TX_OFFLOAD_QINQ_INSERT | \
+				     RTE_ETH_TX_OFFLOAD_MULTI_SEGS)
 
-#define BNXT_DEV_RX_OFFLOAD_SUPPORT (DEV_RX_OFFLOAD_VLAN_FILTER | \
-				     DEV_RX_OFFLOAD_VLAN_STRIP | \
-				     DEV_RX_OFFLOAD_IPV4_CKSUM | \
-				     DEV_RX_OFFLOAD_UDP_CKSUM | \
-				     DEV_RX_OFFLOAD_TCP_CKSUM | \
-				     DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM | \
-				     DEV_RX_OFFLOAD_OUTER_UDP_CKSUM | \
-				     DEV_RX_OFFLOAD_JUMBO_FRAME | \
-				     DEV_RX_OFFLOAD_KEEP_CRC | \
-				     DEV_RX_OFFLOAD_VLAN_EXTEND | \
-				     DEV_RX_OFFLOAD_TCP_LRO | \
-				     DEV_RX_OFFLOAD_SCATTER | \
-				     DEV_RX_OFFLOAD_RSS_HASH)
-
-#define  MAX_TABLE_SUPPORT 4
-#define  MAX_DIR_SUPPORT   2
-struct bnxt_dmabuf_info {
-	uint32_t entry_num;
-	int      fd[MAX_DIR_SUPPORT][MAX_TABLE_SUPPORT];
-};
+#define BNXT_DEV_RX_OFFLOAD_SUPPORT (RTE_ETH_RX_OFFLOAD_VLAN_FILTER | \
+				     RTE_ETH_RX_OFFLOAD_IPV4_CKSUM | \
+				     RTE_ETH_RX_OFFLOAD_UDP_CKSUM | \
+				     RTE_ETH_RX_OFFLOAD_TCP_CKSUM | \
+				     RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM | \
+				     RTE_ETH_RX_OFFLOAD_OUTER_UDP_CKSUM | \
+				     RTE_ETH_RX_OFFLOAD_KEEP_CRC | \
+				     RTE_ETH_RX_OFFLOAD_VLAN_EXTEND | \
+				     RTE_ETH_RX_OFFLOAD_TCP_LRO | \
+				     RTE_ETH_RX_OFFLOAD_SCATTER | \
+				     RTE_ETH_RX_OFFLOAD_RSS_HASH)
 
 #define BNXT_HWRM_SHORT_REQ_LEN		sizeof(struct hwrm_short_input)
 
@@ -603,6 +613,49 @@ struct bnxt_flow_stat_info {
 	struct bnxt_ctx_mem_buf_info rx_fc_out_tbl;
 	struct bnxt_ctx_mem_buf_info tx_fc_in_tbl;
 	struct bnxt_ctx_mem_buf_info tx_fc_out_tbl;
+};
+
+struct bnxt_ring_stats {
+	/* Number of transmitted unicast packets */
+	uint64_t	tx_ucast_pkts;
+	/* Number of transmitted multicast packets */
+	uint64_t	tx_mcast_pkts;
+	/* Number of transmitted broadcast packets */
+	uint64_t	tx_bcast_pkts;
+	/* Number of packets discarded in transmit path */
+	uint64_t	tx_discard_pkts;
+	/* Number of packets in transmit path with error */
+	uint64_t	tx_error_pkts;
+	/* Number of transmitted bytes for unicast traffic */
+	uint64_t	tx_ucast_bytes;
+	/* Number of transmitted bytes for multicast traffic */
+	uint64_t	tx_mcast_bytes;
+	/* Number of transmitted bytes for broadcast traffic */
+	uint64_t	tx_bcast_bytes;
+	/* Number of received unicast packets */
+	uint64_t	rx_ucast_pkts;
+	/* Number of received multicast packets */
+	uint64_t	rx_mcast_pkts;
+	/* Number of received broadcast packets */
+	uint64_t	rx_bcast_pkts;
+	/* Number of packets discarded in receive path */
+	uint64_t	rx_discard_pkts;
+	/* Number of packets in receive path with errors */
+	uint64_t	rx_error_pkts;
+	/* Number of received bytes for unicast traffic */
+	uint64_t	rx_ucast_bytes;
+	/* Number of received bytes for multicast traffic */
+	uint64_t	rx_mcast_bytes;
+	/* Number of received bytes for broadcast traffic */
+	uint64_t	rx_bcast_bytes;
+	/* Number of aggregated unicast packets */
+	uint64_t	rx_agg_pkts;
+	/* Number of aggregated unicast bytes */
+	uint64_t	rx_agg_bytes;
+	/* Number of aggregation events */
+	uint64_t	rx_agg_events;
+	/* Number of aborted aggregations */
+	uint64_t	rx_agg_aborts;
 };
 
 struct bnxt {
@@ -641,11 +694,7 @@ struct bnxt {
 #define BNXT_FLAG_RX_VECTOR_PKT_MODE		BIT(24)
 #define BNXT_FLAG_FLOW_XSTATS_EN		BIT(25)
 #define BNXT_FLAG_DFLT_MAC_SET			BIT(26)
-#define BNXT_FLAG_TRUFLOW_EN			BIT(27)
-#define BNXT_FLAG_GFID_ENABLE			BIT(28)
-#define BNXT_FLAG_RFS_NEEDS_VNIC		BIT(29)
-#define BNXT_FLAG_FLOW_CFA_RFS_RING_TBL_IDX_V2	BIT(30)
-#define BNXT_RFS_NEEDS_VNIC(bp)	((bp)->flags & BNXT_FLAG_RFS_NEEDS_VNIC)
+#define BNXT_FLAG_GFID_ENABLE			BIT(27)
 #define BNXT_PF(bp)		(!((bp)->flags & BNXT_FLAG_VF))
 #define BNXT_VF(bp)		((bp)->flags & BNXT_FLAG_VF)
 #define BNXT_NPAR(bp)		((bp)->flags & BNXT_FLAG_NPAR_PF)
@@ -660,12 +709,20 @@ struct bnxt {
 #define BNXT_HAS_RING_GRPS(bp)	(!BNXT_CHIP_P5(bp))
 #define BNXT_FLOW_XSTATS_EN(bp)	((bp)->flags & BNXT_FLAG_FLOW_XSTATS_EN)
 #define BNXT_HAS_DFLT_MAC_SET(bp)      ((bp)->flags & BNXT_FLAG_DFLT_MAC_SET)
-#define BNXT_TRUFLOW_EN(bp)	((bp)->flags & BNXT_FLAG_TRUFLOW_EN)
 #define BNXT_GFID_ENABLED(bp)	((bp)->flags & BNXT_FLAG_GFID_ENABLE)
+
+	uint32_t			flags2;
+#define BNXT_FLAGS2_PTP_TIMESYNC_ENABLED	BIT(0)
+#define BNXT_FLAGS2_PTP_ALARM_SCHEDULED		BIT(1)
+#define BNXT_P5_PTP_TIMESYNC_ENABLED(bp)	\
+	((bp)->flags2 & BNXT_FLAGS2_PTP_TIMESYNC_ENABLED)
 
 	uint16_t		chip_num;
 #define CHIP_NUM_58818		0xd818
 #define BNXT_CHIP_SR2(bp)	((bp)->chip_num == CHIP_NUM_58818)
+#define	BNXT_FLAGS2_MULTIROOT_EN		BIT(4)
+#define	BNXT_MULTIROOT_EN(bp)			\
+	((bp)->flags2 & BNXT_FLAGS2_MULTIROOT_EN)
 
 	uint32_t		fw_cap;
 #define BNXT_FW_CAP_HOT_RESET		BIT(0)
@@ -676,6 +733,9 @@ struct bnxt {
 #define BNXT_FW_CAP_ADV_FLOW_MGMT	BIT(5)
 #define BNXT_FW_CAP_ADV_FLOW_COUNTERS	BIT(6)
 #define BNXT_FW_CAP_LINK_ADMIN		BIT(7)
+#define BNXT_FW_CAP_TRUFLOW_EN		BIT(8)
+#define BNXT_FW_CAP_VLAN_TX_INSERT	BIT(9)
+#define BNXT_TRUFLOW_EN(bp)	((bp)->fw_cap & BNXT_FW_CAP_TRUFLOW_EN)
 
 	pthread_mutex_t         flow_lock;
 
@@ -683,6 +743,8 @@ struct bnxt {
 #define BNXT_VNIC_CAP_COS_CLASSIFY	BIT(0)
 #define BNXT_VNIC_CAP_OUTER_RSS		BIT(1)
 #define BNXT_VNIC_CAP_RX_CMPL_V2	BIT(2)
+#define BNXT_VNIC_CAP_VLAN_RX_STRIP	BIT(3)
+#define BNXT_RX_VLAN_STRIP_EN(bp)	((bp)->vnic_cap_flags & BNXT_VNIC_CAP_VLAN_RX_STRIP)
 	unsigned int		rx_nr_rings;
 	unsigned int		rx_cp_nr_rings;
 	unsigned int		rx_num_qs_per_vnic;
@@ -710,7 +772,7 @@ struct bnxt {
 	uint32_t		max_ring_grps;
 	struct bnxt_ring_grp_info	*grp_info;
 
-	unsigned int		nr_vnics;
+	uint16_t			nr_vnics;
 
 #define BNXT_GET_DEFAULT_VNIC(bp)	(&(bp)->vnic_info[0])
 	struct bnxt_vnic_info	*vnic_info;
@@ -769,7 +831,7 @@ struct bnxt {
 	uint16_t		max_tx_rings;
 	uint16_t		max_rx_rings;
 #define MAX_STINGRAY_RINGS		236U
-#define BNXT_MAX_VF_REP_RINGS	8
+#define BNXT_MAX_VF_REP_RINGS	8U
 
 	uint16_t		max_nq_rings;
 	uint16_t		max_l2_ctx;
@@ -818,11 +880,22 @@ struct bnxt {
 	uint16_t		port_svif;
 
 	struct tf		tfp;
-	struct bnxt_dmabuf_info dmabuf;
+	struct tf		tfp_shared;
 	struct bnxt_ulp_context	*ulp_ctx;
 	struct bnxt_flow_stat_info *flow_stat;
 	uint16_t		max_num_kflows;
+	uint8_t			app_id;
 	uint16_t		tx_cfa_action;
+	struct bnxt_ring_stats	*prev_rx_ring_stats;
+	struct bnxt_ring_stats	*prev_tx_ring_stats;
+
+#define BNXT_MAX_MC_ADDRS	((bp)->max_mcast_addr)
+	struct rte_ether_addr	*mcast_addr_list;
+	rte_iova_t		mc_list_dma_addr;
+	uint32_t		nb_mc_addr;
+	uint32_t		max_mcast_addr; /* maximum number of mcast filters supported */
+
+	struct rte_eth_rss_conf	rss_conf; /* RSS configuration. */
 };
 
 static
@@ -844,6 +917,13 @@ inline uint16_t bnxt_max_rings(struct bnxt *bp)
 		max_rx_rings = RTE_MIN(max_rx_rings / 2U,
 				       bp->max_stat_ctx / 2U);
 	}
+
+	/*
+	 * RSS table size in Thor is 512.
+	 * Cap max Rx rings to the same value for RSS.
+	 */
+	if (BNXT_CHIP_P5(bp))
+		max_rx_rings = RTE_MIN(max_rx_rings, BNXT_RSS_TBL_SIZE_P5);
 
 	max_tx_rings = RTE_MIN(max_tx_rings, max_rx_rings);
 	if (max_cp_rings > BNXT_NUM_ASYNC_CPR(bp))
@@ -904,6 +984,20 @@ struct bnxt_vf_rep_tx_queue {
 	struct bnxt_representor *bp;
 };
 
+#define I2C_DEV_ADDR_A0			0xa0
+#define I2C_DEV_ADDR_A2			0xa2
+#define SFF_DIAG_SUPPORT_OFFSET		0x5c
+#define SFF_MODULE_ID_SFP		0x3
+#define SFF_MODULE_ID_QSFP		0xc
+#define SFF_MODULE_ID_QSFP_PLUS		0xd
+#define SFF_MODULE_ID_QSFP28		0x11
+#define SFF8636_FLATMEM_OFFSET		0x2
+#define SFF8636_FLATMEM_MASK		0x4
+#define SFF8636_OPT_PAGES_OFFSET	0xc3
+#define SFF8636_PAGE1_MASK		0x40
+#define SFF8636_PAGE2_MASK		0x80
+#define BNXT_MAX_PHY_I2C_RESP_SIZE	64
+
 int bnxt_mtu_set_op(struct rte_eth_dev *eth_dev, uint16_t new_mtu);
 int bnxt_link_update(struct rte_eth_dev *eth_dev, int wait_to_complete,
 		     bool exp_link_status);
@@ -920,10 +1014,6 @@ void bnxt_print_link_info(struct rte_eth_dev *eth_dev);
 uint16_t bnxt_rss_hash_tbl_size(const struct bnxt *bp);
 int bnxt_link_update_op(struct rte_eth_dev *eth_dev,
 			int wait_to_complete);
-uint16_t bnxt_dummy_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
-			      uint16_t nb_pkts);
-uint16_t bnxt_dummy_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
-			      uint16_t nb_pkts);
 
 extern const struct rte_flow_ops bnxt_flow_ops;
 
@@ -965,15 +1055,6 @@ int32_t
 bnxt_ulp_create_vfr_default_rules(struct rte_eth_dev *vfr_ethdev);
 int32_t
 bnxt_ulp_delete_vfr_default_rules(struct bnxt_representor *vfr);
-uint16_t bnxt_get_vnic_id(uint16_t port, enum bnxt_ulp_intf_type type);
-uint16_t bnxt_get_svif(uint16_t port_id, bool func_svif,
-		       enum bnxt_ulp_intf_type type);
-uint16_t bnxt_get_fw_func_id(uint16_t port, enum bnxt_ulp_intf_type type);
-uint16_t bnxt_get_parif(uint16_t port, enum bnxt_ulp_intf_type type);
-uint16_t bnxt_get_phy_port_id(uint16_t port);
-uint16_t bnxt_get_vport(uint16_t port);
-enum bnxt_ulp_intf_type
-bnxt_get_interface_type(uint16_t port);
 int bnxt_rep_dev_start_op(struct rte_eth_dev *eth_dev);
 
 void bnxt_cancel_fc_thread(struct bnxt *bp);
@@ -981,9 +1062,10 @@ void bnxt_flow_cnt_alarm_cb(void *arg);
 int bnxt_flow_stats_req(struct bnxt *bp);
 int bnxt_flow_stats_cnt(struct bnxt *bp);
 uint32_t bnxt_get_speed_capabilities(struct bnxt *bp);
+int bnxt_flow_ops_get_op(struct rte_eth_dev *dev,
+			 const struct rte_flow_ops **ops);
+int bnxt_dev_start_op(struct rte_eth_dev *eth_dev);
+int bnxt_dev_stop_op(struct rte_eth_dev *eth_dev);
+void bnxt_handle_vf_cfg_change(void *arg);
 
-int
-bnxt_filter_ctrl_op(struct rte_eth_dev *dev,
-		    enum rte_filter_type filter_type,
-		    enum rte_filter_op filter_op, void *arg);
 #endif

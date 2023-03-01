@@ -44,6 +44,7 @@
 #include "tcp_var.h"
 #include "tcpip.h"
 #include "tcp_debug.h"
+#include "netinet/tcp_mbuf.h"
 #include "tcp_socket.h"
 #include <common/utl_gcc_diag.h>
 #include <common/basic_utils.h>
@@ -52,8 +53,11 @@
 #include <common/Network/Packet/IPv6Header.h>
 #include <astf/astf_template_db.h>
 #include <astf/astf_db.h>
+#include <astf/trex_astf_dp_core.h>
 #include <cmath>
 #include "utl_counter.h"
+#include "tunnels/tunnel_factory.h"
+#include <common/Network/Packet/MPLSHeader.h>
 
 //extern    struct inpcb *tcp_last_inpcb;
 
@@ -61,33 +65,33 @@
 #define MYC_A(f)     fprintf(fd," %-40s: %llu \n",#f,(unsigned long long)m_sts.f)
 
 
-tcpstat::tcpstat(uint16_t num_of_tg_ids){
+CTcpStats::CTcpStats(uint16_t num_of_tg_ids){
     Init(num_of_tg_ids);
 }
 
-tcpstat::~tcpstat() {
+CTcpStats::~CTcpStats() {
     delete[] m_sts_tg_id;
 }
 
-void tcpstat::Init(uint16_t num_of_tg_ids) {
+void CTcpStats::Init(uint16_t num_of_tg_ids) {
         m_sts_tg_id = new tcpstat_int_t[num_of_tg_ids];
-        assert(m_sts_tg_id && "Operator new failed in tcp_subr.cpp/tcpstat::Init");
+        assert(m_sts_tg_id && "Operator new failed in tcp_subr.cpp/CTcpStats::Init");
         m_num_of_tg_ids = num_of_tg_ids;
         Clear();
 }
 
-void tcpstat::Clear(){
+void CTcpStats::Clear(){
     for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++){
         ClearPerTGID(tg_id);
     }
     memset(&m_sts,0,sizeof(tcpstat_int_t));
 }
 
-void tcpstat::ClearPerTGID(uint16_t tg_id){
+void CTcpStats::ClearPerTGID(uint16_t tg_id){
     memset(m_sts_tg_id+tg_id,0,sizeof(tcpstat_int_t));
 }
 
-void tcpstat::Dump(FILE *fd){
+void CTcpStats::Dump(FILE *fd){
 
     MYC(tcps_connattempt);
     MYC(tcps_accepts);     
@@ -119,6 +123,7 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_sndctrl);
 
     MYC(tcps_rcvtotal);    
+    MYC(tcps_rcvoffloads);
     MYC(tcps_rcvpack);     
     MYC(tcps_rcvbyte);     
     MYC(tcps_rcvbadsum);       
@@ -148,128 +153,51 @@ void tcpstat::Dump(FILE *fd){
     MYC(tcps_badsyn); 
     MYC(tcps_reasalloc);
     MYC(tcps_reasfree);
+    MYC(tcps_reas_hist_4);
+    MYC(tcps_reas_hist_16);
+    MYC(tcps_reas_hist_100);
+    MYC(tcps_reas_hist_other);
     MYC(tcps_nombuf);
     MYC(tcps_notunnel);
+
+    MYC(tcps_sack_recovery_episode);
+    MYC(tcps_sack_rexmits);
+    MYC(tcps_sack_rexmit_bytes);
+    MYC(tcps_sack_rcv_blocks);
+    MYC(tcps_sack_send_blocks);
+    MYC(tcps_sack_sboverflow);
 }
 
-void tcpstat::Resize(uint16_t new_num_of_tg_ids) {
+void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
     delete[] m_sts_tg_id;
     Init(new_num_of_tg_ids);
 }
 
-/*
- * Initiate connection to peer.
- * Create a template for use in transmissions on this connection.
- * Enter SYN_SENT state, and mark socket as connecting.
- * Start keep-alive timer, and seed output sequence space.
- * Send initial segment on connection.
- */
-int tcp_connect(CPerProfileCtx * pctx,
-                struct tcpcb *tp) {
-    int error;
 
-    /* Compute window scaling to request.  */
-    while (tp->request_r_scale < TCP_MAX_WINSHIFT &&
-        (TCP_MAXWIN << tp->request_r_scale) < tp->m_socket.so_rcv.sb_hiwat){
-        tp->request_r_scale++;
-    }
-
-    soisconnecting(&tp->m_socket);
-
-    CTcpPerThreadCtx * ctx = pctx->m_ctx;
-    CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
-
-    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_connattempt);
-    tp->t_state = TCPS_SYN_SENT;
-    tp->t_timer[TCPT_KEEP] = tctx->tcp_keepinit;
-    tp->iss = ctx->tcp_iss; 
-    ctx->tcp_iss += TCP_ISSINCR/4;
-    tcp_sendseqinit(tp);
-    error = tcp_output(pctx,tp);
-    return (error);
-}
-#ifdef  TREX_SIM
-int tcp_connect(CTcpPerThreadCtx * ctx,struct tcpcb *tp) { return tcp_connect(DEFAULT_PROFILE_CTX(ctx), tp); }
-#endif
-
-int tcp_listen(CPerProfileCtx * pctx,
-                struct tcpcb *tp) {
-    assert( tp->t_state == TCPS_CLOSED);
-    tp->t_state = TCPS_LISTEN;
-    return(0);
-}
-
-
-/*
- * User issued close, and wish to trail through shutdown states:
- * if never received SYN, just forget it.  If got a SYN from peer,
- * but haven't sent FIN, then go to FIN_WAIT_1 state to send peer a FIN.
- * If already got a FIN from peer, then almost done; go to LAST_ACK
- * state.  In all other cases, have already sent FIN to peer (e.g.
- * after PRU_SHUTDOWN), and just have to play tedious game waiting
- * for peer to send FIN or not respond to keep-alives, etc.
- * We can let the user exit from the close as soon as the FIN is acked.
- */
-struct tcpcb * tcp_usrclosed(CPerProfileCtx * pctx,
-                             struct tcpcb *tp){
-
-    switch (tp->t_state) {
-
-    case TCPS_CLOSED:
-    case TCPS_LISTEN:
-    case TCPS_SYN_SENT:
-        tp->t_state = TCPS_CLOSED;
-        tp = tcp_close(pctx,tp);
-        break;
-
-    case TCPS_SYN_RECEIVED:
-    case TCPS_ESTABLISHED:
-        tp->t_state = TCPS_FIN_WAIT_1;
-        break;
-
-    case TCPS_CLOSE_WAIT:
-        tp->t_state = TCPS_LAST_ACK;
-        break;
-    }
-    if ((tp->t_state != TCPS_CLOSED) && tp->t_state >= TCPS_FIN_WAIT_2){
-        soisdisconnected(&tp->m_socket);
-    }
-    return (tp);
-}
-
-
-
-/*
- * Initiate (or continue) disconnect.
- * If embryonic state, just send reset (once).
- * If in ``let data drain'' option and linger null, just drop.
- * Otherwise (hard), mark socket disconnecting and drop
- * current input data; switch states based on user close, and
- * send segment to peer (with FIN).
- */
-struct tcpcb * tcp_disconnect(CPerProfileCtx * pctx,
-                   struct tcpcb *tp){
-
-    struct tcp_socket *so = &tp->m_socket;
-
-    if (tp->t_state < TCPS_ESTABLISHED)
-        tp = tcp_close(pctx,tp);
-    else if (1 /*(so->so_options & SO_LINGER) && so->so_linger == 0*/){
-        tp = tcp_drop_now(pctx,tp, 0);
-    } else {
-        soisdisconnecting(so);
-        sbflush(&so->so_rcv);
-        tp = tcp_usrclosed(pctx,tp);
-        if (tp->t_state != TCPS_CLOSED)
-            (void) tcp_output(pctx,tp);
-    }
-    return (tp);
-}
-
+static struct cc_algo *cc_algo_list[] = {
+    &newreno_cc_algo,
+    &cubic_cc_algo
+};
 
 void CTcpFlow::init(){
     /* build template */
     CFlowBase::init();
+
+    int cc_algo_idx = m_pctx->m_tunable_ctx.tcp_cc_algo;
+
+    if (cc_algo_idx >= sizeof(cc_algo_list)/sizeof(struct cc_algo*)) {
+        cc_algo_idx = 0;
+    }
+
+    struct tcpcb_param init_param = {
+        .fb = NULL,
+        .cc_algo = cc_algo_list[cc_algo_idx],
+        .tune = &m_pctx->m_tunable_ctx,
+        .stat = &m_pctx->m_tcpstat.m_sts_tg_id[m_tg_id],
+        .stat_ex = &m_pctx->m_tcpstat.m_sts,
+        .tcp_ticks = &m_pctx->m_ctx->tcp_now
+    };
+    tcp_inittcpcb(&m_tcp, &init_param);
 
     if (m_template.is_tcp_tso()){
         /* to cache the info*/
@@ -277,6 +205,7 @@ void CTcpFlow::init(){
     }
 
     if (m_tcp.is_tso()){
+        m_tcp.t_flags |= TF_TSO;
         if (m_tcp.t_maxseg >m_tcp.m_max_tso ){
             m_tcp.m_max_tso=m_tcp.t_maxseg;
         }
@@ -288,6 +217,7 @@ void CTcpFlow::init(){
     m_tcp.m_socket.so_options = US_SO_KEEPALIVE;
 
     /* register the timer */
+    m_timer_ticks = tw_time_msec_to_ticks(tcp_timer_ticks_to_msec(m_pctx->m_tunable_ctx.tcp_delacktime));
     m_pctx->m_ctx->timer_w_start(this);
 }
 
@@ -301,10 +231,15 @@ void CFlowBase::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_c_template_idx=0;
     m_pctx=pctx;
     m_tg_id=tg_id;
+    m_base_flow=nullptr;
+    m_exec_flow=nullptr;
 }
 
-void CFlowBase::Delete(){
-
+void CFlowBase::Delete() {
+    if (m_pctx->m_ctx->m_tunnel_handler) {
+         m_pctx->m_ctx->m_tunnel_handler->delete_tunnel_ctx(m_template.m_tunnel_ctx);
+    }
+    m_template.m_tunnel_ctx = nullptr;
 }
 
 void CFlowBase::init(){
@@ -318,6 +253,13 @@ void CFlowBase::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
     m_template.learn_ipv6_headers_from_network(net_ipv6);
 }
 
+ void CFlowBase::set_tunnel_ctx() {
+    if (m_pctx->m_ctx->m_tunnel_handler) {
+        uint8_t mode = m_pctx->m_ctx->m_tunnel_handler->get_mode();
+        assert((mode & TUNNEL_MODE_LOOPBACK) == TUNNEL_MODE_LOOPBACK);
+        m_template.m_tunnel_ctx = m_pctx->m_ctx->m_tunnel_handler->get_opposite_ctx();
+    }
+}
 
 
 void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
@@ -328,22 +270,22 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
 
     m_payload_info = nullptr;
 
+    m_lro_buf = nullptr;
+
     /* TCP_OPTIM  */
-    tcpcb *tp=&m_tcp;
-    memset((char *) tp, 0,sizeof(struct tcpcb));
+    CTcpCb *tp=&m_tcp;
+    memset((char *) tp, 0,sizeof(struct CTcpCb));
     m_timer.m_type = ttTCP_FLOW; 
 
     CTcpTunableCtx * tctx = &pctx->m_tunable_ctx;
 
-    tp->m_socket.so_snd.Create(tctx->tcp_tx_socket_bsize);
+    ((CTcpSockBuf*)&tp->m_socket.so_snd)->Create(tctx->tcp_tx_socket_bsize);
     tp->m_socket.so_rcv.sb_hiwat = tctx->tcp_rx_socket_bsize;
 
-    tp->t_maxseg = tctx->tcp_mssdflt;
     tp->m_max_tso = tctx->tcp_max_tso;
 
     tp->mbuf_socket = pctx->m_ctx->m_mbuf_socket;
 
-    tp->t_flags = tctx->tcp_do_rfc1323 ? (TF_REQ_SCALE|TF_REQ_TSTMP) : 0;
     if (tctx->tcp_no_delay & CTcpTuneables::no_delay_mask_nagle){
         tp->t_flags |= TF_NODELAY;
     }
@@ -355,21 +297,9 @@ void CTcpFlow::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     tp->t_pkts_cnt = 0;
     tp->m_reass_disabled = false;
 
-        /*
-         * Init srtt to TCPTV_SRTTBASE (0), so we can tell that we have no
-         * rtt estimate.  Set rttvar so that srtt + 2 * rttvar gives
-         * reasonable initial retransmit time.
-         */
-        tp->t_srtt = TCPTV_SRTTBASE;
-    tp->t_rttvar = tctx->tcp_rttdflt * PR_SLOWHZ ;
-    tp->t_rttmin = TCPTV_MIN;
-    TCPT_RANGESET(tp->t_rxtcur, 
-        ((TCPTV_SRTTBASE >> 2) + (TCPTV_SRTTDFLT << 2)) >> 1,
-        TCPTV_MIN, TCPTV_REXMTMAX);
-    tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
-    tp->snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT;
     /* back pointer */
     tp->m_flow=this;
+    tp->m_ctx = m_pctx->m_ctx;
 }
 #ifdef  TREX_SIM
 void CTcpFlow::Create(CTcpPerThreadCtx *ctx, uint16_t tg_id) {
@@ -404,6 +334,9 @@ void CTcpFlow::start_identifying_template(CPerProfileCtx* pctx, CServerIpPayload
 
     this->m_pctx = pctx;
     this->m_tg_id = 0;
+    // update statistics in the temporary flow pctx
+    this->m_tcp.t_stat = &pctx->m_tcpstat.m_sts_tg_id[this->m_tg_id];
+    this->m_tcp.t_stat_ex = &pctx->m_tcpstat.m_sts;
 
     m_app.set_flow_ctx(pctx, this);
 
@@ -477,6 +410,11 @@ void CTcpFlow::update_new_template_assoc_info() {
 
     delete this->m_pctx;    // free interim profile
 
+    this->m_tcp.t_tune = &pctx->m_tunable_ctx;
+    // update statistics in the resolved pctx
+    this->m_tcp.t_stat = &pctx->m_tcpstat.m_sts_tg_id[tg_id];
+    this->m_tcp.t_stat_ex = &pctx->m_tcpstat.m_sts;
+
     this->m_pctx = pctx;
     this->m_tg_id = tg_id;
     this->m_c_template_idx = c_template_idx;
@@ -488,13 +426,8 @@ void CTcpFlow::update_new_template_assoc_info() {
 }
 
 
-void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
-
-    m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
-
-    CTcpTuneables *tune = rw_db->get_c_tune();
-    if (!tune)
-        return;
+static inline
+void set_tcp_info(struct CTcpCb& m_tcp, CTcpTuneables *tune) {
 
     if (tune->is_empty())
         return;
@@ -508,10 +441,19 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
 
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit) ) {
         m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
+        m_tcp.initcwnd_segments = tune->m_tcp_initwnd;
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
         m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
+
+        m_tcp.t_flags &= ~(TF_NODELAY|TF_NODELAY_PUSH);
+        if (tune->m_tcp_no_delay& CTcpTuneables::no_delay_mask_nagle) {
+            m_tcp.t_flags |= TF_NODELAY;
+        }
+        if (tune->m_tcp_no_delay& CTcpTuneables::no_delay_mask_push) {
+            m_tcp.t_flags |= TF_NODELAY_PUSH;
+        }
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) ) {
@@ -526,6 +468,17 @@ void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id)
         m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
     }
 
+}
+
+void CTcpFlow::set_c_tcp_info(const CAstfPerTemplateRW *rw_db, uint16_t temp_id) {
+
+    m_tcp.m_tuneable_flags &=TUNE_TSO_CACHE;
+
+    CTcpTuneables *tune = rw_db->get_c_tune();
+    if (!tune)
+        return;
+
+    set_tcp_info(m_tcp, tune);
 }
 
 void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
@@ -534,58 +487,82 @@ void CTcpFlow::set_s_tcp_info(const CAstfDbRO * ro_db, CTcpTuneables *tune) {
     if (!tune)
         return;
 
-    if (tune->is_empty())
-        return;
-
-    /* TCP object is part of a bigger object */
-    m_tcp.m_tuneable_flags |= TUNE_HAS_PARENT_FLOW;
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
-        m_tcp.m_tuneable_flags |= TUNE_MSS;
-        m_tcp.t_maxseg = tune->m_tcp_mss;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
-        m_tcp.m_tuneable_flags |= TUNE_INIT_WIN;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay) ) {
-        m_tcp.m_tuneable_flags |= TUNE_NO_DELAY;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_no_delay_counter) ) {
-        m_tcp.m_delay_limit = tune->m_tcp_no_delay_counter;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
-        m_tcp.m_socket.so_rcv.sb_hiwat = tune->m_tcp_rxbufsize;
-    }
-
-    if (tune->is_valid_field(CTcpTuneables::tcp_tx_buf_size)) {
-        m_tcp.m_socket.so_snd.sb_hiwat = tune->m_tcp_txbufsize;
-    }
-
-}
-
-
-void CTcpFlow::on_slow_tick(){
-    tcp_slowtimo(m_pctx, &m_tcp);
-}
-
-
-void CTcpFlow::on_fast_tick(){
-    tcp_fasttimo(m_pctx, &m_tcp);
+    set_tcp_info(m_tcp, tune);
 }
 
 
 void CTcpFlow::Delete(){
-    struct tcpcb *tp=&m_tcp;
+    struct CTcpCb *tp=&m_tcp;
     tcp_reass_clean(m_pctx,tp);
     m_pctx->m_ctx->timer_w_stop(this);
     if (m_payload_info) {
         m_payload_info->remove_template_flow(this);
         m_payload_info = nullptr;
     }
+    if (m_lro_buf) {
+        m_lro_buf->reset();
+        m_lro_buf = nullptr;
+    }
+    CFlowBase::Delete();
+    tcp_discardcb(tp);
+}
+
+
+const std::string CTcpFlow::get_flow_id() const {
+    std::stringstream ss;
+
+    ss << utl_uint32_to_ipv4(m_template.get_src_ipv4()) << ":" << m_template.get_src_port();
+    ss << "-";
+    ss << utl_uint32_to_ipv4(m_template.get_dst_ipv4()) << ":" << m_template.get_dst_port();
+
+    return ss.str();
+}
+
+
+void CTcpFlow::to_json(Json::Value& obj) const {
+    const struct CTcpCb *tp = &m_tcp;
+
+    obj["origin"] = m_pctx->m_ctx->is_client_side() ? "client": "server";
+    if (tp->t_starttime) {
+        obj["duration"] = tcp_timer_ticks_to_msec(tcp_getticks(tp) - tp->t_starttime);
+    } else {
+        obj["duration"] = 0;
+    }
+
+    /* tcp_info */
+    obj["state"] = tp->t_state;
+    {
+        std::stringstream opts;
+        if ((tp->t_flags & TF_REQ_TSTMP) && (tp->t_flags & TF_RCVD_TSTMP))
+            opts << "/timestamps";
+        if (tp->t_flags & TF_SACK_PERMIT)
+            opts << "/sack";
+        if ((tp->t_flags & TF_REQ_SCALE) && (tp->t_flags & TF_RCVD_SCALE)) {
+            opts << "/wscale";
+            obj["snd_wscale"] = tp->snd_scale;
+            obj["rcv_wscale"] = tp->rcv_scale;
+        }
+        obj["options"] = opts.str();
+    }
+
+    obj["rto"] = tcp_timer_ticks_to_msec(tp->t_rxtcur);
+    obj["last_data_recv"] = tcp_timer_ticks_to_msec(tcp_getticks(tp) - tp->t_rcvtime);
+    obj["rtt"] = tcp_timer_ticks_to_msec(tp->t_srtt) >> TCP_RTT_SHIFT;
+    obj["rttvar"] = tcp_timer_ticks_to_msec(tp->t_rttvar) >> TCP_RTTVAR_SHIFT;
+
+    obj["snd_ssthresh"] = tp->snd_ssthresh;
+    obj["snd_cwnd"] = tp->snd_cwnd;
+
+    /* FreeBSD-specific extension fields for tcp_info */
+    obj["rcv_space"] = tp->rcv_wnd;
+    obj["rcv_nxt"] = tp->rcv_nxt - tp->irs;
+    obj["snd_wnd"] = tp->snd_wnd;
+    obj["snd_nxt"] = tp->snd_nxt - tp->iss;
+    obj["snd_mss"] = tp->t_maxseg;
+    obj["rcv_mss"] = tp->t_maxseg;
+    obj["snd_rexmitpack"] = tp->t_sndrexmitpack;
+    obj["rcv_ooopack"] = tp->t_rcvoopack;
+    obj["snd_zerowin"] = tp->t_sndzerowin;
 }
 
 
@@ -686,38 +663,29 @@ bool CTcpPerThreadCtx::is_open_flow_enabled(){
 
 /* tick every 50msec TCP_TIMER_W_TICK */
 void CTcpPerThreadCtx::timer_w_on_tick(){
+    m_tick++;
+#ifdef TREX_SIM
+    tcp_now += tcp_timer_msec_to_ticks(TCP_TIMER_W_TICK);
+#else
+    if (m_tick == tcp_timer_ticks_to_msec(TCP_TIMER_W_1_MS)) {
+        tcp_now++;                  /* for timestamps */
+        m_tick=0;
+    }
+#endif
 #ifndef TREX_SIM
     /* we have two levels on non-sim */
     m_timer_w.on_tick_level((void*)this,ctx_timer,16);
 #else
     m_timer_w.on_tick_level0((void*)this,ctx_timer);
 #endif
-
-    if ( m_tick==TCP_SLOW_RATIO_MASTER ) {
-        tcp_iss += TCP_ISSINCR/PR_SLOWHZ;       /* increment iss */
-        tcp_now++;                  /* for timestamps */
-        m_tick=0;
-    } else{
-        m_tick++;
-    }
 }
 
-#ifndef TREX_SIM
-static uint16_t _update_slow_fast_ratio(uint16_t tcp_delay_ack_msec){
-    double factor = round((double)TCP_TIMER_TICK_SLOW_MS/(double)tcp_delay_ack_msec);
-    uint16_t res=(uint16_t)factor;
-    if (res<1) {
-        res=1;
-    }
-    return(res);
-}
-#endif
 
 CTcpTunableCtx::CTcpTunableCtx() {
     tcp_blackhole = 0;
     tcp_do_rfc1323 = 1;
-    tcp_fast_ticks = TCP_FAST_TICK_;
-    tcp_initwnd = _update_initwnd(TCP_MSS, TCP_INITWND_FACTOR); 
+    tcp_delacktime = tcp_timer_msec_to_ticks(TCP_TIMER_TICK_FAST_MS);
+    tcp_do_sack = 1;
     tcp_initwnd_factor = TCP_INITWND_FACTOR;
     tcp_keepidle = TCPTV_KEEP_IDLE;
     tcp_keepinit = TCPTV_KEEP_INIT;
@@ -726,18 +694,20 @@ CTcpTunableCtx::CTcpTunableCtx() {
     tcp_no_delay = 0;
     tcp_no_delay_counter = 0;
     tcp_rx_socket_bsize = 32*1024;
-    tcp_slow_fast_ratio = TCP_SLOW_FAST_RATIO_;
     tcp_tx_socket_bsize = 32*1024;
     tcprexmtthresh = 3;
     use_inbound_mac = 1;
 
+    tcp_cc_algo = 0;
+
     sb_max = SB_MAX;        /* patchable, not used  */
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
-    tcp_rttdflt = TCPTV_SRTTDFLT / PR_SLOWHZ;
     tcp_keepcnt = TCPTV_KEEPCNT;        /* max idle probes */
     tcp_maxpersistidle = TCPTV_KEEP_IDLE;   /* max idle time in persist */
     tcp_maxidle = std::min(tcp_keepcnt * tcp_keepintvl, TCPTV_2MSL);
     tcp_ttl=0;
+
+    tcp_reass_maxqlen = 100;
 }
 
 void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
@@ -749,12 +719,10 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     if (tune->is_valid_field(CTcpTuneables::tcp_mss_bit)) {
         tcp_mssdflt = tune->m_tcp_mss;
-        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_initwnd_bit)) {
         tcp_initwnd_factor = tune->m_tcp_initwnd;
-        tcp_initwnd = _update_initwnd(tcp_mssdflt,tcp_initwnd_factor);
     }
 
     if (tune->is_valid_field(CTcpTuneables::tcp_rx_buf_size)) {
@@ -796,8 +764,7 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
 
     #ifndef TREX_SIM
     if (tune->is_valid_field(CTcpTuneables::tcp_delay_ack)) {
-        tcp_fast_ticks =  tw_time_msec_to_ticks(tune->m_tcp_delay_ack_msec);
-        tcp_slow_fast_ratio = _update_slow_fast_ratio(tune->m_tcp_delay_ack_msec);
+        tcp_delacktime = tcp_timer_msec_to_ticks(tune->m_tcp_delay_ack_msec);
     }
     #endif
 
@@ -808,12 +775,25 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
     if (tune->is_valid_field(CTcpTuneables::dont_use_inbound_mac)) {
         use_inbound_mac = ((int)tune->m_dont_use_inbound_mac == 0);
     }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_do_sack)) {
+        tcp_do_sack = (int)tune->m_tcp_do_sack;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_cc_algo)) {
+        tcp_cc_algo = (int)tune->m_tcp_cc_algo;
+    }
+
+    if (tune->is_valid_field(CTcpTuneables::tcp_reass_maxqlen)) {
+        tcp_reass_maxqlen = (int)tune->m_tcp_reass_maxqlen;
+    }
 }
 
 void CTcpPerThreadCtx::resize_stats(profile_id_t profile_id) {
     uint16_t num_of_tg_ids = get_template_ro(profile_id)->get_num_of_tg_ids();
     get_tcpstat(profile_id)->Resize(num_of_tg_ids);
     get_udpstat(profile_id)->Resize(num_of_tg_ids);
+    get_appstat(profile_id)->Resize(num_of_tg_ids);
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -836,6 +816,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     m_tick=0;
     tcp_now=timestamp;
     m_cb = NULL;
+    m_thread = nullptr;
     memset(&tcp_saveti,0,sizeof(tcp_saveti));
 
     RC_HTW_t tw_res;
@@ -864,6 +845,7 @@ bool CTcpPerThreadCtx::Create(uint32_t size,
     }
     
     m_tick_var = new CAstfTickCmdClock(this);
+    m_tunnel_handler=nullptr;
     return(true);
 }
 
@@ -885,7 +867,7 @@ void CTcpPerThreadCtx::init_sch_rampup(profile_id_t profile_id){
 }
 
 int CTcpTunableCtx::convert_slow_sec_to_ticks(uint16_t sec) {
-    float sec_to_ticks = 1000.0f / TCP_TIMER_TICK_SLOW_MS;
+    float sec_to_ticks = 1000.0f;
     return int(round(float(sec) * sec_to_ticks));
 }
 
@@ -915,21 +897,55 @@ void CTcpPerThreadCtx::Delete(){
     }
 }
 
+
+CPerProfileFlowDump::CPerProfileFlowDump(double interval, CPerProfileCtx* pctx, TrexAstfDpCore* dp_core) {
+    m_interval = interval;
+    m_pctx = pctx;
+    m_dp_core = dp_core;
+
+    m_ctx = pctx->m_ctx;
+    m_tmr = new CAstfTimerFunctorObj();
+    assert(m_tmr);
+    m_tmr->m_cb = std::bind(&CPerProfileFlowDump::on_timer_update, this, m_tmr);
+    on_timer_update(m_tmr);
+}
+
+CPerProfileFlowDump::~CPerProfileFlowDump() {
+    if (m_tmr) {
+        assert(m_tmr->is_running());
+        m_ctx->m_timer_w.timer_stop(m_tmr);
+        delete m_tmr;
+        m_tmr = nullptr;
+    }
+}
+
+void CPerProfileFlowDump::on_timer_update(CAstfTimerFunctorObj* tmr) {
+    m_ctx->m_timer_w.timer_start(tmr, tw_time_msec_to_ticks(m_interval*1000));
+
+    m_dp_core->dump_profile_flows(m_pctx->m_profile_id);
+}
+
+
 void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
     tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts;
     udp_stat_int_t *lpt_udp = &m_udpstat.m_sts;
+    app_stat_int_t *lpt_app = &m_appstat.m_sts;
 
     CGCountersUtl64 tcp((uint64_t *)lpt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app((uint64_t *)lpt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     uint64_t *base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts;
     uint64_t *base_udp = (uint64_t *)&pctx->m_udpstat.m_sts;
+    uint64_t *base_app = (uint64_t *)&pctx->m_appstat.m_sts;
 
     CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app_ctx(base_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     tcp += tcp_ctx;
     udp += udp_ctx;
+    app += app_ctx;
 
     if (pctx->get_time_connects()) {
         update_time_connects(pctx->get_time_connects());
@@ -939,18 +955,23 @@ void CPerProfileCtx::update_profile_stats(CPerProfileCtx* pctx) {
 void CPerProfileCtx::update_tg_id_stats(uint16_t tg_id, CPerProfileCtx* pctx, uint16_t in_tg_id) {
     tcpstat_int_t *lpt_tcp = &m_tcpstat.m_sts_tg_id[tg_id];
     udp_stat_int_t *lpt_udp = &m_udpstat.m_sts_tg_id[tg_id];
+    app_stat_int_t *lpt_app = &m_appstat.m_sts_tg_id[tg_id];
 
     CGCountersUtl64 tcp((uint64_t *)lpt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app((uint64_t *)lpt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     uint64_t *base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts_tg_id[in_tg_id];
     uint64_t *base_udp = (uint64_t *)&pctx->m_udpstat.m_sts_tg_id[in_tg_id];
+    uint64_t *base_app = (uint64_t *)&pctx->m_appstat.m_sts_tg_id[in_tg_id];
 
     CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app_ctx(base_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     tcp += tcp_ctx;
     udp += udp_ctx;
+    app += app_ctx;
 }
 
 
@@ -1530,9 +1551,9 @@ void CFlowTemplate::learn_ipv6_headers_from_network(IPv6Header * net_ipv6){
     /* recalculate */
     if (m_offload_flags & OFFLOAD_TX_CHKSUM){
         if (is_tcp()) {
-            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM));
         }else{
-            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv6,(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM));
         }
     }else{
         m_l4_pseudo_checksum=0;
@@ -1590,26 +1611,59 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
     };
 
     if (!m_is_ipv6) {
+        uint8_t mpls_offset=0;
         uint8_t vlan_offset=0;
-        if (m_vlan){
+
+        if (m_tunnel_data.m_mpls.label) {
+            if (CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::MPLS_MODE_NORMAL) {
+                mpls_offset=4;
+            } else if (CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::EoMPLS_MODE_NORMAL || CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::EoMPLS_WITH_VLAN_MODE) {
+                mpls_offset=4+ETH_HDR_LEN;
+            }
+        }
+
+        if (m_tunnel_data.m_vlan){
             vlan_offset=4;
         }
-        m_offset_ip  = 14+vlan_offset;
+        m_offset_ip  = 14+vlan_offset + mpls_offset;
         m_offset_l4 = m_offset_ip + 20;
+        uint8_t tunnel_offset = mpls_offset;
 
         uint8_t *p=m_template_pkt;
-        if (vlan_offset==0){
+
+        // In case of no tunnels
+        if (vlan_offset==0 && mpls_offset == 0){
             memcpy(p,default_ipv4_header,sizeof(default_ipv4_header) );
-        }else{
-            memcpy(p,default_ipv4_header,sizeof(12));
-            const uint8_t next_vlan[2]={0x81,00};
-            memcpy(p+12,next_vlan,2);
-            VLANHeader vlan_head;
-            vlan_head.setVlanTag(m_vlan);
-            vlan_head.setNextProtocolFromHostOrder(0x0800);
-            memcpy(p+14,vlan_head.getPointer(),4);
-            memcpy(p+18,default_ipv4_header+14,sizeof(default_ipv4_header)-14);
+        } else {
+            memcpy(p,default_ipv4_header,sizeof(12) );
         }
+
+        // Check MPLS
+        if (mpls_offset){
+            // MPLS Header 0x8847
+            const uint8_t next_mpls[2]={0x88, 0x47};
+            memcpy(p+12, next_mpls, 2);
+            MPLSHeader mpls_head;
+            mpls_head.setLabel(m_tunnel_data.m_mpls.label);
+            mpls_head.setTc(m_tunnel_data.m_mpls.tc);
+            mpls_head.setBottomOfStack(m_tunnel_data.m_mpls.s);
+            mpls_head.setTtl(m_tunnel_data.m_mpls.ttl);
+            memcpy(p+14, mpls_head.getPointer(),4);
+        }
+        // For EoMPLS add ETH HDR again.
+        if (mpls_offset == 4+ETH_HDR_LEN) {
+            memcpy(p+18, default_ipv4_header,ETH_HDR_LEN);
+        }
+
+        if(vlan_offset==4){
+            const uint8_t next_vlan[2]={0x81,00};
+            memcpy(p+12+tunnel_offset,next_vlan,2);
+            VLANHeader vlan_head;
+            vlan_head.setVlanTag(m_tunnel_data.m_vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x0800);
+            memcpy(p+14+tunnel_offset,vlan_head.getPointer(),4);
+        }
+        memcpy(p+m_offset_ip,default_ipv4_header+14,sizeof(default_ipv4_header)-14);
         /* set default value */
         IPHeader *lpIpv4=(IPHeader *)(p+m_offset_ip);
         lpIpv4->setTotalLength(20); /* important for PH calculation */
@@ -1619,27 +1673,59 @@ void CFlowTemplate::build_template_ip(CPerProfileCtx * pctx,
         lpIpv4->setProtocol(m_proto);
         lpIpv4->ClearCheckSum();
     }else{
+        uint8_t mpls_offset=0;
         uint8_t vlan_offset=0;
-        if (m_vlan){
+
+        if (m_tunnel_data.m_mpls.label) {
+            if (CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::MPLS_MODE_NORMAL) {
+                mpls_offset=4;
+            } else if (CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::EoMPLS_MODE_NORMAL || CGlobalInfo::m_options.preview.get_vlan_mode() == CPreviewMode::EoMPLS_WITH_VLAN_MODE) {
+                mpls_offset=4+ETH_HDR_LEN;
+            }
+        }
+
+        if (m_tunnel_data.m_vlan) {
             vlan_offset=4;
         }
-
-        m_offset_ip  = 14+vlan_offset;
+        m_offset_ip  = 14+vlan_offset+mpls_offset;
         m_offset_l4 = m_offset_ip + IPV6_HDR_LEN;
+        uint8_t tunnel_offset = mpls_offset;
 
         uint8_t *p=m_template_pkt;
-        if (vlan_offset==0){
+
+        // In case of no tunnels
+        if (vlan_offset==0 && mpls_offset ==0){
             memcpy(p,default_ipv6_header,sizeof(default_ipv6_header) );
-        }else{
-            memcpy(p,default_ipv6_header,sizeof(12));
-            const uint8_t next_vlan[2]={0x81,00};
-            memcpy(p+12,next_vlan,2);
-            VLANHeader vlan_head;
-            vlan_head.setVlanTag(m_vlan);
-            vlan_head.setNextProtocolFromHostOrder(0x86dd);
-            memcpy(p+14,vlan_head.getPointer(),4);
-            memcpy(p+18,default_ipv6_header+14,sizeof(default_ipv6_header)-14);
+        } else {
+            memcpy(p,default_ipv6_header,sizeof(12) );
         }
+
+        // Check MPLS
+        if (mpls_offset) {
+            // MPLS Header 0x8847
+            const uint8_t next_mpls[2] = {0x88, 0x47};
+            memcpy(p+12, next_mpls, 2);
+            MPLSHeader mpls_head;
+            mpls_head.setLabel(m_tunnel_data.m_mpls.label);
+            mpls_head.setTc(m_tunnel_data.m_mpls.tc);
+            mpls_head.setBottomOfStack(m_tunnel_data.m_mpls.s);
+            mpls_head.setTtl(m_tunnel_data.m_mpls.ttl);
+            memcpy(p+14, mpls_head.getPointer(), 4);
+        }
+        // For EoMPLS add ETH HDR again.
+        if (mpls_offset == 4+ETH_HDR_LEN) {
+            memcpy(p+18, default_ipv6_header,ETH_HDR_LEN);
+        }
+
+        if(vlan_offset==4){
+            const uint8_t next_vlan[2]={0x81,00};
+            memcpy(p+12+tunnel_offset,next_vlan,2);
+            VLANHeader vlan_head;
+            vlan_head.setVlanTag(m_tunnel_data.m_vlan);
+            vlan_head.setNextProtocolFromHostOrder(0x86dd);
+            memcpy(p+14+tunnel_offset,vlan_head.getPointer(),4);
+        }
+        memcpy(p+m_offset_ip,default_ipv6_header+14,sizeof(default_ipv6_header)-14);
         /* set default value */
         IPv6Header *ipv6=(IPv6Header *)(p+m_offset_ip);
         tcp_template_ipv6_update(ipv6,pctx,template_idx);
@@ -1669,9 +1755,9 @@ void CFlowTemplate::build_template_tcp(CPerProfileCtx * pctx){
        lpTCP->setDestPort(m_dst_port);
        if (m_offload_flags & OFFLOAD_TX_CHKSUM){
            if (m_is_ipv6) {
-               m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+               m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM));
            }else{
-               m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_TCP_CKSUM));
+               m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV4 |RTE_MBUF_F_TX_IP_CKSUM|RTE_MBUF_F_TX_TCP_CKSUM));
            }
        }else{
             m_l4_pseudo_checksum=0;
@@ -1693,9 +1779,9 @@ void CFlowTemplate::build_template_udp(CPerProfileCtx * pctx){
     lpUDP->setDestPort(m_dst_port);
     if (m_offload_flags & OFFLOAD_TX_CHKSUM){
         if (m_is_ipv6) {
-            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM));
         }else{
-            m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(PKT_TX_IPV4 |PKT_TX_IP_CKSUM|PKT_TX_UDP_CKSUM));
+            m_l4_pseudo_checksum = rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)(p+m_offset_ip),(RTE_MBUF_F_TX_IPV4 |RTE_MBUF_F_TX_IP_CKSUM|RTE_MBUF_F_TX_UDP_CKSUM));
         }
     }else{
         m_l4_pseudo_checksum=0;
@@ -1716,195 +1802,82 @@ void CFlowTemplate::build_template(CPerProfileCtx * pctx,
 
 
 
-/*
- * Drop a TCP connection, reporting
- * the specified error.  If connection is synchronized,
- * then send a RST to peer.
- */
-struct tcpcb * tcp_drop_now(CPerProfileCtx * pctx,
-                            struct tcpcb *tp, 
-                            int res){
-    struct tcp_socket *so = &tp->m_socket;
-    uint16_t tg_id = tp->m_flow->m_tg_id;
-    if (TCPS_HAVERCVDSYN(tp->t_state)) {
-        tp->t_state = TCPS_CLOSED;
-        (void) tcp_output(pctx,tp);
-        INC_STAT(pctx, tg_id, tcps_drops);
-    } else{
-        INC_STAT(pctx, tg_id, tcps_conndrops);
-    }
-    if (res == ETIMEDOUT && tp->t_softerror){
-        res = tp->t_softerror;
-    }
-    so->so_error = res;
-    return (tcp_close(pctx,tp));
+
+#if 0
+void *
+m_data(struct mbuf *m)
+{
+    return rte_pktmbuf_mtod((struct rte_mbuf *)m, void *);
 }
 
-
-/*
- * Close a TCP control block:
- *  discard all space held by the tcp
- *  discard internet protocol block
- *  wake up any sleepers
- */
-struct tcpcb *  
-tcp_close(CPerProfileCtx * pctx,
-          struct tcpcb *tp){
-
-
-// no need for that , RTT will be calculated again for each flow 
-#ifdef RTV_RTT
-    register struct rtentry *rt;
-
-    /*
-     * If we sent enough data to get some meaningful characteristics,
-     * save them in the routing entry.  'Enough' is arbitrarily 
-     * defined as the sendpipesize (default 4K) * 16.  This would
-     * give us 16 rtt samples assuming we only get one sample per
-     * window (the usual case on a long haul net).  16 samples is
-     * enough for the srtt filter to converge to within 5% of the correct
-     * value; fewer samples and we could save a very bogus rtt.
-     *
-     * Don't update the default route's characteristics and don't
-     * update anything that the user "locked".
-     */
-    if (SEQ_LT(tp->iss + so->so_snd.sb_hiwat * 16, tp->snd_max) &&
-        (rt = inp->inp_route.ro_rt) &&
-        ((struct sockaddr_in *)rt_key(rt))->sin_addr.s_addr != INADDR_ANY) {
-        uint32_t  i;
-
-        if ((rt->rt_rmx.rmx_locks & RTV_RTT) == 0) {
-            i = tp->t_srtt *
-                (RTM_RTTUNIT / (PR_SLOWHZ * TCP_RTT_SCALE));
-            if (rt->rt_rmx.rmx_rtt && i)
-                /*
-                 * filter this update to half the old & half
-                 * the new values, converting scale.
-                 * See route.h and tcp_var.h for a
-                 * description of the scaling constants.
-                 */
-                rt->rt_rmx.rmx_rtt =
-                    (rt->rt_rmx.rmx_rtt + i) / 2;
-            else
-                rt->rt_rmx.rmx_rtt = i;
-        }
-        if ((rt->rt_rmx.rmx_locks & RTV_RTTVAR) == 0) {
-            i = tp->t_rttvar *
-                (RTM_RTTUNIT / (PR_SLOWHZ * TCP_RTTVAR_SCALE));
-            if (rt->rt_rmx.rmx_rttvar && i)
-                rt->rt_rmx.rmx_rttvar =
-                    (rt->rt_rmx.rmx_rttvar + i) / 2;
-            else
-                rt->rt_rmx.rmx_rttvar = i;
-        }
-        /*
-         * update the pipelimit (ssthresh) if it has been updated
-         * already or if a pipesize was specified & the threshhold
-         * got below half the pipesize.  I.e., wait for bad news
-         * before we start updating, then update on both good
-         * and bad news.
-         */
-        if ((rt->rt_rmx.rmx_locks & RTV_SSTHRESH) == 0 &&
-            (i = tp->snd_ssthresh) && rt->rt_rmx.rmx_ssthresh ||
-            i < (rt->rt_rmx.rmx_sendpipe / 2)) {
-            /*
-             * convert the limit from user data bytes to
-             * packets then to packet data bytes.
-             */
-            i = (i + tp->t_maxseg / 2) / tp->t_maxseg;
-            if (i < 2)
-                i = 2;
-            i *= (uint32_t)(tp->t_maxseg + sizeof (struct tcpiphdr));
-            if (rt->rt_rmx.rmx_ssthresh)
-                rt->rt_rmx.rmx_ssthresh =
-                    (rt->rt_rmx.rmx_ssthresh + i) / 2;
-            else
-                rt->rt_rmx.rmx_ssthresh = i;
-        }
-    }
-#endif /* RTV_RTT */
-    /* free the reassembly queue, if any */
-
-    /* mark it as close and return zero */
-    tp->t_state = TCPS_CLOSED;
-    /* TBD -- back pointer to flow and delete it */
-    INC_STAT(pctx, tp->m_flow->m_tg_id, tcps_closed);
-    pctx->set_time_closed();
-    return((struct tcpcb *)tp);
+void
+m_adj(struct mbuf *m, int req_len)
+{
+    if (req_len >= 0)
+        rte_pktmbuf_adj((struct rte_mbuf *)m, req_len);
+    else
+        rte_pktmbuf_trim((struct rte_mbuf *)m, req_len);
 }
 
-void tcp_drain(){
+void
+m_freem(struct mbuf *m)
+{
+    if (m != NULL) {
+        rte_pktmbuf_free((struct rte_mbuf *)m);
+    }
+}
+#endif
 
+
+#if 0
+uint32_t
+tcp_getticks(struct tcpcb *tp)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    return ctx->tcp_now;
+}
+#endif
+
+uint32_t
+tcp_new_isn(struct tcpcb *tp)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    uint32_t new_isn = ctx->tcp_iss;
+
+    ctx->tcp_iss += TCP_ISSINCR/4;
+    return new_isn;
 }
 
 #if 0
-/*
- * Notify a tcp user of an asynchronous error;
- * store error as soft error, but wake up user
- * (for now, won't do anything until can select for soft error).
- */
-void
-tcp_notify(inp, error)
-    struct inpcb *inp;
-    int error;
+bool
+tcp_isipv6(struct tcpcb *tp)
 {
-    register struct tcpcb *tp = (struct tcpcb *)inp->inp_ppcb;
-    register struct socket *so = inp->inp_socket;
-
-    /*
-     * Ignore some errors if we are hooked up.
-     * If connection hasn't completed, has retransmitted several times,
-     * and receives a second error, give up now.  This is better
-     * than waiting a long time to establish a connection that
-     * can never complete.
-     */
-    if (tp->t_state == TCPS_ESTABLISHED &&
-         (error == EHOSTUNREACH || error == ENETUNREACH ||
-          error == EHOSTDOWN)) {
-        return;
-    } else if (tp->t_state < TCPS_ESTABLISHED && tp->t_rxtshift > 3 &&
-        tp->t_softerror)
-        so->so_error = error;
-    else 
-        tp->t_softerror = error;
-    wakeup((caddr_t) &so->so_timeo);
-    sorwakeup(so);
-    sowwakeup(so);
-}
-
-void
-tcp_ctlinput(cmd, sa, ip)
-    int cmd;
-    struct sockaddr *sa;
-    register struct ip *ip;
-{
-    register struct tcphdr *th;
-    extern struct in_addr zeroin_addr;
-    extern u_char inetctlerrmap[];
-    void (*notify) __P((struct inpcb *, int)) = tcp_notify;
-
-    if (cmd == PRC_QUENCH)
-        notify = tcp_quench;
-    else if (!PRC_IS_REDIRECT(cmd) &&
-         ((unsigned)cmd > PRC_NCMDS || inetctlerrmap[cmd] == 0))
-        return;
-    if (ip) {
-        th = (struct tcphdr *)((caddr_t)ip + (ip->ip_hl << 2));
-        in_pcbnotify(&tcb, sa, th->th_dport, ip->ip_src, th->th_sport,
-            cmd, notify);
-    } else
-        in_pcbnotify(&tcb, sa, 0, zeroin_addr, 0, cmd, notify);
+    return ((CTcpCb*)tp)->m_flow->m_template.m_is_ipv6;
 }
 #endif
-/*
- * When a source quench is received, close congestion window
- * to one segment.  We will gradually open it again as we proceed.
- */
-void tcp_quench(struct tcpcb *tp){
 
-    tp->snd_cwnd = tp->t_maxseg;
+struct socket *
+tcp_getsocket(struct tcpcb *tp)
+{
+    return (struct socket*)&((CTcpCb*)tp)->m_socket;
 }
 
+int
+tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
 
+    return ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
+}
 
+void
+tcp_timer_reset(struct tcpcb *tp, uint32_t msec)
+{
+    CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+    CTcpFlow * flow = ((CTcpCb*)tp)->m_flow;
+
+    ctx->timer_w_stop(flow);
+    flow->m_timer_ticks = tw_time_msec_to_ticks(msec);
+    ctx->timer_w_start(flow);
+}
 

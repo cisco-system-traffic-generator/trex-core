@@ -7,6 +7,8 @@
 #include "ark_logs.h"
 #include "ark_udm.h"
 
+static_assert(sizeof(struct ark_rx_meta) == 32, "Unexpected struct size ark_rx_meta");
+
 int
 ark_udm_verify(struct ark_udm_t *udm)
 {
@@ -31,7 +33,9 @@ ark_udm_stop(struct ark_udm_t *udm, const int wait)
 {
 	int cnt = 0;
 
+	udm->setup.r0 = 0;
 	udm->cfg.command = 2;
+	rte_wmb();
 
 	while (wait && (udm->cfg.stop_flushed & 0x01) == 0) {
 		if (cnt++ > 1000)
@@ -68,6 +72,7 @@ ark_udm_reset(struct ark_udm_t *udm)
 void
 ark_udm_start(struct ark_udm_t *udm)
 {
+	udm->setup.r0 = 0x100;
 	udm->cfg.command = 1;
 }
 

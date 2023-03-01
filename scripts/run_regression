@@ -6,7 +6,7 @@ for var in "$@"; do
 done
 
 
-source find_python.sh 
+source find_python.sh
 cd automation/regression
 
 # Python 3

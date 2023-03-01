@@ -146,8 +146,8 @@ public:
     void Dump(FILE *fd);
     void add_template(CAstfPerTemplateRW *temp_rw) {m_cap_gen.push_back(temp_rw);}
     uint16_t get_num_templates() {return m_cap_gen.size();}
-    void init_scheduler(std::vector<double> & dist);
-    uint16_t do_schedule_template();
+    void init_scheduler(std::vector<double> & cps, std::vector<astf_t_id_t> & tids);
+    uint16_t do_schedule_template(uint16_t tg_id);
     CTcpTuneables *get_c_tuneables() {return m_c_tuneables;}
     CTcpTuneables *get_s_tuneables() {return m_s_tuneables;}
     void set_tuneables(CTcpTuneables *c_tune, CTcpTuneables *s_tune) {
@@ -168,6 +168,8 @@ public:
         return true;
     }
 
+    void add_tg_id_dist(uint16_t tg_id, astf_t_id_t tid);
+
 private:
     KxuNuRand *                       m_nru;
     KxuLCRand                         m_rnd;
@@ -177,6 +179,8 @@ private:
     CTcpTuneables *                   m_s_tuneables;
     CTcpTuneables *                   m_c_tuneables;
     bool                              m_flow_limited;
+    std::vector<std::vector<astf_t_id_t>>   m_tg_ids;
+    std::vector<astf_t_id_t>          m_dist_tids;
 } ;
 
 

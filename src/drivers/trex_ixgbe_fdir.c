@@ -199,15 +199,15 @@ configure_fdir_flags(const struct rte_fdir_conf *conf, uint32_t *fdirctrl)
 	*fdirctrl = 0;
 
 	switch (conf->pballoc) {
-	case RTE_FDIR_PBALLOC_64K:
+	case RTE_ETH_FDIR_PBALLOC_64K:
 		/* 8k - 1 signature filters */
 		*fdirctrl |= IXGBE_FDIRCTRL_PBALLOC_64K;
 		break;
-	case RTE_FDIR_PBALLOC_128K:
+	case RTE_ETH_FDIR_PBALLOC_128K:
 		/* 16k - 1 signature filters */
 		*fdirctrl |= IXGBE_FDIRCTRL_PBALLOC_128K;
 		break;
-	case RTE_FDIR_PBALLOC_256K:
+	case RTE_ETH_FDIR_PBALLOC_256K:
 		/* 32k - 1 signature filters */
 		*fdirctrl |= IXGBE_FDIRCTRL_PBALLOC_256K;
 		break;
@@ -933,11 +933,11 @@ static uint32_t
 atr_compute_perfect_hash_82599(union ixgbe_atr_input *input,
 		enum rte_fdir_pballoc_type pballoc)
 {
-	if (pballoc == RTE_FDIR_PBALLOC_256K)
+	if (pballoc == RTE_ETH_FDIR_PBALLOC_256K)
 		return ixgbe_atr_compute_hash_82599(input,
 				IXGBE_ATR_BUCKET_HASH_KEY) &
 				PERFECT_BUCKET_256KB_HASH_MASK;
-	else if (pballoc == RTE_FDIR_PBALLOC_128K)
+	else if (pballoc == RTE_ETH_FDIR_PBALLOC_128K)
 		return ixgbe_atr_compute_hash_82599(input,
 				IXGBE_ATR_BUCKET_HASH_KEY) &
 				PERFECT_BUCKET_128KB_HASH_MASK;
@@ -978,11 +978,11 @@ atr_compute_sig_hash_82599(union ixgbe_atr_input *input,
 {
 	uint32_t bucket_hash, sig_hash;
 
-	if (pballoc == RTE_FDIR_PBALLOC_256K)
+	if (pballoc == RTE_ETH_FDIR_PBALLOC_256K)
 		bucket_hash = ixgbe_atr_compute_hash_82599(input,
 				IXGBE_ATR_BUCKET_HASH_KEY) &
 				SIG_BUCKET_256KB_HASH_MASK;
-	else if (pballoc == RTE_FDIR_PBALLOC_128K)
+	else if (pballoc == RTE_ETH_FDIR_PBALLOC_128K)
 		bucket_hash = ixgbe_atr_compute_hash_82599(input,
 				IXGBE_ATR_BUCKET_HASH_KEY) &
 				SIG_BUCKET_128KB_HASH_MASK;
@@ -1572,7 +1572,7 @@ trex_ixgbe_fdir_stats_get(struct rte_eth_dev *dev, struct rte_eth_fdir_stats *fd
  */
 int
 trex_ixgbe_fdir_ctrl_func(struct rte_eth_dev *dev,
-			enum rte_filter_op filter_op, void *arg)
+			enum trex_rte_filter_op filter_op, void *arg)
 {
 	struct ixgbe_hw *hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	int ret = 0;

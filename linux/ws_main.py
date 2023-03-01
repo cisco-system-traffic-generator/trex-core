@@ -82,6 +82,7 @@ class SrcGroups:
 def options(opt):
     
     opt.load('compiler_cxx')
+    opt.load('compiler_c')
 
     co = opt.option_groups['configure options']
     co.add_option('--sanitized', dest='sanitized', default=False, action='store_true',
@@ -189,6 +190,7 @@ def configure_gcc(conf, explicit_paths = None):
     # use the system path
     if explicit_paths is None:
         conf.load('g++')
+        conf.load('gcc')
         return
 
     if type(explicit_paths) is not list:
@@ -202,6 +204,7 @@ def configure_gcc(conf, explicit_paths = None):
     try:
         conf.environ['PATH'] = explicit_path
         conf.load('g++')
+        conf.load('gcc')
     finally:
         conf.environ['PATH'] = saved
 
@@ -244,18 +247,20 @@ bp_sim_gtest = SrcGroup(dir='src',
              'gtest/client_cfg_test.cpp',
              'gtest/nat_test.cpp',
              'gtest/trex_stateless_gtest.cpp',
-             'gtest/bp_tunnel_gtest.cpp'
+             'gtest/bp_tunnel_gtest.cpp',
+             'gtest/bp_dyn_sts_gtest.cpp',
+             'gtest/bp_tunnel_topo_gtest.cpp'
              ])
 
 main_src = SrcGroup(dir='src',
         src_list=[
             '44bsd/tcp_output.cpp',
-            '44bsd/tcp_timer.cpp',
-            '44bsd/tcp_debug.cpp',
+            #'44bsd/tcp_timer.cpp',
+            #'44bsd/tcp_debug.cpp',
             '44bsd/tcp_subr.cpp',
             '44bsd/flow_table.cpp',
             '44bsd/tcp_input.cpp',
-            '44bsd/tcp_usrreq.cpp',
+            #'44bsd/tcp_usrreq.cpp',
             '44bsd/tcp_socket.cpp',
             '44bsd/tcp_dpdk.cpp',
             '44bsd/sim_cs_tcp.cpp',
@@ -270,6 +275,7 @@ main_src = SrcGroup(dir='src',
 
             'astf/astf_template_db.cpp',
             'stt_cp.cpp',
+            'dyn_sts.cpp',
             'bp_sim_tcp.cpp',
             'inet_pton.cpp',
             'trex_global.cpp',
@@ -316,7 +322,8 @@ main_src = SrcGroup(dir='src',
             'utils/utl_port_map.cpp',
             'utils/utl_sync_barrier.cpp',
             'utils/utl_yaml.cpp',
-            'tunnels/gtp_man.cpp'
+            'tunnels/gtp_man.cpp',
+            'tunnels/tunnel_db.cpp'
             ]);
 
 cmn_src = SrcGroup(dir='src/common',
@@ -345,6 +352,19 @@ net_src = SrcGroup(dir='src/common/Network/Packet',
            'MacAddress.cpp',
            'VLANHeader.cpp']);
 
+tcp_src = SrcGroup(dir='src/44bsd/netinet',
+    src_list=[
+        'tcp_output.c',
+        'tcp_input.c',
+
+        'tcp_debug.c',
+        'tcp_sack.c',
+        'tcp_timer.c',
+        'tcp_subr.c',
+
+        'cc/cc_newreno.c',
+        'cc/cc_cubic.c',
+        ]);
 
 # STX - common code
 stx_src = SrcGroup(dir='src/stx/common',
@@ -356,6 +376,7 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_dp_port_events.cpp',
                                      'trex_dp_core.cpp',
                                      'trex_latency_counters.cpp',
+                                     'trex_tpg_stats.cpp',
                                      'trex_messaging.cpp',
                                      'trex_owner.cpp',
                                      'trex_rx_core.cpp',
@@ -367,7 +388,8 @@ stx_src = SrcGroup(dir='src/stx/common',
                                      'trex_stack_legacy.cpp',
                                      'trex_rx_rpc_tunnel.cpp',
                                      'trex_rpc_cmds_common.cpp',
-                                     'trex_vlan_filter.cpp'
+                                     'trex_vlan_filter.cpp',
+                                     'trex_cmd_mngr.cpp'
                                      ])
 
 
@@ -384,12 +406,10 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
                                     'trex_stl_port.cpp',
                                     'trex_stl_streams_compiler.cpp',
                                     'trex_stl_vm_splitter.cpp',
-
                                     'trex_stl_dp_core.cpp',
                                     'trex_stl_fs.cpp',
-
                                     'trex_stl_messaging.cpp',
-                                    
+                                    'trex_stl_tpg.cpp',
                                     'trex_stl_rpc_cmds.cpp'
 
                                     ])
@@ -514,7 +534,13 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 '-Wno-strict-aliasing',
                  '-Wno-address-of-packed-member',]
 
-
+cflags_base   =['-DWIN_UCODE_SIM',
+                '-DTREX_SIM',
+                '-D_BYTE_ORDER',
+                '-D_LITTLE_ENDIAN',
+                '-DLINUX',
+                '-g',
+                ]
 
 
 includes_path =''' ../src/pal/linux/
@@ -539,6 +565,7 @@ includes_path =''' ../src/pal/linux/
               ''';
 
 
+tcp_includes_path = '../src/44bsd/netinet'
 
 
 
@@ -654,6 +681,9 @@ class build_option:
     def get_target (self):
         return self.update_executable_name(self.name);
 
+    def get_tcp_target (self):
+        return self.update_executable_name("tcp")
+
     def get_flags (self, is_sanitized = False):
         flags = self.cxxcomp_flags(cxxflags_base);
         if is_sanitized:
@@ -664,7 +694,17 @@ class build_option:
             ]
 
         return flags
-        
+
+    def get_c_flags (self, is_sanitized = False):
+        flags = self.cxxcomp_flags(cflags_base);
+        if is_sanitized:
+            flags += [
+                '-fsanitize=address',
+                '-fsanitize=leak',
+                '-fno-omit-frame-pointer',
+            ]
+
+        return flags
 
     def get_src (self):
         return self.src.file_list(top)
@@ -679,6 +719,7 @@ class build_option:
         if self.isPIE():
             base_flags.append('-lstdc++')
 
+        base_flags += ['-lrt']
         #platform depended flags
 
         if self.isIntelPlatform():
@@ -686,7 +727,6 @@ class build_option:
                 base_flags += ['-m64']
             else:
                 base_flags += ['-m32']
-                base_flags += ['-lrt']
 
         if self.isPIE():
             base_flags += ['-pie', '-DPATCH_FOR_PIE']
@@ -719,15 +759,23 @@ def build_prog (bld, build_obj):
     is_sanitized = bld.env.SANITIZED
     
     cxxflags  = build_obj.get_flags(is_sanitized)+['-std=gnu++11',]
+    cflags    = build_obj.get_c_flags(is_sanitized)
     linkflags = build_obj.get_link_flags(is_sanitized)
-    
-        
+
+    bld.objects(
+        features = 'c',
+        includes = tcp_includes_path,
+        cflags   = cflags,
+        source   = tcp_src.file_list(top),
+        target   = build_obj.get_tcp_target()
+        )
+
     bld.program(features='cxx cxxprogram', 
-                includes =  includes_path,
+                includes =  includes_path + tcp_includes_path,
                 cxxflags =  cxxflags,
                 linkflags = linkflags,
                 source = build_obj.get_src(),
-                use = build_obj.get_use_libs(),
+                use = build_obj.get_use_libs() + [build_obj.get_tcp_target()],
                 lib = ['pthread', 'z', 'dl'],
                 rpath  = bld.env.RPATH + build_obj.get_rpath(),
                 target = build_obj.get_target())
@@ -753,7 +801,6 @@ def build(bld):
     for obj in build_types:
         build_type(bld,obj);
 
-    
 
 def build_info(bld):
     pass;

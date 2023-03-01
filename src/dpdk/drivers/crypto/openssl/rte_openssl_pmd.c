@@ -5,7 +5,7 @@
 #include <rte_common.h>
 #include <rte_hexdump.h>
 #include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #include <rte_bus_vdev.h>
 #include <rte_malloc.h>
 #include <rte_cpuflags.h>
@@ -748,9 +748,7 @@ get_session(struct openssl_qp *qp, struct rte_crypto_op *op)
 		} else {
 			if (likely(op->asym->session != NULL))
 				asym_sess = (struct openssl_asym_session *)
-						get_asym_session_private_data(
-						op->asym->session,
-						cryptodev_driver_id);
+						op->asym->session->sess_private_data;
 			if (asym_sess == NULL)
 				op->status =
 					RTE_CRYPTO_OP_STATUS_INVALID_SESSION;
@@ -1114,7 +1112,7 @@ process_openssl_auth_encryption_ccm(struct rte_mbuf *mbuf_src, int offset,
 		if (EVP_EncryptUpdate(ctx, NULL, &len, aad + 18, aadlen) <= 0)
 			goto process_auth_encryption_ccm_err;
 
-	if (srclen > 0)
+	if (srclen >= 0)
 		if (process_openssl_encryption_update(mbuf_src, offset, &dst,
 				srclen, ctx, 0))
 			goto process_auth_encryption_ccm_err;
@@ -1197,7 +1195,7 @@ process_openssl_auth_decryption_ccm(struct rte_mbuf *mbuf_src, int offset,
 		if (EVP_DecryptUpdate(ctx, NULL, &len, aad + 18, aadlen) <= 0)
 			goto process_auth_decryption_ccm_err;
 
-	if (srclen > 0)
+	if (srclen >= 0)
 		if (process_openssl_decryption_update(mbuf_src, offset, &dst,
 				srclen, ctx, 0))
 			return -EFAULT;
@@ -2213,6 +2211,8 @@ cryptodev_openssl_create(const char *name,
 
 	internals->max_nb_qpairs = init_params->max_nb_queue_pairs;
 
+	rte_cryptodev_pmd_probing_finish(dev);
+
 	return 0;
 
 init_error:
@@ -2278,4 +2278,4 @@ RTE_PMD_REGISTER_PARAM_STRING(CRYPTODEV_NAME_OPENSSL_PMD,
 	"socket_id=<int>");
 RTE_PMD_REGISTER_CRYPTO_DRIVER(openssl_crypto_drv,
 		cryptodev_openssl_pmd_drv.driver, cryptodev_driver_id);
-RTE_LOG_REGISTER(openssl_logtype_driver, pmd.crypto.openssl, INFO);
+RTE_LOG_REGISTER_DEFAULT(openssl_logtype_driver, INFO);

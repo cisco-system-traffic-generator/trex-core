@@ -4,11 +4,144 @@ from trex.utils.text_opts import format_num, red, green, format_text
 from trex.utils import text_tables
 from trex.astf.trex_astf_exceptions import ASTFErrorBadTG
 
+def build_dict_vals_without_zero(desc, section_list, skip_zero):
+    def should_skip(skip_zero, k, v):
+        return (not skip_zero) or (skip_zero and (not k['zero']) and  (v>0)) or k['zero']
+    return dict([(k['name'], v) for k, v in zip(desc, section_list) if should_skip(skip_zero, k, v)])
+
+class CDynamicStatsAstf:
+    def __init__(self, rpc):
+        self.rpc = rpc
+        self.sections = ['client', 'server']
+        self.reset()
+        
+    def reset(self):
+        self._ref_global = {}
+        self._epoch_global = {}
+        self._counter_desc = {}
+        self._ref = {}
+        self._desc = {}
+        self._max_desc_name_len = {}
+        self._err_desc = {}
+
+
+
+    def _init_desc_and_ref(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        if is_sum:
+            if is_sum in self._counter_desc.keys():
+                return
+        else:
+            if pid_input in self._ref.keys():
+                return
+
+        params = {'is_sum': True} if is_sum else {'profile_id': pid_input}
+
+        rc = self.rpc.transmit('get_dynamic_counter_desc', params = params)
+        if not rc:
+            raise TRexError(rc.err())
+
+        data = rc.data()['data']
+        if is_sum:
+            self._counter_desc[is_sum] = data
+            self._epoch_global[is_sum] = rc.data()['epoch']
+            for section in self.sections:
+                self._ref_global[section] = [0] * len(data)
+            data_key = is_sum
+        else:
+            self._counter_desc[pid_input] = data
+            self._epoch_global[pid_input] = rc.data()['epoch']
+            self._ref[pid_input] = {}
+            for section in self.sections:
+                self._ref[pid_input][section] = [0] * len(data)
+            data_key = pid_input
+
+
+        self._desc[data_key] = [0] * len(data)
+        self._err_desc[data_key] = {}
+        self._max_desc_name_len[data_key] = 1
+        for item in data:
+            self._desc[data_key][item['id']] = item
+            self._max_desc_name_len[data_key] = max(self._max_desc_name_len[data_key], len(item['name']))
+            if item['info'] == 'error':
+                self._err_desc[data_key][item['name']] = item
+
+
+    def get_stats(self, relative = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        self._init_desc_and_ref(pid_input = pid_input, is_sum = is_sum)
+        data_key = is_sum if is_sum else pid_input
+        tries = 5
+        while True:
+            params = {'profile_id' : DEFAULT_PROFILE_ID, "epoch" : self._epoch_global[data_key]}
+            cmd = "get_total_dynamic_counter_values" if is_sum else 'get_dynamic_counter_values'
+            rc = self.rpc.transmit(cmd, params = params)
+            if tries == 0:
+                raise TRexError("Could not get dynamic counters values")
+            if not rc:
+                raise TRexError(rc.err())
+            failure = rc.data().get("epoch_err", 0)
+            if not failure:
+                break
+            else:
+                self.reset()
+                self._init_desc_and_ref(pid_input = pid_input, is_sum = is_sum)
+                tries-=1
+
+        data = {'epoch': self._epoch_global[data_key]}
+
+        for section in self.sections:
+            section_list = [0] * len(self._desc[data_key])
+            for k, v in rc.data()[section].items():
+                section_list[int(k)] = v
+            if relative:
+                for desc in self._desc[data_key]:
+                    id = desc['id']
+                    if is_sum:
+                        if self._ref_global and not desc['abs']: # return relative
+                            section_list[id] -= self._ref_global[section][id]
+                    else:
+                        if pid_input in self._ref.keys() and not desc['abs']: # return relative
+                            section_list[id] -= self._ref[pid_input][section][id]
+            data[section] = section_list
+        return data
+
+
+    def clear_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+        data = self.get_stats(relative = False, pid_input=pid_input, is_sum=is_sum)
+        if is_sum:
+            for section in self.sections:
+                self._ref_global[section] = data[section]
+        else:
+            if pid_input in self._ref.keys():
+                for section in self.sections:
+                    self._ref[pid_input][section] = data[section]
+
+    def clear_all_stats(self):
+        self.clear_stats(is_sum=True)
+        for pid_input in self._ref.keys():
+            self.clear_stats(pid_input)
+
+    def _is_dynamic_stats_error(self, stats, pid_input = DEFAULT_PROFILE_ID, is_sum = True):
+        data_key = is_sum if is_sum else pid_input
+        data = {}
+        errs = False
+        if not data_key in self._ref.keys():
+            return (errs, data)
+        for section in self.sections:
+            s = stats[section]
+            data[section] = {}
+            for k, v in self._err_desc[data_key].items():
+                if s.get(k, 0):
+                    data[section][k] = v['help']
+                    errs = True
+
+        return (errs, data)
+
 class CAstfTrafficStats(object):
     MAX_TGIDS_ALLOWED_AT_ONCE = 10
     def __init__(self, rpc):
         self.rpc = rpc
         self.sections = ['client', 'server']
+        self.dynamic_sts = CDynamicStatsAstf(rpc)
         self.reset()
 
 
@@ -96,12 +229,6 @@ class CAstfTrafficStats(object):
         return tg_ids
 
 
-    def _build_dict_vals_without_zero(self, section_list, skip_zero):
-        def should_skip(skip_zero, k, v):
-            return (not skip_zero) or (skip_zero and (not k['zero']) and  (v>0)) or k['zero']
-        return dict([(k['name'], v) for k, v in zip(self._desc, section_list) if should_skip(skip_zero, k, v)])
-
-
     def _process_stats(self, stats, skip_zero, pid_input = DEFAULT_PROFILE_ID):
         processed_stats = {}
         
@@ -119,7 +246,7 @@ class CAstfTrafficStats(object):
                 section_list = [0] * len(self._desc)
                 for k, v in processed_stats[tg_name][section].items():
                     section_list[int(k)] = v
-                processed_stats[tg_name][section] = self._build_dict_vals_without_zero(section_list, skip_zero)
+                processed_stats[tg_name][section] = build_dict_vals_without_zero(self._desc, section_list, skip_zero)
 
         return processed_stats
 
@@ -272,14 +399,27 @@ class CAstfTrafficStats(object):
 
         return (errs, data)
 
+    def is_dynamic_stats_error(self, stats, pid_input = DEFAULT_PROFILE_ID, is_sum=True):
+        return self.dynamic_sts._is_dynamic_stats_error(stats, pid_input = pid_input, is_sum=is_sum)
 
-    def get_stats(self,skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
-        vals = self._get_stats_values(pid_input = pid_input, is_sum = is_sum)
+    def get_stats(self,skip_zero = True, pid_input = DEFAULT_PROFILE_ID, is_sum = False, is_dynamic=False):
+        if is_dynamic:
+            vals = self.dynamic_sts.get_stats(pid_input = pid_input, is_sum = is_sum)
+            data_key = is_sum if is_sum else pid_input
+            desc = self.dynamic_sts._desc[data_key]
+        else:
+            vals = self._get_stats_values(pid_input = pid_input, is_sum = is_sum)
+            desc = self._desc
         data = {}
         for section in self.sections:
-            data[section] = self._build_dict_vals_without_zero(vals[section], skip_zero)
+            data[section] = build_dict_vals_without_zero(desc, vals[section], skip_zero)
         return data
 
+    def clear_dynamic_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False, clear_all = False):
+        if clear_all:
+            self.dynamic_sts.clear_all_stats()
+        else:
+            self.dynamic_sts.clear_stats(pid_input = pid_input, is_sum = is_sum)
 
     def clear_stats(self, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
         data = self._get_stats_values(relative = False, pid_input = pid_input, is_sum = is_sum)
@@ -292,13 +432,21 @@ class CAstfTrafficStats(object):
                     self._ref[pid_input][section] = data[section]
 
 
-    def to_table(self, with_zeroes = False, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False):
+    def to_table(self, with_zeroes = False, tgid = 0, pid_input = DEFAULT_PROFILE_ID, is_sum = False, is_dynamic = False):
         self._get_tg_names(pid_input)
         num_of_tgids = len(self.tg_names_dict[pid_input]['tg_names'])
         title = ""
         data = {}
-        if tgid == 0:
+        if is_dynamic:
+            data = self.dynamic_sts.get_stats(pid_input = pid_input, is_sum = is_sum)
+            title = 'Traffic dynamic counter stats summary.'
+            data_key = is_sum if is_sum else pid_input
+            sts_desc = self.dynamic_sts._desc[data_key]
+            max_desc_name_len = self.dynamic_sts._max_desc_name_len[data_key]
+        elif tgid == 0:
             data = self._get_stats_values(pid_input = pid_input, is_sum = is_sum)
+            sts_desc = self._desc
+            max_desc_name_len = self._max_desc_name_len
             if is_sum:
                 title = 'Traffic stats summary.'
             else:
@@ -310,17 +458,19 @@ class CAstfTrafficStats(object):
                 name = self.tg_names_dict[pid_input]['tg_names'][tgid-1]
                 title = 'Profile ID : ' + pid_input + '. Template Group Name: ' + name + '. Number of template groups = ' + str(num_of_tgids)
                 data = self.get_traffic_tg_stats(tg_names = name, for_table=True, pid_input = pid_input)
+                sts_desc = self._desc
+                max_desc_name_len = self._max_desc_name_len
         sec_count = len(self.sections)
 
         # init table
         stats_table = text_tables.TRexTextTable(title)
         stats_table.set_cols_align(["r"] * (1 + sec_count) + ["l"])
-        stats_table.set_cols_width([self._max_desc_name_len] + [17] * sec_count + [self._max_desc_name_len])
+        stats_table.set_cols_width([max_desc_name_len] + [17] * sec_count + [max_desc_name_len])
         stats_table.set_cols_dtype(['t'] * (2 + sec_count))
         header = [''] + self.sections + ['']
         stats_table.header(header)
 
-        for desc in self._desc:
+        for desc in sts_desc:
             if desc['real']:
                 vals = [data[section][desc['id']] for section in self.sections]
                 if not (with_zeroes or desc['zero'] or any(vals)):

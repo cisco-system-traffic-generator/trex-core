@@ -34,7 +34,6 @@ struct ionic_tx_stats {
 	uint64_t stop;
 	uint64_t no_csum;
 	uint64_t tso;
-	uint64_t frags;
 };
 
 struct ionic_rx_stats {
@@ -44,6 +43,7 @@ struct ionic_rx_stats {
 	uint64_t bad_cq_status;
 	uint64_t no_room;
 	uint64_t bad_len;
+	uint64_t mtods;
 };
 
 #define IONIC_QCQ_F_INITED	BIT(0)
@@ -58,22 +58,48 @@ struct ionic_qcq {
 	struct ionic_queue q;        /**< Queue */
 	struct ionic_cq cq;          /**< Completion Queue */
 	struct ionic_lif *lif;       /**< LIF */
-	struct rte_mempool *mb_pool; /**< mbuf pool to populate the RX ring */
-	union {
-		struct ionic_tx_stats tx;
-		struct ionic_rx_stats rx;
-	} stats;
 	const struct rte_memzone *base_z;
 	void *base;
 	rte_iova_t base_pa;
-	uint32_t total_size;
-	uint32_t flags;
+};
+
+struct ionic_admin_qcq {
+	struct ionic_qcq qcq;
+	uint16_t flags;
+};
+
+struct ionic_notify_qcq {
+	struct ionic_qcq qcq;
+	uint16_t flags;
+
 	struct ionic_intr_info intr;
 };
 
-#define IONIC_Q_TO_QCQ(q)	container_of(q, struct ionic_qcq, q)
-#define IONIC_Q_TO_TX_STATS(q)	(&IONIC_Q_TO_QCQ(q)->stats.tx)
-#define IONIC_Q_TO_RX_STATS(q)	(&IONIC_Q_TO_QCQ(q)->stats.rx)
+struct ionic_rx_qcq {
+	/* cacheline0, cacheline1 */
+	struct ionic_qcq qcq;
+
+	/* cacheline2 */
+	struct rte_mempool *mb_pool;
+	uint16_t flags;
+
+	/* cacheline3 (inside stats) */
+	struct ionic_rx_stats stats;
+};
+
+struct ionic_tx_qcq {
+	/* cacheline0, cacheline1 */
+	struct ionic_qcq qcq;
+
+	/* cacheline2 */
+	uint16_t num_segs_fw;	/* # segs supported by current FW */
+	uint16_t flags;
+
+	struct ionic_tx_stats stats;
+};
+
+#define IONIC_Q_TO_QCQ(_q)	container_of(_q, struct ionic_qcq, q)
+#define IONIC_CQ_TO_QCQ(_cq)	container_of(_cq, struct ionic_qcq, cq)
 
 struct ionic_qtype_info {
 	uint8_t  version;
@@ -103,10 +129,10 @@ struct ionic_lif {
 	uint32_t nrxqcqs;
 	rte_spinlock_t adminq_lock;
 	rte_spinlock_t adminq_service_lock;
-	struct ionic_qcq *adminqcq;
-	struct ionic_qcq *notifyqcq;
-	struct ionic_qcq **txqcqs;
-	struct ionic_qcq **rxqcqs;
+	struct ionic_admin_qcq *adminqcq;
+	struct ionic_notify_qcq *notifyqcq;
+	struct ionic_tx_qcq **txqcqs;
+	struct ionic_rx_qcq **rxqcqs;
 	struct ionic_rx_filters rx_filters;
 	struct ionic_doorbell __iomem *kern_dbpage;
 	uint64_t last_eid;
@@ -151,10 +177,7 @@ void ionic_lif_configure_vlan_offload(struct ionic_lif *lif, int mask);
 void ionic_lif_reset(struct ionic_lif *lif);
 
 int ionic_intr_alloc(struct ionic_lif *lif, struct ionic_intr_info *intr);
-void ionic_intr_free(struct ionic_lif *lif, struct ionic_intr_info *intr);
 
-bool ionic_adminq_service(struct ionic_cq *cq, uint32_t cq_desc_index,
-	void *cb_arg);
 int ionic_qcq_service(struct ionic_qcq *qcq, int budget, ionic_cq_cb cb,
 	void *cb_arg);
 
@@ -174,20 +197,22 @@ int ionic_dev_promiscuous_disable(struct rte_eth_dev *dev);
 int ionic_dev_allmulticast_enable(struct rte_eth_dev *dev);
 int ionic_dev_allmulticast_disable(struct rte_eth_dev *dev);
 
-int ionic_rx_qcq_alloc(struct ionic_lif *lif, uint32_t index,
-	uint16_t nrxq_descs, struct ionic_qcq **qcq);
-int ionic_tx_qcq_alloc(struct ionic_lif *lif, uint32_t index,
-	uint16_t ntxq_descs, struct ionic_qcq **qcq);
+int ionic_rx_qcq_alloc(struct ionic_lif *lif, uint32_t socket_id,
+	uint32_t index, uint16_t nrxq_descs,
+	struct ionic_rx_qcq **qcq_out);
+int ionic_tx_qcq_alloc(struct ionic_lif *lif, uint32_t socket_id,
+	uint32_t index, uint16_t ntxq_descs,
+	struct ionic_tx_qcq **qcq_out);
 void ionic_qcq_free(struct ionic_qcq *qcq);
 
 int ionic_qcq_enable(struct ionic_qcq *qcq);
 int ionic_qcq_disable(struct ionic_qcq *qcq);
 
-int ionic_lif_rxq_init(struct ionic_qcq *qcq);
-void ionic_lif_rxq_deinit(struct ionic_qcq *qcq);
+int ionic_lif_rxq_init(struct ionic_rx_qcq *rxq);
+void ionic_lif_rxq_deinit(struct ionic_rx_qcq *rxq);
 
-int ionic_lif_txq_init(struct ionic_qcq *qcq);
-void ionic_lif_txq_deinit(struct ionic_qcq *qcq);
+int ionic_lif_txq_init(struct ionic_tx_qcq *txq);
+void ionic_lif_txq_deinit(struct ionic_tx_qcq *txq);
 
 int ionic_lif_rss_config(struct ionic_lif *lif, const uint16_t types,
 	const uint8_t *key, const uint32_t *indir);

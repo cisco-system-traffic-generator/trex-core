@@ -63,14 +63,16 @@ vmbus_uio_map_secondary(struct rte_vmbus_device *dev)
 
 	for (i = 0; i != uio_res->nb_maps; i++) {
 		void *mapaddr;
-		off_t offset = i * PAGE_SIZE;
+		off_t offset = i * rte_mem_page_size();
 
 		mapaddr = vmbus_map_resource(uio_res->maps[i].addr,
 					     fd, offset,
 					     uio_res->maps[i].size, 0);
 
-		if (mapaddr == uio_res->maps[i].addr)
+		if (mapaddr == uio_res->maps[i].addr) {
+			dev->resource[i].addr = mapaddr;
 			continue;	/* successful map */
+		}
 
 		if (mapaddr == MAP_FAILED)
 			VMBUS_LOG(ERR,
@@ -88,19 +90,39 @@ vmbus_uio_map_secondary(struct rte_vmbus_device *dev)
 	/* fd is not needed in secondary process, close it */
 	close(fd);
 
-	dev->primary = uio_res->primary;
-	if (!dev->primary) {
-		VMBUS_LOG(ERR, "missing primary channel");
-		return -1;
+	/* Create and map primary channel */
+	if (vmbus_chan_create(dev, dev->relid, 0,
+					dev->monitor_id, &dev->primary)) {
+		VMBUS_LOG(ERR, "cannot create primary channel");
+		goto failed_primary;
 	}
 
-	STAILQ_FOREACH(chan, &dev->primary->subchannel_list, next) {
-		if (vmbus_uio_map_secondary_subchan(dev, chan) != 0) {
-			VMBUS_LOG(ERR, "cannot map secondary subchan");
-			return -1;
+	/* Create and map sub channels */
+	for (i = 0; i < uio_res->nb_subchannels; i++) {
+		if (rte_vmbus_subchan_open(dev->primary, &chan)) {
+			VMBUS_LOG(ERR,
+				"failed to create subchannel at index %d", i);
+			goto failed_secondary;
 		}
 	}
+
 	return 0;
+
+failed_secondary:
+	while (!STAILQ_EMPTY(&dev->primary->subchannel_list)) {
+		chan = STAILQ_FIRST(&dev->primary->subchannel_list);
+		vmbus_unmap_resource(chan->txbr.vbr, chan->txbr.dsize * 2);
+		rte_vmbus_chan_close(chan);
+	}
+	rte_vmbus_chan_close(dev->primary);
+
+failed_primary:
+	for (i = 0; i != uio_res->nb_maps; i++) {
+		vmbus_unmap_resource(
+				uio_res->maps[i].addr, uio_res->maps[i].size);
+	}
+
+	return -1;
 }
 
 static int
@@ -149,9 +171,14 @@ vmbus_uio_map_resource(struct rte_vmbus_device *dev)
 	int ret;
 
 	/* TODO: handle rescind */
-	dev->intr_handle.fd = -1;
-	dev->intr_handle.uio_cfg_fd = -1;
-	dev->intr_handle.type = RTE_INTR_HANDLE_UNKNOWN;
+	if (rte_intr_fd_set(dev->intr_handle, -1))
+		return -1;
+
+	if (rte_intr_dev_fd_set(dev->intr_handle, -1))
+		return -1;
+
+	if (rte_intr_type_set(dev->intr_handle, RTE_INTR_HANDLE_UNKNOWN))
+		return -1;
 
 	/* secondary processes - use already recorded details */
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
@@ -175,7 +202,7 @@ vmbus_uio_map_resource(struct rte_vmbus_device *dev)
 	}
 
 	dev->int_page = (uint32_t *)((char *)uio_res->maps[HV_INT_PAGE_MAP].addr
-				     + (PAGE_SIZE >> 1));
+				     + (rte_mem_page_size() >> 1));
 	dev->monitor_page = uio_res->maps[HV_MON_PAGE_MAP].addr;
 	return 0;
 }
@@ -187,6 +214,11 @@ vmbus_uio_unmap(struct mapped_vmbus_resource *uio_res)
 
 	if (uio_res == NULL)
 		return;
+
+	for (i = 0; i < uio_res->nb_subchannels; i++) {
+		vmbus_unmap_resource(uio_res->subchannel_maps[i].addr,
+				uio_res->subchannel_maps[i].size);
+	}
 
 	for (i = 0; i != uio_res->nb_maps; i++) {
 		vmbus_unmap_resource(uio_res->maps[i].addr,
@@ -211,8 +243,11 @@ vmbus_uio_unmap_resource(struct rte_vmbus_device *dev)
 		return;
 
 	/* secondary processes - just free maps */
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
-		return vmbus_uio_unmap(uio_res);
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
+		vmbus_uio_unmap(uio_res);
+		rte_free(dev->primary);
+		return;
+	}
 
 	TAILQ_REMOVE(uio_res_list, uio_res, next);
 
@@ -223,12 +258,14 @@ vmbus_uio_unmap_resource(struct rte_vmbus_device *dev)
 	rte_free(uio_res);
 
 	/* close fd if in primary process */
-	close(dev->intr_handle.fd);
-	if (dev->intr_handle.uio_cfg_fd >= 0) {
-		close(dev->intr_handle.uio_cfg_fd);
-		dev->intr_handle.uio_cfg_fd = -1;
+	if (rte_intr_fd_get(dev->intr_handle) >= 0)
+		close(rte_intr_fd_get(dev->intr_handle));
+
+	if (rte_intr_dev_fd_get(dev->intr_handle) >= 0) {
+		close(rte_intr_dev_fd_get(dev->intr_handle));
+		rte_intr_dev_fd_set(dev->intr_handle, -1);
 	}
 
-	dev->intr_handle.fd = -1;
-	dev->intr_handle.type = RTE_INTR_HANDLE_UNKNOWN;
+	rte_intr_fd_set(dev->intr_handle, -1);
+	rte_intr_type_set(dev->intr_handle, RTE_INTR_HANDLE_UNKNOWN);
 }

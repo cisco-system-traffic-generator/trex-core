@@ -44,6 +44,7 @@ MLX4_EXIT_CODE = 16
 MLX5_EXIT_CODE = 32
 NTACC_EXIT_CODE = 64
 class VFIOBindErr(Exception): pass
+class PCIgenericBindErr(Exception): pass
 
 PATH_ARR = os.getenv('PATH', '').split(':')
 for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
@@ -51,8 +52,10 @@ for path in ['/usr/local/sbin', '/usr/sbin', '/sbin']:
         PATH_ARR.append(path)
 os.environ['PATH'] = ':'.join(PATH_ARR)
 
+
 def if_list_remove_sub_if(if_list):
     return if_list
+
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
@@ -309,6 +312,7 @@ class ConfigCreator(object):
             print('Saved to %s.' % filename)
         return config_str
 
+
 # only load igb_uio if it's available
 def load_igb_uio():
     loaded_mods = dpdk_nic_bind.get_loaded_modules()
@@ -321,6 +325,7 @@ def load_igb_uio():
     km = './ko/%s/igb_uio.ko' % dpdk_nic_bind.kernel_ver
     if os.path.exists(km):
         return os.system('insmod %s' % km) == 0
+
 
 # try to compile igb_uio if it's missing
 def compile_and_load_igb_uio():
@@ -374,16 +379,20 @@ def compile_and_load_igb_uio():
         print('Failed inserting igb_uio module.')
         sys.exit(-1)
 
+
 class map_driver(object):
     args=None;
     cfg_file='/etc/trex_cfg.yaml'
     parent_args = None
 
+
 def pa():
     return map_driver.parent_args
 
+
 class DpdkSetup(Exception):
     pass
+
 
 class CIfMap:
 
@@ -435,7 +444,6 @@ Other network devices
     def get_only_mellanox_nics(self):
         return self.m_is_mellanox_mode
 
-
     def read_pci (self,pci_id,reg_id):
         out=subprocess.check_output(['setpci', '-s',pci_id, '%s.w' %(reg_id)])
         out=out.decode(errors='replace');
@@ -480,7 +488,6 @@ Other network devices
             out=subprocess.check_output(['ifconfig', dev_id,'mtu',str(new_mtu)])
             out=out.decode(errors='replace');
 
-
     def set_max_mtu_mlx_device(self,dev_id):
         mtu=9*1024+22
         dev_mtu=self.get_mtu_mlx (dev_id);
@@ -489,7 +496,6 @@ Other network devices
             if self.get_mtu_mlx(dev_id) != mtu:
                 print("Could not set MTU to %d" % mtu)
                 sys.exit(-1);
-
 
     def disable_flow_control_mlx_device (self,dev_id):
 
@@ -530,7 +536,6 @@ Other network devices
             else:
                 print("No valid OFED version '%s' found." % (lines[0]))
                 sys.exit(-1);
-
 
     def verify_ofed_os(self):
         err_msg = 'Warning: Mellanox NICs were tested only with RedHat/CentOS 7.9\n'
@@ -593,7 +598,6 @@ Other network devices
         except Exception as e:
             raise DpdkSetup('Error: "linux_based" stack mode requires ethtool installed on your machine. Install it or do not use this mode.')
 
-
     def do_bind_all(self, drv, pci, force = False):
         assert type(pci) is list
         cmd = '{ptn} dpdk_nic_bind.py --bind={drv} {pci} {frc}'.format(
@@ -623,6 +627,16 @@ Other network devices
         if ret:
             raise VFIOBindErr('Binding to vfio_pci failed')
 
+    # pros: no need to compile .ko per Kernel version
+    # cons: need special config/hw (not always works)
+    def try_bind_to_uio_pci_generic(self, to_bind_list):
+        if 'uio_pci_generic' not in dpdk_nic_bind.get_loaded_modules():
+            ret = os.system('modprobe uio_pci_generic')
+            if ret:
+                raise PCIgenericBindErr('Could not load uio_pci_generic')
+        ret = self.do_bind_all('uio_pci_generic', to_bind_list)
+        if ret:
+            raise PCIgenericBindErr('Binding to uio_pci_generic failed')
 
     def pci_name_to_full_name (self,pci_name):
         if pci_name == 'dummy':
@@ -642,7 +656,6 @@ Other network devices
 
         err=" %s is not a valid pci address \n" %pci_name;
         raise DpdkSetup(err)
-
 
     def run_dpdk_lspci (self):
         dpdk_nic_bind.get_nic_details()
@@ -684,7 +697,7 @@ Other network devices
         if trex_path not in sys.path:
             sys.path.insert(1, trex_path)
         from trex.astf.trex_astf_profile import ASTFProfile
-        from trex.astf.sim import decode_tunables
+        from trex.utils.parsing_opts import decode_tunables
 
         tunables = {}
         if pa().tunable:
@@ -699,7 +712,6 @@ Other network devices
         with open(dst_json_file, 'w') as f:
             f.write(json_content)
         os.chmod(dst_json_file, 0o777)
-
 
     def verify_stf_file(self):
         """ check the input file of STF """
@@ -721,7 +733,6 @@ Other network devices
             if os.path.isfile(filename):
                 return (True,filename,int(obj))
         return (False,None,None)
-
 
     def config_hugepages(self, wanted_count = None):
         mount_output = subprocess.check_output('mount', stderr = subprocess.STDOUT).decode(errors='replace')
@@ -803,6 +814,21 @@ Other network devices
                 print("Could not start scapy daemon server, which is needed by GUI to create packets.\nIf you don't need it, use --no-scapy-server flag.")
                 sys.exit(-1)
 
+        if self.m_cfg_dict[0].get('stack') == 'linux_based':
+            cmd = '{sys_exe} general_daemon_server restart -n {name} -c {core} --py -i --sudo -e "{exe}"'.format(sys_exe = sys.executable,
+                                                                                                                             core = services_core,
+                                                                                                                             name = 'Cmds',
+                                                                                                                             exe  = '-m trex.cmds_server.cmds_zmq_server')
+            prefix = self.get_prefix()
+            if prefix:
+                cmd += ' --prefix {0}'.format(prefix)
+
+            ret = os.system(cmd)
+            if ret:
+                print("Could not start cmds server, which is needed in case of linux_based stack")
+                sys.exit(-1)
+
+
         if pa().bird_server:
             ret = os.system('{sys_exe} general_daemon_server restart -n {name} -c {core} --py -e "{exe}" -i'.format(sys_exe = sys.executable,
                                                                                                                        name = 'PyBird',
@@ -822,7 +848,6 @@ Other network devices
             if ret:
                 print("Could not start EMU service.\nIf you don't need it, don't use -emu flag.")
                 sys.exit(-1)
-
 
     # check vdev Linux interfaces status
     # return True if interfaces are vdev
@@ -1058,6 +1083,14 @@ Other network devices
                         pass
                     #print(e)
 
+                    try:
+                        print('Trying to bind to try_bind_to_uio_pci_generic ...')
+                        self.try_bind_to_uio_pci_generic(to_bind_list)
+                        return
+                    except PCIgenericBindErr as e:
+                        pass
+                    #print(e)
+
                     print('Trying to compile and bind to igb_uio ...')
                     compile_and_load_igb_uio()
                     ret = self.do_bind_all('igb_uio', to_bind_list)
@@ -1067,7 +1100,6 @@ Other network devices
             return mlx5_present + mlx4_present
         elif Napatech_cnt:
             return NTACC_EXIT_CODE
-
 
     def do_return_to_linux(self):
         if not self.m_devices:
@@ -1100,6 +1132,7 @@ Other network devices
             'net_e1000_igb': 'igb',
             'net_i40e': 'i40e',
             'net_i40e_vf': 'i40evf',
+            'net_iavf' : 'iavf',
             'net_e1000_em': 'e1000',
             'net_vmxnet3': 'vmxnet3',
             'net_virtio': 'virtio-pci',
@@ -1613,8 +1646,23 @@ def signal_handler(sig, frame):
     traceback.print_stack(frame)
     sys.exit(1)
 
+
 def should_scapy_server_run():
     return not pa().no_scapy_server and pa().interactive and (pa().scapy_server or not pa().astf)
+
+def should_cmds_server_run():
+    result = False
+    try:
+        stream = open(map_driver.cfg_file, 'r')
+        cfg_dict= yaml.safe_load(stream)
+        if cfg_dict[0].get('stack') == 'linux_based':
+            result = True
+    except Exception as e:
+        print(e)
+        raise e
+    finally:
+        stream.close()
+    return result
 
 def kill_scapy():
     ret = os.system('%s general_daemon_server stop -n Scapy' % sys.executable)
@@ -1622,17 +1670,42 @@ def kill_scapy():
         print("Could not stop scapy daemon server.")
         sys.exit(-1)
 
+
 def kill_pybird():
         ret = os.system('%s general_daemon_server stop -n PyBird' % sys.executable)
         if ret:
             print("Could not stop bird daemon server.")
             sys.exit(-1)
 
+
 def kill_emu():
         ret = os.system('%s general_daemon_server stop -n Emu' % sys.executable)
         if ret:
             print("Could not stop EMU service.")
             sys.exit(-1)
+
+
+def kill_cmds_server():
+    prefix = pa().prefix
+    if prefix == '':
+        try:
+            stream = open(map_driver.cfg_file, 'r')
+            cfg_dict= yaml.safe_load(stream)
+            prefix = cfg_dict[0].get('prefix', '')
+        except Exception as e:
+            print(e)
+            raise e
+        finally:
+            stream.close()
+
+        cmd = '%s general_daemon_server stop -n Cmds' % sys.executable
+        if prefix:
+            cmd += " --prefix {0}".format(prefix)
+        ret = os.system(cmd)
+        if ret:
+            print("Could not stop Cmds server.")
+            sys.exit(-1)
+
 
 def cleanup_servers():
     ''' cleanup scapy and bird servers '''
@@ -1642,6 +1715,8 @@ def cleanup_servers():
         kill_pybird()
     if pa().emu:
         kill_emu()
+    if should_cmds_server_run():
+        kill_cmds_server()
 
 
 def main ():
@@ -1698,9 +1773,5 @@ def main ():
         sys.exit(-1)
 
 
-
-
-
 if __name__ == '__main__':
     main()
-

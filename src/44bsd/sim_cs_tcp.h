@@ -187,7 +187,7 @@ class CTcpCtxDebug : public CTcpCtxCb {
 public:
 
    int on_tx(CTcpPerThreadCtx *ctx,
-             struct tcpcb * tp,
+             struct CTcpCb * tp,
              rte_mbuf_t *m);
 
    int on_flow_close(CTcpPerThreadCtx *ctx,

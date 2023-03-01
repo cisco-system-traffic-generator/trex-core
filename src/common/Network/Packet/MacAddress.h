@@ -57,7 +57,7 @@ public:
             macAddr[5]	);
     };
 
-    void    set(uint8_t a0,
+    void set(uint8_t a0,
                 uint8_t a1,
                 uint8_t a2,
                 uint8_t a3,
@@ -76,7 +76,7 @@ public:
         memcpy( data, argPtr, sizeof(data) );
     }
 
-    void set(uint8_t *argPtr,uint8_t val) {
+    void set(uint8_t *argPtr, uint8_t val) {
         memcpy( data, argPtr, sizeof(data) );
         data[5]=val;
     }
@@ -99,6 +99,17 @@ public:
         static MacAddress defaultMac;
         return (*this == allZeros || *this == defaultMac);
     }
+
+    /**
+     * Indicate if MAC address is multicast.
+     *
+     * @return bool
+     *   True iff the mac address is a multicast MAC address.
+     **/
+    bool isMcastAddress() const {
+        return (data[0] & 0x01) != 0;
+    }
+
     void setIdentifierAsBogusAddr(uint32_t identifier)
     {
         *(uint32_t*)data = identifier;
@@ -141,13 +152,13 @@ public:
         memcpy(data, rhs, ETHER_ADDR_LEN);
         return (*this);
     }
-     
-    uint8_t*	GetBuffer()
+
+    uint8_t* GetBuffer()
     {
         return data;
     }
 
-    const uint8_t*	GetConstBuffer() const
+    const uint8_t* GetConstBuffer() const
     {
         return data;
     }

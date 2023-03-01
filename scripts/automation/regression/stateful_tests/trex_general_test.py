@@ -68,6 +68,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         cls.is_linux_stack    = 'linux_stack' in cls.modes
         cls.is_bird           = 'bird' in cls.modes
         cls.is_emu            = 'emu' in cls.modes
+        cls.is_stl_software   = 'stl_software' in cls.modes
         cls.is_loopback       = 'loopback' in cls.modes
         cls.is_lowend         = 'lowend' in cls.modes
         cls.is_switch         = 'switch' in cls.modes
@@ -101,7 +102,7 @@ class CTRexGeneral_Test(unittest.TestCase):
                 else:
                     setup['baremetal'] = True
             if not cls.is_loopback:
-                # initilize the scenario based on received configuration, once per entire testing session
+                # initialize the scenario based on received configuration, once per entire testing session
                 CTRexScenario.router = CPlatform(CTRexScenario.router_cfg['silent_mode'])
                 device_cfg           = CDeviceCfg()
                 device_cfg.set_platform_config(CTRexScenario.router_cfg['config_dict'])
@@ -298,7 +299,6 @@ class CTRexGeneral_Test(unittest.TestCase):
         if res[name] < float(val):
             self.fail('TRex results[%s] is %f and not as expected greater than %f ' % (name, res[name], val))
 
-
     # actually less or equal
     def check_results_lt(self, res, name, val):
         if res is None:
@@ -311,7 +311,6 @@ class CTRexGeneral_Test(unittest.TestCase):
 
         if res[name] > float(val):
             self.fail('TRex results[%s] is %f and not as expected less than %f ' % (name, res[name], val))
-
 
     def check_for_trex_crash(self):
         pass
@@ -332,10 +331,10 @@ class CTRexGeneral_Test(unittest.TestCase):
     def check_general_scenario_results (self, trex_res, check_latency = True, skip_expected = False):
         """ 
 
-           skip expected is for case of TCP that those value does not exits beacuse we can'r predict them 
+           skip expected is for case of TCP that those value does not exist because we can't predict them 
 
         """
-        
+
         try:
             # check history size is enough
             if len(trex_res._history) < 5:
@@ -345,7 +344,7 @@ class CTRexGeneral_Test(unittest.TestCase):
 
             if skip_expected == False: 
               if not trex_res.is_done_warmup():
-                  self.fail('TRex did not reach warm-up situtaion. Results are not valid.')
+                  self.fail('TRex did not reach warm-up situation. Results are not valid.')
 
               #check that BW is not much more than expected
               trex_exp_bps = trex_res.get_expected_tx_rate().get('m_tx_expected_bps') / 1e6
@@ -605,6 +604,16 @@ class CTRexGeneral_Test(unittest.TestCase):
             },
 
             'net_mlx5': {
+                'rate_percent': 40,
+                'rate_percent_soft': 0.01 if cls.is_vf_nics else 1,
+                'total_pkts': 1000,
+                'rate_latency': 0.01 if cls.is_vf_nics else 1,
+                'latency_9k_enable': False if cls.is_vf_nics else True,
+                'latency_9k_max_average': 200,
+                'latency_9k_max_latency': 200,
+            },
+
+            'net_ice': {
                 'rate_percent': 40,
                 'rate_percent_soft': 0.01 if cls.is_vf_nics else 1,
                 'total_pkts': 1000,

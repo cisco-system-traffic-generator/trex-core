@@ -82,6 +82,10 @@ enum mlx5dv_context_comp_mask {
 	MLX5DV_CONTEXT_MASK_DC_ODP_CAPS		= 1 << 7,
 	MLX5DV_CONTEXT_MASK_HCA_CORE_CLOCK	= 1 << 8,
 	MLX5DV_CONTEXT_MASK_NUM_LAG_PORTS	= 1 << 9,
+	MLX5DV_CONTEXT_MASK_SIGNATURE_OFFLOAD	= 1 << 10,
+	MLX5DV_CONTEXT_MASK_DCI_STREAMS		= 1 << 11,
+	MLX5DV_CONTEXT_MASK_WR_MEMCPY_LENGTH	= 1 << 12,
+	MLX5DV_CONTEXT_MASK_CRYPTO_OFFLOAD	= 1 << 13,
 };
 
 struct mlx5dv_cqe_comp_caps {
@@ -102,6 +106,11 @@ struct mlx5dv_striding_rq_caps {
 	uint32_t supported_qpts;
 };
 
+struct mlx5dv_dci_streams_caps {
+	uint8_t max_log_num_concurent;
+	uint8_t max_log_num_errored;
+};
+
 enum mlx5dv_tunnel_offloads {
 	MLX5DV_RAW_PACKET_CAP_TUNNELED_OFFLOAD_VXLAN	= 1 << 0,
 	MLX5DV_RAW_PACKET_CAP_TUNNELED_OFFLOAD_GRE	= 1 << 1,
@@ -118,6 +127,89 @@ enum mlx5dv_flow_action_cap_flags {
 	MLX5DV_FLOW_ACTION_FLAGS_ESP_AES_GCM_TX_IV_IS_ESN = 1 << 4,
 };
 
+enum mlx5dv_sig_type {
+	MLX5DV_SIG_TYPE_T10DIF,
+	MLX5DV_SIG_TYPE_CRC,
+};
+
+enum mlx5dv_sig_prot_caps {
+	MLX5DV_SIG_PROT_CAP_T10DIF = 1 << MLX5DV_SIG_TYPE_T10DIF,
+	MLX5DV_SIG_PROT_CAP_CRC = 1 << MLX5DV_SIG_TYPE_CRC,
+};
+
+enum mlx5dv_sig_t10dif_bg_type {
+	MLX5DV_SIG_T10DIF_CRC,
+	MLX5DV_SIG_T10DIF_CSUM,
+};
+
+enum mlx5dv_sig_t10dif_bg_caps {
+	MLX5DV_SIG_T10DIF_BG_CAP_CRC = 1 << MLX5DV_SIG_T10DIF_CRC,
+	MLX5DV_SIG_T10DIF_BG_CAP_CSUM = 1 << MLX5DV_SIG_T10DIF_CSUM,
+};
+
+enum mlx5dv_sig_crc_type {
+	MLX5DV_SIG_CRC_TYPE_CRC32,
+	MLX5DV_SIG_CRC_TYPE_CRC32C,
+	MLX5DV_SIG_CRC_TYPE_CRC64_XP10,
+};
+
+enum mlx5dv_sig_crc_type_caps {
+	MLX5DV_SIG_CRC_TYPE_CAP_CRC32 = 1 << MLX5DV_SIG_CRC_TYPE_CRC32,
+	MLX5DV_SIG_CRC_TYPE_CAP_CRC32C = 1 << MLX5DV_SIG_CRC_TYPE_CRC32C,
+	MLX5DV_SIG_CRC_TYPE_CAP_CRC64_XP10 = 1 << MLX5DV_SIG_CRC_TYPE_CRC64_XP10,
+};
+
+enum mlx5dv_block_size {
+	MLX5DV_BLOCK_SIZE_512,
+	MLX5DV_BLOCK_SIZE_520,
+	MLX5DV_BLOCK_SIZE_4048,
+	MLX5DV_BLOCK_SIZE_4096,
+	MLX5DV_BLOCK_SIZE_4160,
+};
+
+enum mlx5dv_block_size_caps {
+	MLX5DV_BLOCK_SIZE_CAP_512 = 1 << MLX5DV_BLOCK_SIZE_512,
+	MLX5DV_BLOCK_SIZE_CAP_520 = 1 << MLX5DV_BLOCK_SIZE_520,
+	MLX5DV_BLOCK_SIZE_CAP_4048 = 1 << MLX5DV_BLOCK_SIZE_4048,
+	MLX5DV_BLOCK_SIZE_CAP_4096 = 1 << MLX5DV_BLOCK_SIZE_4096,
+	MLX5DV_BLOCK_SIZE_CAP_4160 = 1 << MLX5DV_BLOCK_SIZE_4160,
+};
+
+struct mlx5dv_sig_caps {
+	uint64_t block_size; /* use enum mlx5dv_block_size_caps */
+	uint32_t block_prot; /* use enum mlx5dv_sig_prot_caps */
+	uint16_t t10dif_bg; /* use enum mlx5dv_sig_t10dif_bg_caps */
+	uint16_t crc_type; /* use enum mlx5dv_sig_crc_type_caps */
+};
+
+enum mlx5dv_crypto_engines_caps {
+	MLX5DV_CRYPTO_ENGINES_CAP_AES_XTS = 1 << 0,
+	MLX5DV_CRYPTO_ENGINES_CAP_AES_XTS_SINGLE_BLOCK = 1 << 1,
+};
+
+enum mlx5dv_crypto_wrapped_import_method_caps {
+	MLX5DV_CRYPTO_WRAPPED_IMPORT_METHOD_CAP_AES_XTS = 1 << 0,
+};
+
+enum mlx5dv_crypto_caps_flags {
+	MLX5DV_CRYPTO_CAPS_CRYPTO = 1 << 0,
+	MLX5DV_CRYPTO_CAPS_WRAPPED_CRYPTO_OPERATIONAL = 1 << 1,
+	MLX5DV_CRYPTO_CAPS_WRAPPED_CRYPTO_GOING_TO_COMMISSIONING = 1 << 2,
+};
+
+struct mlx5dv_crypto_caps {
+	/*
+	 * if failed_selftests != 0 it means there are some self tests errors
+	 * that may render specific crypto engines unusable. Exact code meaning
+	 * should be consulted with NVIDIA.
+	 */
+	uint16_t failed_selftests;
+	uint8_t crypto_engines; /* use enum mlx5dv_crypto_engines_caps */
+	uint8_t wrapped_import_method; /* use enum mlx5dv_crypto_wrapped_import_method_caps */
+	uint8_t log_max_num_deks;
+	uint32_t flags; /* use enum mlx5dv_crypto_caps_flags */
+};
+
 struct mlx5dv_devx_port {
 	uint64_t comp_mask;
 	uint16_t vport_num;
@@ -125,7 +217,7 @@ struct mlx5dv_devx_port {
 	uint16_t esw_owner_vhca_id;
 	uint64_t icm_addr_rx;
 	uint64_t icm_addr_tx;
-	struct mlx5dv_devx_reg_32 reg_c_0;
+	struct mlx5dv_reg reg_c_0;
 };
 
 /*
@@ -145,6 +237,10 @@ struct mlx5dv_context {
 	uint32_t	dc_odp_caps; /* use enum ibv_odp_transport_cap_bits */
 	void		*hca_core_clock;
 	uint8_t		num_lag_ports;
+	struct mlx5dv_sig_caps sig_caps;
+	struct mlx5dv_dci_streams_caps dci_streams_caps;
+	size_t max_wr_memcpy_length;
+	struct mlx5dv_crypto_caps crypto_caps;
 };
 
 enum mlx5dv_context_flags {
@@ -158,6 +254,7 @@ enum mlx5dv_context_flags {
 	MLX5DV_CONTEXT_FLAGS_CQE_128B_COMP = (1 << 4), /* Support CQE 128B compression */
 	MLX5DV_CONTEXT_FLAGS_CQE_128B_PAD = (1 << 5), /* Support CQE 128B padding */
 	MLX5DV_CONTEXT_FLAGS_PACKET_BASED_CREDIT_MODE = (1 << 6),
+	MLX5DV_CONTEXT_FLAGS_REAL_TIME_TS = (1 << 7),
 };
 
 enum mlx5dv_cq_init_attr_mask {
@@ -189,10 +286,13 @@ enum mlx5dv_qp_create_flags {
 	MLX5DV_QP_CREATE_DISABLE_SCATTER_TO_CQE = 1 << 3,
 	MLX5DV_QP_CREATE_ALLOW_SCATTER_TO_CQE = 1 << 4,
 	MLX5DV_QP_CREATE_PACKET_BASED_CREDIT_MODE = 1 << 5,
+	MLX5DV_QP_CREATE_SIG_PIPELINING = 1 << 6,
 };
 
 enum mlx5dv_mkey_init_attr_flags {
 	MLX5DV_MKEY_INIT_ATTR_FLAGS_INDIRECT = 1 << 0,
+	MLX5DV_MKEY_INIT_ATTR_FLAGS_BLOCK_SIGNATURE = 1 << 1,
+	MLX5DV_MKEY_INIT_ATTR_FLAGS_CRYPTO = 1 << 2,
 };
 
 struct mlx5dv_mkey_init_attr {
@@ -213,6 +313,7 @@ enum mlx5dv_qp_init_attr_mask {
 	MLX5DV_QP_INIT_ATTR_MASK_QP_CREATE_FLAGS	= 1 << 0,
 	MLX5DV_QP_INIT_ATTR_MASK_DC			= 1 << 1,
 	MLX5DV_QP_INIT_ATTR_MASK_SEND_OPS_FLAGS		= 1 << 2,
+	MLX5DV_QP_INIT_ATTR_MASK_DCI_STREAMS            = 1 << 3,
 };
 
 enum mlx5dv_dc_type {
@@ -220,14 +321,25 @@ enum mlx5dv_dc_type {
 	MLX5DV_DCTYPE_DCI,
 };
 
+struct mlx5dv_dci_streams {
+	uint8_t log_num_concurent;
+	uint8_t log_num_errored;
+};
+
 struct mlx5dv_dc_init_attr {
 	enum mlx5dv_dc_type	dc_type;
-	uint64_t dct_access_key;
+	union {
+		uint64_t dct_access_key;
+		struct mlx5dv_dci_streams dci_streams;
+	};
 };
 
 enum mlx5dv_qp_create_send_ops_flags {
 	MLX5DV_QP_EX_WITH_MR_INTERLEAVED	= 1 << 0,
 	MLX5DV_QP_EX_WITH_MR_LIST		= 1 << 1,
+	MLX5DV_QP_EX_WITH_MKEY_CONFIGURE	= 1 << 2,
+	MLX5DV_QP_EX_WITH_RAW_WQE		= 1 << 3,
+	MLX5DV_QP_EX_WITH_MEMCPY		= 1 << 4,
 };
 
 struct mlx5dv_qp_init_attr {
@@ -248,8 +360,90 @@ struct mlx5dv_mr_interleaved {
 	uint32_t        lkey;
 };
 
+enum mlx5dv_sig_t10dif_flags {
+	MLX5DV_SIG_T10DIF_FLAG_REF_REMAP = 1 << 0,
+	MLX5DV_SIG_T10DIF_FLAG_APP_ESCAPE = 1 << 1,
+	MLX5DV_SIG_T10DIF_FLAG_APP_REF_ESCAPE = 1 << 2,
+};
+
+struct mlx5dv_sig_t10dif {
+	enum mlx5dv_sig_t10dif_bg_type bg_type;
+	uint16_t bg;
+	uint16_t app_tag;
+	uint32_t ref_tag;
+	uint16_t flags; /* Use enum mlx5dv_sig_t10dif_flags */
+};
+
+struct mlx5dv_sig_crc {
+	enum mlx5dv_sig_crc_type type;
+	uint64_t seed;
+};
+
+struct mlx5dv_sig_block_domain {
+	enum mlx5dv_sig_type sig_type;
+	union {
+		const struct mlx5dv_sig_t10dif *dif;
+		const struct mlx5dv_sig_crc *crc;
+	} sig;
+	enum mlx5dv_block_size block_size;
+	uint64_t comp_mask;
+};
+
+enum mlx5dv_sig_mask {
+	MLX5DV_SIG_MASK_T10DIF_GUARD = 0xc0,
+	MLX5DV_SIG_MASK_T10DIF_APPTAG = 0x30,
+	MLX5DV_SIG_MASK_T10DIF_REFTAG = 0x0f,
+	MLX5DV_SIG_MASK_CRC32 = 0xf0,
+	MLX5DV_SIG_MASK_CRC32C = MLX5DV_SIG_MASK_CRC32,
+	MLX5DV_SIG_MASK_CRC64_XP10 = 0xff,
+};
+
+enum mlx5dv_sig_block_attr_flags {
+	MLX5DV_SIG_BLOCK_ATTR_FLAG_COPY_MASK = 1 << 0,
+};
+
+struct mlx5dv_sig_block_attr {
+	const struct mlx5dv_sig_block_domain *mem;
+	const struct mlx5dv_sig_block_domain *wire;
+	uint32_t flags; /* Use enum mlx5dv_sig_block_attr_flags */
+	uint8_t check_mask;
+	uint8_t copy_mask;
+	uint64_t comp_mask;
+};
+
+enum mlx5dv_crypto_standard {
+	MLX5DV_CRYPTO_STANDARD_AES_XTS,
+};
+
+enum mlx5dv_signature_crypto_order {
+	MLX5DV_SIGNATURE_CRYPTO_ORDER_SIGNATURE_AFTER_CRYPTO_ON_TX,
+	MLX5DV_SIGNATURE_CRYPTO_ORDER_SIGNATURE_BEFORE_CRYPTO_ON_TX,
+};
+
+struct mlx5dv_crypto_attr {
+	enum mlx5dv_crypto_standard crypto_standard;
+	bool encrypt_on_tx;
+	enum mlx5dv_signature_crypto_order signature_crypto_order;
+	enum mlx5dv_block_size data_unit_size;
+	char initial_tweak[16];
+	struct mlx5dv_dek *dek;
+	char keytag[8];
+	uint64_t comp_mask;
+};
+
+enum mlx5dv_mkey_conf_flags {
+	MLX5DV_MKEY_CONF_FLAG_RESET_SIG_ATTR = 1 << 0,
+};
+
+struct mlx5dv_mkey_conf_attr {
+	uint32_t conf_flags; /* Use enum mlx5dv_mkey_conf_flags */
+	uint64_t comp_mask;
+};
+
 enum mlx5dv_wc_opcode {
 	MLX5DV_WC_UMR = IBV_WC_DRIVER1,
+	MLX5DV_WC_RAW_WQE = IBV_WC_DRIVER2,
+	MLX5DV_WC_MEMCPY = IBV_WC_DRIVER3,
 };
 
 struct mlx5dv_qp_ex {
@@ -271,13 +465,37 @@ struct mlx5dv_qp_ex {
 			   uint32_t access_flags, /* use enum ibv_access_flags */
 			   uint16_t num_sges,
 			   struct ibv_sge *sge);
+	void (*wr_mkey_configure)(struct mlx5dv_qp_ex *mqp,
+				  struct mlx5dv_mkey *mkey,
+				  uint8_t num_setters,
+				  struct mlx5dv_mkey_conf_attr *attr);
+	void (*wr_set_mkey_access_flags)(struct mlx5dv_qp_ex *mqp,
+					 uint32_t access_flags);
+	void (*wr_set_mkey_layout_list)(struct mlx5dv_qp_ex *mqp,
+					uint16_t num_sges,
+					const struct ibv_sge *sge);
+	void (*wr_set_mkey_layout_interleaved)(
+				struct mlx5dv_qp_ex *mqp,
+				uint32_t repeat_count,
+				uint16_t num_interleaved,
+				const struct mlx5dv_mr_interleaved *data);
+	void (*wr_set_mkey_sig_block)(struct mlx5dv_qp_ex *mqp,
+				      const struct mlx5dv_sig_block_attr *attr);
+	void (*wr_raw_wqe)(struct mlx5dv_qp_ex *mqp, const void *wqe);
+	void (*wr_set_dc_addr_stream)(struct mlx5dv_qp_ex *mqp,
+				      struct ibv_ah *ah,
+				      uint32_t remote_dctn,
+				      uint64_t remote_dc_key,
+				      uint16_t stream_id);
+	void (*wr_memcpy)(struct mlx5dv_qp_ex *mqp,
+			  uint32_t dest_lkey, uint64_t dest_addr,
+			  uint32_t src_lkey, uint64_t src_addr,
+			  size_t length);
+	void (*wr_set_mkey_crypto)(struct mlx5dv_qp_ex *mqp,
+				   const struct mlx5dv_crypto_attr *attr);
 };
 
 struct mlx5dv_qp_ex *mlx5dv_qp_ex_from_ibv_qp_ex(struct ibv_qp_ex *qp);
-
-int mlx5dv_query_devx_port(struct ibv_context *ctx,
-			   uint32_t port_num,
-			   struct mlx5dv_devx_port *mlx5_devx_port);
 
 static inline void mlx5dv_wr_set_dc_addr(struct mlx5dv_qp_ex *mqp,
 					 struct ibv_ah *ah,
@@ -285,6 +503,16 @@ static inline void mlx5dv_wr_set_dc_addr(struct mlx5dv_qp_ex *mqp,
 					 uint64_t remote_dc_key)
 {
 	mqp->wr_set_dc_addr(mqp, ah, remote_dctn, remote_dc_key);
+}
+
+static inline void mlx5dv_wr_set_dc_addr_stream(struct mlx5dv_qp_ex *mqp,
+						struct ibv_ah *ah,
+						uint32_t remote_dctn,
+						uint64_t remote_dc_key,
+						uint16_t stream_id)
+{
+	mqp->wr_set_dc_addr_stream(mqp, ah, remote_dctn,
+				   remote_dc_key, stream_id);
 }
 
 static inline void mlx5dv_wr_mr_interleaved(struct mlx5dv_qp_ex *mqp,
@@ -306,6 +534,182 @@ static inline void mlx5dv_wr_mr_list(struct mlx5dv_qp_ex *mqp,
 {
 	mqp->wr_mr_list(mqp, mkey, access_flags, num_sges, sge);
 }
+
+static inline void mlx5dv_wr_mkey_configure(struct mlx5dv_qp_ex *mqp,
+					    struct mlx5dv_mkey *mkey,
+					    uint8_t num_setters,
+					    struct mlx5dv_mkey_conf_attr *attr)
+{
+	mqp->wr_mkey_configure(mqp, mkey, num_setters, attr);
+}
+
+static inline void mlx5dv_wr_set_mkey_access_flags(struct mlx5dv_qp_ex *mqp,
+						   uint32_t access_flags)
+{
+	mqp->wr_set_mkey_access_flags(mqp, access_flags);
+}
+
+static inline void mlx5dv_wr_set_mkey_layout_list(struct mlx5dv_qp_ex *mqp,
+						  uint16_t num_sges,
+						  const struct ibv_sge *sge)
+{
+	mqp->wr_set_mkey_layout_list(mqp, num_sges, sge);
+}
+
+static inline void mlx5dv_wr_set_mkey_layout_interleaved(struct mlx5dv_qp_ex *mqp,
+							 uint32_t repeat_count,
+							 uint16_t num_interleaved,
+							 const struct mlx5dv_mr_interleaved *data)
+{
+	mqp->wr_set_mkey_layout_interleaved(mqp, repeat_count,
+					    num_interleaved, data);
+}
+
+static inline void mlx5dv_wr_set_mkey_sig_block(struct mlx5dv_qp_ex *mqp,
+						const struct mlx5dv_sig_block_attr *attr)
+{
+	mqp->wr_set_mkey_sig_block(mqp, attr);
+}
+
+static inline void
+mlx5dv_wr_set_mkey_crypto(struct mlx5dv_qp_ex *mqp,
+			  const struct mlx5dv_crypto_attr *attr)
+{
+	mqp->wr_set_mkey_crypto(mqp, attr);
+}
+
+static inline void mlx5dv_wr_memcpy(struct mlx5dv_qp_ex *mqp,
+				    uint32_t dest_lkey, uint64_t dest_addr,
+				    uint32_t src_lkey, uint64_t src_addr,
+				    size_t length)
+{
+	mqp->wr_memcpy(mqp, dest_lkey, dest_addr, src_lkey, src_addr, length);
+}
+
+enum mlx5dv_mkey_err_type {
+	MLX5DV_MKEY_NO_ERR,
+	MLX5DV_MKEY_SIG_BLOCK_BAD_GUARD,
+	MLX5DV_MKEY_SIG_BLOCK_BAD_REFTAG,
+	MLX5DV_MKEY_SIG_BLOCK_BAD_APPTAG,
+};
+
+struct mlx5dv_sig_err {
+	uint64_t actual_value;
+	uint64_t expected_value;
+	uint64_t offset;
+};
+
+struct mlx5dv_mkey_err {
+	enum mlx5dv_mkey_err_type err_type;
+	union {
+		struct mlx5dv_sig_err sig;
+	} err;
+};
+
+int _mlx5dv_mkey_check(struct mlx5dv_mkey *mkey,
+		       struct mlx5dv_mkey_err *err_info,
+		       size_t err_info_size);
+
+static inline int mlx5dv_mkey_check(struct mlx5dv_mkey *mkey,
+				    struct mlx5dv_mkey_err *err_info)
+{
+	return _mlx5dv_mkey_check(mkey, err_info, sizeof(*err_info));
+}
+
+int mlx5dv_qp_cancel_posted_send_wrs(struct mlx5dv_qp_ex *mqp, uint64_t wr_id);
+
+static inline void mlx5dv_wr_raw_wqe(struct mlx5dv_qp_ex *mqp, const void *wqe)
+{
+	mqp->wr_raw_wqe(mqp, wqe);
+}
+
+struct mlx5dv_crypto_login_obj;
+
+struct mlx5dv_crypto_login_attr {
+	uint32_t credential_id;
+	uint32_t import_kek_id;
+	char credential[48];
+	uint64_t comp_mask;
+};
+
+struct mlx5dv_crypto_login_attr_ex {
+	uint32_t credential_id;
+	uint32_t import_kek_id;
+	const void *credential;
+	size_t credential_len;
+	uint64_t comp_mask;
+};
+enum mlx5dv_crypto_login_state {
+	MLX5DV_CRYPTO_LOGIN_STATE_VALID,
+	MLX5DV_CRYPTO_LOGIN_STATE_NO_LOGIN,
+	MLX5DV_CRYPTO_LOGIN_STATE_INVALID,
+};
+
+struct mlx5dv_crypto_login_query_attr {
+	enum mlx5dv_crypto_login_state state;
+	uint64_t comp_mask;
+};
+
+int mlx5dv_crypto_login(struct ibv_context *context,
+			struct mlx5dv_crypto_login_attr *login_attr);
+
+int mlx5dv_crypto_login_query_state(struct ibv_context *context,
+				    enum mlx5dv_crypto_login_state *state);
+
+int mlx5dv_crypto_logout(struct ibv_context *context);
+
+struct mlx5dv_crypto_login_obj *
+mlx5dv_crypto_login_create(struct ibv_context *context,
+			   struct mlx5dv_crypto_login_attr_ex *login_attr);
+
+int mlx5dv_crypto_login_query(struct mlx5dv_crypto_login_obj *crypto_login,
+			      struct mlx5dv_crypto_login_query_attr *query_attr);
+
+int mlx5dv_crypto_login_destroy(struct mlx5dv_crypto_login_obj *crypto_login);
+
+enum mlx5dv_crypto_key_size {
+	MLX5DV_CRYPTO_KEY_SIZE_128,
+	MLX5DV_CRYPTO_KEY_SIZE_256,
+};
+
+enum mlx5dv_crypto_key_purpose {
+	MLX5DV_CRYPTO_KEY_PURPOSE_AES_XTS,
+};
+
+enum mlx5dv_dek_state {
+	MLX5DV_DEK_STATE_READY,
+	MLX5DV_DEK_STATE_ERROR,
+};
+
+enum mlx5dv_dek_init_attr_mask {
+	MLX5DV_DEK_INIT_ATTR_CRYPTO_LOGIN = 1 << 0,
+};
+
+struct mlx5dv_dek_init_attr {
+	enum mlx5dv_crypto_key_size key_size;
+	bool has_keytag;
+	enum mlx5dv_crypto_key_purpose key_purpose;
+	struct ibv_pd *pd;
+	char opaque[8];
+	char key[128];
+	uint64_t comp_mask;
+	struct mlx5dv_crypto_login_obj *crypto_login;
+};
+
+struct mlx5dv_dek_attr {
+	enum mlx5dv_dek_state state;
+	char opaque[8];
+	uint64_t comp_mask;
+};
+
+struct mlx5dv_dek;
+
+struct mlx5dv_dek *mlx5dv_dek_create(struct ibv_context *context,
+				     struct mlx5dv_dek_init_attr *init_attr);
+
+int mlx5dv_dek_query(struct mlx5dv_dek *dek, struct mlx5dv_dek_attr *attr);
+
+int mlx5dv_dek_destroy(struct mlx5dv_dek *dek);
 
 enum mlx5dv_flow_action_esp_mask {
 	MLX5DV_FLOW_ACTION_ESP_MASK_FLAGS	= 1 << 0,
@@ -342,6 +746,21 @@ mlx5dv_create_flow_matcher(struct ibv_context *context,
 			   struct mlx5dv_flow_matcher_attr *matcher_attr);
 
 int mlx5dv_destroy_flow_matcher(struct mlx5dv_flow_matcher *matcher);
+
+struct mlx5dv_steering_anchor_attr {
+	enum mlx5dv_flow_table_type ft_type;
+	uint16_t priority;
+	uint64_t comp_mask;
+};
+
+struct mlx5dv_steering_anchor {
+	uint32_t id;
+};
+
+struct mlx5dv_steering_anchor *
+mlx5dv_create_steering_anchor(struct ibv_context *context,
+			      struct mlx5dv_steering_anchor_attr *attr);
+int mlx5dv_destroy_steering_anchor(struct mlx5dv_steering_anchor *sa);
 
 enum mlx5dv_flow_action_type {
 	MLX5DV_FLOW_ACTION_DEST_IBV_QP,
@@ -414,6 +833,8 @@ mlx5dv_create_flow_action_packet_reformat(struct ibv_context *ctx,
  */
 int mlx5dv_query_device(struct ibv_context *ctx_in,
 			struct mlx5dv_context *attrs_out);
+
+int mlx5dv_map_ah_to_qp(struct ibv_ah *ah, uint32_t qp_num);
 
 enum mlx5dv_qp_comp_mask {
 	MLX5DV_QP_MASK_UAR_MMAP_OFFSET		= 1 << 0,
@@ -497,6 +918,8 @@ struct mlx5dv_dm {
 struct ibv_dm *mlx5dv_alloc_dm(struct ibv_context *context,
 			       struct ibv_alloc_dm_attr *dm_attr,
 			       struct mlx5dv_alloc_dm_attr *mlx5_dm_attr);
+
+void *mlx5dv_dm_map_op_addr(struct ibv_dm *dm, uint8_t op);
 
 struct mlx5_wqe_av;
 
@@ -618,9 +1041,11 @@ enum {
 	MLX5_OPCODE_FMR			= 0x19,
 	MLX5_OPCODE_LOCAL_INVAL		= 0x1b,
 	MLX5_OPCODE_CONFIG_CMD		= 0x1f,
+	MLX5_OPCODE_SET_PSV		= 0x20,
 	MLX5_OPCODE_UMR			= 0x25,
 	MLX5_OPCODE_TAG_MATCHING	= 0x28,
-	MLX5_OPCODE_FLOW_TBL_ACCESS	= 0x2c,
+	MLX5_OPCODE_FLOW_TBL_ACCESS     = 0x2c,
+	MLX5_OPCODE_MMO			= 0x2F,
 };
 
 /*
@@ -673,6 +1098,7 @@ enum {
 	MLX5_CQE_RESP_SEND_INV	= 4,
 	MLX5_CQE_RESIZE_CQ	= 5,
 	MLX5_CQE_NO_PACKET	= 6,
+	MLX5_CQE_SIG_ERR	= 12,
 	MLX5_CQE_REQ_ERR	= 13,
 	MLX5_CQE_RESP_ERR	= 14,
 	MLX5_CQE_INVALID	= 15,
@@ -832,19 +1258,19 @@ struct mlx5_wqe_ctrl_seg {
 	__be32		opmod_idx_opcode;
 	__be32		qpn_ds;
 	uint8_t		signature;
-	uint8_t		rsvd[2];
+	__be16		dci_stream_channel_id;
 	uint8_t		fm_ce_se;
 	__be32		imm;
-};
+} __attribute__((__packed__)) __attribute__((__aligned__(4)));
 
 struct mlx5_wqe_flow_update_ctrl_seg {
-	__be32		flow_idx_update;
-	__be32		dest_handle;
-	uint8_t		reserved0[40];
+	__be32          flow_idx_update;
+	__be32          dest_handle;
+	uint8_t         reserved0[40];
 };
 
 struct mlx5_wqe_header_modify_argument_update_seg {
-	uint8_t		argument_list[64];
+	uint8_t         argument_list[64];
 };
 
 struct mlx5_mprq_wqe {
@@ -923,6 +1349,8 @@ enum {
 enum {
 	MLX5_WQE_UMR_CTRL_MKEY_MASK_LEN			= 1 << 0,
 	MLX5_WQE_UMR_CTRL_MKEY_MASK_START_ADDR		= 1 << 6,
+	MLX5_WQE_UMR_CTRL_MKEY_MASK_SIG_ERR		= 1 << 9,
+	MLX5_WQE_UMR_CTRL_MKEY_MASK_BSF_ENABLE		= 1 << 12,
 	MLX5_WQE_UMR_CTRL_MKEY_MASK_MKEY		= 1 << 13,
 	MLX5_WQE_UMR_CTRL_MKEY_MASK_QPN			= 1 << 14,
 	MLX5_WQE_UMR_CTRL_MKEY_MASK_ACCESS_LOCAL_WRITE	= 1 << 18,
@@ -936,7 +1364,10 @@ struct mlx5_wqe_umr_ctrl_seg {
 	uint8_t		flags;
 	uint8_t		rsvd0[3];
 	__be16		klm_octowords;
-	__be16		translation_offset;
+	union {
+		__be16	translation_offset;
+		__be16	bsf_octowords;
+	};
 	__be64		mkey_mask;
 	uint8_t		rsvd1[32];
 };
@@ -1275,6 +1706,27 @@ struct mlx5dv_context_attr {
 
 bool mlx5dv_is_supported(struct ibv_device *device);
 
+enum mlx5dv_vfio_context_attr_flags {
+	MLX5DV_VFIO_CTX_FLAGS_INIT_LINK_DOWN = 1 << 0,
+};
+
+struct mlx5dv_vfio_context_attr {
+	const char *pci_name;
+	uint32_t flags; /* Use enum mlx5dv_vfio_context_attr_flags */
+	uint64_t comp_mask;
+};
+
+struct ibv_device **
+mlx5dv_get_vfio_device_list(struct mlx5dv_vfio_context_attr *attr);
+
+int mlx5dv_vfio_get_events_fd(struct ibv_context *ibctx);
+
+/* This API should run from application thread and maintain device events.
+ * The application is responsible to get the events FD by calling mlx5dv_vfio_get_events_fd
+ * and once the FD is pollable call the API to let driver process the ready events.
+ */
+int mlx5dv_vfio_process_events(struct ibv_context *context);
+
 struct ibv_context *
 mlx5dv_open_device(struct ibv_device *device, struct mlx5dv_context_attr *attr);
 
@@ -1291,12 +1743,36 @@ int mlx5dv_devx_obj_destroy(struct mlx5dv_devx_obj *obj);
 int mlx5dv_devx_general_cmd(struct ibv_context *context, const void *in, size_t inlen,
 			    void *out, size_t outlen);
 
+int _mlx5dv_query_port(struct ibv_context *context,
+		       uint32_t port_num,
+		       struct mlx5dv_port *info,
+		       size_t info_len);
+
+static inline int mlx5dv_query_port(struct ibv_context *context,
+				    uint32_t port_num,
+				    struct mlx5dv_port *info)
+{
+	return _mlx5dv_query_port(context, port_num, info, sizeof(*info));
+}
+
 struct mlx5dv_devx_umem {
 	uint32_t umem_id;
 };
 
 struct mlx5dv_devx_umem *
 mlx5dv_devx_umem_reg(struct ibv_context *ctx, void *addr, size_t size, uint32_t access);
+
+struct mlx5dv_devx_umem_in {
+	void *addr;
+	size_t size;
+	uint32_t access;
+	uint64_t pgsz_bitmap;
+	uint64_t comp_mask;
+};
+
+struct mlx5dv_devx_umem *
+mlx5dv_devx_umem_reg_ex(struct ibv_context *ctx, struct mlx5dv_devx_umem_in *umem_in);
+
 int mlx5dv_devx_umem_dereg(struct mlx5dv_devx_umem *umem);
 
 struct mlx5dv_devx_uar {
@@ -1451,6 +1927,10 @@ static inline uint64_t _devx_get64(const void *p, size_t bit_off)
 
 #define DEVX_GET64(typ, p, fld) _devx_get64(p, __devx_bit_off(typ, fld))
 
+#define DEVX_ARRAY_SET64(typ, p, fld, idx, v) do { \
+	DEVX_SET64(typ, p, fld[idx], v); \
+} while (0)
+
 struct mlx5dv_dr_domain;
 struct mlx5dv_dr_table;
 struct mlx5dv_dr_matcher;
@@ -1496,6 +1976,9 @@ int mlx5dv_dr_domain_sync(struct mlx5dv_dr_domain *domain, uint32_t flags);
 void mlx5dv_dr_domain_set_reclaim_device_memory(struct mlx5dv_dr_domain *dmn,
 						bool enable);
 
+void mlx5dv_dr_domain_allow_duplicate_rules(struct mlx5dv_dr_domain *domain,
+					    bool allow);
+
 struct mlx5dv_dr_table *
 mlx5dv_dr_table_create(struct mlx5dv_dr_domain *domain, uint32_t level);
 
@@ -1508,6 +1991,19 @@ mlx5dv_dr_matcher_create(struct mlx5dv_dr_table *table,
 			 struct mlx5dv_flow_match_parameters *mask);
 
 int mlx5dv_dr_matcher_destroy(struct mlx5dv_dr_matcher *matcher);
+
+enum mlx5dv_dr_matcher_layout_flags {
+	MLX5DV_DR_MATCHER_LAYOUT_RESIZABLE = 1 << 0,
+	MLX5DV_DR_MATCHER_LAYOUT_NUM_RULE = 1 << 1,
+};
+
+struct mlx5dv_dr_matcher_layout {
+	uint32_t flags; /* use enum mlx5dv_dr_matcher_layout_flags */
+	uint32_t log_num_of_rules_hint;
+};
+
+int mlx5dv_dr_matcher_set_layout(struct mlx5dv_dr_matcher *matcher,
+				 struct mlx5dv_dr_matcher_layout *layout);
 
 struct mlx5dv_dr_rule *
 mlx5dv_dr_rule_create(struct mlx5dv_dr_matcher *matcher,
@@ -1532,11 +2028,11 @@ mlx5dv_dr_action_create_dest_vport(struct mlx5dv_dr_domain *domain,
 				   uint32_t vport);
 
 struct mlx5dv_dr_action *
-mlx5dv_dr_action_create_dest_devx_tir(struct mlx5dv_devx_obj *devx_obj);
-
-struct mlx5dv_dr_action *
 mlx5dv_dr_action_create_dest_ib_port(struct mlx5dv_dr_domain *domain,
 				     uint32_t ib_port);
+
+struct mlx5dv_dr_action *
+mlx5dv_dr_action_create_dest_devx_tir(struct mlx5dv_devx_obj *devx_obj);
 
 enum mlx5dv_dr_action_dest_type {
 	MLX5DV_DR_ACTION_DEST,
@@ -1582,6 +2078,11 @@ enum mlx5dv_dr_action_aso_flow_meter_flags {
 	MLX5DV_DR_ACTION_FLAGS_ASO_FLOW_METER_UNDEFINED	= 1 << 3,
 };
 
+enum mlx5dv_dr_action_aso_ct_flags {
+	MLX5DV_DR_ACTION_FLAGS_ASO_CT_DIRECTION_INITIATOR = 1 << 0,
+	MLX5DV_DR_ACTION_FLAGS_ASO_CT_DIRECTION_RESPONDER = 1 << 1,
+};
+
 struct mlx5dv_dr_action *
 mlx5dv_dr_action_create_aso(struct mlx5dv_dr_domain *domain,
 			    struct mlx5dv_devx_obj *devx_obj,
@@ -1616,11 +2117,16 @@ int mlx5dv_dr_action_modify_flow_meter(struct mlx5dv_dr_action *action,
 struct mlx5dv_dr_action *
 mlx5dv_dr_action_create_flow_sampler(struct mlx5dv_dr_flow_sampler_attr *attr);
 
-struct mlx5dv_dr_action *mlx5dv_dr_action_create_pop_vlan(void);
+struct mlx5dv_dr_action *
+mlx5dv_dr_action_create_pop_vlan(void);
 
-struct mlx5dv_dr_action
-*mlx5dv_dr_action_create_push_vlan(struct mlx5dv_dr_domain *domain,
-                                  __be32 vlan_hdr);
+struct mlx5dv_dr_action *
+mlx5dv_dr_action_create_push_vlan(struct mlx5dv_dr_domain *domain,
+				  __be32 vlan_hdr);
+
+struct mlx5dv_dr_action *
+mlx5dv_dr_action_create_dest_root_table(struct mlx5dv_dr_table *table,
+					uint16_t priority);
 
 int mlx5dv_dr_action_destroy(struct mlx5dv_dr_action *action);
 
@@ -1647,6 +2153,8 @@ int mlx5dv_query_qp_lag_port(struct ibv_qp *qp,
 int mlx5dv_modify_qp_lag_port(struct ibv_qp *qp, uint8_t port_num);
 
 int mlx5dv_modify_qp_udp_sport(struct ibv_qp *qp, uint16_t udp_sport);
+
+int mlx5dv_dci_stream_id_reset(struct ibv_qp *qp, uint16_t stream_id);
 
 enum mlx5dv_sched_elem_attr_flags {
 	MLX5DV_SCHED_ELEM_ATTR_FLAGS_BW_SHARE	= 1 << 0,
@@ -1684,6 +2192,38 @@ int mlx5dv_sched_leaf_destroy(struct mlx5dv_sched_leaf *leaf);
 int mlx5dv_modify_qp_sched_elem(struct ibv_qp *qp,
 				const struct mlx5dv_sched_leaf *requestor,
 				const struct mlx5dv_sched_leaf *responder);
+
+int mlx5dv_reserved_qpn_alloc(struct ibv_context *ctx, uint32_t *qpn);
+int mlx5dv_reserved_qpn_dealloc(struct ibv_context *ctx, uint32_t qpn);
+
+int mlx5dv_dr_aso_other_domain_link(struct mlx5dv_devx_obj *devx_obj,
+				    struct mlx5dv_dr_domain *peer_dmn,
+				    struct mlx5dv_dr_domain *dmn,
+				    uint32_t flags,
+				    uint8_t return_reg_c);
+int mlx5dv_dr_aso_other_domain_unlink(struct mlx5dv_devx_obj *devx_obj,
+				      struct mlx5dv_dr_domain *dmn);
+
+struct mlx5dv_devx_msi_vector {
+	int vector;
+	int fd;
+};
+
+struct mlx5dv_devx_msi_vector *
+mlx5dv_devx_alloc_msi_vector(struct ibv_context *ibctx);
+
+int mlx5dv_devx_free_msi_vector(struct mlx5dv_devx_msi_vector *msi);
+
+struct mlx5dv_devx_eq {
+	void *vaddr;
+};
+
+struct mlx5dv_devx_eq *
+mlx5dv_devx_create_eq(struct ibv_context *ibctx, const void *in, size_t inlen,
+		      void *out, size_t outlen);
+
+int mlx5dv_devx_destroy_eq(struct mlx5dv_devx_eq *eq);
+
 #ifdef __cplusplus
 }
 #endif

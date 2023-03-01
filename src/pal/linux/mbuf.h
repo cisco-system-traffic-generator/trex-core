@@ -33,7 +33,7 @@ typedef struct rte_mbuf  rte_mbuf_t;
 #define MAGIC2 0x11223344
 
 #define IND_ATTACHED_MBUF    (1ULL << 62) /**< Indirect attached mbuf */
-#define PKT_TX_VLAN_PKT      (1ULL << 57) /**< TX packet is a 802.1q VLAN packet. */
+#define RTE_MBUF_F_TX_VLAN      (1ULL << 57) /**< TX packet is a 802.1q VLAN packet. */
 #define RTE_MBUF_CLONED(mb)   ((mb)->ol_flags & IND_ATTACHED_MBUF)
 #define RTE_MBUF_TO_BADDR(mb)       (((struct rte_mbuf *)(mb)) + 1)
 #define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
@@ -150,20 +150,20 @@ uint16_t rte_ipv4_phdr_cksum(const struct rte_ipv4_hdr *ipv4_hdr, uint64_t ol_fl
 uint16_t rte_ipv6_phdr_cksum(const struct rte_ipv6_hdr *ipv6_hdr, uint64_t ol_flags);
 
 
-#define PKT_TX_L4_NO_CKSUM   (0ULL << 52) /**< Disable L4 cksum of TX pkt. */
-#define PKT_TX_TCP_CKSUM     (1ULL << 52) /**< TCP cksum of TX pkt. computed by NIC. */
-#define PKT_TX_SCTP_CKSUM    (2ULL << 52) /**< SCTP cksum of TX pkt. computed by NIC. */
-#define PKT_TX_UDP_CKSUM     (3ULL << 52) /**< UDP cksum of TX pkt. computed by NIC. */
-#define PKT_TX_L4_MASK       (3ULL << 52) /**< Mask for L4 cksum offload request. */
+#define RTE_MBUF_F_TX_L4_NO_CKSUM   (0ULL << 52) /**< Disable L4 cksum of TX pkt. */
+#define RTE_MBUF_F_TX_TCP_CKSUM     (1ULL << 52) /**< TCP cksum of TX pkt. computed by NIC. */
+#define RTE_MBUF_F_TX_SCTP_CKSUM    (2ULL << 52) /**< SCTP cksum of TX pkt. computed by NIC. */
+#define RTE_MBUF_F_TX_UDP_CKSUM     (3ULL << 52) /**< UDP cksum of TX pkt. computed by NIC. */
+#define RTE_MBUF_F_TX_L4_MASK       (3ULL << 52) /**< Mask for L4 cksum offload request. */
 
 /**
- * Offload the IP checksum in the hardware. The flag PKT_TX_IPV4 should
+ * Offload the IP checksum in the hardware. The flag RTE_MBUF_F_TX_IPV4 should
  * also be set by the application, although a PMD will only check
- * PKT_TX_IP_CKSUM.
+ * RTE_MBUF_F_TX_IP_CKSUM.
  *  - set the IP checksum field in the packet to 0
  *  - fill the mbuf offload information: l2_len, l3_len
  */
-#define PKT_TX_IP_CKSUM      (1ULL << 54)
+#define RTE_MBUF_F_TX_IP_CKSUM      (1ULL << 54)
 
 /**
  * Packet is IPv4. This flag must be set when using any offload feature
@@ -171,7 +171,7 @@ uint16_t rte_ipv6_phdr_cksum(const struct rte_ipv6_hdr *ipv6_hdr, uint64_t ol_fl
  * packet. If the packet is a tunneled packet, this flag is related to
  * the inner headers.
  */
-#define PKT_TX_IPV4          (1ULL << 55)
+#define RTE_MBUF_F_TX_IPV4          (1ULL << 55)
 
 /**
  * Packet is IPv6. This flag must be set when using an offload feature
@@ -179,19 +179,18 @@ uint16_t rte_ipv6_phdr_cksum(const struct rte_ipv6_hdr *ipv6_hdr, uint64_t ol_fl
  * packet. If the packet is a tunneled packet, this flag is related to
  * the inner headers.
  */
-#define PKT_TX_IPV6          (1ULL << 56)
+#define RTE_MBUF_F_TX_IPV6          (1ULL << 56)
 
 
-#define PKT_RX_IP_CKSUM_MASK ((1ULL << 4) | (1ULL << 7))
-#define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)
+#define RTE_MBUF_F_RX_IP_CKSUM_MASK ((1ULL << 4) | (1ULL << 7))
+#define RTE_MBUF_F_RX_L4_CKSUM_BAD  (1ULL << 3)
 
-#define PKT_RX_IP_CKSUM_BAD  (1ULL << 4)
-#define PKT_RX_L4_CKSUM_BAD  (1ULL << 3)
+#define RTE_MBUF_F_RX_IP_CKSUM_BAD  (1ULL << 4)
 
 
-#define PKT_TX_TCP_SEG       (1ULL << 50)
+#define RTE_MBUF_F_TX_TCP_SEG       (1ULL << 50)
 
-#define PKT_RX_IEEE1588_TMST   (1ULL << 10) /* RX IEEE1588 L2/L4 timestamped packet. */
+#define RTE_MBUF_F_RX_IEEE1588_TMST   (1ULL << 10) /* RX IEEE1588 L2/L4 timestamped packet. */
 
 
 void rte_pktmbuf_free(rte_mbuf_t *m);

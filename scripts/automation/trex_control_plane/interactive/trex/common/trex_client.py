@@ -994,7 +994,7 @@ class TRexClient(object):
             
 
     @client_api('getter', True)
-    def fetch_capture_packets (self, capture_id, output, pkt_count = 1000):
+    def fetch_capture_packets (self, capture_id, output, pkt_count=1000, fetch_limit=50, snaplen=0):
         """
             Fetch packets from existing active capture
 
@@ -1008,7 +1008,8 @@ class TRexClient(object):
 
                     in case 'output' is a list, each element in the list is an object
                     containing:
-                    'binary' - binary bytes of the packet
+                    'binary' - binary bytes of the snappled packet
+                    'wirelen'- length of the packet on the wire
                     'origin' - RX or TX origin
                     'ts'     - timestamp relative to the start of the capture
                     'index'  - order index in the capture
@@ -1016,6 +1017,13 @@ class TRexClient(object):
 
                 pkt_count: int
                     maximum packets to fetch
+
+                fetch_limit: int
+                    limit of packets to fetch with one _transmit() call
+
+                snaplen: int
+                    snapshot length is the amount of data for each packet that is actually captured
+                    if snaplen is 0 - fetch the full length packet without snapshot
 
             :raises:
                 + :exe:'TRexError'
@@ -1036,16 +1044,20 @@ class TRexClient(object):
             except IOError as e:
                 raise TRexError('Could not open file %s: %s' % (output, e))
             writer._write_header(None)
-        else:
+        elif isinstance(output, list):
             # clear the list
             del output[:]
 
         pending = pkt_count
         rc = RC_OK()
 
-        # fetch with iterations - each iteration up to 50 packets
+        # to check if endpoint flush is stalled
+        flush_stall = 0
+        flush_pending = pending
+
+        # fetch with iterations - each iteration up to fetch_limit(default:50) packets
         while pending > 0 and pkt_count > 0:
-            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(50, pkt_count)})
+            rc = self._transmit("capture", params = {'command': 'fetch', 'capture_id': capture_id, 'pkt_limit': min(fetch_limit, pkt_count), 'snaplen': snaplen})
             if not rc:
                 self.ctx.logger.post_cmd(rc)
                 raise TRexError(rc)
@@ -1055,6 +1067,19 @@ class TRexClient(object):
             start_ts  = rc.data()['start_ts']
             pkt_count -= len(pkts)
 
+            # in case of capture by endpoint
+            if pending and not pkts:
+                if pending == flush_pending:
+                    flush_stall += 1
+                    if flush_stall > 10:
+                        break
+                else:
+                    flush_stall = 0
+                    flush_pending = pending
+
+                time.sleep(0.1) # to reduce 'fetch' RPC request during 'endpoint' flush
+                continue
+
             # write packets
             for pkt in pkts:
                 ts = pkt['ts'] - start_ts
@@ -1063,8 +1088,9 @@ class TRexClient(object):
 
                 if write_to_file:
                     ts_sec, ts_usec = sec_split_usec(ts)
-                    writer._write_packet(pkt['binary'], sec = ts_sec, usec = ts_usec)
-                else:
+                    wirelen = pkt.get('wirelen', None) if snaplen else None
+                    writer._write_packet(pkt['binary'], sec=ts_sec, usec=ts_usec, wirelen=wirelen)
+                elif isinstance(output, list):
                     output.append(pkt)
 
 
@@ -2376,7 +2402,7 @@ class TRexClient(object):
 
 
     @client_api('command', True)
-    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed', bpf_filter = ''):
+    def start_capture (self, tx_ports = None, rx_ports = None, limit = 1000, mode = 'fixed', bpf_filter = '', endpoint = "", snaplen = 0):
         """
             Starts a low rate packet capturing on the server
 
@@ -2397,6 +2423,16 @@ class TRexClient(object):
                 bpf_filter: str
                     A Berkeley Packet Filter pattern
                     Only packets matching the filter will be appended to the capture
+
+                endpoint: str
+                    save the matched packets through the specified endpoint as PCAPNG format.
+
+                    file endpoint -  'file:///' + '<filepath>', it can be a directory or a file.
+                    ZMQ endpoint - 'tcp://' or 'ipc://' + <zmq recv server>
+
+                snaplen: int
+                    maximum number of bytes dumped from each packet
+
                     
             :returns:
                 returns a dictionary:
@@ -2439,7 +2475,13 @@ class TRexClient(object):
                   'tx'        : tx_ports,
                   'rx'        : rx_ports,
                   'filter'    : bpf_filter}
-        
+
+        # optional RPC parameters
+        if endpoint:
+            params['endpoint'] = endpoint
+        if snaplen:
+            params['snaplen'] = snaplen
+
         rc = self._transmit("capture", params = params)
         self.ctx.logger.post_cmd(rc)
 
@@ -2450,8 +2492,23 @@ class TRexClient(object):
 
 
         
+    def endpoint_cb_rsync(self, output):
+        """ Return typical endpoint callback function with rsync """
+        server = self.ctx.server
+        user = self.ctx.username
+
+        def cb(endpoint):
+            rc = 0
+            if endpoint.startswith('file:///'):
+                filepath = endpoint.split('file:///')[1]
+                rc = os.system('rsync %s@%s:%s %s' % (user, server, filepath, output))
+            return rc
+
+        return cb
+
+
     @client_api('command', True)
-    def stop_capture (self, capture_id, output = None):
+    def stop_capture (self, capture_id, output = None, endpoint_cb = None):
         """
             Stops an active capture and optionally save it to a PCAP file
 
@@ -2472,6 +2529,11 @@ class TRexClient(object):
                     'index'  - order index in the capture
                     'port'   - on which port did the packet arrive or was transmitted from
                     
+                endpoint_cb: function
+                    a method to get the captured file from the server host
+                    in case capture_id started with 'endpoint' only
+                    the API will wait for flush done and call 'endpoint_cb(endpoint)'
+
             :raises:
                 + :exe:'TRexError'
 
@@ -2485,6 +2547,7 @@ class TRexClient(object):
         
         validate_type('capture_id', capture_id, (int))
         validate_type('output', output, (type(None), str, list))
+        validate_type('endpoint_cb', endpoint_cb, (type(None), type(lambda:_)))
         
         # stop
         self.ctx.logger.pre_cmd("Stopping packet capture {0}".format(capture_id))
@@ -2492,14 +2555,24 @@ class TRexClient(object):
         self.ctx.logger.post_cmd(rc)
         if not rc:
             raise TRexError(rc)
-        
+
         # pkt count
         pkt_count = rc.data()['pkt_count']
-        
+
+        endpoint = rc.data().get('endpoint', '')
+        if endpoint:
+            if type(output) is str and not endpoint_cb:
+                endpoint_cb = self.endpoint_cb_rsync(output)
+            if endpoint_cb:
+                output = []     # waiting for endpoint flush done
+
         # fetch packets
         if output is not None:
             self.fetch_capture_packets(capture_id, output, pkt_count)
-        
+
+        if endpoint and callable(endpoint_cb):
+            endpoint_cb(endpoint)
+
         # remove
         self.ctx.logger.pre_cmd("Removing PCAP capture {0} from server".format(capture_id))
         rc = self._transmit("capture", params = {'command': 'remove', 'capture_id': capture_id})
@@ -3573,11 +3646,21 @@ class TRexClient(object):
             return
 
         # for each port, fetch port status
-        port_status = [self.ports[port_id].get_port_status() for port_id in ports[:4]]
+        port_status = [self.ports[port_id].get_port_status() for port_id in ports]
 
-        # merge
-        table = TRexTextTable.merge(port_status)
-        text_tables.print_table_with_header(table, table.title)
+        CHUNK_SIZE = 4
+        start = 0
+        while start < len(port_status):
+            end = min(start + CHUNK_SIZE, len(port_status))
+            ports = port_status[start:end]
+            table = TRexTextTable.merge(ports)
+            text_tables.print_table_with_header(table, table.title)
+            start = end
+            if start < len(port_status):
+                # Some ports left to see
+                client_input = input("Do you want to see more ports? [y/N]: ")
+                if client_input not in ["y", "yes", "Yes"]:
+                    break
 
 
     def _show_cpu_util (self, buffer = sys.stdout):

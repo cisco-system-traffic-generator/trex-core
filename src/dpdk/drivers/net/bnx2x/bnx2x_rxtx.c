@@ -27,8 +27,7 @@ bnx2x_rx_queue_release(struct bnx2x_rx_queue *rx_queue)
 		sw_ring = rx_queue->sw_ring;
 		if (NULL != sw_ring) {
 			for (i = 0; i < rx_queue->nb_rx_desc; i++) {
-				if (NULL != sw_ring[i])
-					rte_pktmbuf_free(sw_ring[i]);
+				rte_pktmbuf_free(sw_ring[i]);
 			}
 			rte_free(sw_ring);
 		}
@@ -37,9 +36,9 @@ bnx2x_rx_queue_release(struct bnx2x_rx_queue *rx_queue)
 }
 
 void
-bnx2x_dev_rx_queue_release(void *rxq)
+bnx2x_dev_rx_queue_release(struct rte_eth_dev *dev, uint16_t queue_idx)
 {
-	bnx2x_rx_queue_release(rxq);
+	bnx2x_rx_queue_release(dev->data->rx_queues[queue_idx]);
 }
 
 int
@@ -172,8 +171,7 @@ bnx2x_tx_queue_release(struct bnx2x_tx_queue *tx_queue)
 		sw_ring = tx_queue->sw_ring;
 		if (NULL != sw_ring) {
 			for (i = 0; i < tx_queue->nb_tx_desc; i++) {
-				if (NULL != sw_ring[i])
-					rte_pktmbuf_free(sw_ring[i]);
+				rte_pktmbuf_free(sw_ring[i]);
 			}
 			rte_free(sw_ring);
 		}
@@ -182,9 +180,9 @@ bnx2x_tx_queue_release(struct bnx2x_tx_queue *tx_queue)
 }
 
 void
-bnx2x_dev_tx_queue_release(void *txq)
+bnx2x_dev_tx_queue_release(struct rte_eth_dev *dev, uint16_t queue_idx)
 {
-	bnx2x_tx_queue_release(txq);
+	bnx2x_tx_queue_release(dev->data->tx_queues[queue_idx]);
 }
 
 static uint16_t
@@ -321,14 +319,15 @@ static inline void
 bnx2x_upd_rx_prod_fast(struct bnx2x_softc *sc, struct bnx2x_fastpath *fp,
 		uint16_t rx_bd_prod, uint16_t rx_cq_prod)
 {
-	struct ustorm_eth_rx_producers rx_prods = { 0 };
-	uint32_t *val = NULL;
+	union {
+		struct ustorm_eth_rx_producers rx_prods;
+		uint32_t val;
+	} val = { {0} };
 
-	rx_prods.bd_prod  = rx_bd_prod;
-	rx_prods.cqe_prod = rx_cq_prod;
+	val.rx_prods.bd_prod  = rx_bd_prod;
+	val.rx_prods.cqe_prod = rx_cq_prod;
 
-	val = (uint32_t *)&rx_prods;
-	REG_WR(sc, fp->ustorm_rx_prods_offset, val[0]);
+	REG_WR(sc, fp->ustorm_rx_prods_offset, val.val);
 }
 
 static uint16_t
@@ -434,7 +433,7 @@ bnx2x_recv_pkts(void *p_rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		 */
 		if (cqe_fp->pars_flags.flags & PARSING_FLAGS_VLAN) {
 			rx_mb->vlan_tci = cqe_fp->vlan_tag;
-			rx_mb->ol_flags |= PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED;
+			rx_mb->ol_flags |= RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED;
 		}
 
 		rx_pkts[nb_rx] = rx_mb;
@@ -464,18 +463,10 @@ next_rx:
 	return nb_rx;
 }
 
-static uint16_t
-bnx2x_rxtx_pkts_dummy(__rte_unused void *p_rxq,
-		      __rte_unused struct rte_mbuf **rx_pkts,
-		      __rte_unused uint16_t nb_pkts)
-{
-	return 0;
-}
-
 void bnx2x_dev_rxtx_init_dummy(struct rte_eth_dev *dev)
 {
-	dev->rx_pkt_burst = bnx2x_rxtx_pkts_dummy;
-	dev->tx_pkt_burst = bnx2x_rxtx_pkts_dummy;
+	dev->rx_pkt_burst = rte_eth_pkt_burst_dummy;
+	dev->tx_pkt_burst = rte_eth_pkt_burst_dummy;
 }
 
 void bnx2x_dev_rxtx_init(struct rte_eth_dev *dev)

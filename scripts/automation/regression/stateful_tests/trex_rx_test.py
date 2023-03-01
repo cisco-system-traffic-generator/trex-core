@@ -153,6 +153,8 @@ class CTRexRx_Test(CTRexGeneral_Test):
 
 
     def test_rx_check_sfr_ipv6(self):
+        if CTRexScenario.setup_name in ["trex19"]:
+            self.skip("skipping Mellanox NICS")
         if not self.is_loopback and not CTRexScenario.router_cfg['no_dut_config']:
             self.router.configure_basic_interfaces()
             self.router.config_pbr(mode = 'config')

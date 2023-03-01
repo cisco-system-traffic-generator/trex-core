@@ -96,7 +96,7 @@ bool
 TrexDpPortEventMsg::handle() {
     TrexPort *port = get_stx()->get_port_by_id(m_port_id);
 
-    if ( get_is_stateless() ) {
+    if ( get_is_interactive() ) {
         TrexStatelessPort *stl_port = (TrexStatelessPort*) port;
         stl_port->get_dp_events(m_profile_id).on_core_reporting_in(m_event_id, m_thread_id, get_status());
     } else {
@@ -167,7 +167,7 @@ TrexRxCaptureStart::handle(CRxCore *rx_core) {
     
     TrexCaptureRCStart start_rc;
     
-    TrexCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, start_rc);
+    TrexCaptureMngr::getInstance().start(m_filter, m_limit, m_mode, m_snaplen, m_endpoint, start_rc);
     
     /* mark as done */
     m_reply.set_reply(start_rc);

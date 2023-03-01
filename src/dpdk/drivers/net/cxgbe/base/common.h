@@ -12,10 +12,6 @@
 #include "t4_chip_type.h"
 #include "t4fw_interface.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define CXGBE_PAGE_SIZE RTE_PGSIZE_4K
 
 #define T4_MEMORY_WRITE 0
@@ -189,15 +185,15 @@ struct rss_params {
 	unsigned int mode;			/* RSS mode */
 	union {
 		struct {
-			uint synmapen:1;	/* SYN Map Enable */
-			uint syn4tupenipv6:1;	/* en 4-tuple IPv6 SYNs hash */
-			uint syn2tupenipv6:1;	/* en 2-tuple IPv6 SYNs hash */
-			uint syn4tupenipv4:1;	/* en 4-tuple IPv4 SYNs hash */
-			uint syn2tupenipv4:1;	/* en 2-tuple IPv4 SYNs hash */
-			uint ofdmapen:1;	/* Offload Map Enable */
-			uint tnlmapen:1;	/* Tunnel Map Enable */
-			uint tnlalllookup:1;	/* Tunnel All Lookup */
-			uint hashtoeplitz:1;	/* use Toeplitz hash */
+			unsigned int synmapen:1;      /* SYN Map Enable */
+			unsigned int syn4tupenipv6:1; /* en 4-tuple IPv6 SYNs hash */
+			unsigned int syn2tupenipv6:1; /* en 2-tuple IPv6 SYNs hash */
+			unsigned int syn4tupenipv4:1; /* en 4-tuple IPv4 SYNs hash */
+			unsigned int syn2tupenipv4:1; /* en 2-tuple IPv4 SYNs hash */
+			unsigned int ofdmapen:1;      /* Offload Map Enable */
+			unsigned int tnlmapen:1;      /* Tunnel Map Enable */
+			unsigned int tnlalllookup:1;  /* Tunnel All Lookup */
+			unsigned int hashtoeplitz:1;  /* use Toeplitz hash */
 		} basicvirtual;
 	} u;
 };
@@ -265,6 +261,10 @@ struct adapter_params {
 	u8 filter2_wr_support;            /* FW support for FILTER2_WR */
 	u32 viid_smt_extn_support:1;	  /* FW returns vin and smt index */
 	u32 max_tx_coalesce_num; /* Max # of Tx packets that can be coalesced */
+	u8 vi_enable_rx; /* FW support for enable/disable VI Rx at runtime */
+
+	u16 rawf_start; /* FW supports RAW MAC match-all filters */
+	u16 rawf_size;
 };
 
 /* Firmware Port Capabilities types.

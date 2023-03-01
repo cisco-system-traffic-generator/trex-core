@@ -118,8 +118,8 @@ TEST_F(gt_tcp, tst1) {
 
 TEST_F(gt_tcp, tst3) {
     printf(" MSS %d \n",(int)TCP_MSS);
-    printf(" sizeof_tcpcb %d \n",(int)sizeof(tcpcb));
-    tcpstat tcp_stats;
+    printf(" sizeof_tcpcb %d \n",(int)sizeof(CTcpCb));
+    CTcpStats tcp_stats;
     tcp_stats.Clear();
     tcp_stats.m_sts.tcps_accepts++;
     tcp_stats.m_sts.tcps_connects++;
@@ -859,6 +859,7 @@ void tcp_gen_test(std::string pcap_file,
                   std::vector<CTxRxCallback*> *callbacks=NULL){
 
     CClientServerTcp *lpt1=new CClientServerTcp;
+    CTunnelTxRxCallback tunnel_tx_rx_callback(tunnel);
 
     lpt1->Create("generated",pcap_file);
     if (debug_mode){
@@ -886,7 +887,6 @@ void tcp_gen_test(std::string pcap_file,
 
     if (tunnel != NULL) {
         lpt1->m_tunnel = tunnel;
-        CTunnelTxRxCallback tunnel_tx_rx_callback(tunnel);
         lpt1->m_callbacks.push_back(&tunnel_tx_rx_callback);
     }
 
@@ -982,12 +982,14 @@ TEST_F(gt_tcp, tst30_http_vlan) {
 
 
 TEST_F(gt_tcp, tst30_http_vlan_gtpu) {
+    CGlobalInfo::m_options.m_tunnel_enabled = true;
     ipv4_addr_t src_ip, dst_ip;
     inet_pton(AF_INET, "16.11.0.1", &src_ip);
     inet_pton(AF_INET, "52.0.0.0", &dst_ip);
-    CGtpuCtx context(33554432, src_ip, dst_ip);
+    CGtpuCtx context(33554432, src_ip, dst_ip, 5000);
     CGtpuMan gtpu_man((uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
     http_vlan(&gtpu_man, &context, "_gtpu");
+    CGlobalInfo::m_options.m_tunnel_enabled = false;
 }
 
 void http_simple(CTunnelHandler *tunnel=NULL, void *tunnel_info=NULL, std::string file_ending="") {
@@ -1008,12 +1010,14 @@ TEST_F(gt_tcp, tst30_http_simple) {
 }
 
 TEST_F(gt_tcp, tst30_http_simple_gtpu_ipv6) {
+    CGlobalInfo::m_options.m_tunnel_enabled = true;
     ipv6_addr_t src, dst;
     inet_pton(AF_INET6, "ff05::b0b:9", src.addr);
     inet_pton(AF_INET6, "ff04::3000:12", dst.addr);
-    CGtpuCtx context(33554432, &src, &dst);
+    CGtpuCtx context(33554432, &src, &dst, 1025);
     CGtpuMan gtpu_man((uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX));
     http_simple(&gtpu_man, &context, "_gtpu_ipv6");
+    CGlobalInfo::m_options.m_tunnel_enabled = false;
 }
 
 TEST_F(gt_tcp, tst30_http_simple_cmd_rst) {
@@ -1724,7 +1728,7 @@ TEST_F(gt_tcp, tst42) {
     ctx.Create(100,true);
     flow.Create(&ctx);
 
-    tcpcb * tp=&flow.m_tcp;
+    CTcpCb * tp=&flow.m_tcp;
 
     tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
 
@@ -1805,7 +1809,7 @@ TEST_F(gt_tcp, tst43) {
     flow.set_app(app_c);
 
 
-    tcpcb * tp=&flow.m_tcp;
+    CTcpCb * tp=&flow.m_tcp;
 
     tp->rcv_nxt = 0x1000; /* expect this seq in rcv */
 

@@ -41,10 +41,7 @@ std::string& get_mlx5_so_string(void) {
 }
 
 bool CTRexExtendedDriverBaseMlnx5G::is_support_for_rx_scatter_gather(){
-    if (get_is_tcp_mode()) {
-        return (false);
-    }
-    return (true);
+    return false;
 }
 
 
@@ -63,7 +60,7 @@ void CTRexExtendedDriverBaseMlnx5G::update_configuration(port_cfg_t * cfg){
     cfg->m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     cfg->m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
     cfg->m_port_conf.fdir_conf.mode = RTE_FDIR_MODE_PERFECT;
-    cfg->m_port_conf.fdir_conf.pballoc = RTE_FDIR_PBALLOC_64K;
+    cfg->m_port_conf.fdir_conf.pballoc = RTE_ETH_FDIR_PBALLOC_64K;
     cfg->m_port_conf.fdir_conf.status = RTE_FDIR_NO_REPORT_STATUS;
 }
 

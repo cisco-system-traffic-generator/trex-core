@@ -676,8 +676,8 @@ To connect trex with two VPP memif interfaces:
 ----
   - port_limit: 2
     version: 2
-    interfaces: ["--vdev=net_memif0,socket=/run/vpp/memif.sock,role=slave,id=0",
-                 "--vdev=net_memif1,socket=/run/vpp/memif.sock,role=slave,id=1"]
+    interfaces: ["--vdev=net_memif0,role=slave,id=0,socket-abstract=no,socket=/run/vpp/memif.sock",
+                 "--vdev=net_memif1,role=slave,id=1,socket-abstract=no,socket=/run/vpp/memif.sock"]
 ----
 
 VPP CLI commands to create corresponding interfaces:

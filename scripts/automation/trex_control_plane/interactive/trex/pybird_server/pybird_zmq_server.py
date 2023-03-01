@@ -10,6 +10,7 @@ import errno
 import traceback
 import sys
 import random as rand
+from trex.utils.zipmsg import ZippedMsg
 
 import zmq
 from trex.common.trex_types import LRU_cache
@@ -23,7 +24,9 @@ class InvalidParams(Exception): pass
 class DifferentVersions(Exception): pass
 class InvalidHandler(Exception): pass
 
+
 class BirdWrapper:
+
     def __init__(self):
         self.pybird = PyBird()
         self.prev_md5s = LRU_cache(maxlen=5)        # store previous configs like: {'md5_key': bird_cfg_string }
@@ -96,6 +99,11 @@ class BirdWrapper:
         return 'send_another_frag'  # middle fragment
 
     def set_empty_config(self, params):
+        # In set_empty_config, we don't need to compare cache since
+        # we are not uploading any long configuration file (unlike in set_config),
+        # rather this is just an RPC call.
+        # However, this changes the configuration, and as such self._current_md5 needs to be cleared.
+        self._current_md5 = None
         return self.pybird.set_empty_config()
 
     def _set_new_config(self, config, md5=None):
@@ -103,11 +111,11 @@ class BirdWrapper:
             if type(config) is str:
                 config = config.encode('utf-8')
             md5 = hashlib.md5(config).hexdigest()
-        
+
         self._config_fragments['frags'] = []       # reset fragments config
         self._config_fragments['md5'] = None
         cached = self._is_md5_cached(md5)
-        
+
         if 'Already configured' in cached:
             return cached
         elif 'Found configuration in cache' in cached:
@@ -180,8 +188,10 @@ class BirdWrapper:
         finally:
             return response
 
+
 def rand_32_bit():
     return rand.randint(0, 0xFFFFFFFF)
+
 
 class BirdServer():
 
@@ -193,27 +203,28 @@ class BirdServer():
         self.port = port
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
-        
+
         self.socket.bind("tcp://*:"+str(port))
         self.logger.info('Listening on port: %d' % self.port)
-        
+
         self.connection_methods    = {'shut_down': self.shut_down,
-                                   'connect': self.connect_with_client,
-                                   'acquire': self.acquire_client,
-                                   'release': self.release_client,
-                                   'disconnect': self.disconnect_client
-                                   }
+                                      'connect': self.connect_with_client,
+                                      'acquire': self.acquire_client,
+                                      'release': self.release_client,
+                                      'disconnect': self.disconnect_client
+                                    }
         self.is_connected          = False
         self.current_handler       = None  # store random 32bit number for current client
         self.connected_clients     = 0
         self.bird_wrapper          = BirdWrapper()
+        self.zipper = ZippedMsg()
 
         try:
             self.IP_address = socket.gethostbyname(socket.gethostname())
         except:
             self.IP_address = '0.0.0.0'
         self.logger.info('Server IP address: %s' % self.IP_address)
-        
+
     def __del__(self):
         try:
             self.logger.info('***IN BirdServer DTOR***')
@@ -284,7 +295,6 @@ class BirdServer():
         else:
             raise InvalidHandler("Cannot release client, server is not acquired to client")
 
-
     def disconnect_client(self, params):
         if self.is_connected:
             self.connected_clients -= 1
@@ -298,13 +308,26 @@ class BirdServer():
         if params['handler'] != self.current_handler:
             raise InvalidHandler('Cannot make a change while another client is handled')
 
+    def recv_msg(self):
+        to_compress = False
+        message = self.socket.recv()
+        if self.zipper.is_compressed(message):
+            message = self.zipper.decompress(message)
+            to_compress = True
+        return message.decode(), to_compress
+
+    def send_msg(self, json_response, to_compress=False):
+        buffer = json_response.encode('utf-8')
+        if self.zipper.check_threshold(buffer) and to_compress:
+            buffer = self.zipper.compress(buffer)
+        self.socket.send(buffer)
+
     def start(self):
         self.logger.info('***Bird Server Started***')
         try:
             while True:
                 try:
-                    message = self.socket.recv()
-                    message = message.decode()
+                    message, to_compress = self.recv_msg()
 
                     self.logger.info('Received Message: %s' % message)
                 except zmq.ZMQError as e:
@@ -317,6 +340,7 @@ class BirdServer():
                     method = ''
                     req_id = 'null'
                     method, params, req_id = self.bird_wrapper.parse_req_msg(message)
+
                     if method in self.connection_methods.keys():
                         result = self.connection_methods[method](params)
                     elif self.bird_wrapper.has_method(method):
@@ -325,6 +349,7 @@ class BirdServer():
                         result = self.bird_wrapper.execute(method, params)
                     else:
                         raise MethodNotFound(req_id)
+
                     response = self.bird_wrapper.create_success_response(result, req_id)
                 except Exception as e:
                     response = self.bird_wrapper.error_handler(e, req_id)
@@ -341,7 +366,7 @@ class BirdServer():
                         json_response = json.dumps(self.bird_wrapper.error_handler(e, req_id))
 
                 #  Send reply back to client
-                    self.socket.send(json_response.encode('utf-8'))
+                    self.send_msg(json_response, to_compress=to_compress)
                     if (method == 'shut_down'):
                         break
 

@@ -33,8 +33,17 @@ class ftp_sim():
         self.ginfo.tcp.no_delay_counter = mss*2 # RFC5681
         self.ginfo.tcp.initwnd = 20             # Max init wind=20
 
-    def create_profile(self,fsize,nflows,tinc):
+    def create_profile(self,fsize,nflows,tinc,speed):
         self.tune_tcp(0)
+        if speed:   # limit download throughput by speed(Mbits/sec)
+            mss = self.ginfo.tcp.mss
+            min_delay = 20 * min(50, nflows)
+            # calculate minimum size to send with min_delay time for achieving speed
+            min_buf_size = speed/8 * min_delay
+            # to avoid blocking at send, some spaces should be left in the buffer after the send.
+            min_buf_size = int((min(min_buf_size, self.ginfo.tcp.txbufsize/2) + mss-1)/mss) * mss
+            self.max_buf_size = max(2 * self.ginfo.tcp.initwnd * mss, min_buf_size)
+
         size_total = int(fsize*(1024*1024))
         loop = int(size_total/self.max_buf_size)
         remain = size_total%self.max_buf_size
@@ -54,6 +63,9 @@ class ftp_sim():
             prog_s.set_var("var2",loop); # set var 0 to loop
             prog_s.set_label("a:");
             prog_s.send('',size=self.max_buf_size,fill='*')
+            if speed:
+                delay_us = max(int(self.max_buf_size/(speed/8)), min_delay)
+                prog_s.delay(delay_us)
             prog_s.jmp_nz("var2","a:") # dec var "var2". in case it is *not* zero jump a:
         if remain:
             prog_s.send('',size=remain,fill='*')
@@ -94,11 +106,16 @@ class ftp_sim():
                             type=int,
                             default=0,
                             help='time to increase flow, 0 to start all flows immediately, n to increase number of flows by random(n) seconds.')
+        parser.add_argument('--speed',
+                            type=float,
+                            default=0,
+                            help='limit of downloading throughput (mega-bits/sec). deafult is unlimited')
         args = parser.parse_args(tunables)
         fsize = args.fsize
         nflows = args.nflows
         tinc = args.tinc
-        return self.create_profile(fsize,nflows,tinc)
+        speed = args.speed
+        return self.create_profile(fsize,nflows,tinc,speed)
 
 
 def register():

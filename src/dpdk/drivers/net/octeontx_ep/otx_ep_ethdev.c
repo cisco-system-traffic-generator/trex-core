@@ -4,7 +4,6 @@
 
 #include <ethdev_pci.h>
 
-#include "otx2_common.h"
 #include "otx_ep_common.h"
 #include "otx_ep_vf.h"
 #include "otx2_ep_vf.h"
@@ -33,15 +32,14 @@ otx_ep_dev_info_get(struct rte_eth_dev *eth_dev,
 
 	otx_epvf = OTX_EP_DEV(eth_dev);
 
-	devinfo->speed_capa = ETH_LINK_SPEED_10G;
+	devinfo->speed_capa = RTE_ETH_LINK_SPEED_10G;
 	devinfo->max_rx_queues = otx_epvf->max_rx_queues;
 	devinfo->max_tx_queues = otx_epvf->max_tx_queues;
 
 	devinfo->min_rx_bufsize = OTX_EP_MIN_RX_BUF_SIZE;
 	devinfo->max_rx_pktlen = OTX_EP_MAX_PKT_SZ;
-	devinfo->rx_offload_capa = DEV_RX_OFFLOAD_JUMBO_FRAME;
-	devinfo->rx_offload_capa |= DEV_RX_OFFLOAD_SCATTER;
-	devinfo->tx_offload_capa = DEV_TX_OFFLOAD_MULTI_SEGS;
+	devinfo->rx_offload_capa = RTE_ETH_RX_OFFLOAD_SCATTER;
+	devinfo->tx_offload_capa = RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
 	devinfo->max_mac_addrs = OTX_EP_MAX_MAC_ADDRS;
 
@@ -104,7 +102,7 @@ otx_ep_chip_specific_setup(struct otx_ep_device *otx_epvf)
 		ret = otx_ep_vf_setup_device(otx_epvf);
 		otx_epvf->fn_list.disable_io_queues(otx_epvf);
 		break;
-	case PCI_DEVID_OCTEONTX2_EP_NET_VF:
+	case PCI_DEVID_CN9K_EP_NET_VF:
 	case PCI_DEVID_CN98XX_EP_NET_VF:
 		otx_epvf->chip_id = dev_id;
 		ret = otx2_ep_vf_setup_device(otx_epvf);
@@ -139,7 +137,7 @@ otx_epdev_init(struct otx_ep_device *otx_epvf)
 	otx_epvf->eth_dev->rx_pkt_burst = &otx_ep_recv_pkts;
 	if (otx_epvf->chip_id == PCI_DEVID_OCTEONTX_EP_VF)
 		otx_epvf->eth_dev->tx_pkt_burst = &otx_ep_xmit_pkts;
-	else if (otx_epvf->chip_id == PCI_DEVID_OCTEONTX2_EP_NET_VF ||
+	else if (otx_epvf->chip_id == PCI_DEVID_CN9K_EP_NET_VF ||
 		 otx_epvf->chip_id == PCI_DEVID_CN98XX_EP_NET_VF)
 		otx_epvf->eth_dev->tx_pkt_burst = &otx2_ep_xmit_pkts;
 	ethdev_queues = (uint32_t)(otx_epvf->sriov_info.rings_per_vf);
@@ -248,16 +246,18 @@ otx_ep_rx_queue_setup(struct rte_eth_dev *eth_dev, uint16_t q_no,
  * Release the receive queue/ringbuffer. Called by
  * the upper layers.
  *
- * @param rxq
- *    Opaque pointer to the receive queue to release
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param q_no
+ *   Receive queue index.
  *
  * @return
  *    - nothing
  */
 static void
-otx_ep_rx_queue_release(void *rxq)
+otx_ep_rx_queue_release(struct rte_eth_dev *dev, uint16_t q_no)
 {
-	struct otx_ep_droq *rq = (struct otx_ep_droq *)rxq;
+	struct otx_ep_droq *rq = dev->data->rx_queues[q_no];
 	struct otx_ep_device *otx_epvf = rq->otx_ep_dev;
 	int q_id = rq->q_no;
 
@@ -321,16 +321,18 @@ otx_ep_tx_queue_setup(struct rte_eth_dev *eth_dev, uint16_t q_no,
  * Release the transmit queue/ringbuffer. Called by
  * the upper layers.
  *
- * @param txq
- *    Opaque pointer to the transmit queue to release
+ * @param dev
+ *    Pointer to Ethernet device structure.
+ * @param q_no
+ *    Transmit queue index.
  *
  * @return
  *    - nothing
  */
 static void
-otx_ep_tx_queue_release(void *txq)
+otx_ep_tx_queue_release(struct rte_eth_dev *dev, uint16_t q_no)
 {
-	struct otx_ep_instr_queue *tq = (struct otx_ep_instr_queue *)txq;
+	struct otx_ep_instr_queue *tq = dev->data->tx_queues[q_no];
 
 	otx_ep_delete_iqs(tq->otx_ep_dev, tq->q_no);
 }
@@ -420,7 +422,7 @@ otx_ep_eth_dev_init(struct rte_eth_dev *eth_dev)
 	otx_epvf->pdev = pdev;
 
 	otx_epdev_init(otx_epvf);
-	if (pdev->id.device_id == PCI_DEVID_OCTEONTX2_EP_NET_VF)
+	if (pdev->id.device_id == PCI_DEVID_CN9K_EP_NET_VF)
 		otx_epvf->pkind = SDP_OTX2_PKIND;
 	else
 		otx_epvf->pkind = SDP_PKIND;
@@ -448,7 +450,7 @@ otx_ep_eth_dev_pci_remove(struct rte_pci_device *pci_dev)
 /* Set of PCI devices this driver supports */
 static const struct rte_pci_id pci_id_otx_ep_map[] = {
 	{ RTE_PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVID_OCTEONTX_EP_VF) },
-	{ RTE_PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVID_OCTEONTX2_EP_NET_VF) },
+	{ RTE_PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVID_CN9K_EP_NET_VF) },
 	{ RTE_PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVID_CN98XX_EP_NET_VF) },
 	{ .vendor_id = 0, /* sentinel */ }
 };
@@ -463,4 +465,4 @@ static struct rte_pci_driver rte_otx_ep_pmd = {
 RTE_PMD_REGISTER_PCI(net_otx_ep, rte_otx_ep_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_otx_ep, pci_id_otx_ep_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_otx_ep, "* igb_uio | vfio-pci");
-RTE_LOG_REGISTER(otx_net_ep_logtype, pmd.net.octeontx_ep, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(otx_net_ep_logtype, NOTICE);

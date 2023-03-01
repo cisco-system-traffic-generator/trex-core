@@ -41,6 +41,7 @@ class TrexStream;
 class CGenNodePCAP;
 class ServiceModeWrapper;
 class CFlowStatParser;
+class TPGDpMgrPerSide;
 
 class CDpOneStream  {
 public:
@@ -204,6 +205,7 @@ public:
         NO_FEATURES  = 0,
         LATENCY      = 1,
         CAPTURE      = 1 << 1,
+        TPG          = 1 << 2,  // Tagged Packet Grouping
     };
 
  
@@ -321,6 +323,49 @@ public:
     inline void unset_latency_feature() { unset_feature(LATENCY); }
     inline void set_capture_feature()   { set_feature(CAPTURE); }
     inline void unset_capture_feature() { unset_feature(CAPTURE); }
+    inline void set_tpg_feature() { set_feature(TPG); }
+    inline void unset_tpg_feature() { unset_feature(TPG); }
+
+    /**
+     * Enable Tagged Packet Grouping.
+     *
+     * @param num_tpgids
+     *   The maximal number of Tagged Packet Group Identifiers.
+     *
+     * @param designated_core
+     *   Sequenced streams are sent only from one core. Designated is True iff TPG packets will be sent from this core.
+     *
+     * @return int
+     *   An TPGStateUpdate casted to int so it can pass easily through messages.
+     */
+    int enable_tpg(uint32_t num_tpgids, bool designated_core);
+
+    /**
+     * Disable Tagged Packet Grouping.
+     **/
+    void disable_tpg();
+
+    /**
+     * Get the Tagged Packet Group DP Manager.
+     *
+     * @param dir
+     *   Direction
+     *
+     * @return TPGDpMgrPerSide*
+     *   Pointer to the TaggedPacketGroup Dp Manager.
+     **/
+    inline TPGDpMgrPerSide* get_tpg_dp_mgr(uint8_t dir) { return m_tpg_mgr[dir]; }
+
+    /**
+     * Clear the Tagged Packet Group Tx stats for some tpgid.
+     *
+     * @param dir
+     *   Direction
+     *
+     * @param tpgid
+     *   Tagged Packet Group Identifier to clear stats.
+     **/
+    void clear_tpg_tx_stats(uint8_t dir, uint32_t tpgid);
 
     void clear_fs_latency_stats(uint8_t dir);
     void clear_fs_latency_stats_partial(uint8_t dir, int min, int max, TrexPlatformApi::driver_stat_cap_e type);
@@ -382,18 +427,15 @@ private:
 
     uint8_t                    m_need_to_rx;
     uint8_t                    m_local_port_offset;
-
     TrexStatelessDpPerPort     m_ports[NUM_PORTS_PER_CORE];
-
     double                     m_duration;
-
-    ServiceModeWrapper        *m_wrapper;
+    ServiceModeWrapper*        m_wrapper;
     bool                       m_is_service_mode;
     bool                       m_is_service_mode_filter;
     uint8_t                    m_service_mask;
-    CFlowStatParser *          m_parser;
-
+    CFlowStatParser*           m_parser;
     uint8_t                    m_features;
+    TPGDpMgrPerSide*           m_tpg_mgr[NUM_PORTS_PER_CORE];               // Tagged Packet Group Data Plane Manager
 };
 
 #endif /* __TREX_STL_DP_CORE_H__ */

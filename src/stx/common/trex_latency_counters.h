@@ -36,6 +36,10 @@ class CRFC2544Info {
     CRFC2544Info operator+= (const CRFC2544Info& in);
     friend std::ostream& operator<<(std::ostream& os, const CRFC2544Info& in);
 
+    void add_seqblk(uint32_t begin, uint32_t end);
+    bool set_seqblk_seq(uint32_t seq);
+    void check_seqblks();
+
  private:
     uint32_t m_seq; // expected next seq num
     CTimeHistogram  m_latency; // latency info
@@ -48,6 +52,41 @@ class CRFC2544Info {
     uint16_t m_exp_flow_seq; // flow sequence number we should see in latency header
     // flow sequence number previously used with this id. We use this to catch packets arriving late from an old flow
     uint16_t m_prev_flow_seq;
+
+    // to check duplicated packet exactly
+    class SeqBlk {
+        uint32_t m_begin;
+        uint32_t m_end;
+        std::vector<bool> m_seq_map;
+        int m_seq_cnt;
+
+    public:
+        SeqBlk(uint32_t begin, uint32_t end): m_begin(begin), m_end(end), m_seq_cnt(0) {
+            assert(begin <= end);
+        }
+        int size() const { return m_end - m_begin + 1; }
+        bool empty() const { return size() == 0 || size() == m_seq_cnt; }
+        bool includes(uint32_t seq) const { return seq >= m_begin && seq <= m_end; }
+        bool has_map() const { return !m_seq_map.empty(); }
+        int dropped_cnt() const { return has_map() ? size() - m_seq_cnt: size(); }
+
+        bool is_border(uint32_t seq) const { return seq == m_begin || seq == m_end; }
+        bool is_split(uint32_t seq) const { return !has_map() && !is_border(seq); }
+        uint32_t get_end() const { return m_end; }
+        void set_end(uint32_t end) { assert(!has_map()); m_end = end; }
+
+        bool set_map(uint32_t seq);
+        bool set_seq(uint32_t seq);
+    };
+
+#define MAX_SEQBLKS     10000
+    std::map<uint32_t,SeqBlk> m_seqblks;
+    uint32_t m_seqblk_base;
+    uint32_t m_drop_refseq;
+    uint32_t m_drop_refcnt;
+
+#define CHECK_BLK_SIZE  0x1000000
+    void prune_old_seqblks(uint32_t cur_seq);
 };
 
 std::ostream& operator<<(std::ostream& os, const CRFC2544Info& in);
@@ -197,6 +236,9 @@ public:
     bool                  m_dump_err_pkts;
     const rte_mbuf_t     *m_dump_pkt;
     struct flow_stat_payload_header *m_dump_fsp_head;
+
+    // to be aware of interleaved duplicated packets
+    bool                  m_diag_dup_pkts;
 };
 
 std::ostream& operator<<(std::ostream& os, const RXLatency& in);

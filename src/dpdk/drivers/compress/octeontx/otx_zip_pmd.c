@@ -337,8 +337,7 @@ zip_pmd_qp_release(struct rte_compressdev *dev, uint16_t qp_id)
 	if (qp != NULL) {
 		zipvf_q_term(qp);
 
-		if (qp->processed_pkts)
-			rte_ring_free(qp->processed_pkts);
+		rte_ring_free(qp->processed_pkts);
 
 		rte_free(qp);
 		dev->data->queue_pairs[qp_id] = NULL;
@@ -392,6 +391,8 @@ zip_pmd_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 	}
 
 	name =  rte_malloc(NULL, RTE_COMPRESSDEV_NAME_MAX_LEN, 0);
+	if (name == NULL)
+		return (-ENOMEM);
 	snprintf(name, RTE_COMPRESSDEV_NAME_MAX_LEN,
 		 "zip_pmd_%u_qp_%u",
 		 dev->data->dev_id, qp_id);
@@ -399,8 +400,10 @@ zip_pmd_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 	/* Allocate the queue pair data structure. */
 	qp = rte_zmalloc_socket(name, sizeof(*qp),
 				RTE_CACHE_LINE_SIZE, socket_id);
-	if (qp == NULL)
+	if (qp == NULL) {
+		rte_free(name);
 		return (-ENOMEM);
+	}
 
 	qp->name = name;
 
@@ -423,10 +426,8 @@ zip_pmd_qp_setup(struct rte_compressdev *dev, uint16_t qp_id,
 	return 0;
 
 qp_setup_cleanup:
-	if (qp->processed_pkts)
-		rte_ring_free(qp->processed_pkts);
-	if (qp)
-		rte_free(qp);
+	rte_ring_free(qp->processed_pkts);
+	rte_free(qp);
 	return -1;
 }
 
@@ -646,4 +647,4 @@ static struct rte_pci_driver octtx_zip_pmd = {
 
 RTE_PMD_REGISTER_PCI(COMPRESSDEV_NAME_ZIP_PMD, octtx_zip_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(COMPRESSDEV_NAME_ZIP_PMD, pci_id_octtx_zipvf_table);
-RTE_LOG_REGISTER(octtx_zip_logtype_driver, pmd.compress.octeontx, INFO);
+RTE_LOG_REGISTER_DEFAULT(octtx_zip_logtype_driver, INFO);

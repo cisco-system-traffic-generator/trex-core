@@ -64,7 +64,7 @@ public:
 
     inline  uint8_t*  getPointer          (){return (uint8_t*)this;}
     inline  uint32_t  getSize () {
-        return ( (getNextProtocol() == Protocol::VLAN) ? 18 : 14);
+            return ( ((getNextProtocol() == Protocol::VLAN) || (getNextProtocol() ==Protocol::MPLS_Unicast)) ? 18 : 14);
     }
     
     // Get dest MAC pointer
@@ -76,7 +76,7 @@ public:
     //Returns the next protocol, in host byte order
     inline  uint16_t  getNextProtocol     ();
 
-    //Set the next protocol value. The argument is receieved in host byte order.
+    //Set the next protocol value. The argument is received in host byte order.
     inline  void    setNextProtocol     (uint16_t);
 
     // Retrieve VLAN fields for tag and protocol information

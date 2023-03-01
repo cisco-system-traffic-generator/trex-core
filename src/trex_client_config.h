@@ -27,6 +27,7 @@ limitations under the License.
 #include "utl_ip.h"
 #include "common/Network/Packet/MacAddress.h"
 #include "mbuf.h"
+#include "tunnels/tunnel_db.h"
 
 class YAMLParserWrapper;
 struct CTupleGenYamlInfo;
@@ -205,6 +206,7 @@ public:
     
     ClientCfgBase() {
         m_is_set = false;
+        m_tunnel_ctx = nullptr;
     }
     
     virtual void dump (FILE *fd) const {
@@ -236,7 +238,7 @@ public:
  public:
     ClientCfgDirBase  m_initiator;
     ClientCfgDirBase  m_responder;
-    
+    tunnel_cntxt_t    m_tunnel_ctx;
     bool              m_is_set;
 };
 
@@ -388,6 +390,7 @@ class ClientCfgDB {
     ClientCfgEntry * lookup(uint32_t ip);
     ClientCfgEntry * lookup(const std::string &ip);
     void set_tuple_gen_info(CTupleGenYamlInfo *tg) {m_tg = tg;}
+    CTunnelsDB* get_tunnel_db() {return m_tunnel_db;}
 
 private:
     void parse_single_group(YAMLParserWrapper &parser, const YAML::Node &node);
@@ -403,10 +406,11 @@ private:
     void verify(std::string &err) const;
 
     /* maps the IP start value to client groups */
-    std::map<uint32_t, ClientCfgEntry>  m_groups;
-    bool m_under_vlan;
-    CTupleGenYamlInfo * m_tg;
-    ClientCfgEntry * m_cache_group;
+    std::map<uint32_t, ClientCfgEntry> m_groups;
+    bool                               m_under_vlan;
+    CTupleGenYamlInfo                 *m_tg;
+    ClientCfgEntry                    *m_cache_group;
+    CTunnelsDB                        *m_tunnel_db;
 };
 
 #endif /* __TREX_CLIENT_CONFIG_H__ */

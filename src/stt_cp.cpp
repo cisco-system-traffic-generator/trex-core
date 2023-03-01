@@ -23,9 +23,11 @@ limitations under the License.
 
 
 
-bool CSTTCpPerTGIDPerDir::Create(uint32_t time_msec) {
+bool CSTTCpPerTGIDPerDir::Create(uint32_t time_msec, bool is_dynamic) {
     clear_aggregated_counters();
-    create_clm_counters();
+    if(!is_dynamic) {
+        create_clm_counters();
+    }
     m_tx_bw_l7.start(time_msec);
     m_tx_bw_l7_total.start(time_msec);
     m_rx_bw_l7.start(time_msec);
@@ -35,16 +37,25 @@ bool CSTTCpPerTGIDPerDir::Create(uint32_t time_msec) {
 }
 
 void CSTTCpPerTGIDPerDir::Delete() {
+    for (int i=0;i<m_dyn_sts.size();i++) {
+        delete m_dyn_sts[i];
+    }
+    m_dyn_sts.clear();
+    m_dyn_sts_range_map.clear();
+    m_dyn_sts_map.clear();
+
 }
 
 void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
     tcpstat_int_t *lpt = &m_tcp.m_sts;
     udp_stat_int_t *lpt_udp = &m_udp.m_sts;
+    app_stat_int_t *lpt_app = &m_app.m_sts;
     CFlowTableIntStats *lpft = &m_ft.m_sts;
 
     clear_aggregated_counters();
     CGCountersUtl64 tcp((uint64_t *)lpt,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app((uint64_t *)lpt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
     double lap_time = 0.0;
     CGCountersUtl32 ft((uint32_t *)lpft,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
 
@@ -52,17 +63,22 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
         CPerProfileCtx* pctx = m_profile_ctx[i];
         uint64_t *base_tcp;
         uint64_t *base_udp;
+        uint64_t *base_app;
         if (is_sum) {
             base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts;
             base_udp = (uint64_t *)&pctx->m_udpstat.m_sts;
+            base_app = (uint64_t *)&pctx->m_appstat.m_sts;
         } else {
             base_tcp = (uint64_t *)&pctx->m_tcpstat.m_sts_tg_id[tg_id];
             base_udp = (uint64_t *)&pctx->m_udpstat.m_sts_tg_id[tg_id];
+            base_app = (uint64_t *)&pctx->m_appstat.m_sts_tg_id[tg_id];
         }
         CGCountersUtl64 tcp_ctx(base_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
         CGCountersUtl64 udp_ctx(base_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+        CGCountersUtl64 app_ctx(base_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
         tcp += tcp_ctx;
         udp += udp_ctx;
+        app += app_ctx;
 
         lap_time = std::max(lap_time, pctx->get_time_lap());
     }
@@ -71,6 +87,10 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
         CTcpPerThreadCtx* lpctx = m_tcp_ctx[i];
         CGCountersUtl32 ft_ctx((uint32_t *)&lpctx->m_ft.m_sts,sizeof(CFlowTableIntStats)/sizeof(uint32_t));
         ft += ft_ctx;
+    }
+    //update dynamic counters
+    for (int i=0;i<m_dyn_sts.size();i++){
+        m_dyn_sts[i]->update();
     }
 
     m_traffic_duration = lap_time;
@@ -125,19 +145,35 @@ void CSTTCpPerTGIDPerDir::update_counters(bool is_sum, uint16_t tg_id) {
 void CSTTCpPerTGIDPerDir::accumulate_counters(CSTTCpPerTGIDPerDir* lpstt_sts) {
     tcpstat_int_t *lpt = &m_tcp.m_sts;
     udp_stat_int_t *lpt_udp = &m_udp.m_sts;
+    app_stat_int_t *lpt_app = &m_app.m_sts;
 
     tcpstat_int_t *lpstt_tcp = &lpstt_sts->m_tcp.m_sts;
     udp_stat_int_t *lpstt_udp = &lpstt_sts->m_udp.m_sts;
+    app_stat_int_t *lpstt_app = &lpstt_sts->m_app.m_sts;
 
     CGCountersUtl64 tcp((uint64_t *)lpt,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp((uint64_t *)lpt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app((uint64_t *)lpt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     CGCountersUtl64 tcp_add((uint64_t *)lpstt_tcp,sizeof(tcpstat_int_t)/sizeof(uint64_t));
     CGCountersUtl64 udp_add((uint64_t *)lpstt_udp,sizeof(udp_stat_int_t)/sizeof(uint64_t));
+    CGCountersUtl64 app_add((uint64_t *)lpstt_app,sizeof(app_stat_int_t)/sizeof(uint64_t));
 
     tcp += tcp_add;
     udp += udp_add;
+    app += app_add;
 }
+
+/* Accumulate dyn counters */
+void CSTTCpPerTGIDPerDir::accumulate_dyn_counters(CSTTCpPerTGIDPerDir* lpstt_sts) {
+    for (int i=0;i<m_dyn_sts.size();i++) {
+        std::string group_name = m_dyn_sts[i]->m_dyn_sts_group_args.group_name;
+        if (lpstt_sts->m_dyn_sts_map.find(group_name) != lpstt_sts->m_dyn_sts_map.end()) {
+            m_dyn_sts[i]->accumulate(lpstt_sts->m_dyn_sts_map[group_name]);
+        }
+    }
+}
+
 
 /* Calculate FT counters */
 void CSTTCpPerTGIDPerDir::calculate_ft_counters(CSTTCpPerTGIDPerDir* lpstt_sts) {
@@ -203,15 +239,24 @@ void CSTTCpPerTGIDPerDir::calculate_avr_counters() {
 void CSTTCpPerTGIDPerDir::clear_sum_counters(void) {
     m_tcp.Clear();
     m_udp.Clear();
+    m_app.Clear();
     m_traffic_duration = 0.0;
     m_ft.Clear();
+    for (CDynStsCpGroup* dyn_sts : m_dyn_sts) {
+        dyn_sts->clear();
+    }
 }
 
 void CSTTCpPerTGIDPerDir::clear_aggregated_counters(void) {
     m_tcp.Clear();
     m_udp.Clear();
+    m_app.Clear();
     m_traffic_duration = 0.0;
     m_ft.Clear();
+    //clear dynamic counters
+    for (CDynStsCpGroup* dyn_sts : m_dyn_sts) {
+        dyn_sts->clear();
+    }
 }
 
 void CSTTCpPerTGIDPerDir::clear_counters() {
@@ -236,7 +281,7 @@ void CSTTCpPerTGIDPerDir::clear_counters() {
 
 }
 
-static void create_sc(CGTblClmCounters  * clm,
+static CGSimpleBase* create_sc(CGTblClmCounters  * clm,
                                 std::string name,
                                 std::string help,
                                 uint64_t * c,
@@ -254,6 +299,7 @@ static void create_sc(CGTblClmCounters  * clm,
     }
     lp->set_abs(is_abs);
     clm->add_count(lp);
+    return lp;
 }
 
 static void create_sc_32(CGTblClmCounters  * clm,
@@ -295,13 +341,74 @@ static void create_sc_d(CGTblClmCounters  * clm,
     clm->add_count(lp);
 }
 
-static void create_bar(CGTblClmCounters  * clm,
+static CGSimpleBase* create_bar(CGTblClmCounters  * clm,
                                 std::string name){
     CGSimpleBase *lp;
     lp = new CGSimpleBar();
     lp->set_name(name);
     lp->set_abs(true);
     clm->add_count(lp);
+    return lp;
+}
+
+bool CSTTCpPerTGIDPerDir::add_dyn_stats(const meta_data_t* meta_data, cp_dyn_sts_group_args_t* dyn_sts_group_args) {
+    if (m_dyn_sts_range_map.find(meta_data->group_name) != m_dyn_sts_range_map.end()) {
+        return false;
+    }
+    int j, len = meta_data->meta_data_per_counter.size();
+    if (len == 0) {
+        return false;
+    }
+    assert(len);
+    CDynStsCpGroup* new_dyn_sts = new CDynStsCpGroup(dyn_sts_group_args);
+    m_dyn_sts.push_back(new_dyn_sts);
+    std::pair<CGSimpleBase*, CGSimpleBase*> range;
+    range.first=create_bar(&m_clm,"-");
+    create_bar(&m_clm,meta_data->group_name);
+    create_bar(&m_clm,"-");
+    for (j=0;j<len;j++) {
+        bool error = false;
+        if (meta_data->meta_data_per_counter[j].m_info == scERROR){
+            error = true;
+        }
+        CGSimpleBase *lp = create_sc(&m_clm,
+                                    meta_data->meta_data_per_counter[j].m_name,
+                                    meta_data->meta_data_per_counter[j].m_help,
+                                    &dyn_sts_group_args->real_counters[j],
+                                    meta_data->meta_data_per_counter[j].m_dump_zero,
+                                    error,
+                                    meta_data->meta_data_per_counter[j].m_is_abs);
+        if (j == len-1) {
+            range.second = lp;
+        }
+    }
+    m_dyn_sts_range_map[meta_data->group_name] = range;
+    m_dyn_sts_map[meta_data->group_name] = new_dyn_sts;
+    return true;
+}
+
+
+bool CSTTCpPerTGIDPerDir::delete_dyn_sts(std::string sts_group_name) {
+    if (m_dyn_sts_range_map.find(sts_group_name) == m_dyn_sts_range_map.end()) {
+        return false;
+    }
+    std::pair<CGSimpleBase*, CGSimpleBase*> range = m_dyn_sts_range_map[sts_group_name];
+    for (int i=0;i<m_dyn_sts.size();i++) {
+        if (m_dyn_sts[i]->m_dyn_sts_group_args.group_name == sts_group_name) {
+            delete m_dyn_sts[i];
+            m_dyn_sts.erase(m_dyn_sts.begin() + i);
+        }
+    }
+    m_clm.delete_range(range.first, range.second);
+    m_dyn_sts_range_map.erase(sts_group_name);
+    m_dyn_sts_map.erase(sts_group_name);
+    return true;
+}
+
+void CSTTCpPerTGIDPerDir::clear_dps_dyn_counters() {
+    for (auto &group_sts : m_dyn_sts) {
+        group_sts->clear_dps_dyn_counters();
+    }
 }
 
 #define TCP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_tcp.m_sts.f,false,false); }
@@ -311,6 +418,8 @@ static void create_bar(CGTblClmCounters  * clm,
 #define UDP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_udp.m_sts.f,false,false); }
 #define UDP_S_ADD_CNT_E(f,help)  { create_sc(&m_clm,#f,help,&m_udp.m_sts.f,false,true); }
 
+#define APP_S_ADD_CNT(f,help)  { create_sc(&m_clm,#f,help,&m_app.m_sts.f,false,false); }
+#define APP_S_ADD_CNT_E(f,help)  { create_sc(&m_clm,#f,help,&m_app.m_sts.f,false,true); }
 
 
 #define FT_S_ADD_CNT(f,help)  { create_sc_32(&m_clm,#f,help,&m_ft.m_sts.m_##f,false,false); }
@@ -362,6 +471,7 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT(tcps_rcvackpack,"rcvd ack packets");
     TCP_S_ADD_CNT(tcps_rcvackbyte,"tx bytes acked by rcvd acks ");
     TCP_S_ADD_CNT(tcps_rcvackbyte_of,"tx bytes acked by rcvd acks - overflow acked");
+    TCP_S_ADD_CNT(tcps_rcvoffloads,"receive offload packets by software");
 
     TCP_S_ADD_CNT(tcps_preddat,"times hdr predict ok for data pkts ");
 
@@ -375,7 +485,6 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     TCP_S_ADD_CNT_E(tcps_keepprobe,"keepalive probes sent");
     TCP_S_ADD_CNT_E(tcps_keepdrops,"connections dropped in keepalive");
     TCP_S_ADD_CNT(tcps_testdrops,"connections dropped by user at timeout (no-close flag --nc)"); // due to test timeout --nc 
-    
     
     TCP_S_ADD_CNT_E(tcps_sndrexmitpack,"data packets retransmitted");
     TCP_S_ADD_CNT_E(tcps_sndrexmitbyte,"data bytes retransmitted");
@@ -411,7 +520,19 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     
     TCP_S_ADD_CNT_E(tcps_reasalloc,"allocate tcp reasembly ctx");
     TCP_S_ADD_CNT_E(tcps_reasfree,"free tcp reasembly ctx");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_4,"count of max queue <= 4");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_16,"count of max queue <= 16");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_100,"count of max queue <= 100");
+    TCP_S_ADD_CNT_E(tcps_reas_hist_other,"count of max queue > 100");
     TCP_S_ADD_CNT_E(tcps_nombuf,"no mbuf for tcp - drop the packets");
+
+    /* TREX_FBSD: SACK counters */
+    TCP_S_ADD_CNT_E(tcps_sack_recovery_episode,"SACK recovery episodes");
+    TCP_S_ADD_CNT_E(tcps_sack_rexmits,"SACK rexmit segments");
+    TCP_S_ADD_CNT_E(tcps_sack_rexmit_bytes,"SACK rexmit bytes");
+    TCP_S_ADD_CNT_E(tcps_sack_rcv_blocks,"SACK blocks (options) received");
+    TCP_S_ADD_CNT_E(tcps_sack_send_blocks,"SACK blocks (options) sent");
+    TCP_S_ADD_CNT_E(tcps_sack_sboverflow,"times scoreboard overflowed");
 
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"UDP");
@@ -428,6 +549,17 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     UDP_S_ADD_CNT_E(udps_nombuf,"no mbuf");
     UDP_S_ADD_CNT_E(udps_pkt_toobig,"packets transmitted too big");
 
+    create_bar(&m_clm,"-");
+    create_bar(&m_clm,"Application");
+    create_bar(&m_clm,"-");
+
+    APP_S_ADD_CNT(user_counter_A,"user counter A");
+    APP_S_ADD_CNT(user_counter_B,"user counter B");
+    APP_S_ADD_CNT(user_counter_C,"user counter C");
+    APP_S_ADD_CNT(user_counter_D,"user counter D");
+    APP_S_ADD_CNT(flows_total,"total flows generated by the command");
+    APP_S_ADD_CNT(flows_other,"generated flows from changed template");
+
 
     create_bar(&m_clm,"-");
     create_bar(&m_clm,"Flow Table");
@@ -436,6 +568,9 @@ void CSTTCpPerTGIDPerDir::create_clm_counters(){
     FT_S_ADD_CNT_OK(rss_redirect_rx, "rss rx packets redirected");
     FT_S_ADD_CNT_OK(rss_redirect_tx, "rss tx packets redirected");
     FT_S_ADD_CNT_E(rss_redirect_drops, "rss packets to redirect dropped");
+    FT_S_ADD_CNT_OK(rss_redirect_queue_full, "rss tx queue full");
+    FT_S_ADD_CNT_OK(ignored_macs, "ignored macs addr");
+    FT_S_ADD_CNT_OK(ignored_ips, "ignored ips addr");
 
     FT_S_ADD_CNT_Ex_E("err_cwf",err_client_pkt_without_flow,"client pkt without flow");
     FT_S_ADD_CNT_E(err_no_syn,"server first flow packet with no SYN");
@@ -474,16 +609,16 @@ void CSTTCp::AddProfileCtx(tcp_dir_t dir, CPerProfileCtx* pctx){
     }
 }
 
-void CSTTCp::Init(bool first_time){
+void CSTTCp::Init(bool first_time, bool is_dynamic){
     uint32_t time_msec = os_get_time_msec();
     const char * names[]={"client","server"};
     for (int i = 0; i < TCP_CS_NUM; i++) {
         for (uint16_t tg_id = 0; tg_id < m_num_of_tg_ids; tg_id++) {
-            m_sts_per_tg_id[i][tg_id]->Create(time_msec);
+            m_sts_per_tg_id[i][tg_id]->Create(time_msec, is_dynamic);
             m_sts_per_tg_id[i][tg_id]->m_clm.set_name(names[i]);
         }
         if (first_time) {
-            m_sts[i].Create(time_msec);
+            m_sts[i].Create(time_msec, is_dynamic);
             m_sts[i].m_clm.set_name(names[i]);
         }
     }
@@ -535,14 +670,39 @@ void CSTTCp::Accumulate(bool clear, bool calculate, CSTTCp* lpstt){
             m_sts[i].clear_sum_counters();
         }
 
-        //accumulate for tcp/udp counters
+        //accumulate for tcp/udp/app counters
         m_sts[i].accumulate_counters(lpstt_sts);
+        //accumulate for dynamic counters
+        m_sts[i].accumulate_dyn_counters(lpstt_sts);
         //caculate for ft and average counters
         if (calculate) {
             m_sts[i].calculate_ft_counters(lpstt_sts);
             m_sts[i].calculate_avr_counters();
         }
     }
+}
+
+bool CSTTCp::Add_dyn_stats(const meta_data_t* meta_data, cp_dyn_sts_group_args_t dyn_sts_group_args[TCP_CS_NUM]) {
+    assert(m_init);
+    bool res = true;
+    for(int i=0;i<TCP_CS_NUM;i++) {
+        res = res && m_sts[i].add_dyn_stats(meta_data, &(dyn_sts_group_args[i]));
+    }
+    if (res) {
+        m_epoch++;
+    }
+    return res;
+}
+
+bool CSTTCp::Delete_dyn_sts(std::string group_sts_name) {
+    bool res = true;
+    for(int i=0;i<TCP_CS_NUM;i++) {
+        res = res && m_sts[i].delete_dyn_sts(group_sts_name);
+    }
+    if (res) {
+        m_epoch++;
+    }
+    return res;
 }
 
 void CSTTCp::DumpTable(){
@@ -615,6 +775,13 @@ void CSTTCp::clear_counters(bool epoch_increment) {
         sts.clear_counters();
     }
     if (epoch_increment) m_epoch++;
+}
+
+void CSTTCp::clear_dps_dyn_counters() {
+    for (auto &sts : m_sts) {
+        sts.clear_dps_dyn_counters();
+    }
+    m_epoch++;
 }
 
 void CSTTCp::Resize(uint16_t new_num_of_tg_ids) {

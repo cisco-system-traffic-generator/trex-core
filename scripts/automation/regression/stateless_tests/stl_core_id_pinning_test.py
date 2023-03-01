@@ -70,7 +70,7 @@ class CoreID_Test(CStlGeneral_Test):
             s1 = STLStream(packet = self.pkt, mode = STLTXCont(pps = 10), core_id = core_id, 
                                               flow_stats = STLFlowLatencyStats(pg_id = 7))
         except TRexError as e:
-            assert e.msg == "Core ID is not supported for latency streams."
+            assert e.msg == "Core ID is not supported for sequenced streams."
 
         try:
             core_id = self.num_cores

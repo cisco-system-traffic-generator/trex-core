@@ -9,16 +9,19 @@ import time
 from pprint import pprint
 from nose.tools import nottest
 
+
 def get_error_in_percentage (golden, value):
     if (golden==0):
         return(0.0);
     return abs(golden - value) / float(golden)
+
 
 def get_stl_profiles ():
     profiles_path = os.path.join(CTRexScenario.scripts_path, 'stl/')
     py_profiles = glob.glob(profiles_path + "/*.py")
     yaml_profiles = glob.glob(profiles_path + "yaml/*.yaml")
     return py_profiles + yaml_profiles
+
 
 class DynamicProfileTest:
 
@@ -180,7 +183,7 @@ class STLClient_Test(CStlGeneral_Test):
         else:
             self.percentage = 50
             self.pps = 50000
-        
+
         # strict mode is only for 'wire only' connection
         if self.is_loopback and not self.weak:
             self.strict = True
@@ -207,17 +210,15 @@ class STLClient_Test(CStlGeneral_Test):
 
         self.pkt = STLPktBuilder(pkt = Ether()/IP(src="16.0.0.1",dst="48.0.0.1")/UDP(dport=12,sport=1025)/IP()/'a_payload_example')
         self.profiles = get_stl_profiles()
-        
+
         self.c.clear_stats()
 
-        
     def cleanup (self):
         self.c.remove_all_captures()
 #        self.c.reset(ports = [self.tx_port, self.rx_port])
         for tx_port, rx_port in CTRexScenario.ports_map['map'].items():
             self.c.reset(ports = [tx_port, rx_port])
-        
-            
+
     @classmethod
     def tearDownClass(cls):
         if CTRexScenario.stl_init_error:
@@ -226,17 +227,14 @@ class STLClient_Test(CStlGeneral_Test):
         if not cls.is_connected():
             CTRexScenario.stl_trex.connect()
 
-
     def verify (self, expected, got):
             if expected==0:
                 return
             else:
-                if get_error_in_percentage(expected, got) < 0.5 :
+                if get_error_in_percentage(expected, got) <= 0.5 :
                     return
                 print(' ERROR verify expected: %d  got:%d ' % (expected,got) )
                 assert(0);
-
-
 
     def test_basic_connect_disconnect (self):
         try:
@@ -287,8 +285,6 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
-    #
     def test_basic_multi_burst (self):
         try:
             b1 = STLStream(name = 'burst',
@@ -323,8 +319,6 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
-    #
     def test_basic_cont (self):
         pps = self.pps
         duration = 0.1
@@ -367,7 +361,6 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
     def test_stress_connect_disconnect (self):
         try:
             for i in range(0, 100):
@@ -379,7 +372,6 @@ class STLClient_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
-
 
     def pause_resume_update_streams_iteration(self, delay, expected_pps):
         self.c.clear_stats(clear_flow_stats = False, clear_latency_stats = False, clear_xstats = False)
@@ -420,7 +412,6 @@ class STLClient_Test(CStlGeneral_Test):
         self.c.resume_streams(port = 0, stream_ids = [s3_id])
         self.pause_resume_update_streams_iteration(delay = 5, expected_pps = 300) # resume the paused
 
-
     def test_stress_tx (self):
         try:
             s1 = STLStream(name = 'stress',
@@ -454,7 +445,6 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
     def test_all_profiles (self):
         #Work around for trex-405. Remove when it is resolved
         if  self.drv_name == 'net_mlx5' and 'VM' in self.modes:
@@ -466,7 +456,7 @@ class STLClient_Test(CStlGeneral_Test):
 
         default_mult  = self.get_benchmark_param('mult',default="30%")
         skip_tests_per_setup     = self.get_benchmark_param('skip',default=[])
-        skip_tests_global = ['imix_wlc.py','udp_1pkt_dot1q.py','udp_1pkt_multi.py']
+        skip_tests_global = ['imix_wlc.py','udp_1pkt_dot1q.py','udp_1pkt_multi.py', 'tpg_tags_conf.py']
 
         try:
             for profile in self.profiles:
@@ -537,12 +527,11 @@ class STLClient_Test(CStlGeneral_Test):
             if not self.is_vf_nics:
                 self.c.set_port_attr(ports = [self.tx_port, self.rx_port], promiscuous = False)
 
-
     # see https://trex-tgn.cisco.com/youtrack/issue/trex-226
     def test_latency_pause_resume (self):
 
-        try:    
-                                      
+        try:
+
             s1 = STLStream(name = 'latency',
                            packet = self.pkt,
                            mode = STLTXCont(percentage = self.percentage),
@@ -562,7 +551,6 @@ class STLClient_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
-
 
     def test_pcap_remote (self):
         try:
@@ -591,146 +579,141 @@ class STLClient_Test(CStlGeneral_Test):
             if self.is_dummy_ports and (master not in self.c.ports or slave not in self.c.ports): # negative test
                 raise Exception('Should have raised exception with dummy port')
 
-        
     def test_tx_from_rx (self):
         '''
             test TX packets from the RX core
         '''
         tx_capture_id = None
         rx_capture_id = None
-        
+
         # use explicit values for easy comparsion
         tx_src_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['src']
         tx_dst_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['dst']
-        
-        
+
+
         try:
             # add some background traffic (TCP)
             s1 = STLStream(name = 'burst', packet = STLPktBuilder(Ether()/IP()/TCP()), mode = STLTXCont())
             self.c.add_streams(ports = [self.tx_port, self.rx_port], streams = [s1])
             self.c.start(ports = [self.tx_port, self.rx_port], mult = "5kpps")
-            
+
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
-            
+
             # VICs adds VLAN 0 on RX side
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = 'udp')['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = 'udp or (vlan and udp)')['id']
-            
+
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x,dport=1000)/('x' * 100)) for x in range(50000,50500)]
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
-            
+
             # check capture status with timeout
             timeout = PassiveTimer(2)
-            
+
             while not timeout.has_expired():
                 caps = self.c.get_capture_status()
                 assert(len(caps) == 2)
                 if (caps[tx_capture_id]['count'] == len(pkts)) and (caps[rx_capture_id]['count'] == len(pkts)):
                     break
-                    
+
                 time.sleep(0.1)
 
             assert(caps[tx_capture_id]['count'] == len(pkts))
             self.verify(len(pkts), caps[rx_capture_id]['count'])
-            
+
             # TX capture
             tx_pkts = []
             self.c.stop_capture(tx_capture_id, output = tx_pkts)
             tx_capture_id = None
-                
+
             # RX capture
             rx_pkts = []
             self.c.stop_capture(rx_capture_id, output = rx_pkts)
             rx_capture_id = None
-            
+
             tx_pkts = [x['binary'] for x in tx_pkts]
             rx_pkts = [x['binary'] for x in rx_pkts]
-            
+
             # TX pkts should be the same
             assert(set(pkts) == set(tx_pkts))
-            
+
             # RX pkts are not the same - loose check, all here and are UDP
             self.verify(len(pkts), len(rx_pkts))
             assert (all(['UDP' in Ether(x) for x in rx_pkts]))
-            
-            
-            
+
+
+
         except STLError as e:
             # cleanup if needed
             if tx_capture_id:
                 self.c.stop_capture(tx_capture_id)
-                
+
             if rx_capture_id:
                 self.c.stop_capture(rx_capture_id)
-                
+
             assert False , '{0}'.format(e)
-            
+
         finally:
             self.cleanup()
-            
-            
+
     def test_bpf (self):
         '''
             test BPF filters
         '''
         tx_capture_id = None
         rx_capture_id = None
-        
+
         # use explicit values for easy comparsion
         tx_src_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['src']
         tx_dst_mac = self.c.ports[self.tx_port].get_layer_cfg()['ether']['dst']
-        
+
         try:
             self.c.set_service_mode(ports = [self.tx_port, self.rx_port])
 
             # VICs adds VLAN 0 tagging
             bpf_filter = "udp and src portrange 1-250"
             bpf_filter = '{0} or (vlan and {0})'.format(bpf_filter)
-            
+
             tx_capture_id = self.c.start_capture(tx_ports = self.tx_port, bpf_filter = bpf_filter)['id']
             rx_capture_id = self.c.start_capture(rx_ports = self.rx_port, bpf_filter = bpf_filter)['id']
-           
+
             self.c.clear_stats(ports = self.tx_port)
 
             # real
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/UDP(sport = x)/('x' * 100)) for x in range(500)]
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
-            
+
             # noise
             pkts = [bytes(Ether(src=tx_src_mac,dst=tx_dst_mac)/IP()/TCP(sport = x)/('x' * 100)) for x in range(500)]
             self.c.push_packets(pkts, ports = self.tx_port, ipg_usec = 1e6 / self.pps)
-            
+
             # check capture status with timeout
             timeout = PassiveTimer(2)
-            
+
             while not timeout.has_expired():
                 opackets = self.c.get_stats(ports = self.tx_port)[self.tx_port]['opackets']
                 if (opackets >= 1000):
                     break
-                    
+
                 time.sleep(0.1)
-        
+
             # make sure
             caps = self.c.get_capture_status()
             assert(len(caps) == 2)
             assert(caps[tx_capture_id]['count'] == 250)
             assert(caps[rx_capture_id]['count'] == 250)
-            
-            
-            
+
         except STLError as e:
             assert False , '{0}'.format(e)
-            
+
         finally:
             # cleanup if needed
             if tx_capture_id:
                 self.c.stop_capture(tx_capture_id)
-                
+
             if rx_capture_id:
                 self.c.stop_capture(rx_capture_id)
-                
-            self.cleanup()
 
+            self.cleanup()
 
     # tests core pinning with latency
     def show_cpu_usage (self):
@@ -747,7 +730,6 @@ class STLClient_Test(CStlGeneral_Test):
     def get_cpu_usage (self):
         cpu_stats = [x['ports'] for x in self.c.get_util_stats()['cpu'] if x['ports'] != [-1, -1]]
         return cpu_stats
-
 
     def test_core_pinning (self):
 
@@ -790,7 +772,6 @@ class STLClient_Test(CStlGeneral_Test):
 
         except STLError as e:
             assert False , '{0}'.format(e)
-
 
     # check pinning with latency
     def test_core_pinning_latency (self):
@@ -845,11 +826,10 @@ class STLClient_Test(CStlGeneral_Test):
         except STLError as e:
             assert False , '{0}'.format(e)
 
-
     def test_pause_resume_update_dynamic_profile(self):
 
         if  self.drv_name == 'net_e1000_em':
-            # this test is sensetive and does not work good on E1000
+            # this test is sensitive and does not work good on E1000
             return;
 
         try:
@@ -967,10 +947,9 @@ class STLClient_Test(CStlGeneral_Test):
         finally:
             self.cleanup()
 
-
     def test_random_duration_dynamic_profile (self):
 
-        try:    
+        try:
             pps = self.pps
             profile_id = 1
             num_profiles = 100
@@ -1040,7 +1019,6 @@ class STLClient_Test(CStlGeneral_Test):
         finally:
             self.cleanup()
 
-
     def test_random_dynamic_add_remove (self):
 
         if self.drv_name in ['net_e1000_em']:
@@ -1069,7 +1047,6 @@ class STLClient_Test(CStlGeneral_Test):
 
         test.run_test()
 
-
     def test_resolve_vlans(self):
         ''' Was written to check correction of stripping VLAN by AF_PACKET '''
         if not self.is_loopback:
@@ -1095,6 +1072,5 @@ class STLClient_Test(CStlGeneral_Test):
         finally:
             self.c.set_vlan(self.rx_port, rx_port_vlans_orig)
             self.c.reset(ports = port_pair)
-
 
 

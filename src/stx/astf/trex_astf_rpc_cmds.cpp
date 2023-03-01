@@ -34,6 +34,7 @@ limitations under the License.
 #include <set>
 #include "trex_astf_dp_core.h"
 #include "trex_astf_messaging.h"
+#include "dyn_sts.h"
 
 using namespace std;
 
@@ -109,8 +110,12 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdateLatency, "update_latency");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersDesc, "get_counter_desc");
 TREX_RPC_CMD(TrexRpcCmdAstfCountersValues, "get_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfTotalCountersValues, "get_total_counter_values");
+TREX_RPC_CMD(TrexRpcCmdAstfDynamicCountersDesc, "get_dynamic_counter_desc");
+TREX_RPC_CMD(TrexRpcCmdAstfDynamicCountersValues, "get_dynamic_counter_values");
+TREX_RPC_CMD(TrexRpcCmdAstfTotalDynamicCountersValues, "get_total_dynamic_counter_values");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGNames, "get_tg_names");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTGStats, "get_tg_id_stats");
+TREX_RPC_CMD(TrexRpcCmdAstfGetFlowInfo, "get_flow_info");
 TREX_RPC_CMD(TrexRpcCmdAstfGetLatencyStats, "get_latency_stats");
 TREX_RPC_CMD(TrexRpcCmdAstfGetTrafficDist, "get_traffic_dist");
 
@@ -118,8 +123,18 @@ TREX_RPC_CMD(TrexRpcCmdAstfTopoGet, "topo_get");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoFragment, "topo_fragment");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTopoClear, "topo_clear");
 TREX_RPC_CMD(TrexRpcCmdEnableDisableClient,     "enable_disable_client");
-TREX_RPC_CMD(TrexRpcCmdGetClientsInfo,          "get_clients_info");
+TREX_RPC_CMD(TrexRpcCmdGetClientsInfoStart, "get_clients_info_start");
+TREX_RPC_CMD(TrexRpcCmdGetClientsInfoPull, "get_clients_info_pull");
+TREX_RPC_CMD(TrexRpcCmdIsTunnelSupported,  "is_tunnel_supported");
+TREX_RPC_CMD(TrexRpcCmdActivateTunnelMode,  "activate_tunnel_mode");
 TREX_RPC_CMD(TrexRpcCmdUpdateTunnelClient,  "update_tunnel_client");
+TREX_RPC_CMD(TrexRpcCmdAstfTunnelTopoGet, "tunnel_topo_get");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTunnelTopoFragment, "tunnel_topo_fragment");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfTunnelTopoClear, "tunnel_topo_clear");
+TREX_RPC_CMD(TrexRpcCmdAstfSetIgnoredMacs, "set_ignored_macs");
+TREX_RPC_CMD(TrexRpcCmdAstfGetIgnoredMacs, "get_ignored_macs");
+TREX_RPC_CMD(TrexRpcCmdAstfSetIgnoredIps, "set_ignored_ips");
+TREX_RPC_CMD(TrexRpcCmdAstfGetIgnoredIps, "get_ignored_ips");
 /****************************** commands implementation ******************************/
 
 trex_rpc_cmd_rc_e
@@ -276,6 +291,7 @@ TrexRpcCmdAstfStart::_run(const Json::Value &params, Json::Value &result) {
     args.client_mask = parse_uint32(params, "client_mask", result);
     args.e_duration = parse_double(params, "e_duration", result, 0.0);
     args.t_duration = parse_double(params, "t_duration", result, 0.0);
+    args.dump_interval = parse_double(params, "dump_interval", result, 0.0);
 
     try {
         get_astf_object()->start_transmit(profile_id, args);
@@ -316,9 +332,33 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfProfileList::_run(const Json::Value &params, Json::Value &result) {
     vector<string> profile_list = get_astf_object()->get_profile_id_list();
     Json::Value json_profile_list = Json::arrayValue;
+    bool profiles_in_ports = parse_bool(params, "profiles_in_ports", result, false);
 
     for (auto &profile_id : profile_list) {
         json_profile_list.append(profile_id);
+    }
+
+    if (profiles_in_ports) {
+        Json::Value json_ports = Json::objectValue;
+        for (auto &port : get_stateless_obj()->get_port_map()) {
+            profile_list.clear();
+
+            port.second->get_profile_id_list(profile_list);
+            Json::Value json_list = Json::arrayValue;
+
+            for (auto &profile_id : profile_list) {
+                json_list.append(profile_id);
+            }
+
+            if (json_list.size()) {
+                std::stringstream ss;
+                ss << uint16_t(port.first);
+                json_ports[ss.str()] = json_list;
+            }
+        }
+        if (json_ports.size()) {
+            json_profile_list.append(json_ports);
+        }
     }
 
     result["result"] = json_profile_list;
@@ -363,11 +403,18 @@ trex_rpc_cmd_rc_e
 TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result) {
     const string src_ipv4_str  = parse_string(params, "src_addr", result);
     const string dst_ipv4_str  = parse_string(params, "dst_addr", result);
-    const string dual_ipv4_str  = parse_string(params, "dual_port_addr", result);
+    const string port_c_offset_str  = parse_string(params, "dual_port_addr", result);
+    std::string port_s_offset_str;
+    if (params.isMember("port_s_offset")) {
+        port_s_offset_str = parse_string(params, "port_s_offset", result);
+    } else {
+         port_s_offset_str = port_c_offset_str;
+    }
 
     uint32_t src_ip;
     uint32_t dst_ip;
-    uint32_t dual_ip;
+    uint32_t c_ip_offset;
+    uint32_t s_ip_offset;
     if (!utl_ipv4_to_uint32(src_ipv4_str.c_str(), src_ip)){
         stringstream ss;
         ss << "invalid source IPv4 address: '" << src_ipv4_str << "'";
@@ -380,13 +427,18 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
         generate_parse_err(result, ss.str());
     }
 
-    if (!utl_ipv4_to_uint32(dual_ipv4_str.c_str(), dual_ip)){
+    if (!utl_ipv4_to_uint32(port_c_offset_str.c_str(), c_ip_offset)){
         stringstream ss;
-        ss << "invalid dual port ip IPv4 address: '" << dual_ipv4_str << "'";
+        ss << "invalid dual port ip IPv4 address: '" << port_c_offset_str << "'";
+        generate_parse_err(result, ss.str());
+    }
+    if (!utl_ipv4_to_uint32(port_s_offset_str.c_str(), s_ip_offset)){
+        stringstream ss;
+        ss << "invalid dual port ip IPv4 address: '" << port_s_offset_str << "'";
         generate_parse_err(result, ss.str());
     }
 
-    /* check that the dest IP (+dual_ip) of latency is not equal to src IP of any TRex interface */
+    /* check that the dest IP (+ ip_offset) of latency is not equal to src IP of any TRex interface */
     uint8_t max_port_id = 0;
     for (auto &port : get_astf_object()->get_port_map()) {
         max_port_id = max(max_port_id, port.first);
@@ -407,7 +459,16 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
         utl_ipv4_to_uint32(ip_str, port_ip_num);
 
         for ( uint8_t dual_port_id=0; dual_port_id<=(max_port_id/2); dual_port_id++ ) {
-            if ( port_ip_num == dst_ip + dual_port_id*dual_ip ) {
+            uint32_t tmp_dst_ip;
+            pkt_dir_t dir = port_id_to_dir(port.first);
+            if (dir == SERVER_SIDE) {
+                //server side
+                tmp_dst_ip = src_ip + dual_port_id*c_ip_offset;
+            } else {
+                //client side 
+                tmp_dst_ip = dst_ip + dual_port_id*s_ip_offset;
+            }
+            if ( port_ip_num == tmp_dst_ip) {
                 string err = "Latency dst IP and dual_port might reach port " + to_string(port.first) + " with IP " + ip_str;
                 generate_execute_err(result, err);
             }
@@ -420,7 +481,8 @@ TrexRpcCmdAstfStartLatency::_run(const Json::Value &params, Json::Value &result)
     args.ports_mask  = parse_uint32(params, "mask", result);
     args.client_ip.v4 = src_ip;
     args.server_ip.v4 = dst_ip;
-    args.dual_ip = dual_ip;
+    args.c_ip_offset = c_ip_offset;
+    args.s_ip_offset = s_ip_offset;
 
     try {
         get_astf_object()->start_transmit_latency(args);
@@ -577,6 +639,74 @@ TrexRpcCmdAstfTotalCountersValues::_run(const Json::Value &params, Json::Value &
 }
 
 trex_rpc_cmd_rc_e
+TrexRpcCmdAstfDynamicCountersDesc::_run(const Json::Value &params, Json::Value &result) {
+    CCpDynStsInfra *infra = get_astf_object()->get_cp_sts_infra();
+    bool is_sum = false;
+    if (params.isMember("is_sum")) {
+        is_sum = parse_bool(params, "is_sum", result);
+    }
+    CSTTCp *lpstt;
+    if (is_sum) {
+        lpstt = infra->m_total_sts;
+    } else {
+        string profile_id = parse_profile(params, result);
+        if (!infra->is_valid_profile(profile_id)) {
+            generate_execute_err(result, "Invalid profile : " + profile_id);
+        }
+        lpstt = infra->get_profile_sts(profile_id);
+    }
+    if (lpstt && lpstt->m_init) {
+        lpstt->m_dtbl.dump_meta("counter desc", result["result"]);
+    } else {
+        generate_execute_err(result, "Statistics are not initialized yet");
+    }
+    result["result"]["epoch"] = lpstt->m_epoch;
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfDynamicCountersValues::_run(const Json::Value &params, Json::Value &result) {
+    string profile_id = parse_profile(params, result);
+    CCpDynStsInfra *infra = get_astf_object()->get_cp_sts_infra();
+    if (!infra->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
+    CSTTCp *lpstt = infra->get_profile_sts(profile_id);
+    uint64_t epoch = parse_uint64(params, "epoch", result);
+    if (epoch != lpstt->m_epoch) {
+        result["result"]["epoch_err"] = 1;
+        return (TREX_RPC_CMD_OK);
+    }
+    if (lpstt && lpstt->m_init) {
+        lpstt->m_dtbl.dump_values("counter vals", false, result["result"]);
+    } else {
+        generate_execute_err(result, "Statistics are not initialized yet");
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTotalDynamicCountersValues::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *stx = get_astf_object();
+    CCpDynStsInfra *infra = stx->get_cp_sts_infra();
+    uint64_t epoch = parse_uint64(params, "epoch", result);
+    if (epoch != infra->m_total_sts->m_epoch) {
+        result["result"]["epoch_err"] = "Try again: Epoch is not updated";
+        return (TREX_RPC_CMD_OK);
+    }
+    vector<CSTTCp *> sttcp_total_list = infra->get_dyn_sts_list();
+    for (auto lpstt : sttcp_total_list) {
+        bool clear = false;
+        if(lpstt == sttcp_total_list.front()) {
+            clear = true;
+        }
+        infra->accumulate_total_dyn_sts(clear, lpstt);
+    }
+    infra->m_total_sts->m_dtbl.dump_values("counter vals", false, result["result"]);
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
 TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
     string profile_id = parse_profile(params, result);
     TrexAstf *stx = get_astf_object();
@@ -651,6 +781,21 @@ TrexRpcCmdAstfGetTGStats::_run(const Json::Value &params, Json::Value &result) {
     } catch (const TrexException &ex) {
         generate_execute_err(result, ex.what());
     }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetFlowInfo::_run(const Json::Value &params, Json::Value &result) {
+    string profile_id = parse_profile(params, result);
+    uint64_t index = parse_uint64(params, "index", result, 0);
+    TrexAstf *astf = get_astf_object();
+    if (!astf->is_valid_profile(profile_id)) {
+        generate_execute_err(result, "Invalid profile : " + profile_id);
+    }
+
+    result["result"] = Json::arrayValue;
+    astf->get_profile(profile_id)->get_flow_info(result["result"], index);
+
     return (TREX_RPC_CMD_OK);
 }
 
@@ -743,88 +888,135 @@ TrexRpcCmdEnableDisableClient::_run(const Json::Value &params, Json::Value &resu
 }
 
 trex_rpc_cmd_rc_e
-TrexRpcCmdGetClientsInfo::_run(const Json::Value &params, Json::Value &result) {
+TrexRpcCmdGetClientsInfoStart::_run(const Json::Value &params, Json::Value &result) {
 
     const Json::Value &attr = parse_array(params, "attr", result);
     bool is_range = parse_bool(params, "is_range", result);
 
-    auto astf_db = CAstfDB::get_instance(0);
     cpu_util_full_t cpu_util_full;
 
     if (get_platform_api().get_cpu_util_full(cpu_util_full) != 0) {
         return TREX_RPC_CMD_INTERNAL_ERR;
     }
 
-    Json::Value thread_result;
     std::vector<uint32_t> msg_data;
+    TrexAstf* stx = get_astf_object();
+
+    bool ready = stx->get_clients_info_ready();
+    if (!ready) {
+        generate_execute_err(result, "Getting client info has already started, use get_clients_info_pull to collect the info");
+    }
 
     uint32_t client_start_ip = 0, client_end_ip = 0;
     for (auto each_client : attr) {
         if (!is_range){
-             client_start_ip = parse_uint32(each_client, "client_ip", result);
-             msg_data.push_back(client_start_ip);
+            client_start_ip = parse_uint32(each_client, "client_ip", result);
+            msg_data.push_back(client_start_ip);
         }
         else {
-             client_start_ip = parse_uint32(each_client, "client_start_ip", result);
-             client_end_ip = parse_uint32(each_client, "client_end_ip", result);
-             msg_data.push_back(client_start_ip);
-             msg_data.push_back(client_end_ip);
+            client_start_ip = parse_uint32(each_client, "client_start_ip", result);
+            client_end_ip = parse_uint32(each_client, "client_end_ip", result);
+            msg_data.push_back(client_start_ip);
+            msg_data.push_back(client_end_ip);
         }
     }
 
-    for (int thread_id = 0; thread_id < cpu_util_full.size(); thread_id++) {
-        static MsgReply<Json::Value> reply;
-        reply.reset();
+    TrexCpToDpMsgBase *msg = new TrexAstfDpGetClientStats(msg_data, is_range);
+    stx->send_message_to_all_dp(msg, false);
+    stx->set_clients_info_ready(false);
 
-        TrexCpToDpMsgBase *msg = new TrexAstfDpGetClientStats(astf_db, msg_data, is_range, reply);
-        get_astf_object()->send_message_to_dp(0, msg, true);
 
-        if (thread_id == 0){
-            // Prepare a skeleton of result
-            result["result"] = reply.wait_for_reply();
-            continue;
-        }
-        else
-           thread_result = reply.wait_for_reply();
+    return (TREX_RPC_CMD_OK);
 
-        uint32_t idx = 0;
-        uint32_t client_ip = 0;
-        uint32_t found_count = 0;
-        while(true){
-            if (!is_range){
-                client_ip = msg_data[idx];
-                if (++idx >= msg_data.size()) break;
-            }
-            else {
-                client_ip = client_start_ip + idx;
-                if (client_ip > client_end_ip) break; 
-            }
-            
-            // If its already found move next
-            if (result["result"][to_string(client_ip)]["Found"] == 1){
-                found_count++;
-                continue;
-            }
-            // If Not present , no need to modify 
-            if (thread_result[to_string(client_ip)]["Found"] == 0){
-                continue;
-            }
-            
-            // Update result
-            result["result"][to_string(client_ip)] = thread_result[to_string(client_ip)];
-        }
- 
-        // Found records in current thread, no need to check other threads
-        if (is_range && found_count == (client_end_ip - client_start_ip + 1)) break;
+}
 
-        if (!is_range && found_count == msg_data.size()) break;
-        
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetClientsInfoPull::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    bool is_get_client_info_started = stx->get_clients_info_ready();
+    if (is_get_client_info_started) {
+        generate_execute_err(result, "get_clients_info_start has to be called before get_clients_info_pull");
+    }
+    bool suc = stx->get_clients_info(result["result"]);
+    if (!suc) {
+        generate_execute_err(result, "The clients info is not ready yet");
     }
 
     return (TREX_RPC_CMD_OK);
 
 }
 
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfSetIgnoredMacs::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    const Json::Value &mac_addresses_json = parse_array(params, "mac_list", result);
+    std::vector<uint64_t> mac_addresses;
+    for (auto & mac_addr : mac_addresses_json) {
+        uint64_t network_order_mac = parse_uint64(mac_addr, "mac_addr", result);
+        reverse_order((uint8_t*)&network_order_mac, sizeof(uint64_t));
+        mac_addresses.push_back(network_order_mac);
+    }
+    if (mac_addresses.size() > MAC_ADDR_MAX) {
+        generate_execute_err(result, "The amount of MAC addresses exceeds the maximum size: " + to_string(MAC_ADDR_MAX));
+    }
+    TrexCpToDpMsgBase *msg = new TrexAstfDpIgnoredMacAddrs(mac_addresses);
+    stx->send_message_to_all_dp(msg, false);
+    stx->insert_ignored_mac_addresses(mac_addresses);
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetIgnoredMacs::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    std::vector<uint64_t> mac_addresses;
+    stx->get_ignored_mac_addresses(mac_addresses);
+    result["result"] = Json::arrayValue;
+    for (int i=0;i<mac_addresses.size();i++) {
+        uint64_t host_order = mac_addresses[i];
+        reverse_order((uint8_t*)&host_order, sizeof(uint64_t));
+        Json::Value val;
+        val["mac_addr"] = host_order;
+        result["result"].append(val);
+    }
+
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfSetIgnoredIps::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    const Json::Value &ip_addresses_json = parse_array(params, "ip_list", result);
+    std::vector<uint32_t> ip_addresses;
+    for (auto & ip_json : ip_addresses_json) {
+        ip_addresses.push_back(parse_uint32(ip_json, "ip", result));
+    }
+    if (ip_addresses.size() > IPV4_ADDR_MAX) {
+        generate_execute_err(result, "The amount of IPv4 addresses exceeds the maximum size: " + to_string(IPV4_ADDR_MAX));
+    }
+    TrexCpToDpMsgBase *msg = new TrexAstfDpIgnoredIpAddrs(ip_addresses);
+    stx->send_message_to_all_dp(msg, false);
+    stx->insert_ignored_ip_addresses(ip_addresses);
+    return (TREX_RPC_CMD_OK);
+
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfGetIgnoredIps::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf* stx = get_astf_object();
+    std::vector<uint32_t> ip_addresses;
+    stx->get_ignored_ip_addresses(ip_addresses);
+    result["result"] = Json::arrayValue;
+    for (int i=0;i<ip_addresses.size();i++) {
+        Json::Value val;
+        val["ip"] = ip_addresses[i];
+        result["result"].append(val);
+    }
+
+    return (TREX_RPC_CMD_OK);
+
+}
 
 
 /****************************** component implementation ******************************/
@@ -844,14 +1036,15 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
     std::vector<client_tunnel_data_t> all_msg_data;
 
     auto astf_db = CAstfDB::get_instance(0);
-    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
-    if(tunnel_handler == nullptr) {
-        return TREX_RPC_CMD_INTERNAL_ERR;
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result, "The tunnel mode needs to be activated");
     }
+    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
+    assert(tunnel_handler);
     if (tunnel_type == tunnel_handler->get_tunnel_type()) {
         tunnel_handler->parse_tunnel(params, result, all_msg_data);
     } else {
-        return TREX_RPC_CMD_INTERNAL_ERR;
+        generate_execute_err(result, "tunnel type is not supported");
     }
 
     TrexCpToDpMsgBase *msg = new TrexAstfDpUpdateTunnelClient(astf_db, all_msg_data);
@@ -862,6 +1055,146 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
 
 }
 
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &result) {
+    TrexAstf *astf = get_astf_object();
+    bool is_idle = (astf->get_state() == AstfProfileState::STATE_IDLE) ? true : false;
+
+    if (!is_idle) {
+        generate_execute_err(result, "The server state should be IDLE");
+    }
+
+    uint8_t tunnel_type = parse_uint16(params, "tunnel_type", result);
+    bool loopback = parse_bool(params, "loopback", result);
+    bool activate = parse_bool(params, "activate", result);
+    bool is_tunnel_enabled = CGlobalInfo::m_options.m_tunnel_enabled;
+
+    if (is_tunnel_enabled && activate) {
+        generate_execute_err(result, "The tunnel mode have been already activated");
+    }
+
+    if (!is_tunnel_enabled && !activate) {
+        generate_execute_err(result, "The tunnel mode is already off");
+    }
+    CCpDynStsInfra* cp_infra = astf->get_cp_sts_infra();
+    if (!activate) {
+        CTunnelHandler* tunnel_handler = astf->get_tunnel_handler();
+        cp_infra->remove_counters(tunnel_handler->get_meta_data());
+    }
+    astf->activate_tunnel_handler(activate, tunnel_type);
+    CTunnelHandler* tunnel_handler = get_astf_object()->get_tunnel_handler();
+    if (tunnel_handler == nullptr && activate) {
+        generate_execute_err(result, "The tunnel handler is null on tunnel mode: tunnel type is not supported");
+    }
+    if (tunnel_handler && !activate) {
+        generate_execute_err(result, "The tunnel handler is not null and the tunnel mode is off");
+    }
+    CGlobalInfo::m_options.m_tunnel_loopback = loopback && activate;
+    CGlobalInfo::m_options.m_tunnel_enabled = activate;
+
+    uint8_t dp_core_count = astf->get_dp_core_count();
+    DpsDynSts dp_sts;
+    for (uint8_t core_id = 0; core_id < dp_core_count; core_id++) {
+        static MsgReply<dp_sts_t> reply;
+        reply.reset();
+        TrexCpToDpMsgBase *msg = new TrexAstfDpInitTunnelHandler(activate, tunnel_type, loopback, reply);
+        astf->send_msg_to_dp(core_id, msg);
+        dp_sts.add_dp_dyn_sts(reply.wait_for_reply());
+    }
+    TrexAstfRxInitTunnelHandler *msg = new TrexAstfRxInitTunnelHandler(activate, tunnel_type, loopback);
+    astf->send_msg_to_rx(msg);
+    if (activate) {
+        assert(cp_infra->add_counters(tunnel_handler->get_meta_data(), &dp_sts));
+    }
+
+    return (TREX_RPC_CMD_OK);
+}
+
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdIsTunnelSupported::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t tunnel_type     = parse_uint16(params, "tunnel_type", result);
+    CTunnelHandler *tunnel_handler = create_tunnel_handler(tunnel_type, (uint8_t)(TUNNEL_MODE_CP));
+    assert(tunnel_handler);
+    std::string error_msg = "";
+    //there are certain flags that required for the tunnel mode to work for example in gtpu mode: --software --tso-disable --lro-disable are required
+    bool is_tunnel_supported = tunnel_handler->is_tunnel_supported(error_msg);
+    result["result"]["is_tunnel_supported"] = is_tunnel_supported;
+    if (!is_tunnel_supported) {
+        result["result"]["error_msg"] = "Tunnel is not supported: " + error_msg;
+    }
+    delete tunnel_handler;
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTunnelTopoGet::_run(const Json::Value &params, Json::Value &result) {
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result,  "Tunnel mode has to be activated in order to use Tunnel Topology");
+    }
+
+    try {
+        get_astf_object()->tunnel_topo_get(result["result"]);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTunnelTopoFragment::_run(const Json::Value &params, Json::Value &result) {
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result,  "Tunnel mode has to be activated in order to use Tunnel Topology");
+    }
+
+    const bool frag_first = parse_bool(params, "frag_first", result, false);
+    const bool frag_last = parse_bool(params, "frag_last", result, false);
+
+    TrexAstf *stx = get_astf_object();
+
+    if ( frag_first && !frag_last) {
+        const string hash = parse_string(params, "md5", result);
+        if ( stx->tunnel_topo_cmp_hash(hash) ) {
+            result["result"]["matches_loaded"] = true;
+            return TREX_RPC_CMD_OK;
+        }
+    }
+
+    const string fragment = parse_string(params, "fragment", result);
+
+    try {
+        if ( frag_first ) {
+            stx->tunnel_topo_clear();
+        }
+
+        stx->tunnel_topo_append(fragment);
+
+        if ( frag_last ) {
+            stx->tunnel_topo_set_loaded();
+        }
+
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAstfTunnelTopoClear::_run(const Json::Value &params, Json::Value &result) {
+    if (!CGlobalInfo::m_options.m_tunnel_enabled) {
+        generate_execute_err(result,  "Tunnel mode has to be activated in order to use Tunnel Topology");
+    }
+
+    try {
+        get_astf_object()->tunnel_topo_clear();
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+
+    return TREX_RPC_CMD_OK;
+}
 
 /****************************** component implementation ******************************/
 
@@ -891,10 +1224,24 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfTotalCountersValues(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetTGNames(this));
     m_cmds.push_back(new TrexRpcCmdAstfGetTGStats(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetFlowInfo(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoGet(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoFragment(this));
     m_cmds.push_back(new TrexRpcCmdAstfTopoClear(this));
     m_cmds.push_back(new TrexRpcCmdEnableDisableClient(this));
-    m_cmds.push_back(new TrexRpcCmdGetClientsInfo(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsInfoStart(this));
+    m_cmds.push_back(new TrexRpcCmdGetClientsInfoPull(this));
     m_cmds.push_back(new TrexRpcCmdUpdateTunnelClient(this));
+    m_cmds.push_back(new TrexRpcCmdActivateTunnelMode(this));
+    m_cmds.push_back(new TrexRpcCmdIsTunnelSupported(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTotalDynamicCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfDynamicCountersDesc(this));
+    m_cmds.push_back(new TrexRpcCmdAstfDynamicCountersValues(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoGet(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoFragment(this));
+    m_cmds.push_back(new TrexRpcCmdAstfTunnelTopoClear(this));
+    m_cmds.push_back(new TrexRpcCmdAstfSetIgnoredMacs(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetIgnoredMacs(this));
+    m_cmds.push_back(new TrexRpcCmdAstfSetIgnoredIps(this));
+    m_cmds.push_back(new TrexRpcCmdAstfGetIgnoredIps(this));
 }

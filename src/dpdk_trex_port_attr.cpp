@@ -112,9 +112,13 @@ int DpdkTRexPortAttr::get_xstats_values(xstats_values_t &xstats_values) {
     if (size < 0) {
         return size;
     }
-    xstats_values_tmp.resize(size);
-    xstats_values.resize(size);
-    size = rte_eth_xstats_get(m_repid, xstats_values_tmp.data(), size);
+
+    do {
+        xstats_values_tmp.resize(size);
+        xstats_values.resize(size);
+        size = rte_eth_xstats_get(m_repid, xstats_values_tmp.data(), size);
+    } while (size > xstats_values_tmp.size());
+
     if (size < 0) {
         return size;
     }
@@ -129,9 +133,13 @@ int DpdkTRexPortAttr::get_xstats_names(xstats_names_t &xstats_names){
     if (size < 0) {
         return size;
     }
-    xstats_names_tmp.resize(size);
-    xstats_names.resize(size);
-    size = rte_eth_xstats_get_names(m_repid, xstats_names_tmp.data(), size);
+
+    do {
+        xstats_names_tmp.resize(size);
+        xstats_names.resize(size);
+        size = rte_eth_xstats_get_names(m_repid, xstats_names_tmp.data(), size);
+    } while (size > xstats_names_tmp.size());
+
     if (size < 0) {
         return size;
     }
@@ -149,7 +157,7 @@ void DpdkTRexPortAttr::dump_link(FILE *fd){
     if (m_link.link_status) {
         fprintf(fd," link : Link Up - speed %u Mbps - %s\n",
                 (unsigned) get_link_speed(),
-                (m_link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
+                (m_link.link_duplex == RTE_ETH_LINK_FULL_DUPLEX) ?
                 ("full-duplex") : ("half-duplex\n"));
     } else {
         fprintf(fd," Link Down\n");
@@ -171,6 +179,8 @@ bool fill_pci_dev(struct rte_eth_dev_info *dev_info, struct rte_pci_device* pci_
 
 void DpdkTRexPortAttr::update_device_info(){
     rte_eth_dev_info_get(m_repid, &m_dev_info);
+    m_mtu = m_dev_info.max_rx_pktlen - trex_dev_get_overhead_len(m_dev_info.max_rx_pktlen, 
+                                                                 m_dev_info.max_mtu);
     bool ret = fill_pci_dev(&m_dev_info, &m_pci_dev);
     if ( has_pci() ) {
         assert(ret);
@@ -187,24 +197,24 @@ void DpdkTRexPortAttr::update_device_info(){
 
 void DpdkTRexPortAttr::get_supported_speeds(supp_speeds_t &supp_speeds){
     uint32_t speed_capa = m_dev_info.speed_capa;
-    if (speed_capa & ETH_LINK_SPEED_1G)
-        supp_speeds.push_back(ETH_SPEED_NUM_1G);
-    if (speed_capa & ETH_LINK_SPEED_10G)
-        supp_speeds.push_back(ETH_SPEED_NUM_10G);
-    if (speed_capa & ETH_LINK_SPEED_25G)
-        supp_speeds.push_back(ETH_SPEED_NUM_25G);
-    if (speed_capa & ETH_LINK_SPEED_40G)
-        supp_speeds.push_back(ETH_SPEED_NUM_40G);
-    if (speed_capa & ETH_LINK_SPEED_100G)
-        supp_speeds.push_back(ETH_SPEED_NUM_100G);
-    if (speed_capa & ETH_LINK_SPEED_200G)
-        supp_speeds.push_back(ETH_SPEED_NUM_200G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_1G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_1G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_10G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_10G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_25G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_25G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_40G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_40G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_100G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_100G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_200G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_200G);
 }
 
 void DpdkTRexPortAttr::update_link_status(){
     rte_eth_link_get(m_repid, &m_link);
-    if (m_link.link_speed > ETH_SPEED_NUM_200G ){
-        m_link.link_speed = ETH_SPEED_NUM_200G;
+    if (m_link.link_speed > RTE_ETH_SPEED_NUM_200G ){
+        m_link.link_speed = RTE_ETH_SPEED_NUM_200G;
     }
 }
 
@@ -241,7 +251,7 @@ int DpdkTRexPortAttr::set_vxlan_fs(vxlan_fs_ports_t &vxlan_fs_ports) {
 
     if ( vxlan_fs_ports != m_vxlan_fs_ports ) {
         rte_eth_udp_tunnel udp_tunnel;
-        udp_tunnel.prot_type = RTE_TUNNEL_TYPE_VXLAN;
+        udp_tunnel.prot_type = RTE_ETH_TUNNEL_TYPE_VXLAN;
         int ret = 0;
 
         while ( m_vxlan_fs_ports.size() ) { // delete old ports

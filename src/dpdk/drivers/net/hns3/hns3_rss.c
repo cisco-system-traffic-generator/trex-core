@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2018-2019 Hisilicon Limited.
+ * Copyright(c) 2018-2021 HiSilicon Limited.
  */
 
 #include <rte_ethdev.h>
@@ -76,69 +76,69 @@ static const struct {
 	uint64_t rss_types;
 	uint64_t rss_field;
 } hns3_set_tuple_table[] = {
-	{ ETH_RSS_FRAG_IPV4 | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_FRAG_IPV4 | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_FRAG_IP_S) },
-	{ ETH_RSS_FRAG_IPV4 | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_FRAG_IPV4 | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_FRAG_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L4_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_L4_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_TCP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_L4_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_L4_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_TCP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_UDP | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_UDP | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L4_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_UDP | RTE_ETH_RSS_L4_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_UDP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_L4_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_UDP | RTE_ETH_RSS_L4_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_UDP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_SCTP | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_SCTP | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L4_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_SCTP | RTE_ETH_RSS_L4_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_SCTP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_SCTP | ETH_RSS_L4_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_SCTP | RTE_ETH_RSS_L4_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_SCTP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_OTHER | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_OTHER | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_NONFRAG_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_OTHER | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_OTHER | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_NONFRAG_IP_D) },
-	{ ETH_RSS_FRAG_IPV6 | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_FRAG_IPV6 | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_FRAG_IP_S) },
-	{ ETH_RSS_FRAG_IPV6 | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_FRAG_IPV6 | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_FRAG_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_TCP | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_TCP | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L4_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_TCP | RTE_ETH_RSS_L4_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_TCP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_L4_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_TCP | RTE_ETH_RSS_L4_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_TCP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_UDP | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_UDP | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L4_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_UDP | RTE_ETH_RSS_L4_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_UDP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_L4_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_UDP | RTE_ETH_RSS_L4_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_UDP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_SCTP | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_SCTP_EN_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_SCTP | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_SCTP_EN_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L4_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_SCTP | RTE_ETH_RSS_L4_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FILED_IPV6_SCTP_EN_SCTP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_SCTP | ETH_RSS_L4_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_SCTP | RTE_ETH_RSS_L4_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FILED_IPV6_SCTP_EN_SCTP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_OTHER | ETH_RSS_L3_SRC_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_OTHER | RTE_ETH_RSS_L3_SRC_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_NONFRAG_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV6_OTHER | ETH_RSS_L3_DST_ONLY,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_OTHER | RTE_ETH_RSS_L3_DST_ONLY,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_NONFRAG_IP_D) },
 };
 
@@ -146,44 +146,40 @@ static const struct {
 	uint64_t rss_types;
 	uint64_t rss_field;
 } hns3_set_rss_types[] = {
-	{ ETH_RSS_FRAG_IPV4, BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_FRAG_IP_D) |
+	{ RTE_ETH_RSS_FRAG_IPV4, BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_FRAG_IP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_FRAG_IP_S) },
-	{ ETH_RSS_NONFRAG_IPV4_TCP, BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_S) |
+	{ RTE_ETH_RSS_NONFRAG_IPV4_TCP, BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_TCP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_TCP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_TCP, BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_S) |
-	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_IP_D) |
-	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_TCP_S) |
-	  BIT_ULL(HNS3_RSS_FIELD_IPV4_TCP_EN_TCP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_UDP, BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_IP_S) |
+	{ RTE_ETH_RSS_NONFRAG_IPV4_UDP, BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_IP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_UDP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_UDP_EN_UDP_D) },
-	{ ETH_RSS_NONFRAG_IPV4_SCTP, BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_IP_S) |
+	{ RTE_ETH_RSS_NONFRAG_IPV4_SCTP, BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_IP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_SCTP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_SCTP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_SCTP_EN_SCTP_VER) },
-	{ ETH_RSS_NONFRAG_IPV4_OTHER,
+	{ RTE_ETH_RSS_NONFRAG_IPV4_OTHER,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_NONFRAG_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV4_EN_NONFRAG_IP_D) },
-	{ ETH_RSS_FRAG_IPV6, BIT_ULL(HNS3_RSS_FIELD_IPV6_FRAG_IP_S) |
+	{ RTE_ETH_RSS_FRAG_IPV6, BIT_ULL(HNS3_RSS_FIELD_IPV6_FRAG_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_FRAG_IP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_TCP, BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_IP_S) |
+	{ RTE_ETH_RSS_NONFRAG_IPV6_TCP, BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_IP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_TCP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_TCP_EN_TCP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_UDP, BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_IP_S) |
+	{ RTE_ETH_RSS_NONFRAG_IPV6_UDP, BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_IP_D) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_UDP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_UDP_EN_UDP_D) },
-	{ ETH_RSS_NONFRAG_IPV6_SCTP, BIT_ULL(HNS3_RSS_FIELD_IPV6_SCTP_EN_IP_S) |
+	{ RTE_ETH_RSS_NONFRAG_IPV6_SCTP, BIT_ULL(HNS3_RSS_FIELD_IPV6_SCTP_EN_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_SCTP_EN_IP_D) |
 	  BIT_ULL(HNS3_RSS_FILED_IPV6_SCTP_EN_SCTP_D) |
 	  BIT_ULL(HNS3_RSS_FILED_IPV6_SCTP_EN_SCTP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_SCTP_EN_SCTP_VER) },
-	{ ETH_RSS_NONFRAG_IPV6_OTHER,
+	{ RTE_ETH_RSS_NONFRAG_IPV6_OTHER,
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_NONFRAG_IP_S) |
 	  BIT_ULL(HNS3_RSS_FIELD_IPV6_NONFRAG_IP_D) }
 };
@@ -365,10 +361,10 @@ hns3_set_rss_tuple_by_rss_hf(struct hns3_hw *hw,
 	 * When user does not specify the following types or a combination of
 	 * the following types, it enables all fields for the supported RSS
 	 * types. the following types as:
-	 * - ETH_RSS_L3_SRC_ONLY
-	 * - ETH_RSS_L3_DST_ONLY
-	 * - ETH_RSS_L4_SRC_ONLY
-	 * - ETH_RSS_L4_DST_ONLY
+	 * - RTE_ETH_RSS_L3_SRC_ONLY
+	 * - RTE_ETH_RSS_L3_DST_ONLY
+	 * - RTE_ETH_RSS_L4_SRC_ONLY
+	 * - RTE_ETH_RSS_L4_DST_ONLY
 	 */
 	if (fields_count == 0) {
 		for (i = 0; i < RTE_DIM(hns3_set_rss_types); i++) {
@@ -520,8 +516,8 @@ hns3_dev_rss_reta_update(struct rte_eth_dev *dev,
 	memcpy(indirection_tbl, rss_cfg->rss_indirection_tbl,
 	       sizeof(rss_cfg->rss_indirection_tbl));
 	for (i = 0; i < reta_size; i++) {
-		idx = i / RTE_RETA_GROUP_SIZE;
-		shift = i % RTE_RETA_GROUP_SIZE;
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		if (reta_conf[idx].reta[shift] >= hw->alloc_rss_size) {
 			rte_spinlock_unlock(&hw->lock);
 			hns3_err(hw, "queue id(%u) set to redirection table "
@@ -572,8 +568,8 @@ hns3_dev_rss_reta_query(struct rte_eth_dev *dev,
 	}
 	rte_spinlock_lock(&hw->lock);
 	for (i = 0; i < reta_size; i++) {
-		idx = i / RTE_RETA_GROUP_SIZE;
-		shift = i % RTE_RETA_GROUP_SIZE;
+		idx = i / RTE_ETH_RETA_GROUP_SIZE;
+		shift = i % RTE_ETH_RETA_GROUP_SIZE;
 		if (reta_conf[idx].mask & (1ULL << shift))
 			reta_conf[idx].reta[shift] =
 						rss_cfg->rss_indirection_tbl[i];
@@ -582,33 +578,59 @@ hns3_dev_rss_reta_query(struct rte_eth_dev *dev,
 	return 0;
 }
 
-/*
- * Used to configure the tc_size and tc_offset.
- */
+static void
+hns3_set_rss_tc_mode_entry(struct hns3_hw *hw, uint8_t *tc_valid,
+			   uint16_t *tc_size, uint16_t *tc_offset,
+			   uint8_t tc_num)
+{
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
+	uint16_t rss_size = hw->alloc_rss_size;
+	uint16_t roundup_size;
+	uint16_t i;
+
+	roundup_size = roundup_pow_of_two(rss_size);
+	roundup_size = ilog2(roundup_size);
+
+	for (i = 0; i < tc_num; i++) {
+		if (hns->is_vf) {
+			/*
+			 * For packets with VLAN priorities destined for the VF,
+			 * hardware still assign Rx queue based on the Up-to-TC
+			 * mapping PF configured. But VF has only one TC. If
+			 * other TC don't enable, it causes that the priority
+			 * packets that aren't destined for TC0 aren't received
+			 * by RSS hash but is destined for queue 0. So driver
+			 * has to enable the unused TC by using TC0 queue
+			 * mapping configuration.
+			 */
+			tc_valid[i] = (hw->hw_tc_map & BIT(i)) ?
+					!!(hw->hw_tc_map & BIT(i)) : 1;
+			tc_size[i] = roundup_size;
+			tc_offset[i] = (hw->hw_tc_map & BIT(i)) ?
+					rss_size * i : 0;
+		} else {
+			tc_valid[i] = !!(hw->hw_tc_map & BIT(i));
+			tc_size[i] = tc_valid[i] ? roundup_size : 0;
+			tc_offset[i] = tc_valid[i] ? rss_size * i : 0;
+		}
+	}
+}
+
 static int
 hns3_set_rss_tc_mode(struct hns3_hw *hw)
 {
-	uint16_t rss_size = hw->alloc_rss_size;
 	struct hns3_rss_tc_mode_cmd *req;
 	uint16_t tc_offset[HNS3_MAX_TC_NUM];
 	uint8_t tc_valid[HNS3_MAX_TC_NUM];
 	uint16_t tc_size[HNS3_MAX_TC_NUM];
 	struct hns3_cmd_desc desc;
-	uint16_t roundup_size;
 	uint16_t i;
 	int ret;
 
+	hns3_set_rss_tc_mode_entry(hw, tc_valid, tc_size,
+				   tc_offset, HNS3_MAX_TC_NUM);
+
 	req = (struct hns3_rss_tc_mode_cmd *)desc.data;
-
-	roundup_size = roundup_pow_of_two(rss_size);
-	roundup_size = ilog2(roundup_size);
-
-	for (i = 0; i < HNS3_MAX_TC_NUM; i++) {
-		tc_valid[i] = !!(hw->hw_tc_map & BIT(i));
-		tc_size[i] = roundup_size;
-		tc_offset[i] = rss_size * i;
-	}
-
 	hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_RSS_TC_MODE, false);
 	for (i = 0; i < HNS3_MAX_TC_NUM; i++) {
 		uint16_t mode = 0;
@@ -667,7 +689,7 @@ hns3_rss_set_default_args(struct hns3_hw *hw)
 }
 
 /*
- * RSS initialization for hns3 pmd driver.
+ * RSS initialization for hns3 PMD.
  */
 int
 hns3_config_rss(struct hns3_adapter *hns)
@@ -692,7 +714,7 @@ hns3_config_rss(struct hns3_adapter *hns)
 	}
 
 	/* When RSS is off, redirect the packet queue 0 */
-	if (((uint32_t)mq_mode & ETH_MQ_RX_RSS_FLAG) == 0)
+	if (((uint32_t)mq_mode & RTE_ETH_MQ_RX_RSS_FLAG) == 0)
 		hns3_rss_uninit(hns);
 
 	/* Configure RSS hash algorithm and hash key offset */
@@ -709,7 +731,7 @@ hns3_config_rss(struct hns3_adapter *hns)
 	 * When RSS is off, it doesn't need to configure rss redirection table
 	 * to hardware.
 	 */
-	if (((uint32_t)mq_mode & ETH_MQ_RX_RSS_FLAG)) {
+	if (((uint32_t)mq_mode & RTE_ETH_MQ_RX_RSS_FLAG)) {
 		ret = hns3_set_rss_indir_table(hw, rss_cfg->rss_indirection_tbl,
 					       hw->rss_ind_tbl_size);
 		if (ret)
@@ -723,7 +745,7 @@ hns3_config_rss(struct hns3_adapter *hns)
 	return ret;
 
 rss_indir_table_uninit:
-	if (((uint32_t)mq_mode & ETH_MQ_RX_RSS_FLAG)) {
+	if (((uint32_t)mq_mode & RTE_ETH_MQ_RX_RSS_FLAG)) {
 		ret1 = hns3_rss_reset_indir_table(hw);
 		if (ret1 != 0)
 			return ret;
@@ -739,7 +761,7 @@ rss_tuple_uninit:
 }
 
 /*
- * RSS uninitialization for hns3 pmd driver.
+ * RSS uninitialization for hns3 PMD.
  */
 void
 hns3_rss_uninit(struct hns3_adapter *hns)

@@ -3,7 +3,7 @@
 #include "gtp_man.h"
 #include "tunnel_tx_rx_callback.h"
 
-inline CTunnelHandler *get_tunnel_handler(uint8_t tunnel_type, uint8_t mode) {
+inline CTunnelHandler *create_tunnel_handler(uint8_t tunnel_type, uint8_t mode) {
     CTunnelHandler *tunnel = nullptr;
     switch (tunnel_type) {
         case TUNNEL_TYPE_GTP: {
@@ -12,5 +12,28 @@ inline CTunnelHandler *get_tunnel_handler(uint8_t tunnel_type, uint8_t mode) {
         }
     }
     return tunnel;
+}
+
+
+inline tunnel_cntxt_t get_tunnel_ctx(client_tunnel_data_t* data) {
+    tunnel_cntxt_t tunnel_ctx = nullptr;
+    uint8_t tunnel_type = data->type;
+    switch (tunnel_type) {
+        case TUNNEL_TYPE_GTP: {
+            if (data->version == 4) {
+                tunnel_ctx = (void*) new CGtpuCtx(data->teid,
+                                            data->src.ipv4,
+                                            data->dst.ipv4,
+                                            data->src_port);
+            } else {
+                tunnel_ctx = (void*) new CGtpuCtx(data->teid,
+                                            &(data->src.ipv6),
+                                            &(data->dst.ipv6),
+                                            data->src_port);
+            }
+            break;
+        }
+    }
+    return tunnel_ctx;
 }
 #endif

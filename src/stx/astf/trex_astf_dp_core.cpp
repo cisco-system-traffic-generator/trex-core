@@ -36,7 +36,7 @@ limitations under the License.
 using namespace std;
 
 TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
-                TrexDpCore(thread_id, core, STATE_IDLE) {
+                TrexStatelessDpCore(thread_id, core) {
     CSyncBarrier *sync_barrier = get_astf_object()->get_barrier();
     m_flow_gen = m_core;
     m_flow_gen->set_sync_barrier(sync_barrier);
@@ -44,7 +44,7 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_active_profile_cnt = 0;
     m_profile_states.clear();
     m_mbuf_redirect_cache = nullptr;
-    m_tunnel_handler = get_tunnel_handler(CGlobalInfo::m_options.m_tunnel_type, (uint8_t)(TUNNEL_MODE_DP));
+    m_tunnel_handler = nullptr;
     if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
         // software RSS, need to create cache.
         uint8_t num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
@@ -109,6 +109,13 @@ void TrexAstfDpCore::set_profile_stopping(profile_id_t profile_id, bool stop_all
         if (tx_node) {
             tx_node->m_pctx = nullptr;  // trigger stopping generate_flow() safely.
             pctx->m_tx_node = nullptr;  // prevent from unexpected reference.
+        }
+
+        CPerProfileCtx* s_pctx = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
+        CPerProfileFlowDump* flow_dump = (CPerProfileFlowDump*)s_pctx->m_flow_dump;
+        if (flow_dump) {
+            delete flow_dump;
+            s_pctx->m_flow_dump = nullptr;
         }
     }
 }
@@ -206,31 +213,8 @@ void TrexAstfDpCore::get_scheduler_options(profile_id_t profile_id, bool& disabl
 
 void TrexAstfDpCore::start_scheduler() {
 
-    profile_id_t profile_id = 0;
-    double duration = -1;
-    bool nc = false;
-    double establish_timeout = 0.0;
-    double terminate_duration = 0.0;
-
-    if (m_state == STATE_STARTING) { /* set by start_transmit function */
-        m_state = STATE_TRANSMITTING;
-        report_dp_state();
-
-        auto it = m_sched_param.begin();
-        profile_id = it->m_profile_id;
-        duration = it->m_duration;
-        nc = it->m_nc_flow_close;
-        establish_timeout = it->m_establish_timeout;
-        terminate_duration = it->m_terminate_duration;
-
-        m_sched_param.erase(it);
-    }
-
-    dsec_t d_time_flow;
-    bool disable_client = false;
-    double d_phase;
-
-    get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
+    m_state = STATE_TRANSMITTING;
+    report_dp_state();
 
     double old_offset = 0.0;
     CGenNode *node;
@@ -241,14 +225,10 @@ void TrexAstfDpCore::start_scheduler() {
 
         m_flow_gen->m_cur_time_sec = now;
 
-        if ( duration <= 0.0 && m_flow_gen->m_yaml_info.m_duration_sec > 0 ) {
-            duration = m_flow_gen->m_yaml_info.m_duration_sec;
-        }
-
-        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration);
         for (auto param: m_sched_param) {
-            start_profile_ctx(param.m_profile_id, param.m_duration, param.m_nc_flow_close, param.m_establish_timeout, param.m_terminate_duration);
+            start_profile_ctx(param.m_profile_id, param.m_duration, param.m_nc_flow_close, param.m_establish_timeout, param.m_terminate_duration, param.m_dump_interval);
         }
+        m_sched_param.clear();
 
         node = m_flow_gen->create_node() ;
         node->m_type = CGenNode::TCP_RX_FLUSH;
@@ -266,19 +246,20 @@ void TrexAstfDpCore::start_scheduler() {
         m_flow_gen->m_node_gen.add_node(node);
     
         m_core->pre_flush_file();
-        m_flow_gen->m_node_gen.flush_file(-1, d_time_flow, false, m_flow_gen, old_offset);
+        m_flow_gen->m_node_gen.flush_file(-1, 0, false, m_flow_gen, old_offset);
         m_core->post_flush_file();
 
         m_flow_gen->flush_tx_queue();
-        m_flow_gen->m_node_gen.close_file(m_flow_gen);
+        if (m_state != STATE_TERMINATE) {
+            m_flow_gen->m_node_gen.close_file(m_flow_gen);
+        }
         m_flow_gen->m_c_tcp->cleanup_flows();
         m_flow_gen->m_s_tcp->cleanup_flows();
     } else {
-        report_error(profile_id, "Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
-
         for (auto param: m_sched_param) {
-            report_error(param.m_profile_id, "Could not sync DP thread for start");
+            report_error(param.m_profile_id, "Could not sync DP thread for start, core ID: " + to_string(m_flow_gen->m_thread_id));
         }
+        m_sched_param.clear();
     }
 
     if ( m_state != STATE_TERMINATE ) {
@@ -293,11 +274,16 @@ void TrexAstfDpCore::start_scheduler() {
     }
 }
 
-void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration) {
+void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
 
     dsec_t d_time_flow;
     bool disable_client = false;
     double d_phase;
+
+    /* is this needed? */
+    if ( duration <= 0.0 && m_flow_gen->m_yaml_info.m_duration_sec > 0 ) {
+        duration = m_flow_gen->m_yaml_info.m_duration_sec;
+    }
 
     get_scheduler_options(profile_id, disable_client, d_time_flow, d_phase);
 
@@ -313,6 +299,13 @@ void TrexAstfDpCore::start_profile_ctx(profile_id_t profile_id, double duration,
         tx_node->m_pctx = m_flow_gen->m_c_tcp->get_profile_ctx(profile_id);
         tx_node->m_pctx->m_tx_node = tx_node;
         m_flow_gen->m_node_gen.add_node((CGenNode*)tx_node);
+    }
+
+    if (dump_interval) {
+        CPerProfileCtx* pctx = m_flow_gen->m_s_tcp->get_profile_ctx(profile_id);
+
+        auto flow_dump = new CPerProfileFlowDump(dump_interval, pctx, this);
+        pctx->m_flow_dump = flow_dump;
     }
 
     set_profile_active(profile_id);
@@ -361,7 +354,11 @@ void TrexAstfDpCore::stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id)
     set_profile_stop_event(profile_id);
 }
 
-void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_buffer, string *topo_buffer, CAstfDB *astf_db) {
+void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id,
+                                     string *profile_buffer,
+                                     string *topo_buffer,
+                                     CAstfDB *astf_db,
+                                     const string* tunnel_topo_buffer) {
     TrexWatchDog::IOFunction dummy;
     (void)dummy;
 
@@ -386,6 +383,17 @@ void TrexAstfDpCore::parse_astf_json(profile_id_t profile_id, string *profile_bu
             report_error(profile_id, ex.what());
             return;
         }
+    }
+
+    if (tunnel_topo_buffer) {
+        //verifies that has tunnel handler
+        assert(m_tunnel_handler);
+        CTunnelsTopo* tunnel_topo = astf_db->get_tunnel_topo();
+        //initialize the tunnel topo
+        tunnel_topo->from_json_str(*tunnel_topo_buffer);
+        // initialize the tunnel db with the tunnel topo
+        CTunnelsDB* m_tunnel_db = m_flow_gen->m_flow_list->m_client_config_info.get_tunnel_db();
+        m_tunnel_db->load_from_tunnel_topo(tunnel_topo);
     }
 
     if ( !profile_buffer ) {
@@ -419,8 +427,6 @@ void TrexAstfDpCore::remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db)
         report_error(profile_id, "Cannot delete ASTF DB on existing profile: state " + std::to_string(get_profile_state(profile_id)));
         return;
     }
-    // try removing the profile_ctx which contains statistics.
-    m_flow_gen->remove_tcp_profile(profile_id);
 
     if (astf_db) {
         astf_db->Delete();
@@ -467,6 +473,11 @@ void TrexAstfDpCore::create_tcp_batch(profile_id_t profile_id, double factor, CA
         return;
     }
 
+    // In case of tunnel mode we need to assign the CIpInfoBase objects with the tunnel handler and
+    // tunnel context deletion function, so the tunnel context could be deleted
+    if (m_tunnel_handler) {
+        m_flow_gen->set_tunnel_handler(m_tunnel_handler, (void*)m_tunnel_handler->get_tunnel_ctx_del_cb());
+    }
     set_profile_state(profile_id, pSTATE_LOADED);
     report_profile_ctx(profile_id);
 }
@@ -496,7 +507,7 @@ void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove, C
     report_finished(profile_id);
 }
 
-void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration) {
+void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
     if (!is_profile(profile_id)) {
         report_error(profile_id, "Start of unknown profile");
         return;
@@ -521,10 +532,10 @@ void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bo
         report_dp_state();
         m_sched_param.clear();
     case STATE_STARTING:
-        m_sched_param.push_back({profile_id, duration, nc, establish_timeout, terminate_duration});
+        m_sched_param.push_back({profile_id, duration, nc, establish_timeout, terminate_duration, dump_interval});
         break;
     case STATE_TRANSMITTING:
-        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration);
+        start_profile_ctx(profile_id, duration, nc, establish_timeout, terminate_duration, dump_interval);
         break;
     case STATE_STOPPING:
     default:
@@ -663,7 +674,8 @@ void inline TrexAstfDpCore::client_lookup_and_activate(uint32_t client, bool act
      CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
      if (ip_info){
          if (m_tunnel_handler && !activate){
-             m_tunnel_handler->delete_tunnel_context(ip_info->get_tunnel_info());
+             m_tunnel_handler->delete_tunnel_ctx(ip_info->get_tunnel_ctx());
+             ip_info->set_tunnel_ctx(nullptr);
          }
          ip_info->set_client_active(activate);
      }
@@ -698,14 +710,15 @@ Json::Value TrexAstfDpCore::client_data_to_json(void *cip_info) {
        c_data["state"] = "Active";
     else
        c_data["state"] = "Inactive";
-
-    uint8_t type = ip_info->get_tunnel_type(); 
-    if (type !=  TUNNEL_TYPE_NONE) 
-       c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
+    if (m_tunnel_handler) {
+        if (ip_info->get_tunnel_ctx()) {
+            c_data["tunnel_type"] =  m_tunnel_handler->get_tunnel_type_str();
+        }
+    }
     return c_data;
 }
 
-bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply) {
+void TrexAstfDpCore::get_client_stats(std::vector<uint32_t> &msg_data, bool is_range) {
 
     Json::Value res = Json::objectValue;
     if (is_range){
@@ -713,34 +726,82 @@ bool TrexAstfDpCore::get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> ms
             CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
             res[to_string(client)] = client_data_to_json(ip_info);
         }
-        reply.set_reply(res);
-        return true;
     }
-    
-    for ( auto client : msg_data)
-    {
-        CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
-        res[to_string(client)] = client_data_to_json(ip_info);
+    else {
+        for ( auto client : msg_data) {
+            CIpInfoBase *ip_info = m_flow_gen->client_lookup(client);
+            res[to_string(client)] = client_data_to_json(ip_info);
+        }
     }
-   
-    reply.set_reply(res);
-    return true;
+    TrexDpToCpMsgBase *msg = new TrexAstfDpSentClientStats(res);
+    m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+}
+
+
+void TrexAstfDpCore::dump_profile_flows(profile_id_t profile_id) {
+    Json::Value res = Json::objectValue;
+
+    std::array<CTcpPerThreadCtx*,2> ctxs{ m_flow_gen->m_c_tcp, m_flow_gen->m_s_tcp };
+    for (auto ctx: ctxs) {
+        if (ctx->is_profile_ctx(profile_id)) {
+            ctx->get_profile_ctx(profile_id)->dump_flow_info(res);
+        }
+    }
+
+    if (res.size()) {
+        TrexDpToCpMsgBase *msg = new TrexAstfDpFlowInfo(profile_id, res);
+        m_ring_to_cp->SecureEnqueue((CGenNode *)msg, true);
+    }
+}
+
+
+void TrexAstfDpCore::insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses) {
+    m_flow_gen->m_s_tcp->insert_ignored_macs(mac_addresses);
+    m_flow_gen->m_c_tcp->insert_ignored_macs(mac_addresses);
+}
+
+
+void TrexAstfDpCore::insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses) {
+    m_flow_gen->m_s_tcp->insert_ignored_ips(ip_addresses);
+    m_flow_gen->m_c_tcp->insert_ignored_ips(ip_addresses);
 }
 
 
 void TrexAstfDpCore::update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data) {
+    assert(m_tunnel_handler);
     for (auto elem : msg_data) {
         CIpInfoBase *ip_info = m_flow_gen->client_lookup(elem.client_ip);
         if (ip_info) {
-           void *tunnel_context = ip_info->get_tunnel_info();
-           if (tunnel_context){
-               m_tunnel_handler->update_tunnel_context(&elem, tunnel_context);
+           void *tunnel_ctx = ip_info->get_tunnel_ctx();
+           if (tunnel_ctx){
+               m_tunnel_handler->update_tunnel_ctx(&elem, tunnel_ctx);
            } else {
-               void *tunnel_context = m_tunnel_handler->get_tunnel_context(&elem); 
-               ip_info->set_tunnel_info(tunnel_context);
-               ip_info->set_tunnel_type(m_tunnel_handler->get_tunnel_type());
+               void *tunnel_ctx = m_tunnel_handler->get_tunnel_ctx(&elem);
+               ip_info->set_tunnel_ctx(tunnel_ctx);
            }
         }
     }
 }
 
+
+dp_sts_t TrexAstfDpCore::activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback) {
+    if (activate) {
+        uint8_t tunnel_mode = (uint8_t)(TUNNEL_MODE_TX | TUNNEL_MODE_RX) | (TUNNEL_MODE_DP);
+        if (loopback) {
+            tunnel_mode = (uint8_t) tunnel_mode | TUNNEL_MODE_LOOPBACK;
+        }
+        m_tunnel_handler = create_tunnel_handler(tunnel_type, tunnel_mode);
+        assert(m_tunnel_handler);
+        m_flow_gen->m_node_gen.m_v_if->set_tunnel(m_tunnel_handler, loopback);
+        if (loopback) {
+            m_flow_gen->m_s_tcp->m_tunnel_handler = m_tunnel_handler;
+        }
+        return m_tunnel_handler->get_counters();
+    } else {
+        delete m_tunnel_handler;
+        m_tunnel_handler = nullptr;
+        m_flow_gen->m_s_tcp->m_tunnel_handler = nullptr;
+        m_flow_gen->m_node_gen.m_v_if->delete_tunnel();
+        return std::make_pair(nullptr,nullptr);
+    }
+}

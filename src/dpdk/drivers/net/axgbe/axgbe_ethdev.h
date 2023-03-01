@@ -12,11 +12,10 @@
 #include "rte_time.h"
 
 #define IRQ				0xff
-#define VLAN_HLEN			4
 
 #define AXGBE_TX_MAX_BUF_SIZE		(0x3fff & ~(64 - 1))
 #define AXGBE_RX_MAX_BUF_SIZE		(0x3fff & ~(64 - 1))
-#define AXGBE_RX_MIN_BUF_SIZE		(RTE_ETHER_MAX_LEN + VLAN_HLEN)
+#define AXGBE_RX_MIN_BUF_SIZE		(RTE_ETHER_MAX_LEN + RTE_VLAN_HLEN)
 #define AXGBE_MAX_MAC_ADDRS		32
 #define AXGBE_MAX_HASH_MAC_ADDRS	256
 
@@ -97,12 +96,12 @@
 
 /* Receive Side Scaling */
 #define AXGBE_RSS_OFFLOAD  ( \
-	ETH_RSS_IPV4 | \
-	ETH_RSS_NONFRAG_IPV4_TCP | \
-	ETH_RSS_NONFRAG_IPV4_UDP | \
-	ETH_RSS_IPV6 | \
-	ETH_RSS_NONFRAG_IPV6_TCP | \
-	ETH_RSS_NONFRAG_IPV6_UDP)
+	RTE_ETH_RSS_IPV4 | \
+	RTE_ETH_RSS_NONFRAG_IPV4_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV4_UDP | \
+	RTE_ETH_RSS_IPV6 | \
+	RTE_ETH_RSS_NONFRAG_IPV6_TCP | \
+	RTE_ETH_RSS_NONFRAG_IPV6_UDP)
 
 #define AXGBE_RSS_HASH_KEY_SIZE		40
 #define AXGBE_RSS_MAX_TABLE_SIZE	256
@@ -642,7 +641,7 @@ struct axgbe_port {
 
 	unsigned int kr_redrv;
 
-	/* Auto-negotiation atate machine support */
+	/* Auto-negotiation state machine support */
 	unsigned int an_int;
 	unsigned int an_status;
 	enum axgbe_an an_result;

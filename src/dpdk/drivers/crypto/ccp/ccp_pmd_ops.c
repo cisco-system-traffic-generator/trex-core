@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include <rte_common.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #include <rte_malloc.h>
 
 #include "ccp_pmd_private.h"
@@ -744,8 +744,7 @@ ccp_pmd_qp_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 
 qp_setup_cleanup:
 	dev->data->queue_pairs[qp_id] = NULL;
-	if (qp)
-		rte_free(qp);
+	rte_free(qp);
 	return -1;
 }
 

@@ -30,13 +30,14 @@
 #include <rte_spinlock.h>
 #include <sys/epoll.h>
 #include <unordered_set>
+#include "trex_cmd_mngr.h"
 
 using namespace std;
 
 
 class CNamespacedIfNode : public CNodeBase {
 public:
-    CNamespacedIfNode();
+    CNamespacedIfNode(CCmdsMngr* cmds_mngr);
     virtual ~CNamespacedIfNode();
 
     void conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids);
@@ -88,13 +89,14 @@ protected:
     bpf_h           m_bpf;
     string          m_vlans_insert_to_pkt;
     VlanFilter      m_vlan_filter;
+    CCmdsMngr*      m_cmds_mngr;
 public:
     struct epoll_event m_event;
 };
 
 class CLinuxIfNode : public CNamespacedIfNode {
 public:
-    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu);
+    CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu, CCmdsMngr* cmds_mngr);
     virtual ~CLinuxIfNode();
     void to_json_node(Json::Value &res);
     virtual void conf_ip4_internal(const string &ip4_buf, const string &gw4_buf);
@@ -108,7 +110,7 @@ private:
 class CSharedNSIfNode : public CNamespacedIfNode {
 public:
     CSharedNSIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
-                 const string &mtu, bool is_bird);
+                 const string &mtu, bool is_bird, CCmdsMngr* cmds_mngr);
     virtual ~CSharedNSIfNode();
     void to_json_node(Json::Value &res);
     virtual void conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet);
@@ -195,6 +197,7 @@ private:
     string                  m_bird_path;
     char                    m_rw_buf[MAX_PKT_ALIGN_BUF_9K];
     rte_spinlock_t          m_main_loop; /* protect main loop in case of add/remove ns*/
+    CCmdsMngr*              m_cmds_mngr;
 };
 
 

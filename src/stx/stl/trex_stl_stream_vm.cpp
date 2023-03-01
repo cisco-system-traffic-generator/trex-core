@@ -788,15 +788,15 @@ void StreamVm::build_program(){
                 if (packet_is_ipv4) {
                     if ( ipv4->getNextProtocol() == IPHeader::Protocol::TCP ){
                         /* Ipv4 TCP */
-                        ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM);
+                        ipv_fix.m_ol_flags = (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM);
                         l4_header_size = TCP_HEADER_LEN;
                     }else{
                         if (ipv4->getNextProtocol() == IPHeader::Protocol::UDP) {
                             /* Ipv4 UDP */
-                            ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM);
+                            ipv_fix.m_ol_flags = (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM);
                             l4_header_size = UDP_HEADER_LEN;
                         }else{
-                            ipv_fix.m_ol_flags = (PKT_TX_IPV4 | PKT_TX_IP_CKSUM );
+                            ipv_fix.m_ol_flags = (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM );
                             l4_header_size = 0;
                         }
                     }
@@ -805,11 +805,11 @@ void StreamVm::build_program(){
                     /* in this case we need to scan the Ipv6 headers */
                     /* TBD replace with parser of IPv6 function */
                     if ( lpFix->m_l4_type==StreamVmInstructionFixHwChecksum::L4_TYPE_TCP ){
-                        ipv_fix.m_ol_flags = (PKT_TX_IPV6 | PKT_TX_TCP_CKSUM);
+                        ipv_fix.m_ol_flags = (RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM);
                         l4_header_size = TCP_HEADER_LEN;
                     }else{
                         if ( lpFix->m_l4_type==StreamVmInstructionFixHwChecksum::L4_TYPE_UDP ){
-                            ipv_fix.m_ol_flags = (PKT_TX_IPV6 | PKT_TX_UDP_CKSUM);
+                            ipv_fix.m_ol_flags = (RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM);
                             l4_header_size = UDP_HEADER_LEN;
                         }else{
                             std::stringstream ss;

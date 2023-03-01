@@ -35,7 +35,7 @@ class Prof1():
         info.tcp.rxbufsize = 1102  # split the buffer to MSS and ack every buffer, no need the no_delay option
         info.tcp.txbufsize = 1100
         info.tcp.initwnd = 1
-        #info.tcp.no_delay = 1
+        #info.tcp.no_delay = 0
 
         # template
         temp_c = ASTFTCPClientTemplate(program=prog_c,  ip_gen=ip_gen)

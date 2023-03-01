@@ -143,7 +143,7 @@ descs_to_fdir_32b(volatile union i40e_rx_desc *rxdp, struct rte_mbuf **rx_pkt)
 	 * correct location in the mbuf->olflags
 	 */
 	const uint32_t FDIR_ID_BIT_SHIFT = 13;
-	RTE_BUILD_BUG_ON(PKT_RX_FDIR_ID != (1 << FDIR_ID_BIT_SHIFT));
+	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << FDIR_ID_BIT_SHIFT));
 	v_fd_id_mask = _mm_srli_epi32(v_fd_id_mask, 31);
 	v_fd_id_mask = _mm_slli_epi32(v_fd_id_mask, FDIR_ID_BIT_SHIFT);
 
@@ -203,9 +203,9 @@ descs_to_fdir_16b(__m128i fltstat, __m128i descs[4], struct rte_mbuf **rx_pkt)
 	__m128i v_desc0_mask = _mm_and_si128(v_desc_fdir_mask, v_desc0_shift);
 	descs[0] = _mm_blendv_epi8(descs[0], _mm_setzero_si128(), v_desc0_mask);
 
-	/* Shift to 1 or 0 bit per u32 lane, then to PKT_RX_FDIR_ID offset */
+	/* Shift to 1 or 0 bit per u32 lane, then to RTE_MBUF_F_RX_FDIR_ID offset */
 	const uint32_t FDIR_ID_BIT_SHIFT = 13;
-	RTE_BUILD_BUG_ON(PKT_RX_FDIR_ID != (1 << FDIR_ID_BIT_SHIFT));
+	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << FDIR_ID_BIT_SHIFT));
 	__m128i v_mask_one_bit = _mm_srli_epi32(v_fdir_id_mask, 31);
 	return _mm_slli_epi32(v_mask_one_bit, FDIR_ID_BIT_SHIFT);
 }
@@ -228,44 +228,44 @@ desc_to_olflags_v(struct i40e_rx_queue *rxq, volatile union i40e_rx_desc *rxdp,
 			0x1c03804, 0x1c03804, 0x1c03804, 0x1c03804);
 
 	const __m128i cksum_mask = _mm_set_epi32(
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
-			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
-			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD);
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD,
+			RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_BAD |
+			RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD);
 
 	/* map rss and vlan type to rss hash and vlan flag */
 	const __m128i vlan_flags = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
-			0, 0, 0, PKT_RX_VLAN | PKT_RX_VLAN_STRIPPED,
+			0, 0, 0, RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED,
 			0, 0, 0, 0);
 
 	const __m128i rss_flags = _mm_set_epi8(0, 0, 0, 0,
 			0, 0, 0, 0,
-			PKT_RX_RSS_HASH | PKT_RX_FDIR, PKT_RX_RSS_HASH, 0, 0,
-			0, 0, PKT_RX_FDIR, 0);
+			RTE_MBUF_F_RX_RSS_HASH | RTE_MBUF_F_RX_FDIR, RTE_MBUF_F_RX_RSS_HASH, 0, 0,
+			0, 0, RTE_MBUF_F_RX_FDIR, 0);
 
 	const __m128i l3_l4e_flags = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
 			/* shift right 1 bit to make sure it not exceed 255 */
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD  |
-			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD  |
-			 PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
-			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
-			 PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_L4_CKSUM_BAD  | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_L4_CKSUM_BAD  | PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_GOOD) >> 1);
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_BAD  |
+			 RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_BAD  |
+			 RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_GOOD |
+			 RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD | RTE_MBUF_F_RX_L4_CKSUM_GOOD |
+			 RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_BAD  | RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_BAD  | RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_BAD) >> 1,
+			(RTE_MBUF_F_RX_L4_CKSUM_GOOD | RTE_MBUF_F_RX_IP_CKSUM_GOOD) >> 1);
 
 	/* Unpack "status" from quadword 1, bits 0:32 */
 	vlan0 = _mm_unpackhi_epi32(descs[0], descs[1]);
@@ -282,7 +282,7 @@ desc_to_olflags_v(struct i40e_rx_queue *rxq, volatile union i40e_rx_desc *rxdp,
 	l3_l4e = _mm_shuffle_epi8(l3_l4e_flags, l3_l4e);
 	/* then we shift left 1 bit */
 	l3_l4e = _mm_slli_epi32(l3_l4e, 1);
-	/* we need to mask out the reduntant bits */
+	/* we need to mask out the redundant bits */
 	l3_l4e = _mm_and_si128(l3_l4e, cksum_mask);
 
 	vlan0 = _mm_or_si128(vlan0, rss);
@@ -297,7 +297,7 @@ desc_to_olflags_v(struct i40e_rx_queue *rxq, volatile union i40e_rx_desc *rxdp,
 		__m128i v_fdir_ol_flags = descs_to_fdir_16b(desc_fltstat,
 							    descs, rx_pkts);
 #endif
-		/* OR in ol_flag bits after descriptor speicific extraction */
+		/* OR in ol_flag bits after descriptor specific extraction */
 		vlan0 = _mm_or_si128(vlan0, v_fdir_ol_flags);
 	}
 
@@ -462,7 +462,7 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		/* B.1 load 2 (64 bit) or 4 (32 bit) mbuf points */
 		mbp1 = _mm_loadu_si128((__m128i *)&sw_ring[pos]);
 		/* Read desc statuses backwards to avoid race condition */
-		/* A.1 load 4 pkts desc */
+		/* A.1 load desc[3] */
 		descs[3] = _mm_loadu_si128((__m128i *)(rxdp + 3));
 		rte_compiler_barrier();
 
@@ -474,9 +474,9 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		mbp2 = _mm_loadu_si128((__m128i *)&sw_ring[pos+2]);
 #endif
 
+		/* A.1 load desc[2-0] */
 		descs[2] = _mm_loadu_si128((__m128i *)(rxdp + 2));
 		rte_compiler_barrier();
-		/* B.1 load 2 mbuf point */
 		descs[1] = _mm_loadu_si128((__m128i *)(rxdp + 1));
 		rte_compiler_barrier();
 		descs[0] = _mm_loadu_si128((__m128i *)(rxdp));
@@ -557,7 +557,7 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 			/* and with mask to extract bits, flipping 1-0 */
 			__m128i eop_bits = _mm_andnot_si128(staterr, eop_check);
 			/* the staterr values are not in order, as the count
-			 * count of dd bits doesn't care. However, for end of
+			 * of dd bits doesn't care. However, for end of
 			 * packet tracking, we do care, so shuffle. This also
 			 * compresses the 32-bit values to 8-bit
 			 */
@@ -577,7 +577,7 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		_mm_storeu_si128((void *)&rx_pkts[pos]->rx_descriptor_fields1,
 				 pkt_mb1);
 		desc_to_ptype_v(descs, &rx_pkts[pos], ptype_tbl);
-		/* C.4 calc avaialbe number of desc */
+		/* C.4 calc available number of desc */
 		var = __builtin_popcountll(_mm_cvtsi128_si64(staterr));
 		nb_pkts_recd += var;
 		if (likely(var != RTE_I40E_DESCS_PER_LOOP))

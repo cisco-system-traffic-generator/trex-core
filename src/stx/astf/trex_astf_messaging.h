@@ -57,7 +57,7 @@ private:
  */
 class TrexAstfDpStart : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration);
+    TrexAstfDpStart(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
@@ -66,6 +66,7 @@ private:
     bool m_nc_flow_close;
     double m_establish_timeout;
     double m_terminate_duration;
+    double m_dump_interval;
 };
 
 /**
@@ -119,14 +120,15 @@ private:
  */
 class TrexAstfLoadDB : public TrexCpToDpMsgBase {
 public:
-    TrexAstfLoadDB(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db);
+    TrexAstfLoadDB(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db, const string* tunnel_topo_buffer);
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
-    profile_id_t m_profile_id;
-    std::string *m_profile_buffer;
-    std::string *m_topo_buffer;
-    CAstfDB* m_astf_db;
+    profile_id_t       m_profile_id;
+    std::string       *m_profile_buffer;
+    std::string       *m_topo_buffer;
+    CAstfDB           *m_astf_db;
+    const std::string *m_tunnel_topo_buffer;
 };
 
 /**
@@ -185,18 +187,63 @@ private:
 
 class TrexAstfDpGetClientStats : public TrexCpToDpMsgBase {
 public:
-    TrexAstfDpGetClientStats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply) : m_reply(reply) {
-        m_astf_db = astf_db;
+    TrexAstfDpGetClientStats(std::vector<uint32_t> &msg_data, bool is_range) {
         m_msg_data =  msg_data;
         m_is_range = is_range;
     }
     virtual TrexCpToDpMsgBase* clone();
     virtual bool handle(TrexDpCore *dp_core);
 private:
-    CAstfDB* m_astf_db;
     std::vector<uint32_t> m_msg_data;
     bool     m_is_range;
-    MsgReply<Json::Value> &m_reply;
+};
+
+/**
++ * a message to set ignored MAC addresses
++ *
++ */
+
+class TrexAstfDpIgnoredMacAddrs : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpIgnoredMacAddrs(std::vector<uint64_t>& mac_addresses) {
+        m_mac_addresses = mac_addresses;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    std::vector<uint64_t> m_mac_addresses;
+};
+
+/**
++ * a message to set ignored IPv4 addresses
++ *
++ */
+
+class TrexAstfDpIgnoredIpAddrs : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpIgnoredIpAddrs(std::vector<uint32_t>& ip_addresses) {
+        m_ip_addresses = ip_addresses;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    std::vector<uint32_t> m_ip_addresses;
+};
+
+/**
+ * a message for sending the clients sts from dp to cp
+ */
+class TrexAstfDpSentClientStats : public TrexDpToCpMsgBase {
+public:
+
+    TrexAstfDpSentClientStats(Json::Value& client_sts) {
+        m_client_sts = client_sts;
+    }
+
+    virtual bool handle(void);
+
+private:
+    Json::Value m_client_sts;
 };
 
 /**
@@ -214,6 +261,42 @@ private:
     std::vector<client_tunnel_data_t> m_msg_data;
 };
 
+/**
+ * a message to init dps tunnel handler
+ */
+class TrexAstfDpInitTunnelHandler : public TrexCpToDpMsgBase {
+public:
+    TrexAstfDpInitTunnelHandler(bool activate, uint8_t tunnel_type, bool loopback_mode, MsgReply<std::pair<uint64_t*, uint64_t*>> &reply) : m_reply(reply) {
+        m_activate = activate;
+        m_tunnel_type = tunnel_type;
+        m_loopback_mode = loopback_mode;
+    }
+    virtual TrexCpToDpMsgBase* clone();
+    virtual bool handle(TrexDpCore *dp_core);
+private:
+    bool m_activate;
+    uint8_t m_tunnel_type;
+    bool m_loopback_mode;
+    MsgReply<std::pair<uint64_t*, uint64_t*>> &m_reply;
+};
+
+/**
+ * a message for sending the clients sts from dp to cp
+ */
+class TrexAstfDpFlowInfo : public TrexDpToCpMsgBase {
+public:
+
+    TrexAstfDpFlowInfo(profile_id_t profile_id, Json::Value& flows) {
+        m_dp_profile_id = profile_id;
+        m_flows = flows;
+    }
+
+    virtual bool handle(void);
+
+private:
+    profile_id_t m_dp_profile_id;
+    Json::Value m_flows;
+};
 
 #endif /* __TREX_STL_MESSAGING_H__ */
 

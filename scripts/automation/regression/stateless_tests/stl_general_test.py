@@ -6,6 +6,7 @@ from trex_stl_lib.api import *
 import time
 from nose.tools import nottest
 
+
 class CStlGeneral_Test(CTRexGeneral_Test):
     """This class defines the general stateless testcase of the TRex traffic generator"""
 
@@ -76,7 +77,6 @@ class CStlGeneral_Test(CTRexGeneral_Test):
     def is_connected():
         return CTRexScenario.stl_trex.is_connected()
 
-
     def config_dut(self):
         sys.stdout.flush()
         if not CTRexScenario.router_cfg['no_dut_config']:
@@ -89,7 +89,6 @@ class CStlGeneral_Test(CTRexGeneral_Test):
             CTRexScenario.router.config_ipv6_pbr(mode = "config")
             sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
-
     def start_trex(self):
         sys.stdout.write('Starting TRex... ')
         start_time = time.time()
@@ -97,7 +96,6 @@ class CStlGeneral_Test(CTRexGeneral_Test):
         if not CTRexScenario.no_daemon:
             self.trex.start_stateless(c = cores)
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
-
 
     def update_elk_obj(self):
         stl_info = self.stl_trex.get_server_system_info()
@@ -119,7 +117,6 @@ class STLBasic_Test(CStlGeneral_Test):
         except Exception as e:
             CTRexScenario.stl_init_error = 'First setUp error: %s' % e
             raise
-
 
     # will run it first explicitly, check connectivity and configure routing
     @nottest
@@ -160,5 +157,4 @@ class STLBasic_Test(CStlGeneral_Test):
             self.update_elk_obj()
 
         CTRexScenario.stl_init_error = None
-
 

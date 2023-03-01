@@ -21,7 +21,7 @@
 /**
  * This API allocates aligned or non-aligned memory.  The free can be on either
  * aligned or nonaligned memory.  To be protected - even though there may be no
- * alignment - in Windows this API will unconditioanlly call _aligned_malloc()
+ * alignment - in Windows this API will unconditionally call _aligned_malloc()
  * with at least a minimal alignment size.
  *
  * @param[in] align
@@ -248,11 +248,9 @@ mlx5_os_devx_subscribe_devx_event(void *eventc,
 	return -ENOTSUP;
 }
 
-void *mlx5_os_alloc_pd(void *ctx);
-int mlx5_os_dealloc_pd(void *pd);
+__rte_internal
 void *mlx5_os_umem_reg(void *ctx, void *addr, size_t size, uint32_t access);
+__rte_internal
 int mlx5_os_umem_dereg(void *pumem);
-int mlx5_os_reg_mr(void *pd,
-		   void *addr, size_t length, struct mlx5_pmd_mr *pmd_mr);
-void mlx5_os_dereg_mr(struct mlx5_pmd_mr *pmd_mr);
+
 #endif /* RTE_PMD_MLX5_COMMON_OS_H_ */

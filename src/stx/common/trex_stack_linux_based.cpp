@@ -46,14 +46,16 @@
 #include "os_time.h"
 
 
-char clean_old_nets_and_get_prefix();
-void verify_programs();
-bool is_dg_set_in_ns(const string &ns);
+char clean_old_nets_and_get_prefix(CCmdsMngr* cmds_mngr);
+void verify_programs(CCmdsMngr* cmds_mngr);
+bool is_dg_set_in_ns(const string &ns, CCmdsMngr* cmds_mngr);
 void str_from_mbuf(const rte_mbuf_t *m, string &result);
-void popen_with_err(const string &cmd, const string &err);
-void popen_general(const string &cmd, const string &err, bool throw_exception, string &output);
-void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output);
-bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out);
+void popen_with_err(CCmdsMngr* cmds_mngr, const string &cmd, const string &err);
+void popen_general(CCmdsMngr* cmds_mngr, const string &cmd, const string &err, bool throw_exception, string &output);
+void popen_with_output(CCmdsMngr* cmds_mngr, const string &cmd, const string &err, bool throw_exception, string &output);
+bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out, CCmdsMngr* cmds_mngr);
+
+
 
 /***************************************
 *          CStackLinuxBased            *
@@ -66,9 +68,10 @@ string CStackLinuxBased::m_bird_ns = "";
 string CStackLinuxBased::m_shared_ns_prefix = "";
 
 CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats) {
+    m_cmds_mngr = new CCmdsMngr();
     if ( !m_is_initialized ) {
-        verify_programs();
-        char prefix_char = clean_old_nets_and_get_prefix();
+        verify_programs(m_cmds_mngr);
+        char prefix_char = clean_old_nets_and_get_prefix(m_cmds_mngr);
         m_ns_prefix = string("trex-") + prefix_char + "-";
         m_shared_ns_prefix = string("trex-shared-ns-");
         debug("Using netns prefix " + m_ns_prefix);
@@ -102,6 +105,7 @@ CStackLinuxBased::~CStackLinuxBased() {
     if ( !err.empty() ) {
         std::cout << "Error in removing nodes in LinuxBasedStack d'tor: " << std::endl << err << std::endl;
     }
+    delete m_cmds_mngr;
 }
 
 void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
@@ -177,7 +181,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_shared_ns(Json::Value &result) {
         stringstream ss;
         ss << m_shared_ns_prefix << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_shared_ns_id;
         string ns_name = ss.str();
-        popen_with_err("ip netns add " + ns_name, "cannot create namespace: " + ns_name);
+        popen_with_err(m_cmds_mngr, "ip netns add " + ns_name, "cannot create namespace: " + ns_name);
         m_next_shared_ns_id++;
         m_shared_ns_names.insert(ns_name);
         result = ns_name;
@@ -231,8 +235,8 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlan_filter(const std::string &mac, 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_dg(const std::string &shared_ns, const std::string &dg) {
     try {
         string out;
-        string op = is_dg_set_in_ns(shared_ns) ? "change" : "add";
-        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns, true , out);
+        string op = is_dg_set_in_ns(shared_ns, m_cmds_mngr) ? "change" : "add";
+        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns, true , out, m_cmds_mngr);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -327,7 +331,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_shared_ns_ipv6(const std::string &ma
 }
 
 void CStackLinuxBased::create_bird_ns() {
-    popen_with_err("ip netns add " + m_bird_ns, "Could not create network namespace");
+    popen_with_err(m_cmds_mngr, "ip netns add " + m_bird_ns, "Could not create network namespace");
 }
 
 void CStackLinuxBased::run_bird_in_ns() {
@@ -335,19 +339,19 @@ void CStackLinuxBased::run_bird_in_ns() {
     string out;
     stringstream cmd;
     cmd << " cd " << m_bird_path << "; ./trex_bird -c bird.conf -s " << bird_tmp_files << "/bird.ctl";
-    bool res = run_in_ns(cmd.str(), "Error running bird process", m_bird_ns, false, out);
+    bool res = run_in_ns(cmd.str(), "Error running bird process", m_bird_ns, false, out, m_cmds_mngr);
     if ( !res ) {
         std::cout << "Error running \"Bird\" output: " << out << std::endl;
     } else {
-        popen_with_output("chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication", false, out);
+        popen_with_output(m_cmds_mngr, "chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication", false, out);
     }
 }
 
 void CStackLinuxBased::kill_bird_ns() {
     string out = "";
-    popen_with_output("ip netns list", "cannot get namespaces", false, out);
+    popen_with_output(m_cmds_mngr, "ip netns list", "cannot get namespaces", false, out);
     if ( out.find(m_bird_ns) != string::npos) {
-        popen_with_err("ip netns delete " + m_bird_ns, "Error deleting bird-ns namespace");
+        popen_with_err(m_cmds_mngr, "ip netns delete " + m_bird_ns, "Error deleting bird-ns namespace");
     }
 }
 
@@ -436,11 +440,11 @@ CNodeBase* CStackLinuxBased::add_shared_ns_node_internal(const string &mac_buf,
     stringstream ss;
     if ( is_bird ) {
         ss << "bird-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_bird_if_id;
-        node = new CSharedNSIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, true);
+        node = new CSharedNSIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, true, m_cmds_mngr);
         m_next_bird_if_id++;
     } else {
         ss << "ns-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_shared_ns_if_id;
-        node = new CSharedNSIfNode(shared_ns, ss.str(), mac_str, mac_buf, m_mtu, false);
+        node = new CSharedNSIfNode(shared_ns, ss.str(), mac_str, mac_buf, m_mtu, false, m_cmds_mngr);
         m_next_shared_ns_if_id++;
     }
 
@@ -457,7 +461,7 @@ CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
 
     stringstream ss;
     ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_namespace_id;
-    CNamespacedIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu);
+    CNamespacedIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu, m_cmds_mngr);
 
     if (node == nullptr) {
         throw TrexException("Could not create node " + mac_str);
@@ -488,7 +492,7 @@ CNamespacedIfNode * CStackLinuxBased::get_node_rpc(const std::string &mac){
     CNamespacedIfNode * lp=get_node_by_mac(mac);
     if (!lp) {
         stringstream ss;
-        ss << "node " << mac << " does not exits " ;
+        ss << "node " << mac << " does not exist " ;
         throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR,ss.str()));
     }
     return (lp);
@@ -534,7 +538,7 @@ void CStackLinuxBased::del_node_internal(const string &mac_buf) {
 void CStackLinuxBased::del_shared_ns_internal(const string &shared_ns) {
     if ( m_shared_ns_names.find(shared_ns) != m_shared_ns_names.end() ) {
         string cmd = "ip netns del " + shared_ns;
-        popen_with_err(cmd, "cannot remove shared ns node with name space " + shared_ns);
+        popen_with_err(m_cmds_mngr, cmd, "cannot remove shared ns node with name space " + shared_ns);
         m_shared_ns_names.erase(shared_ns);
     } else {
         throw TrexException("namespace '" + shared_ns + "' wasn't created by TRex!");
@@ -590,7 +594,7 @@ const std::string CStackLinuxBased::remove_all_internal(){
 
     for (auto &ns_name : m_shared_ns_names) {
         string out;
-        popen_general("ip netns del " + ns_name, "cannot remove shared ns node with name space " + ns_name, false, out);
+        popen_general(m_cmds_mngr, "ip netns del " + ns_name, "cannot remove shared ns node with name space " + ns_name, false, out);
         if ( !out.empty() ) {
             return out;
         }
@@ -681,7 +685,8 @@ void CStackLinuxBased::init_bird() {
 *         CNamespacedIfNode            *
 ***************************************/
 
-CNamespacedIfNode::CNamespacedIfNode() {
+CNamespacedIfNode::CNamespacedIfNode(CCmdsMngr* cmds_mngr) {
+    m_cmds_mngr = cmds_mngr;
     debug("Namespaced node ctor");
 }
 
@@ -718,20 +723,20 @@ uint16_t CNamespacedIfNode::filter_and_send(const string &pkt) {
 }
 
 void CNamespacedIfNode::create_ns() {
-    popen_with_err("ip netns add " + m_ns_name, "Could not create network namespace");
+    popen_with_err(m_cmds_mngr, "ip netns add " + m_ns_name, "Could not create network namespace");
 }
 
 void CNamespacedIfNode::create_veths(const string &mtu) {
-    popen_with_err("ip link add " + m_if_name + "-T type veth peer name " + m_if_name + "-L", "Could not create veth pair");
-    popen_with_err("sysctl net.ipv6.conf." + m_if_name + "-T.disable_ipv6=1", "Could not disable ipv6 for veth");
-    popen_with_err("ip link set " + m_if_name + "-T mtu " + mtu + " up", "Could not configure veth");
-    popen_with_err("ip link set " + m_if_name + "-L netns " + m_ns_name, "Could not add veth to namespace");
+    popen_with_err(m_cmds_mngr, "ip link add " + m_if_name + "-T type veth peer name " + m_if_name + "-L", "Could not create veth pair");
+    popen_with_err(m_cmds_mngr, "sysctl net.ipv6.conf." + m_if_name + "-T.disable_ipv6=1", "Could not disable ipv6 for veth");
+    popen_with_err(m_cmds_mngr, "ip link set " + m_if_name + "-T mtu " + mtu + " up", "Could not configure veth");
+    popen_with_err(m_cmds_mngr, "ip link set " + m_if_name + "-L netns " + m_ns_name, "Could not add veth to namespace");
     run_in_ns("sysctl net.ipv6.conf." + m_if_name + "-L.disable_ipv6=1", "Could not disable ipv6 for veth");
     run_in_ns("ip link set " + m_if_name + "-L mtu " + mtu + " up", "Could not configure veth");
 }
 
 void CNamespacedIfNode::run_in_ns(const string &cmd, const string &err) {
-    popen_with_err("ip netns exec " + m_ns_name + " " + cmd, err);
+    popen_with_err(m_cmds_mngr, "ip netns exec " + m_ns_name + " " + cmd, err);
 }
 
 void CNamespacedIfNode::delete_net() {
@@ -742,11 +747,11 @@ void CNamespacedIfNode::delete_net() {
 void CNamespacedIfNode::delete_veth() {
     // do not raise exception when veth is already deleted 
     string out;
-    popen_general("ip link delete " + m_if_name + "-T", "Could not delete veth", false, out);
+    popen_general(m_cmds_mngr, "ip link delete " + m_if_name + "-T", "Could not delete veth", false, out);
 }
 
 void CNamespacedIfNode::delete_ns() {
-    popen_with_err("ip netns delete " + m_ns_name, "Could not delete network namespace");
+    popen_with_err(m_cmds_mngr, "ip netns delete " + m_ns_name, "Could not delete network namespace");
 }
 
 void CNamespacedIfNode::bind_pair() {
@@ -900,7 +905,7 @@ string &CNamespacedIfNode::get_vlans_insert_to_pkt() {
 *            CLinuxIfNode              *
 ***************************************/
 
-CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu) {
+CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const string &mac_buf, const string &mtu, CCmdsMngr* cmds_mngr) : CNamespacedIfNode(cmds_mngr) {
     debug("Linux node ctor");
     m_ns_name = ns_name;
     m_if_name = ns_name;
@@ -939,7 +944,7 @@ void CLinuxIfNode::to_json_node(Json::Value &res) {
 ***************************************/
 
 CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
-                 const string &mtu, bool is_bird) {
+                 const string &mtu, bool is_bird, CCmdsMngr* cmds_mngr) : CNamespacedIfNode(cmds_mngr) {
     debug("Shared namespace node ctor");
     m_ns_name = ns_name;
     m_if_name = if_name;
@@ -1012,7 +1017,7 @@ void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip
 }
 
 void CSharedNSIfNode::set_mtu_internal(const std::string &mtu) {
-    popen_with_err("ifconfig " + m_if_name + "-T mtu " + mtu + " up", "cannot set mtu for: " + m_if_name + "-T");
+    popen_with_err(m_cmds_mngr, "ifconfig " + m_if_name + "-T mtu " + mtu + " up", "cannot set mtu for: " + m_if_name + "-T");
     run_in_ns("ifconfig " + m_if_name + "-L mtu " + mtu + " up", "cannot set mtu for: " + m_if_name + "-L");
 }
 
@@ -1029,16 +1034,16 @@ void CSharedNSIfNode::to_json_node(Json::Value &res) {
 *            helper func               *
 ***************************************/
 
-bool is_dg_set_in_ns(const string &ns) {
+bool is_dg_set_in_ns(const string &ns, CCmdsMngr* cmds_mngr) {
     string out = "";
-    popen_general("ip netns exec " + ns + " ip -4 route | grep default", "cannot find default gw for namespace " + ns, false, out);
+    popen_general(cmds_mngr, "ip netns exec " + ns + " ip -4 route | grep default", "cannot find default gw for namespace " + ns, false, out);
     return out != "";
 }
 
-bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out) {
+bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out, CCmdsMngr* cmds_mngr) {
     // using "cmd" for multiple commands
     try {
-        popen_with_output(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, true, out);
+        popen_with_output(cmds_mngr, ("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, true, out);
     } catch ( TrexException &e ) {
         if ( throw_ex ) {
             throw e;
@@ -1054,7 +1059,7 @@ bool is_file_exists(const string &filename) {
     return stat(filename.data(), &buf) == 0;
 }
 
-char clean_old_nets_helper() {
+char clean_old_nets_helper(CCmdsMngr* cmds_mngr) {
     DIR *dirp;
     struct dirent *direntp;
     regex_t search_regex;
@@ -1108,7 +1113,7 @@ char clean_old_nets_helper() {
                 if ( res ) {
                     continue;
                 }
-                popen_with_err("ip link delete " + string(if_iter->ifa_name), "Could not remove old veth");
+                popen_with_err(cmds_mngr, "ip link delete " + string(if_iter->ifa_name), "Could not remove old veth");
             }
             regfree(&search_regex);
         }
@@ -1133,7 +1138,7 @@ char clean_old_nets_helper() {
                 if ( res ) {
                     continue;
                 }
-                popen_with_err("ip netns delete " + string(direntp->d_name), "Could not remove old namespace");
+                popen_with_err(cmds_mngr, "ip netns delete " + string(direntp->d_name), "Could not remove old namespace");
             }
             regfree(&search_regex);
             closedir(dirp);
@@ -1165,7 +1170,7 @@ int lock_cleanup() {
     return cleanup_fd;
 }
 
-char clean_old_nets_and_get_prefix() {
+char clean_old_nets_and_get_prefix(CCmdsMngr* cmds_mngr) {
     uint16_t timeout_sec = 1000;
 
     future<int> lock_thread_handle = async(launch::async, lock_cleanup);
@@ -1185,7 +1190,7 @@ char clean_old_nets_and_get_prefix() {
     }
 
     printf("Cleanup of old namespaces related to Linux-based stack\n");
-    future<char> cleanup_thread_handle = async(launch::async, clean_old_nets_helper);
+    future<char> cleanup_thread_handle = async(launch::async, clean_old_nets_helper, cmds_mngr);
     thread_status = cleanup_thread_handle.wait_for(chrono::seconds(timeout_sec));
     if ( thread_status == future_status::timeout ) {
         printf("Timeout of %u seconds on waiting for cleanup of old namespaces/veths\n", timeout_sec);
@@ -1222,14 +1227,14 @@ char clean_old_nets_and_get_prefix() {
     return prefix_char;
 }
 
-void verify_programs() {
+void verify_programs(CCmdsMngr* cmds_mngr) {
     // ensure sbin(s) are in path
     string path = getenv("PATH");
     setenv("PATH", ("/sbin:/usr/sbin:/usr/local/sbin/:" + path).c_str(), 1);
 
     vector<vector<string>> cmds = {{"ip", "ip -V"}, {"sysctl", "sysctl -V"}, {"ethtool", "ethtool --version"}};
     for (auto &cmd : cmds) {
-        popen_with_err(cmd[1], "Could not find program \"" + cmd[0] + "\", which is required for Linux-based stack");
+        popen_with_err(cmds_mngr, cmd[1], "Could not find program \"" + cmd[0] + "\", which is required for Linux-based stack");
     }
 }
 
@@ -1240,35 +1245,31 @@ void str_from_mbuf(const rte_mbuf_t *m, string &result) {
     }
 }
 
-void popen_general(const string &cmd, const string &err, bool throw_exception, string &output) {
-    string cmd_with_redirect = cmd + " 2>&1";
-    debug("stack going to run: " + cmd);
-    FILE *fstream = popen(cmd_with_redirect.c_str(), "r");
-    if ( fstream == nullptr && throw_exception ) {
-        throw TrexException(err + " (popen could not allocate memory to execute cmd: " + cmd + ").");
+void popen_general(CCmdsMngr* cmds_mngr, const string &cmd, const string &err, bool throw_exception, string &output) {
+    error_type_t error = NONE;
+    std::string error_msg = "";
+    int ret = cmds_mngr->popen_general(cmd, output, error, error_msg);
+    if (ret == 0) {
+        return;
     }
-    char buffer[1024];
-    while ( fgets(buffer, sizeof(buffer), fstream) != nullptr ) {
-        output += buffer;
-    }
-    int ret = pclose(fstream);
-    if ( ret && throw_exception ) {
-        if ( WIFEXITED(ret) ) {
-            throw TrexException(err + "\nCmd: " + cmd + "\nReturn code: " + to_string(WEXITSTATUS(ret)) + "\nOutput: " + output + "\n");
+    if (throw_exception) {
+        if(error != NONE) {
+            throw TrexException(err + "\nCmd: " + cmd + "\n Error_type: " + cmds_mngr->error_type_to_string(error) + "\nOutput: " + error_msg + "\n");
         } else {
             throw TrexException(err + "\nCmd: " + cmd + "\nOutput: " + output + "\n");
         }
     }
 }
 
-void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output) {
-    popen_general(cmd, err, throw_exception, output); 
+void popen_with_output(CCmdsMngr* cmds_mngr, const std::string &cmd, const std::string &err, bool throw_exception, std::string &output) {
+    popen_general(cmds_mngr, cmd, err, throw_exception, output); 
 }
 
-void popen_with_err(const string &cmd, const string &err) {
-    string out = "";
-    popen_general(cmd, err, true, out);
+void popen_with_err(CCmdsMngr* cmds_mngr, const std::string &cmd, const std::string &err) {
+    std::string out = "";
+    popen_general(cmds_mngr, cmd, err, true, out);
 }
+
 
 
 

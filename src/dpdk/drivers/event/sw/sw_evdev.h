@@ -180,7 +180,7 @@ struct sw_port {
 	uint16_t outstanding_releases __rte_cache_aligned;
 	uint16_t inflight_max; /* app requested max inflights for this port */
 	uint16_t inflight_credits; /* num credits this port has right now */
-	uint8_t implicit_release; /* release events before dequeueing */
+	uint8_t implicit_release; /* release events before dequeuing */
 
 	uint16_t last_dequeue_burst_sz; /* how big the burst was */
 	uint64_t last_dequeue_ticks; /* used to track burst processing time */
@@ -259,6 +259,8 @@ struct sw_evdev {
 	uint64_t sched_no_iq_enqueues;
 	uint64_t sched_no_cq_enqueues;
 	uint64_t sched_cq_qid_called;
+	uint64_t sched_last_iter_bitmask;
+	uint8_t sched_progress_last_iter;
 
 	uint8_t started;
 	uint32_t credit_update_quanta;

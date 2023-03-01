@@ -4,8 +4,8 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <sys/queue.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <rte_interrupts.h>
@@ -33,6 +33,12 @@ static int
 ice_dcf_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
 				struct rte_eth_udp_tunnel *udp_tunnel);
 
+static int
+ice_dcf_dev_init(struct rte_eth_dev *eth_dev);
+
+static int
+ice_dcf_dev_uninit(struct rte_eth_dev *eth_dev);
+
 static uint16_t
 ice_dcf_recv_pkts(__rte_unused void *rx_queue,
 		  __rte_unused struct rte_mbuf **bufs,
@@ -55,42 +61,27 @@ ice_dcf_init_rxq(struct rte_eth_dev *dev, struct ice_rx_queue *rxq)
 	struct ice_dcf_adapter *dcf_ad = dev->data->dev_private;
 	struct rte_eth_dev_data *dev_data = dev->data;
 	struct iavf_hw *hw = &dcf_ad->real_hw.avf;
-	uint16_t buf_size, max_pkt_len, len;
+	uint16_t buf_size, max_pkt_len;
 
 	buf_size = rte_pktmbuf_data_room_size(rxq->mp) - RTE_PKTMBUF_HEADROOM;
 	rxq->rx_hdr_len = 0;
 	rxq->rx_buf_len = RTE_ALIGN(buf_size, (1 << ICE_RLAN_CTX_DBUF_S));
-	len = ICE_SUPPORT_CHAIN_NUM * rxq->rx_buf_len;
-	max_pkt_len = RTE_MIN(len, dev->data->dev_conf.rxmode.max_rx_pkt_len);
+	max_pkt_len = RTE_MIN(ICE_SUPPORT_CHAIN_NUM * rxq->rx_buf_len,
+			      dev->data->mtu + ICE_ETH_OVERHEAD);
 
-	/* Check if the jumbo frame and maximum packet length are set
-	 * correctly.
-	 */
-	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		if (max_pkt_len <= ICE_ETH_MAX_LEN ||
-		    max_pkt_len > ICE_FRAME_SIZE_MAX) {
-			PMD_DRV_LOG(ERR, "maximum packet length must be "
-				    "larger than %u and smaller than %u, "
-				    "as jumbo frame is enabled",
-				    (uint32_t)ICE_ETH_MAX_LEN,
-				    (uint32_t)ICE_FRAME_SIZE_MAX);
-			return -EINVAL;
-		}
-	} else {
-		if (max_pkt_len < RTE_ETHER_MIN_LEN ||
-		    max_pkt_len > ICE_ETH_MAX_LEN) {
-			PMD_DRV_LOG(ERR, "maximum packet length must be "
-				    "larger than %u and smaller than %u, "
-				    "as jumbo frame is disabled",
-				    (uint32_t)RTE_ETHER_MIN_LEN,
-				    (uint32_t)ICE_ETH_MAX_LEN);
-			return -EINVAL;
-		}
+	/* Check maximum packet length is set correctly.  */
+	if (max_pkt_len <= RTE_ETHER_MIN_LEN ||
+	    max_pkt_len > ICE_FRAME_SIZE_MAX) {
+		PMD_DRV_LOG(ERR, "maximum packet length must be "
+			    "larger than %u and smaller than %u",
+			    (uint32_t)RTE_ETHER_MIN_LEN,
+			    (uint32_t)ICE_FRAME_SIZE_MAX);
+		return -EINVAL;
 	}
 
 	rxq->max_pkt_len = max_pkt_len;
-	if ((dev_data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_SCATTER) ||
-	    (rxq->max_pkt_len + 2 * ICE_VLAN_TAG_SIZE) > buf_size) {
+	if ((dev_data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_SCATTER) ||
+	    (rxq->max_pkt_len + 2 * RTE_VLAN_HLEN) > buf_size) {
 		dev_data->scattered_rx = 1;
 	}
 	rxq->qrx_tail = hw->hw_addr + IAVF_QRX_TAIL1(rxq->queue_id);
@@ -153,11 +144,9 @@ ice_dcf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 			return -1;
 	}
 
-	if (rte_intr_dp_is_en(intr_handle) && !intr_handle->intr_vec) {
-		intr_handle->intr_vec =
-			rte_zmalloc("intr_vec",
-				    dev->data->nb_rx_queues * sizeof(int), 0);
-		if (!intr_handle->intr_vec) {
+	if (rte_intr_dp_is_en(intr_handle)) {
+		if (rte_intr_vec_list_alloc(intr_handle, "intr_vec",
+						   dev->data->nb_rx_queues)) {
 			PMD_DRV_LOG(ERR, "Failed to allocate %d rx intr_vec",
 				    dev->data->nb_rx_queues);
 			return -1;
@@ -172,10 +161,15 @@ ice_dcf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 		    VIRTCHNL_VF_OFFLOAD_WB_ON_ITR) {
 			/* If WB_ON_ITR supports, enable it */
 			hw->msix_base = IAVF_RX_VEC_START;
+			/* Set the ITR for index zero, to 2us to make sure that
+			 * we leave time for aggregation to occur, but don't
+			 * increase latency dramatically.
+			 */
 			IAVF_WRITE_REG(&hw->avf,
 				       IAVF_VFINT_DYN_CTLN1(hw->msix_base - 1),
-				       IAVF_VFINT_DYN_CTLN1_ITR_INDX_MASK |
-				       IAVF_VFINT_DYN_CTLN1_WB_ON_ITR_MASK);
+				       (0 << IAVF_VFINT_DYN_CTLN1_ITR_INDX_SHIFT) |
+				       IAVF_VFINT_DYN_CTLN1_WB_ON_ITR_MASK |
+				       (2UL << IAVF_VFINT_DYN_CTLN1_INTERVAL_SHIFT));
 		} else {
 			/* If no WB_ON_ITR offload flags, need to set
 			 * interrupt for descriptor write back.
@@ -202,22 +196,24 @@ ice_dcf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 			hw->msix_base = IAVF_MISC_VEC_ID;
 			for (i = 0; i < dev->data->nb_rx_queues; i++) {
 				hw->rxq_map[hw->msix_base] |= 1 << i;
-				intr_handle->intr_vec[i] = IAVF_MISC_VEC_ID;
+				rte_intr_vec_list_index_set(intr_handle,
+							i, IAVF_MISC_VEC_ID);
 			}
 			PMD_DRV_LOG(DEBUG,
 				    "vector %u are mapping to all Rx queues",
 				    hw->msix_base);
 		} else {
-			/* If Rx interrupt is reuquired, and we can use
+			/* If Rx interrupt is required, and we can use
 			 * multi interrupts, then the vec is from 1
 			 */
 			hw->nb_msix = RTE_MIN(hw->vf_res->max_vectors,
-					      intr_handle->nb_efd);
+				      rte_intr_nb_efd_get(intr_handle));
 			hw->msix_base = IAVF_MISC_VEC_ID;
 			vec = IAVF_MISC_VEC_ID;
 			for (i = 0; i < dev->data->nb_rx_queues; i++) {
 				hw->rxq_map[vec] |= 1 << i;
-				intr_handle->intr_vec[i] = vec++;
+				rte_intr_vec_list_index_set(intr_handle,
+								   i, vec++);
 				if (vec >= hw->nb_msix)
 					vec = IAVF_RX_VEC_START;
 			}
@@ -511,6 +507,18 @@ ice_dcf_dev_start(struct rte_eth_dev *dev)
 	struct ice_dcf_hw *hw = &dcf_ad->real_hw;
 	int ret;
 
+	if (hw->resetting) {
+		PMD_DRV_LOG(ERR,
+			    "The DCF has been reset by PF, please reinit first");
+		return -EIO;
+	}
+
+	if (hw->tm_conf.root && !hw->tm_conf.committed) {
+		PMD_DRV_LOG(ERR,
+			"please call hierarchy_commit() before starting the port");
+		return -EIO;
+	}
+
 	ad->pf.adapter_stopped = 0;
 
 	hw->num_queue_pairs = RTE_MAX(dev->data->nb_rx_queues,
@@ -559,7 +567,7 @@ ice_dcf_dev_start(struct rte_eth_dev *dev)
 		return ret;
 	}
 
-	dev->data->dev_link.link_status = ETH_LINK_UP;
+	dev->data->dev_link.link_status = RTE_ETH_LINK_UP;
 
 	return 0;
 }
@@ -602,6 +610,7 @@ ice_dcf_dev_stop(struct rte_eth_dev *dev)
 	struct ice_dcf_adapter *dcf_ad = dev->data->dev_private;
 	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	struct ice_adapter *ad = &dcf_ad->parent;
+	struct ice_dcf_hw *hw = &dcf_ad->real_hw;
 
 	if (ad->pf.adapter_stopped == 1) {
 		PMD_DRV_LOG(DEBUG, "Port is already stopped");
@@ -614,14 +623,12 @@ ice_dcf_dev_stop(struct rte_eth_dev *dev)
 	ice_dcf_stop_queues(dev);
 
 	rte_intr_efd_disable(intr_handle);
-	if (intr_handle->intr_vec) {
-		rte_free(intr_handle->intr_vec);
-		intr_handle->intr_vec = NULL;
-	}
+	rte_intr_vec_list_free(intr_handle);
 
 	ice_dcf_add_del_all_mac_addr(&dcf_ad->real_hw, false);
-	dev->data->dev_link.link_status = ETH_LINK_DOWN;
+	dev->data->dev_link.link_status = RTE_ETH_LINK_DOWN;
 	ad->pf.adapter_stopped = 1;
+	hw->tm_conf.committed = false;
 
 	return 0;
 }
@@ -635,8 +642,8 @@ ice_dcf_dev_configure(struct rte_eth_dev *dev)
 	ad->rx_bulk_alloc_allowed = true;
 	ad->tx_simple_allowed = true;
 
-	if (dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		dev->data->dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
+	if (dev->data->dev_conf.rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG)
+		dev->data->dev_conf.rxmode.offloads |= RTE_ETH_RX_OFFLOAD_RSS_HASH;
 
 	return 0;
 }
@@ -656,30 +663,31 @@ ice_dcf_dev_info_get(struct rte_eth_dev *dev,
 	dev_info->hash_key_size = hw->vf_res->rss_key_size;
 	dev_info->reta_size = hw->vf_res->rss_lut_size;
 	dev_info->flow_type_rss_offloads = ICE_RSS_OFFLOAD_ALL;
+	dev_info->dev_capa &= ~RTE_ETH_DEV_CAPA_FLOW_RULE_KEEP;
 
 	dev_info->rx_offload_capa =
-		DEV_RX_OFFLOAD_VLAN_STRIP |
-		DEV_RX_OFFLOAD_IPV4_CKSUM |
-		DEV_RX_OFFLOAD_UDP_CKSUM |
-		DEV_RX_OFFLOAD_TCP_CKSUM |
-		DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM |
-		DEV_RX_OFFLOAD_SCATTER |
-		DEV_RX_OFFLOAD_JUMBO_FRAME |
-		DEV_RX_OFFLOAD_VLAN_FILTER |
-		DEV_RX_OFFLOAD_RSS_HASH;
+		RTE_ETH_RX_OFFLOAD_VLAN_STRIP |
+		RTE_ETH_RX_OFFLOAD_IPV4_CKSUM |
+		RTE_ETH_RX_OFFLOAD_UDP_CKSUM |
+		RTE_ETH_RX_OFFLOAD_TCP_CKSUM |
+		RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM |
+		RTE_ETH_RX_OFFLOAD_SCATTER |
+		RTE_ETH_RX_OFFLOAD_VLAN_FILTER |
+		RTE_ETH_RX_OFFLOAD_RSS_HASH;
 	dev_info->tx_offload_capa =
-		DEV_TX_OFFLOAD_VLAN_INSERT |
-		DEV_TX_OFFLOAD_IPV4_CKSUM |
-		DEV_TX_OFFLOAD_UDP_CKSUM |
-		DEV_TX_OFFLOAD_TCP_CKSUM |
-		DEV_TX_OFFLOAD_SCTP_CKSUM |
-		DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-		DEV_TX_OFFLOAD_TCP_TSO |
-		DEV_TX_OFFLOAD_VXLAN_TNL_TSO |
-		DEV_TX_OFFLOAD_GRE_TNL_TSO |
-		DEV_TX_OFFLOAD_IPIP_TNL_TSO |
-		DEV_TX_OFFLOAD_GENEVE_TNL_TSO |
-		DEV_TX_OFFLOAD_MULTI_SEGS;
+		RTE_ETH_TX_OFFLOAD_VLAN_INSERT |
+		RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
+		RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_SCTP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |
+		RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM |
+		RTE_ETH_TX_OFFLOAD_TCP_TSO |
+		RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_GRE_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO |
+		RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
 	dev_info->default_rxconf = (struct rte_eth_rxconf) {
 		.rx_thresh = {
@@ -743,31 +751,14 @@ ice_dcf_dev_allmulticast_disable(__rte_unused struct rte_eth_dev *dev)
 }
 
 static int
-ice_dcf_dev_filter_ctrl(struct rte_eth_dev *dev,
-			enum rte_filter_type filter_type,
-			enum rte_filter_op filter_op,
-			void *arg)
+ice_dcf_dev_flow_ops_get(struct rte_eth_dev *dev,
+			 const struct rte_flow_ops **ops)
 {
-	int ret = 0;
-
 	if (!dev)
 		return -EINVAL;
 
-	switch (filter_type) {
-	case RTE_ETH_FILTER_GENERIC:
-		if (filter_op != RTE_ETH_FILTER_GET)
-			return -EINVAL;
-		*(const void **)arg = &ice_flow_ops;
-		break;
-
-	default:
-		PMD_DRV_LOG(WARNING, "Filter type (%d) not supported",
-			    filter_type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
+	*ops = &ice_flow_ops;
+	return 0;
 }
 
 #define ICE_DCF_32_BIT_WIDTH (CHAR_BIT * 4)
@@ -822,6 +813,12 @@ ice_dcf_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	struct virtchnl_eth_stats pstats;
 	int ret;
 
+	if (hw->resetting) {
+		PMD_DRV_LOG(ERR,
+			    "The DCF has been reset by PF, please reinit first");
+		return -EIO;
+	}
+
 	ret = ice_dcf_query_stats(hw, &pstats);
 	if (ret == 0) {
 		ice_dcf_update_stats(&hw->eth_stats_offset, &pstats);
@@ -847,6 +844,9 @@ ice_dcf_stats_reset(struct rte_eth_dev *dev)
 	struct ice_dcf_hw *hw = &ad->real_hw;
 	struct virtchnl_eth_stats pstats;
 	int ret;
+
+	if (hw->resetting)
+		return 0;
 
 	/* read stat values to clear hardware registers */
 	ret = ice_dcf_query_stats(hw, &pstats);
@@ -891,6 +891,10 @@ ice_dcf_dev_close(struct rte_eth_dev *dev)
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
 
+	(void)ice_dcf_dev_stop(dev);
+
+	ice_free_queues(dev);
+
 	ice_dcf_free_repr_info(adapter);
 	ice_dcf_uninit_parent_adapter(dev);
 	ice_dcf_uninit_hw(dev, &adapter->real_hw);
@@ -898,11 +902,66 @@ ice_dcf_dev_close(struct rte_eth_dev *dev)
 	return 0;
 }
 
-static int
-ice_dcf_link_update(__rte_unused struct rte_eth_dev *dev,
+int
+ice_dcf_link_update(struct rte_eth_dev *dev,
 		    __rte_unused int wait_to_complete)
 {
-	return 0;
+	struct ice_dcf_adapter *ad = dev->data->dev_private;
+	struct ice_dcf_hw *hw = &ad->real_hw;
+	struct rte_eth_link new_link;
+
+	memset(&new_link, 0, sizeof(new_link));
+
+	/* Only read status info stored in VF, and the info is updated
+	 * when receive LINK_CHANGE event from PF by virtchnl.
+	 */
+	switch (hw->link_speed) {
+	case 10:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_10M;
+		break;
+	case 100:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_100M;
+		break;
+	case 1000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_1G;
+		break;
+	case 10000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_10G;
+		break;
+	case 20000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_20G;
+		break;
+	case 25000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_25G;
+		break;
+	case 40000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_40G;
+		break;
+	case 50000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_50G;
+		break;
+	case 100000:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_100G;
+		break;
+	default:
+		new_link.link_speed = RTE_ETH_SPEED_NUM_NONE;
+		break;
+	}
+
+	new_link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
+	new_link.link_status = hw->link_up ? RTE_ETH_LINK_UP :
+					     RTE_ETH_LINK_DOWN;
+	new_link.link_autoneg = !(dev->data->dev_conf.link_speeds &
+				RTE_ETH_LINK_SPEED_FIXED);
+
+	return rte_eth_linkstatus_set(dev, &new_link);
+}
+
+bool
+ice_dcf_adminq_need_retry(struct ice_adapter *ad)
+{
+	return ad->hw.dcf_enabled &&
+	       !__atomic_load_n(&ad->dcf_state_on, __ATOMIC_RELAXED);
 }
 
 /* Add UDP tunneling port */
@@ -919,11 +978,11 @@ ice_dcf_dev_udp_tunnel_port_add(struct rte_eth_dev *dev,
 		return -EINVAL;
 
 	switch (udp_tunnel->prot_type) {
-	case RTE_TUNNEL_TYPE_VXLAN:
+	case RTE_ETH_TUNNEL_TYPE_VXLAN:
 		ret = ice_create_tunnel(parent_hw, TNL_VXLAN,
 					udp_tunnel->udp_port);
 		break;
-	case RTE_TUNNEL_TYPE_ECPRI:
+	case RTE_ETH_TUNNEL_TYPE_ECPRI:
 		ret = ice_create_tunnel(parent_hw, TNL_ECPRI,
 					udp_tunnel->udp_port);
 		break;
@@ -950,8 +1009,8 @@ ice_dcf_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
 		return -EINVAL;
 
 	switch (udp_tunnel->prot_type) {
-	case RTE_TUNNEL_TYPE_VXLAN:
-	case RTE_TUNNEL_TYPE_ECPRI:
+	case RTE_ETH_TUNNEL_TYPE_VXLAN:
+	case RTE_ETH_TUNNEL_TYPE_ECPRI:
 		ret = ice_destroy_tunnel(parent_hw, udp_tunnel->udp_port, 0);
 		break;
 	default:
@@ -963,16 +1022,76 @@ ice_dcf_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
 	return ret;
 }
 
+static int
+ice_dcf_tm_ops_get(struct rte_eth_dev *dev __rte_unused,
+		void *arg)
+{
+	if (!arg)
+		return -EINVAL;
+
+	*(const void **)arg = &ice_dcf_tm_ops;
+
+	return 0;
+}
+
+static inline void
+ice_dcf_reset_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw)
+{
+	ice_dcf_uninit_hw(eth_dev, hw);
+	ice_dcf_init_hw(eth_dev, hw);
+}
+
+/* Check if reset has been triggered by PF */
+static inline bool
+ice_dcf_is_reset(struct rte_eth_dev *dev)
+{
+	struct ice_dcf_adapter *ad = dev->data->dev_private;
+	struct iavf_hw *hw = &ad->real_hw.avf;
+
+	return !(IAVF_READ_REG(hw, IAVF_VF_ARQLEN1) &
+		 IAVF_VF_ARQLEN1_ARQENABLE_MASK);
+}
+
+static int
+ice_dcf_dev_reset(struct rte_eth_dev *dev)
+{
+	struct ice_dcf_adapter *ad = dev->data->dev_private;
+	struct ice_dcf_hw *hw = &ad->real_hw;
+	int ret;
+
+	if (ice_dcf_is_reset(dev)) {
+		if (!ad->real_hw.resetting)
+			ad->real_hw.resetting = true;
+		PMD_DRV_LOG(ERR, "The DCF has been reset by PF");
+
+		/*
+		 * Simply reset hw to trigger an additional DCF enable/disable
+		 * cycle which help to workaround the issue that kernel driver
+		 * may not clean up resource during previous reset.
+		 */
+		ice_dcf_reset_hw(dev, hw);
+	}
+
+	ret = ice_dcf_dev_uninit(dev);
+	if (ret)
+		return ret;
+
+	ret = ice_dcf_dev_init(dev);
+
+	return ret;
+}
+
 static const struct eth_dev_ops ice_dcf_eth_dev_ops = {
 	.dev_start               = ice_dcf_dev_start,
 	.dev_stop                = ice_dcf_dev_stop,
 	.dev_close               = ice_dcf_dev_close,
+	.dev_reset               = ice_dcf_dev_reset,
 	.dev_configure           = ice_dcf_dev_configure,
 	.dev_infos_get           = ice_dcf_dev_info_get,
 	.rx_queue_setup          = ice_rx_queue_setup,
 	.tx_queue_setup          = ice_tx_queue_setup,
-	.rx_queue_release        = ice_rx_queue_release,
-	.tx_queue_release        = ice_tx_queue_release,
+	.rx_queue_release        = ice_dev_rx_queue_release,
+	.tx_queue_release        = ice_dev_tx_queue_release,
 	.rx_queue_start          = ice_dcf_rx_queue_start,
 	.tx_queue_start          = ice_dcf_tx_queue_start,
 	.rx_queue_stop           = ice_dcf_rx_queue_stop,
@@ -984,15 +1103,17 @@ static const struct eth_dev_ops ice_dcf_eth_dev_ops = {
 	.promiscuous_disable     = ice_dcf_dev_promiscuous_disable,
 	.allmulticast_enable     = ice_dcf_dev_allmulticast_enable,
 	.allmulticast_disable    = ice_dcf_dev_allmulticast_disable,
-	.filter_ctrl             = ice_dcf_dev_filter_ctrl,
+	.flow_ops_get            = ice_dcf_dev_flow_ops_get,
 	.udp_tunnel_port_add	 = ice_dcf_dev_udp_tunnel_port_add,
 	.udp_tunnel_port_del	 = ice_dcf_dev_udp_tunnel_port_del,
+	.tm_ops_get              = ice_dcf_tm_ops_get,
 };
 
 static int
 ice_dcf_dev_init(struct rte_eth_dev *eth_dev)
 {
 	struct ice_dcf_adapter *adapter = eth_dev->data->dev_private;
+	struct ice_adapter *parent_adapter = &adapter->parent;
 
 	eth_dev->dev_ops = &ice_dcf_eth_dev_ops;
 	eth_dev->rx_pkt_burst = ice_dcf_recv_pkts;
@@ -1001,13 +1122,15 @@ ice_dcf_dev_init(struct rte_eth_dev *eth_dev)
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
 
-	eth_dev->data->dev_flags |= RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS;
-
 	adapter->real_hw.vc_event_msg_cb = ice_dcf_handle_pf_event_msg;
 	if (ice_dcf_init_hw(eth_dev, &adapter->real_hw) != 0) {
 		PMD_INIT_LOG(ERR, "Failed to init DCF hardware");
+		__atomic_store_n(&parent_adapter->dcf_state_on, false,
+				 __ATOMIC_RELAXED);
 		return -1;
 	}
+
+	__atomic_store_n(&parent_adapter->dcf_state_on, true, __ATOMIC_RELAXED);
 
 	if (ice_dcf_init_parent_adapter(eth_dev) != 0) {
 		PMD_INIT_LOG(ERR, "Failed to init DCF parent adapter");
@@ -1089,6 +1212,8 @@ eth_ice_dcf_pci_probe(__rte_unused struct rte_pci_driver *pci_drv,
 					    ice_dcf_dev_init);
 	if (ret || !eth_da.nb_representor_ports)
 		return ret;
+	if (eth_da.type != RTE_ETH_REPRESENTOR_VF)
+		return -ENOTSUP;
 
 	dcf_ethdev = rte_eth_dev_allocated(pci_dev->device.name);
 	if (dcf_ethdev == NULL)

@@ -1,35 +1,40 @@
-import zmq
-import json
+from trex.common.trex_ctx import TRexCtx
+from trex.common.trex_exceptions import TRexError
+from trex.common.trex_logger import ScreenLogger
+from trex.common.trex_req_resp_client import JsonRpcClient
+from trex.utils.common import get_current_user
 import time
 import hashlib
-import random as rand
 from argparse import *
 from trex.pybird.bird_cfg_creator import *
 
 class ConnectionException(Exception): pass
 class ConfigurationException(Exception): pass
 
-def rand_32_bit():
-    return rand.randint(0, 0xFFFFFFFF)
 
-# TIMEOUTS
-SEND_TIMEOUT        = 10000
-RCV_TIMEOUT         = 10000
-RCV_TIMEOUT_ON_EXIT = 500
-HEARTBEAT_TIMEOUT   = 6000
-HEARTBEAT_IVL       = 5000
+SYNC_TIMEOUT = 10
 
 class PyBirdClient():
 
     CLIENT_VERSION = "1.0"  # need to sync with bird zmq sever
 
-    def __init__(self, ip = 'localhost', port = 4509):
+    def __init__(self, ip = 'localhost', port = 4509, verbose_level = "error", logger = None, sync_timeout = None):
         self.ip = ip
-        self.socket = None
-        self.context = None
         self.port = port
         self.handler = None  # represent non connected client
-        self.is_connected = False 
+        logger = logger if logger is not None else ScreenLogger()
+        logger.set_verbose(verbose_level)
+        sync_timeout = sync_timeout if sync_timeout is not None else SYNC_TIMEOUT
+        self.ctx = TRexCtx(None,
+                           get_current_user(),
+                           ip,
+                           port,
+                           None,
+                           logger,
+                           sync_timeout,
+                           None)
+        self.rpc = JsonRpcClient(self.ctx)
+        self.rpc.set_retry_base(True)
 
     def __del__(self):
         try:
@@ -38,70 +43,21 @@ class PyBirdClient():
             print(e.message)
 
     def _close_conn(self):
-        if not self.socket.close:
-            if self.handler is not None:
-                self.release()
-            if self.socket is not None:
-                self.socket.close()
-            if self.context is not None:
-                self.context.destroy()    
-
-    def _get_response(self, id):
-        while True:
-            try:
-                message = self.socket.recv()
-            except zmq.Again:
-                raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
-
-            message = message.decode()
-            try:
-                message_parsed = json.loads(message)
-            except:
-                print('"Error in parsing response! got: "%s"' % message)
-                break
-            if type(message_parsed) is not dict:
-                print('Error in message: "%s"' % message)
-                raise Exception('Got from server "{}" type instead of dictionary! content: {}'.format(type(message_parsed), message_parsed))
-            if 'error' in message_parsed.keys():
-                print('Error in message: "%s"' % message)
-                raise Exception('Got exception from server! message: %s' % (message_parsed['error']['message']))
-            if 'id' not in message_parsed.keys():
-                print("Got response with no id, waiting for another one")
-            elif message_parsed['id'] != id:
-                print("Got response with different id, waiting for another one")
-            else:
-                break  # found the wanted response
-        if 'result' in message_parsed.keys():
-            return message_parsed['result']
-        raise Exception(message_parsed['error'])
+        self.rpc.disconnect()
 
     def _call_method(self, method_name, method_params):
-        rand_id = rand_32_bit()  # generate 32 bit random id for request
-        json_rpc_req = { "jsonrpc": "2.0", "method": method_name , "params": method_params, "id": rand_id}
-        request = json.dumps(json_rpc_req)
-        try:
-            self.socket.send(request.encode('utf-8'))
-        except zmq.Again:
-            raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
-        return self._get_response(rand_id)
+        rc = self.rpc.transmit(method_name=method_name, params=method_params)
+        if not rc:
+            raise TRexError(rc.err())
+        return rc.data()
 
     def connect(self):
         ''' 
             Connect client to PyBird server. Only check versions and open the socket to bird.
         '''
-        if not self.is_connected:
-            self.context = zmq.Context()
-            self.socket = self.context.socket(zmq.REQ)
-
-            self.socket.setsockopt(zmq.SNDTIMEO, SEND_TIMEOUT)
-            self.socket.setsockopt(zmq.RCVTIMEO, RCV_TIMEOUT)
-            self.socket.setsockopt(zmq.HEARTBEAT_IVL, HEARTBEAT_IVL)
-            self.socket.setsockopt(zmq.HEARTBEAT_TIMEOUT, HEARTBEAT_TIMEOUT)
-
-            self.socket.connect("tcp://"+str(self.ip)+":"+str(self.port))
+        if not self.rpc.is_connected():
+            self.rpc.connect()
             result = self._call_method('connect', [PyBirdClient.CLIENT_VERSION])
-            if result:
-                self.is_connected = True
             return result
         else:
             raise Exception("PyBird Client is already connected!")
@@ -119,10 +75,9 @@ class PyBirdClient():
                 + :exc:`ConnectionException` in case of error
 
         '''
-        if self.is_connected or force:
+        if self.rpc.is_connected() or force:
             result = self._call_method('acquire', [force])
             self.handler = result
-            self.is_connected = True
         else:
             raise ConnectionException("Cannot acquire before connect!")
         return result
@@ -131,12 +86,12 @@ class PyBirdClient():
         '''
             Query, Return the current bird configuration.    
         '''
-        if not self.is_connected:
+        if not self.rpc.is_connected():
             raise ConnectionException("Cannot get config when client is not connected!")
         return self._call_method('get_config', [])
 
     def get_protocols_info(self):
-        if not self.is_connected:
+        if not self.rpc.is_connected():
             raise ConnectionException("Cannot get protocols information when client is not connected!")
         return self._call_method('get_protocols_info', [])
 
@@ -217,7 +172,6 @@ class PyBirdClient():
                 + :exc:`ConnectionError` in case client is not acquired
         '''
         if self.handler is not None:
-            self.socket.setsockopt(zmq.RCVTIMEO, RCV_TIMEOUT_ON_EXIT)
             res = self._call_method('release', [self.handler])
 
             self.handler = None
@@ -234,12 +188,12 @@ class PyBirdClient():
         '''
         if self.handler is not None:
             raise Exception('Client is acquired! run "release" first')
-        if self.is_connected:
-            self.socket.setsockopt(zmq.RCVTIMEO, RCV_TIMEOUT_ON_EXIT)
-            return self._call_method('disconnect', [])
-        else:
+        if not self.rpc.is_connected():
             raise ConnectionException("Cannot disconnect, client is not connected")
+        else:
+            ret = self._call_method('disconnect', [])
         self._close_conn()
+        return ret
 
     def _upload_fragmented(self, rpc_cmd, upload_string):
         index_start = 0
@@ -258,20 +212,11 @@ class PyBirdClient():
                 params['md5'] = hashlib.md5(upload_string.encode()).hexdigest()
 
             # send the fragment
-            json_rpc_req = { "jsonrpc":"2.0","method": rpc_cmd ,"params": params, "id": rand_32_bit()}
-            request = json.dumps(json_rpc_req)
-
-            try:
-                self.socket.send(request.encode('utf-8'))
-            except zmq.Again:
-                raise ConnectionException("Didn't get answer from Pybird Server for %s seconds, probably shutdown before client disconnect" % (RCV_TIMEOUT / 1000))
-
-            # wait for server response
-            respond = self._get_response(json_rpc_req['id'])
+            respond = self._call_method(rpc_cmd, params)
             if respond != 'send_another_frag':
                 return respond
             index_start = index_end
-            fragment_length = 50000
+            fragment_length = 500000
 
         raise ConfigurationException("Sent all the fragments, but did not get the configuration response")
 

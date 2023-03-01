@@ -33,6 +33,7 @@ limitations under the License.
 
 /* STL files */
 #include "trex_stl_stream.h"
+#include "trex_stl_tpg.h"
 
 
 class TrexCpToDpMsgBase;
@@ -177,7 +178,6 @@ public:
     void update_traffic(const TrexPortMultiplier &mul, bool force);
     void update_streams(const TrexPortMultiplier &mul, bool force, std::vector<TrexStream *> &streams);
 
-
     /**
      * sets service mode
      * 
@@ -194,7 +194,7 @@ public:
     bool has_flow_stats();
 
     /**
-     * the the max stream id currently assigned
+     * the max stream id currently assigned
      *
      */
     int get_max_stream_id() const;
@@ -367,7 +367,7 @@ private:
  * @author imarom (31-Aug-15)
  */
 class TrexStatelessPort : public TrexPort {
-    
+
     friend TrexDpPortEvents;
     friend TrexDpPortEvent;
     friend AsyncStopEvent;
@@ -378,6 +378,11 @@ public:
 
     ~TrexStatelessPort();
 
+    /**
+     * Override the base port release.
+     * Throws TrexException in case there are any problems releasing the port.
+     **/
+    virtual void release() override;
 
     /**
      * validate the state of the port before start
@@ -459,7 +464,7 @@ public:
     bool has_flow_stats(string profile_id);
 
     /**
-     * the the max stream id currently assigned
+     * the max stream id currently assigned
      *
      */
     int get_max_stream_id(string profile_id);
@@ -570,12 +575,45 @@ public:
             }
         }
         return m_dp_events;
-    }     
+    }
 
+    /**
+     * Get the Tagged Packet Group Control Plane Context residing 
+     * on this port.
+     *
+     * @return TPGCpCtx
+     *   Tagged Packet Group Control Plane Context residing on this port.
+    **/
+    TPGCpCtx* get_tpg_ctx() { return m_tpg_ctx; }
+
+
+    /**
+     * Set the Tagged Packet Group Control Plane Context residing on this port.
+     *
+     * @param tpg_ctx
+     *   New context that will reside on this port.
+    **/
+    void set_tpg_ctx(TPGCpCtx* tpg_ctx) {
+        m_tpg_ctx = tpg_ctx;
+    }
+
+    /**
+     * Sequenced streams are compiled on one core and can't be splitted.
+     * This function returns the core id on which sequenced streams are compiled
+     * for this port.
+     *
+     * @return uint8_t
+     *    Core id on which sequenced streams are compiled on this port.
+     **/
+    uint8_t get_sequenced_stream_core() {
+        /**
+         * NOTE: Sequenced streams are compiled on the first core.
+         **/
+        return m_cores_id_list[0];
+    }
 
 private:
 
-    
     /**
      * when a port stops, perform various actions
      *
@@ -598,7 +636,9 @@ private:
 
     TrexProfileTable    m_profile_table;
 
-    uint32_t m_dp_profile_id_inc = 0;
+    uint32_t            m_dp_profile_id_inc = 0;
+
+    TPGCpCtx*           m_tpg_ctx;                  // TPG Context that resides on this port.
 };
 
 

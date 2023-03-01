@@ -23,6 +23,7 @@ limitations under the License.
 
 
 #include "trex_port.h"
+#include "stl/trex_stl_port.h"
 
 class CSyncBarrier;
 
@@ -30,7 +31,7 @@ class CSyncBarrier;
  * describes an ASTF port
  *
  */
-class TrexAstfPort : public TrexPort {
+class TrexAstfPort : public TrexStatelessPort {
 
 public:
 

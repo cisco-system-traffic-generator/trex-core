@@ -26,6 +26,7 @@ limitations under the License.
 #include <algorithm>
 #include "trex_astf_mbuf_redirect.h"
 #include "trex_dp_core.h"
+#include "stl/trex_stl_dp_core.h"
 #include "trex_messaging.h"
 #include "tunnels/tunnel_handler.h"
 
@@ -37,9 +38,10 @@ struct profile_param {
     bool            m_nc_flow_close;
     double          m_establish_timeout;
     double          m_terminate_duration;
+    double          m_dump_interval;
 };
 
-class TrexAstfDpCore : public TrexDpCore {
+class TrexAstfDpCore : public TrexStatelessDpCore {
 
 public:
 
@@ -61,13 +63,13 @@ public:
      */
     virtual bool is_port_active(uint8_t port_id);
 
-    void start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration);
+    void start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval);
     void stop_transmit(profile_id_t profile_id, uint32_t stop_id, bool set_nc);
     void stop_transmit(profile_id_t profile_id, bool set_nc);
     void update_rate(profile_id_t profile_id, double ratio);
     void create_tcp_batch(profile_id_t profile_id, double factor, CAstfDB* astf_db);
     void delete_tcp_batch(profile_id_t profile_id, bool do_remove, CAstfDB* astf_db);
-    void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db);
+    void parse_astf_json(profile_id_t profile_id, std::string *profile_buffer, std::string *topo_buffer, CAstfDB* astf_db, const string* tunnel_topo_buffer=nullptr);
     void remove_astf_json(profile_id_t profile_id, CAstfDB* astf_db);
 
     void scheduler(bool activate);
@@ -75,9 +77,12 @@ public:
     void set_service_mode(bool enabled, bool filtered, uint8_t mask);
     void activate_client(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool activate, bool is_range);
     void client_lookup_and_activate(uint32_t client, bool activate);
-    bool get_client_stats(CAstfDB* astf_db, std::vector<uint32_t> msg_data, bool is_range, MsgReply<Json::Value> &reply);
+    void get_client_stats(std::vector<uint32_t>& msg_data, bool is_range);
     Json::Value client_data_to_json(void *ip_info);
+    void insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
+    void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
     void update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
+    void dump_profile_flows(profile_id_t profile_id);
 
 protected:
     virtual bool rx_for_idle();
@@ -96,7 +101,7 @@ protected:
     void set_profile_stop_id(profile_id_t profile_id, uint32_t stop_id);
 
     void get_scheduler_options(profile_id_t profile_id, bool& disable_client, double& d_time_flow, double& d_phase);
-    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout = 0.0, double terminate_duration = 0.0);
+    void start_profile_ctx(profile_id_t profile_id, double duration, bool nc, double establish_timeout = 0.0, double terminate_duration = 0.0, double dump_interval = 0.0);
     void stop_profile_ctx(profile_id_t profile_id, uint32_t stop_id);
 
     std::vector<struct profile_param> m_sched_param;
@@ -171,6 +176,7 @@ protected:
 
 public:
     void on_profile_stop_event(profile_id_t profile_id);
+    dp_sts_t activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback);
 
 private:
     CTunnelHandler *m_tunnel_handler;

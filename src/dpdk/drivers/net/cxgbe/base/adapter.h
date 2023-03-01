@@ -12,7 +12,7 @@
 #include <rte_mbuf.h>
 #include <rte_io.h>
 #include <rte_rwlock.h>
-#include <rte_ethdev.h>
+#include <ethdev_driver.h>
 
 #include "../cxgbe_compat.h"
 #include "../cxgbe_ofld.h"
@@ -58,6 +58,9 @@ struct port_info {
 	 */
 	u8 vin;
 	u8 vivld;
+
+	u8 vi_en_rx; /* Enable/disable VI Rx */
+	u8 vi_en_tx; /* Enable/disable VI Tx */
 };
 
 enum {                                 /* adapter flags */
@@ -287,8 +290,6 @@ struct sge {
 	u32 fl_pg_order;            /* large page allocation size */
 	u32 fl_starve_thres;        /* Free List starvation threshold */
 };
-
-#define T4_OS_NEEDS_MBOX_LOCKING 1
 
 /*
  * OS Lock/List primitives for those interfaces in the Common Code which
@@ -792,6 +793,7 @@ void t4_free_mem(void *addr);
 #define t4_os_free(_ptr)       t4_free_mem((_ptr))
 
 void t4_os_portmod_changed(const struct adapter *adap, int port_id);
+void t4_os_link_changed(struct adapter *adap, int port_id);
 
 void reclaim_completed_tx(struct sge_txq *q);
 void t4_free_sge_resources(struct adapter *adap);

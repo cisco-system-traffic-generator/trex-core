@@ -10,6 +10,9 @@ import os
 import sys
 import time
 
+import zmq
+import socket
+
 from scapy.layers.l2 import Ether
 
 from ..common.trex_types import *
@@ -106,6 +109,80 @@ class CaptureMonitorWriterStdout(CaptureMonitorWriter):
             self.logger.prompt_redraw()
 
     
+# a file monitor
+class CaptureMonitorWriterFile(CaptureMonitorWriter):
+    def __init__ (self, logger, filename):
+        self.logger      = logger
+
+        self.logger.pre_cmd("Starting file capture monitor - '{0}'".format(filename))
+        self.logger.post_cmd(RC_OK())
+
+        try:
+            host_ip = socket.gethostbyname(socket.gethostname())
+
+            self.context = zmq.Context()
+            self.socket = self.context.socket(zmq.PAIR)
+            self.socket.setsockopt(zmq.RCVTIMEO, 100)
+            zmq_port = self.socket.bind_to_random_port('tcp://*', min_port=5000)
+            cap_fmt = 'pcapng' if filename.lower().endswith('.pcapng') else 'pcap'
+            self.endpoint = 'tcp://{0}:{1}?{2}'.format(host_ip, zmq_port, cap_fmt)
+
+            self.fileout = open(filename, "wb")
+
+        except OSError as e:
+            self.deinit()
+            self.logger.post_cmd(RC_ERR(""))
+            raise TRexError("failed to init file monitor {0}\n{1}".format(filename, str(e)))
+
+        self.logger.info(format_text("\n*** use 'capture monitor stop' to abort capturing... ***\n", 'bold'))
+
+
+    def deinit (self):
+        try:
+            if self.fileout:
+                self.fileout.close()
+                self.fileout = None
+
+            if self.socket:
+                self.socket.close()
+                self.socket = None
+
+            if self.context:
+                self.context.destroy()
+                self.context = None
+
+        except OSError:
+            pass
+
+
+    def fetch_pkts (self, limit = 100):
+        pkts = []
+
+        try:
+            while len(pkts) < limit:
+                pkt = self.socket.recv(1) # non-block recv
+                pkts.append(pkt)
+
+        except zmq.ZMQError:
+            pass
+
+        return pkts
+
+
+    def handle_pkts (self, pkts):
+        byte_count = 0
+
+        try:
+            for pkt in pkts:
+                self.fileout.write(pkt)
+                byte_count += len(pkt)
+
+        except Exception as e:
+            raise TRexError('fail to write packets to file: {}'.format(str(e)))
+
+        return byte_count
+
+
 # a pipe based monitor
 class CaptureMonitorWriterPipe(CaptureMonitorWriter):
     def __init__ (self, logger, start_ts):
@@ -259,7 +336,7 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
         
 # capture monitor - a live capture
 class CaptureMonitor(object):
-    def __init__ (self, client, cmd_lock, tx_port_list, rx_port_list, rate_pps, mon_type, bpf_filter):
+    def __init__ (self, client, cmd_lock, tx_port_list, rx_port_list, rate_pps, mon_type, bpf_filter, snaplen):
         self.client      = client
         self.logger      = client.logger
         self.cmd_lock    = cmd_lock
@@ -267,12 +344,14 @@ class CaptureMonitor(object):
         self.t           = None
         self.writer      = None
         self.capture_id  = None
+        self.endpoint    = None
         
         self.tx_port_list = tx_port_list
         self.rx_port_list = rx_port_list
         self.rate_pps     = rate_pps
         self.mon_type     = mon_type
         self.bpf_filter   = bpf_filter
+        self.snaplen      = snaplen
         
         # try to launch
         try:
@@ -283,13 +362,23 @@ class CaptureMonitor(object):
             
             
     def __start (self):
-        
+        # 'file:' type will use ZMQ endpoint
+        if self.mon_type.startswith('file:'):
+            output_filename = self.mon_type.split('file:')[1]
+            self.writer = CaptureMonitorWriterFile(self.logger, output_filename)
+
+            self.rate_pps = 0
+            self.endpoint = self.writer.endpoint
+            self.cmd_lock = None
+
         # create a capture on the server
         with self.logger.supress():
             data = self.client.start_capture(self.tx_port_list,
                                              self.rx_port_list,
                                              limit = self.rate_pps,
                                              mode = 'cyclic',
+                                             endpoint = self.endpoint,
+                                             snaplen = self.snaplen,
                                              bpf_filter = self.bpf_filter)
 
         self.capture_id = data['id']
@@ -297,12 +386,15 @@ class CaptureMonitor(object):
         
 
         # create a writer
-        if self.mon_type == 'compact':
+        if self.writer:
+            pass
+        elif self.mon_type == 'compact':
             self.writer = CaptureMonitorWriterStdout(self.logger, True, start_ts)
         elif self.mon_type == 'verbose':
             self.writer = CaptureMonitorWriterStdout(self.logger, False, start_ts)
         elif self.mon_type == 'pipe':
             self.writer = CaptureMonitorWriterPipe(self.logger, start_ts)
+            self.cmd_lock = None
         else:
             raise TRexError('Internal error: unknown writer type')
 
@@ -373,6 +465,9 @@ class CaptureMonitor(object):
         return True
             
     def __lock (self):
+        if not self.cmd_lock:
+            return self.active
+
         while True:
             rc = self.cmd_lock.acquire(False)
             if rc:
@@ -383,6 +478,9 @@ class CaptureMonitor(object):
             time.sleep(0.1)
         
     def __unlock (self):
+        if not self.cmd_lock:
+            return
+
         self.cmd_lock.release()
         
     
@@ -420,7 +518,7 @@ class CaptureMonitor(object):
         while self.active:
             
             # sleep - if interrupt by graceful shutdown - go out
-            if not self.__sleep():
+            if not self.endpoint and not self.__sleep():
                 return
             
             # check that the writer is ok
@@ -434,16 +532,22 @@ class CaptureMonitor(object):
                 if not self.client.is_connected():
                     raise TRexError('client has been disconnected')
                     
-                rc = self.client._transmit("capture", params = {'command': 'fetch', 'capture_id': self.capture_id, 'pkt_limit': 10})
-                if not rc:
-                    raise TRexError(rc)
-                    
+                if not self.endpoint:
+                    rc = self.client._transmit("capture", params = {'command': 'fetch', 'capture_id': self.capture_id, 'pkt_limit': 10})
+                    if not rc:
+                        raise TRexError(rc)
+
+                    pkts = rc.data()['pkts']
+                else:
+                    pkts = self.writer.fetch_pkts()
+                    if not pkts:
+                        time.sleep(0.1)
+
             finally:
                 self.__unlock()
                 
 
             # no packets - skip
-            pkts = rc.data()['pkts']
             if not pkts:
                 continue
             
@@ -451,6 +555,7 @@ class CaptureMonitor(object):
             
             self.pkt_count  += len(pkts)
             self.byte_count += byte_count
+
 
 
 
@@ -492,7 +597,9 @@ class CaptureManager(object):
         self.record_start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
                                               parsing_opts.RX_PORT_LIST,
                                               parsing_opts.LIMIT,
-                                              parsing_opts.BPF_FILTER)
+                                              parsing_opts.BPF_FILTER,
+                                              parsing_opts.SNAPLEN,
+                                              parsing_opts.ENDPOINT)
 
         # stop
         self.record_stop_parser.add_arg_list(parsing_opts.CAPTURE_ID,
@@ -510,7 +617,9 @@ class CaptureManager(object):
         self.monitor_start_parser.add_arg_list(parsing_opts.TX_PORT_LIST,
                                                parsing_opts.RX_PORT_LIST,
                                                parsing_opts.MONITOR_TYPE,
-                                               parsing_opts.BPF_FILTER)
+                                               parsing_opts.BPF_FILTER,
+                                               parsing_opts.SNAPLEN,
+                                               parsing_opts.OUTPUT_FILENAME)
 
         
         
@@ -561,7 +670,7 @@ class CaptureManager(object):
             self.record_start_parser.formatted_error('please provide either --tx or --rx')
             return
 
-        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit, mode = 'fixed', bpf_filter = opts.filter)
+        rc = self.c.start_capture(opts.tx_port_list, opts.rx_port_list, opts.limit, mode = 'fixed', bpf_filter = opts.filter, endpoint = opts.endpoint, snaplen = opts.snaplen)
         
         self.logger.info(format_text("*** Capturing ID is set to '{0}' ***".format(rc['id']), 'bold'))
         self.logger.info(format_text("*** Please call 'capture record stop --id {0} -o <out.pcap>' when done ***\n".format(rc['id']), 'bold'))
@@ -598,6 +707,8 @@ class CaptureManager(object):
             mon_type = 'verbose'
         elif opts.pipe:
             mon_type = 'pipe'
+        elif opts.output_filename:
+            mon_type = 'file' + ':' + opts.output_filename
             
         if not opts.tx_port_list and not opts.rx_port_list:
             self.monitor_start_parser.formatted_error('please provide either --tx or --rx')
@@ -609,7 +720,7 @@ class CaptureManager(object):
             self.monitor.stop()
             self.monitor = None
             
-        self.monitor = CaptureMonitor(self.c, self.cmd_lock, opts.tx_port_list, opts.rx_port_list, 100, mon_type, opts.filter)
+        self.monitor = CaptureMonitor(self.c, self.cmd_lock, opts.tx_port_list, opts.rx_port_list, 100, mon_type, opts.filter, opts.snaplen)
         
     
     def parse_monitor_stop (self, opts):

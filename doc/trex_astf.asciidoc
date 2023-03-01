@@ -120,7 +120,7 @@ WARNING: ASTF support was released, however it is under constant improvement.
 ==== Can we address the above requirements using existing DPDK TCP stacks?
 
 Can we leverage one of existing DPDK TCP stacks for our need? The short answer is no. +
-We chose to take a BSD4.4 original code base with FreeBSD bug fixes patches and improve the scalability to address our needs. +
+We chose to take a BSD4.4 original code base with FreeBSD bug fixes patches and improve the scalability to address our needs (now the code has the latest freebsd logic). +
 More on the reasons why in the following sections, but let me just say the above TCP DPDK stacks are optimized for real client/server application/API while in most of our traffic generation use cases, *most* of the traffic is known ahead of time allowing us to do much better. +
 Let's take a look into what are the main properties of TRex TCP module and understand what were the main challenges we tried to solve.
 
@@ -219,10 +219,29 @@ In case of UDP it is a message base protocols like send_msg/wait_for_msg etc.
 
 ==== GPRS Tunnelling Protocol (GTP) 
 
-* Supports Encapsulation(adding GTP header)/Decapsulation(removing GTP header) of GTP traffic
-* Port which is GTP enabled will perform Encapsulation/Decapsulation functionality (client side)
-* TRex server should be started with option --gtpu <port number> (should be zero)
-* Limitation: Can use only 2 ports and only port 0 (client side) can be configured as GTPU tunnel
+===== What is GTP ?
+
+GPRS Tunneling protocol is an IP/UDP based protocol used in GSM, UMTS and LTE networks, and can be decomposed into separate protocols, GTP-C, GTP-U and GTP'. +
+
+===== What does TRex support ?
+* Currently TRex supports only GTP-U protocol. +
+* In GTP-U mode TRex knows to encapsulates/decapsulates GTP-U traffic. +
+The client side of TRex server is responsible to the encapsulation/decapsulation functionality.
+* Loopback mode - from version v2.93 TRex supports loopback mode for testing without DUT - the server side is aware to the GTPU mode and decapsulates the client packets, and learns the tunnel context. When transmitting, the server encapsulates the packets with the same tunnel context. +
+* More than 2 ports support - from version v2.93 TRex supports more than 2 ports in GTPU mode.
+
+==== Stateless profile support
+
+The stateless profile can be used on ASTF mode with the following limitations.
+
+* TCP header packet is not supported.
+* The UDP flow in stateless profile should not be handled by ASTF. When the received UDP packet is matched to ASTF UDP flow, it will not be handled by the stateless profile.
+* HW flow statistics is not supported due to the conflits with ASTF HW RSS.
+* The performance will be less than original stateless mode.
+* TPG is not supported yet.
+
+* start/update/stop cannot be used for the stateless profile. Instead, start_stl/update_stl/stop_stl should be used.
+
 
 
 === ASTF package folders 
@@ -305,7 +324,7 @@ sudo ./t-rex-64 -i --astf
 [source,bash]
 -------------------
 ./trex-console -s [server-ip]
------------------
+-------------------
 
 
 .From Console
@@ -315,7 +334,7 @@ trex>start -f astf/http_simple.py -m 1000 -d 1000 -l 1000
 trex>tui
 trex>[press] t/l for astf statistics and latency 
 trex>stop
-------------------
+-------------------
 
 .Cosole ASTF stats 
 [source,bash]
@@ -667,6 +686,49 @@ class Prof1():
 
 The tuple generator ranges should not overlap.
 
+==== Tutorial: Profile with different offset per side
+
+*Goal*:: 
+
+Create a profile with different offset per side for dual mask ports.
+
+*Traffic profile*::  
+
+A modified version of http_simply profile. 
+
+*File*:: 
+
+link:{github_astf_path}/offset_per_side.py[astf/offset_per_side.py]
+
+[source,python]
+----
+class Prof1():
+    def __init__(self):
+        pass
+
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        args = parser.parse_args(tunables)
+        # ip generator
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0", ip_offset_server="5.0.0.0"),  <1>
+                           dist_client=ip_gen_c,
+                           dist_server=ip_gen_s)
+
+        return ASTFProfile(default_ip_gen=ip_gen,
+                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",
+                            cps=2.776)])
+----
+<1> Defines offset of "1.0.0.0" to the client side and offset of "5.0.0.0" to the server side
+
+*Discussion*::
+
+Offset per side is available from version v2.97 and above.
+
+
 ==== Tutorial: IPv6 traffic 
 
 ASTF can run a profile that includes a mix of IPv4 and IPv6  template using ipv6. enables tunable. The tunable could be global (for all profile) or per template. 
@@ -900,7 +962,7 @@ sudo ./t-rex-64 -i --astf
         print('\n\n*** test had warnings ****\n\n')
         for w in c.get_warnings():
              print(w)
------
+----
 <1> Connect 
 <2> Start the traffic 
 <3> Wait for the test to finish
@@ -1367,7 +1429,7 @@ This example forces the *server* side to wait for close from peer (client) and o
 The packets trace should look like this:
 
 [source,python]
-----
+-----------------
   client server 
   -------------
     FIN             
@@ -1375,7 +1437,7 @@ The packets trace should look like this:
          FIN
    ACK
   -------------
-----  
+-----------------
         
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info
 
@@ -1389,7 +1451,7 @@ This is seen as SYN/SYN-ACK/GET-ACK in the trace (piggyback ack in the GET reque
 To force the client side to send ACK and only *then* send the data use the 'connect()' command.
 
 [source,python]
-----
+-----------------
   client server 
   -------------
     SYN
@@ -1397,7 +1459,7 @@ To force the client side to send ACK and only *then* send the data use the 'conn
     ACK
     GET       
   -------------
-----  
+-----------------
 
 
 .Connect() example with RST
@@ -1414,7 +1476,7 @@ To force the client side to send ACK and only *then* send the data use the 'conn
 This example will wait for connect and then will send RST packet to shutdown peer and current socket.
 
 [source,python]
-----
+-----------------
   client server 
   -------------
     SYN
@@ -1422,7 +1484,7 @@ This example will wait for connect and then will send RST packet to shutdown pee
     ACK
     RST       
   -------------
-----  
+-----------------
 
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
@@ -2098,11 +2160,243 @@ ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255",
                     l7_map=[0,1,2,3])                                   # for template 2
 ----
 
-==== Tutorial: Run TRex in GTP mode with simple HTTP profile   
+==== Black list of MAC and IPv4 addresses
 
-*Goal*:: 
+Until version v2.97, in case the received packets are not destined for TRex server, TRex response depends on the tunable tcp.blackhole value. +
 
-Send HTTP flows with GTP tunnel added and remove GTP tunnel when traffic comes back to trex client
+The values of tcp.blackhole are: +
+
+* tcp.blackhole = 0 - TRex returns RST packets always
+* tcp.blackhole = 1 - TRex returns RST packets only if the received packets are SYN packets.
+* tcp.blackhole = 2 - TRex doesn't return RST packets.
+
+see: link:trex_astf.html#_tunables_reference_a_id_tunables_a[Tunables] +
+
+The response depends only on the tcp.blackhole without any consideration of the MAC, and IPv4 addresses. +
+We would like TRex response in case of error would be also depends on the MAC, and IPv4 addresses. +
+So for that, from version v2.97, we can choose list of MAC, and IPv4 addresses that TRex server ignores. +
+Namely, in case the received packets are not destined for TRex server, TRex response with RST packets depends on two additional values: +
+
+* Source MAC address - don't generate RST packets in case the MAC address is in the black list.
+* Source IPv4 address - don't generate RST packets in case the IPv4 address is in the black list.
+
+Now we will see two identical examples of how to use the black list, using TRex console and ASTF automation API. +
+
+.TRex console
+
+Setting ignored MAC and IPv4 addresses locally on python client
+[source,bash]
+-------------------
+trex> black_list set --macs 24:8a:07:a2:f3:80 25:9a:08:a1:f3:40 --ipv4 16.0.0.0 17.0.0.0 17.0.0.1
+-------------------
+* For uploading the addresses to TRex server use --upload flag +
+
+Shows the local ignored MAC and IPv4 addresses
+[source,bash]
+-------------------
+trex> black_list show
+
+Macs black list (Not sync with server)
+
+    Mac_start     |      Mac_end      | Is-Sync
+------------------+-------------------+--------
+24:8a:07:a2:f3:80 | 24:8a:07:a2:f3:80 |  False
+25:9a:08:a1:f3:40 | 25:9a:08:a1:f3:40 |  False
+
+IPs black list (Not sync with server)
+
+IP_start |  IP_end  | Is-Sync
+---------+----------+--------
+16.0.0.0 | 16.0.0.0 |  False
+17.0.0.0 | 17.0.0.1 |  False
+-------------------
+
+* The Is-Sync values are False since we haven't push our list to TRex server yet. +
+
+Upload the local addresses to TRex server
+[source,bash]
+-------------------
+trex> black_list upload
+-------------------
+
+The local ignored MAC and IPv4 addresses after the upload
+[source,bash]
+-------------------
+trex> black_list show
+Macs black list (Sync with server)
+
+    Mac_start     |      Mac_end      | Is-Sync
+------------------+-------------------+--------
+24:8a:07:a2:f3:80 | 24:8a:07:a2:f3:80 |  True
+25:9a:08:a1:f3:40 | 25:9a:08:a1:f3:40 |  True
+
+IPs black list (Sync with server)
+
+IP_start |  IP_end  | Is-Sync
+---------+----------+--------
+16.0.0.0 | 16.0.0.0 |  True
+17.0.0.0 | 17.0.0.1 |  True
+-------------------
+
+* Now the Is-Sync values are True. +
+
+Clears the local's black_list and the server's black_list - using the --upload flag
+[source,bash]
+-------------------
+trex> black_list clear --upload
+-------------------
+
+For more commands
+[source,bash]
+-------------------
+trex> black_list --help
+usage: black_list [-h]  ...
+
+Black_list of MAC and IPv4 addresses related commands
+
+optional arguments:
+  -h, --help  show this help message and exit
+
+commands:
+
+    set       Set black list of MAC and IPv4 addresses
+    get       Override the local list of black list with the server list
+    remove    Remove MAC and IPv4 addresses from the black list
+    upload    Upload to the server the current black list
+    clear     Clear the current black list
+    show      Show the current black list
+-------------------
+
+
+.ASTF automation API
+
+[source,python]
+----
+client = ASTFClient("127.0.0.1")
+client.connect()
+ip_list = ["16.0.0.0", "17.0.0.0", "17.0.0.1"]
+mac_list = ["24:8a:07:a2:f3:80", "25:9a:08:a1:f3:40"]
+# setting the ignored MAC and IPv4 address
+client.set_ignored_macs_ips(ip_list=ip_list, mac_list=mac_list, is_str=True)
+black_list_dict = client.get_ignored_macs_ips(to_str=True)
+
+....
+
+# clearing the black list
+client.set_ignored_macs_ips(ip_list=[], mac_list=[])
+----
+
+<<<
+
+==== GTPU tutorials
+
+Please make yourself familiar with the link:trex_astf.html#_gprs_tunnelling_protocol_gtp[GTPU] protocol before proceeding.
+
+===== Tutorial: GTPU Activation/Deactivation API
+
+*Goal*:: Activating And Deactivating GTPU mode.
+
+The activation of the GTPU mode was changed in version v2.93, so in this tutorial we will see how we can activate GTPU mode
+in both cases, and how to deactivate it in versions v2.93 and above.
+
+Before v2.93 GTPU mode can be activated using the --gtpu flag:
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf --software --tso-disable --gtpu 0
+-------------------
+
+
+From version v2.93 GTPU mode is being activated/deactivated via RPC command. +
+Now we will see how to activate/deactivate GTPU mode using TRex console and ASTF automation API.
+
+.start TRex server with the following flags
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf --software --tso-disable
+-------------------
+
+.TRex console
+
+* Activating GTPU mode:
+
+[source,bash]
+-------------------
+trex> tunnel --type gtpu
+-------------------
+
+* Deactivating GTPU mode:
+
+[source,bash]
+-------------------
+trex> tunnel --type gtpu --off
+-------------------
+
+.ASTF automation API
+
+[source,python]
+----
+client = ASTFClient("127.0.0.1")
+client.connect()
+# gtpu type is 1
+client.activate_tunnel(tunnel_type=1, activate=True)  <1>
+...
+...
+client.activate_tunnel(tunnel_type=1, activate=False) <2>
+----
+<1> Activating GTPU mode
+<2> Deactivating GTPU mode
+
+See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/parsing_opts.py#L403[tunnel_type]
+
+
+===== Tutorial: GTPU Loopback mode
+
+*Goal*:: Activating/Deactivating GTPU Loopback mode using TRex console and ASTF automation API
+
+.start TRex server with the following flags
+[source,bash]
+-------------------
+sudo ./t-rex-64 -i --astf --software --tso-disable
+-------------------
+
+.TRex console
+
+* Activating GTPU Loopback mode:
+
+[source,bash]
+-------------------
+trex> tunnel --type gtpu --loopback
+-------------------
+
+* Deactivating GTPU Loopback mode:
+
+[source,bash]
+-------------------
+trex> tunnel --type gtpu --off
+-------------------
+
+.ASTF automation API
+
+[source,python]
+----
+client = ASTFClient("127.0.0.1")
+client.connect()
+# gtpu type is 1
+client.activate_tunnel(tunnel_type=1, activate=True, loopback=True)  <1>
+...
+...
+client.activate_tunnel(tunnel_type=1, activate=False)                <2>
+----
+<1> Activating GTPU mode with loopback mode
+<2> Deactivating GTPU mode
+
+See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/parsing_opts.py#L403[tunnel_type]
+
+
+===== GTPU traffic tutorials
+*Tutorial: Generating GTPU traffic* +
+
+*Goal*:: Generating GTPU traffic with IPv4/IPv6 header using TRex console and ASTF automation API
 
 *Traffic profile*::  
 
@@ -2115,54 +2409,713 @@ link:{github_astf_path}/http_simple.py[astf/http_simple.py]
 [source,python]
 ----
 from trex.astf.api import *
-
+import argparse
 
 class Prof1():
-    def get_profile(self):
+    def __init__(self):
+        pass
+
+    def get_profile(self, tunables, **kwargs):
+        parser = argparse.ArgumentParser(description='Argparser for {}'.format(os.path.basename(__file__)), 
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        args = parser.parse_args(tunables)
+
         # ip generator
-        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], 
-                                 distribution="seq")
-        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], 
-                                  distribution="seq")
-        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),      <1>
+        ip_gen_c = ASTFIPGenDist(ip_range=["16.0.0.0", "16.0.0.255"], distribution="seq")
+        ip_gen_s = ASTFIPGenDist(ip_range=["48.0.0.0", "48.0.255.255"], distribution="seq")
+        ip_gen = ASTFIPGen(glob=ASTFIPGenGlobal(ip_offset="1.0.0.0"),
                            dist_client=ip_gen_c,
                            dist_server=ip_gen_s)
 
         return ASTFProfile(default_ip_gen=ip_gen,
-                            cap_list=[ASTFCapInfo(
-                                      file="../avl/delay_10_http_browsing_0.pcap"
-                                      cps=1)
-                                     ])                                    <2>
-
+                            cap_list=[ASTFCapInfo(file="../avl/delay_10_http_browsing_0.pcap",
+                            cps=2.776)])
 
 def register():
     return Prof1()
+----
+
+In order to generate GTPU traffic we have to assign each client with GTPU context. +
+There are 2 ways for achieving this: +
+
+* Using update_tunnel_client_record API.
+* Using tunnel topology - from version v2.97
+
+We will start with the update_tunnel_client_record API examples, and then move to tunnel_topology, which is newer
+and more flexible.
+
+*update_tunnel_client_record API*: +
+
+As we mention earlier, in order to generate GTPU traffic we have to assign each client with GTPU context. +
+One of the ways for achieving this is by using update_tunnel_client_record API. +
+Ths first step of using this API is to enable the GTPU mode and start traffic with some profile. +
+After we have successfully completed the first step we need to update the GTPU context of each client. +
+Each client tunnel record consist of:
+
+* Source ip of the outer IP header
+* Destination ip of the outer IP header
+* Source port of outer UDP header - from version v2.93
+* TEID of GTPU header - field used to multiplex different connections in the same GTP tunnel.
+* IP version of the outer IP header +
+
+Every valid IP address can be used for the tunnel source and destination IP.
+
+Now we will see two identical examples of how to use the *update_tunnel_client_record* API, with IPv4 outer header and with IPv6 outer header. +
+In the first example we will use the TRex console and in the second one will use the ASTF automation API. +
+
+In these examples: 
+
+* We will show how to update the tunnel context of the clients in the range 16.0.0.0 - 16.0.0.255:
+* The teid will be incremented by 1 for each client in the range. The first one will receive teid 0 and second tied 1 and so on.
+* The source port and the IP address will be the same for all of the clients in the range.
+* The IPv6 outer header will be set by using src and dst addresses in IPv6 format. And by using the flag --ipv6 in TRex console or by changing the ip_version variable to 6 in ASTF python automation. +
+
+
+.TRex console
+
+
+*Updating the clients GTPU tunnel with IPv4 outer header:*
+[source,bash]
+-------------------
+trex> update_tunnel --c_start 16.0.0.0 --c_end 16.0.0.255 --teid 0 --src_ip 1.1.1.1 --dst_ip 11.0.0.1 --sport 5000 --type gtpu
+-------------------
+
+*For IPv6 outer header:* +
+
+* Change the source IP and the destination IP to IPv6 addresses
+* Add the flag --ipv6
+
+<<<
+
+*Capturing of the traffic after the update command with IPv4:* +
+
+Here we can see that indeed GTPU header was added. +
+(Wireshark shows us the inner IP addresses)
+
+image::images/gtpu.png[title="GTPU packets",align="center",width={p_width}, link="images/gtpu.png"]
+
+And here is an example of the outer packet from Wireshark. +
+
+image::images/gtpu_full.png[title="GTPU header",align="center",width={p_width}, link="images/gtpu_full.png"]
+
+We can see that the outer IP addresses and the outer source port are the one we set using the *update_tunnel_client_record* API +
+
+<<<
+
+* In these two images we can see that the teid is incrementing between the clients.
+
+image::images/gtpu_teid1.png[title="teid - 84",align="center",width={p_width}, link="images/gtpu_teid1.png"]
+
+
+image::images/gtpu_teid2.png[title="teid - 85",align="center",width={p_width}, link="images/gtpu_teid2.png"]
+
+<<<
+
+
+
+.ASTF python automation API
+
+*Updating the clients GTPU tunnel with IPv4 outer header:*
+[source,python]
+----
+ip_prefix = "16.0.0."
+sip = "1.1.1.1"                      <1>
+dip = "11.0.0.1"                     <2>
+sport = 5000
+teid = 0
+client_db = dict()
+ip_version = 4                       <3>
+#gtpu type is 1
+tunnel_type = 1
+num_of_client = 256
+
+while teid < num_of_client:
+    c_ip = ip_prefix + str(teid)
+    c_ip = ip_to_uint32(c_ip)
+    client_db[c_ip] = Tunnel(sip, dip, sport, teid, ip_version)
+    teid += 1
+
+astf_client.update_tunnel_client_record(client_db, tunnel_type)  
+----
+
+As you can see we are looping over the clients: 16.0.0.0 - 16.0.0.255
+and for each client we are building the same record we used in the console example.
+
+*For IPv6 outer header:* +
+
+<1> Change the source IP to IPv6 address
+<2> Change the destination IP to IPv6 address
+<3> Change the version to 6
+
+
+
+<<<
+
+Now we will see the second way for assigning GTPU context for each client. +
+
+*Tunnels Topology*: +
+
+Until version v2.97 in order to assign the tunnel context of each client, we had to
+start traffic with some profile, and then use the update_tunnel API to update the tunnel context of each client. +
+
+From version v2.97 we can use python profiles of tunnels topology to set the clients tunnel context before starting the traffic. +
+
+This topology consists of an array of tunnel context. +
+Each element in the array holds the tunnel context of groups of clients and consist of:
+
+* src_start    - The first client IP address in the group
+* src_end      - The last client IP address in the group
+* initial_teid - The teid of the first client in the group
+* teid_jump    - The difference between the teids of two consecutive clients ips in the group
+* sport        - The tunnel source port
+* version      - The tunnel IP header version
+* type         - The Tunnel type (for example 1 for gtpu) see: See: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/utils/parsing_opts.py#L403[tunnel_type]
+* src_ip       - The tunnel source IP
+* dst_ip       - The tunnel destination IP
+* activate     - Boolean whether to activate/deactivate the client by default.
+
+.Tunnel Topology profile example:
+[source,python]
+----
+from trex.astf.api import *
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        type = 1,
+        src_ip = '1.1.1.11',
+        dst_ip = '12.2.2.2',
+        activate = True
+    )
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.1.0',
+        src_end  = '16.0.1.255',
+        initial_teid = 256,
+        teid_jump = 6,
+        sport = 4000,
+        version = 6,
+        type = 1,
+        src_ip = '2001:db8:3333:4444:5555:6666:7777:8888',
+        dst_ip = '2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF',
+        activate = False
+    )
+    return topo
+----
+
+Now we will see two identical examples of how to use the Tunnel Topology to generate GTPU traffic with IPv4 outer header. +
+In the first example we will use the TRex console and in the second one will use the ASTF automation API. +
+In these examples we will use the tunnel topology profile *gtpu_topo.py*, and *http_simple.py* as the traffic profile. +
+
+*File*:: 
+
+link:{github_astf_path}/gtpu_topo.py[astf/gtpu_topo.py]
+
+[source,python]
+----
+from trex.astf.api import *
+from trex.astf.tunnels_topo import TunnelsTopo
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,                <1>
+        tunnel_type = 1,
+        src_ip = '1.1.1.11',        <2>
+        dst_ip = '12.2.2.2',        <3>
+        activate = True
+    )
+
+    return topo
+----
+<1> The outer IP header version, for IPv6 change to 6.
+<2> The src IP address of the outer header, for IPv6 change to IPv6 address.
+<3> The dst IP address of the outer header, for IPv6 change to IPv6 address.
+
+[NOTE] 
+=====================================================================
+The clients ips range is 16.0.0.0 - 16.0.0.255, to fits the clients range inside the traffic profile http_simple.py.
+=====================================================================
+
+<<<
+
+.TRex console
+
+Activating GTPU mode
+[source,bash]
+----
+trex>tunnel --type gtpu
+----
+loading the gtpu_topo profile
+[source,bash]
+----
+trex>tunnels_topo load -f astf/gtpu_topo.py
+----
+Using the show command we can see the tunnels topology that we loaded.
+[source,bash]
+----
+trex>tunnels_topo show
+Tunnel Topology
+
+Src_start| Src_end  |Initial-Teid|Teid-jump|Sport|Version|Type| Src_ip |Dest_ip |Activate
+---------+----------+------------+---------+-----+-------+----+--------+--------+--------
+16.0.0.0 |16.0.0.255|      0     |    1    |5000 |   4   |gtpu|1.1.1.11|12.2.2.2|  True
 
 ----
 
-<1> Define the tuple generator range for client side and server side
-<2> The template list with relative CPS (connection per second) 
+
+Starting traffic with http_simple.py profile
+[source,bash]
+----
+trex>start -f astf/http_simple.py
+----
+
+Now the clients will have the tunnel contexts that we set using the tunnel topology profile - gtpu_topo.py.
+
+.ASTF automation API
+
+*Starting GTPU traffic with tunnel topology:*
+[source,python]
+----
+astf_client.activate_tunnel(tunnel_type=1, activate=True, loopback=False)
+astf_client.tunnels_topo_load(astf_profile_path + "/gtpu_topo.py")
+astf_client.load_profile(astf_profile_path + "/http_simple.py")
+astf_client.start()
+----
+
+*Notice:*
+
+1. The GTPU mode have to be on in order to generate traffic with GTPU tunnel
+2. The clients ips inside the traffic profile have to exists in the tunnel topology profile you are using.
+3. There will be no traffic with clients that have no tunnel context.
+4. With more than one pair of ports you have to include ips with the right offsets - more details in "*Generating GTPU traffic on more than 2 ports*" section.
+5. You can use multiple tunnel_ctx with different fields inside the tunnel topology profile.
 
 
-.Start Trex Server in GTPU mode 
+<<<
+
+*Tutorial: Generating GTPU traffic on more than 2 ports* +
+
+*Goal*:: Generating GTPU traffic with IPv4 header on more than 2 ports, using ASTF automation API
+
+*File*::
+link:{github_astf_path}/http_simple.py[astf/http_simple.py]
+
+From v2.93 TRex supports GTPU mode on more than 2 ports. +
+But some modifications are needed, because TRex gives different offset to each dual port.
+
+see: link:https://github.com/cisco-system-traffic-generator/trex-core/blob/4d30bf3af8c133bd96663212a637a2a43bcf6098/scripts/automation/trex_control_plane/interactive/trex/astf/trex_astf_profile.py#L1089[ASTFIPGen], 
+link:https://github.com/cisco-system-traffic-generator/trex-core/blob/master/scripts/automation/trex_control_plane/interactive/trex/astf/trex_astf_profile.py#L1047[ASTFIPGenGlobal]. +
+
+As you can see in http_simple example, we are using ASTFIPGen object when we are creating profiles.
+The ASTFIPGen class gets the offset as a parameter in the constructor, and the default value is "1.0.0.0". + 
+Each dual port has it's own offset, and this offset is used to route the packets to their right port.
+
+So when we are using *update_tunnel_client_record* API, or *Tunnel Topology* we need to use the real clients IP that TRex server knows.
+
+*For example:* If we are using setup with 2 dual port with clients ip range: 16.0.0.0 - 16.0.0.255, and the offset is "1.0.0.0" +
+The clients in the first dual port will receive offset of 0, meaning ip prefix of "16.0.0." +
+And the clients in the second dual port will receive offset of '1.0.0.0', meaning ip prefix of "17.0.0."
+So when we are using these API we need to use clients ip with "17.0.0." and "16.0.0." prefixes. +
+
+*Capturing of the traffic on setups with 2 dual ports and client range of 16.0.0.0 - 16.0.0.255* +
+
+image::images/http_simple_ip_offset.png[title="IP offset with more than 1 dual port",align="center",width={p_width}, link="images/http_simple_ip_offset.png"]
+
+As you can see in this image there are clients with IP prefixes of "17.0.0." and "16.0.0." +
+The clients with the prefix "16.0.0." are with offset 0 and belong to the first dual port,
+and the clients with the prefix "17.0.0." are with offset "1.0.0.0" and belong to the second dual port.
+
+<<<
+
+*Example - Using the update_tunnel_client_record API with more than 2 ports*
+[source,python]
+----
+ip_prefix = "11.11.0."
+sip = "11.11.0.1"
+dip = "1.1.1.11"
+sport = 5000
+teid = 1
+client_db = dict()
+ip_version = 4
+#gtpu type is 1
+tunnel_type = 1
+num_of_client = 10
+ip_offset = 0
+# loop for each dual port (for each offset)
+loop = int(len(self.client.get_all_ports()) / 2)                            <1>
+
+for _ in range(loop):                                                       <2>
+    while teid <= num_of_client:
+        c_ip = ip_prefix + str(teid)
+        c_ip = ip_to_uint32(c_ip) + ip_offset                               <3>
+        client_db[c_ip] = Tunnel(sip, dip, sport, teid, ip_version)
+        teid += 1
+    ip_offset += ip_to_uint32("1.0.0.0")                                    <4>
+
+astf_client.update_tunnel_client_record(client_db, tunnel_type)  
+----
+<1> The number of dual ports
+<2> Iterating over the number of dual port
+<3> Adding to the client_ip the offset of the dual port
+<4> Updating the IP offset to the offset of the next dual port
+
+
+<<<
+
+*Example - Tunnel Topology profile for 2 dual ports*
+[source,python]
+----
+from trex.astf.api import *
+from trex.astf.tunnels_topo import TunnelsTopo
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',      <1>
+        src_end  = '16.0.0.255',     <2>
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        tunnel_type = 1,
+        src_ip = '1.1.1.11',
+        dst_ip = '12.2.2.2',
+        activate = True
+    )
+
+    topo.add_tunnel_ctx(
+        src_start = '17.0.0.0',      <3>
+        src_end  = '17.0.0.255',     <4>
+        initial_teid = 256,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        tunnel_type = 1,
+        src_ip = '2.1.1.11',         <5>
+        dst_ip = '13.2.2.2',         <6>
+        activate = True
+    )
+
+    return topo
+----
+<1> src_start for the first dual port - offset of '0.0.0.0'
+<2> src_end for the first dual port - offset of '0.0.0.0'
+<3> src_start for the second dual port - offset of '1.0.0.0'
+<4> src_end for the second dual port - offset of '1.0.0.0'
+<5> added offset of '1.0.0.0' to the outer source IP
+<6> added offset of '1.0.0.0' to the outer destination IP
+
+[NOTE] 
+=====================================================================
+In our both examples using the update_tunnel_client_record API, and with tunnel topology. The records will hold clients IP that don't necessarily exist in TRex server, but the server will ignore these records.
+=====================================================================
+
+<<<
+
+*Tutorial: Generating GTPU traffic with latency* +
+
+*Goal*:: Generating GTPU traffic with latency using Tunnel Topology profile.
+
+*File*::
+link:{github_astf_path}/gtpu_topo_latency.py[astf/gtpu_topo_latency.py]
+
+[source,python]
+----
+from trex.astf.api import *
+from trex.astf.tunnels_topo import TunnelsTopo
+
+def get_topo():
+    topo = TunnelsTopo()
+
+    topo.add_tunnel_ctx(
+        src_start = '16.0.0.0',
+        src_end  = '16.0.0.255',
+        initial_teid = 0,
+        teid_jump = 1,
+        sport = 5000,
+        version = 4,
+        tunnel_type = 1,
+        src_ip = '1.1.1.11',
+        dst_ip = '12.2.2.2',
+        activate = True
+    )
+
+    topo.add_tunnel_latency(
+        client_port_id = 0,     <1>
+        client_ip = "16.0.0.0", <2>
+        server_ip = "48.0.0.0"  <3>
+    )
+    return topo
+----
+<1> The client's port_id that holds the client_ip: "16.0.0.0"
+<2> The source IP of the ICMP packets
+<3> The destincation IP of the ICMP packets.
+
+From v2.97 TRex supports latency with GTPU mode. +
+In order to generate GTPU traffic with latency we have to use Tunnel Topology with latency information per client port. +
+We will also have to start traffic with some profile with latency_pps > 0. +
+
+The latency information per client port consist of: +
+
+* client_port_id: The client's port_id that holds the client_ip.
+* client_ip: The source ip of the ICMP packets, this client will generate the ICMP packets.
+* server_ip: The destincation ip of the ICMP packets, this server will answer to the ICMP packets.
+
+[NOTE] 
+=====================================================================
+With setups that have more than 1 dual port, you have to use client and server IP, with their right offset.
+For more details on how the offset is being calculated read "*Generating GTPU traffic on more than 2 ports*" section. +
+=====================================================================
+
+<<<
+
+Now we will see an example of how to use the tunnel topology to generate GTPU traffic with latency. +
+In this example we will use the tunnel topology profile *gtpu_topo_latency.py*, and *http_simple.py* as the traffic profile. +
+
+.TRex console
+
+Activating GTPU mode
+[source,bash]
+----
+trex>tunnel --type gtpu
+----
+loading the gtpu_topo_latency profile
+[source,bash]
+----
+trex>tunnels_topo load -f astf/gtpu_topo_latency.py
+----
+Using the show command we can see the tunnels topology that we loaded.
+[source,bash]
+----
+trex>tunnels_topo show
+Tunnel Topology
+
+Src_start| Src_end  |Initial-Teid|Teid-jump|Sport|Version|Type| Src_ip |Dest_ip |Activate
+---------+----------+------------+---------+-----+-------+----+--------+--------+--------
+16.0.0.0 |16.0.0.255|      0     |    1    |5000 |   4   |gtpu|1.1.1.11|12.2.2.2|  True
+
+Tunnel Latency
+
+Client_port_id | Client_ip | Server_ip
+---------------+-----------+----------
+      0        | 16.0.0.0  | 48.0.0.0
+
+----
+Starting traffic with http_simple.py profile with latency
+[source,bash]
+----
+trex>start -f astf/http_simple.py -l 1000
+----
+
+<<<
+
+*Tutorial: Bad distribution with GTPU traffic* +
+
+In order to get a good distribution, several tunnels must be used. Otherwise the outer 5 tuple will be the same for all the clients, hence all the incoming packets will be distributed to the same core. Then, all the packets are redirected from this one core to the relevant cores (using software RSS). This makes the one core a bottleneck, with very high cpu utilization in comparison to other cores.
+For more details about software RSS see: link:https://trex-tgn.cisco.com/trex/doc/trex_astf.html#_software_mode_with_multicore[software RSS.] +
+
+In version v2.92 and below every client had a tunnel of his own - because the tunnel src port was taken from the inner l4, which lead to good distribution between the cores. +
+The reasons we added source port to the *update_tunnel_client_record* API were: +
+
+* Flexibility - the user can control the fields of the tunnel. 
+* GTPU mode runs on software RSS - so HW RSS is not supported in GTPU mode, and in software redistribution the hack of using the the client source port is not needed.
+
+
+[NOTE]
+=====================================================================
+From version above v2.97 we have added the option to use the same source port as the inner L4, in order to get
+a good distribution between the cores more easily, by initializing the tunnel source port to 0 .
+=====================================================================
+
+
+Let's now see an example of how we can see if we have bad distribution, with TRex console, when we are generating GTPU traffic.
+
+*Goal*:: Recognizing a bad distribution between the cores in GTPU mode using TRex console.
+
+.TRex console
+
+
+* Connect with TRex console.
 [source,bash]
 -------------------
-sudo ./t-rex-64 -i --astf --gtpu 0
+>./trex-console
 -------------------
 
-.Start trex client with following logic
-* Connect to Trex server
-* Load profile
-* Update GTP header information for a client using API <update_tunnel_client_record> 
-** Source ip of the tunnel
-** Destination ip of the tunnel
-** IP version of the tunnel
-** TEID (Tunnel endpoint identifier)
-* Example is at: scripts/automation/trex_control_plane/interactive/trex/examples/astf/tunnel_test.py
+* Open TUI window
+[source,bash]
+-------------------
+trex>tui
+-------------------
+
+* In TUI window press Esc button
+* Press *u* key
+
+*Example of high cpu utilization from TUI window in TRex console:* +
+
+image::images/cpu_util.png[title="Bad distribution",align="center",width={p_width}, link="images/cpu_util.png"]
+
+As you can see in the image, the cpu utilization is only 7.57% but the cpu utilization of thread 3 is 71%, way higher then the cpu utilization of the other threads.
 
 === Performance 
 
+==== ASTF vs Linux NGINX
 see link:trex_astf_vs_nginx.html[ASTF Performance]
+
+==== GTPU Benchmark
+===== Setup details
+
+[cols="1,5"]
+|=================
+| Server:     | UCSC-C240-M4SX
+| CPU:        | 14 x Intel(R) Xeon(R) CPU E5-2667 v3 @ 3.20GHz
+| Ports count | 4 x 40Gbps @ Ethernet Controller XL710 for 40GbE QSFP+
+| RAM:        | 53397 MB
+| NICs:       | 2x i40e Silicom 40
+| OS:         | CentOS 7.4
+| TRex:       | v2.93 using 7 cores per dual interface.
+|=================
+
+===== Test details
+
+[cols="1,5"]
+|=================
+| duration           | 300 s
+| num of tunnels     | 10000
+| sport range        | 5000 - 15,000
+| num_of_clients     | 50000
+| source_ip range    | 172.16.1.1 - 172.16.40.17
+| dst_ip range       | 172.16.1.2 - 172.16.40.18
+| profile            | consist of 115 templates of UDP and TCP traffic.
+|=================
+ 
+===== The Test:
+
+* We Run TRex server: sudo ./t-rex-64 -i --astf -c 7 --software --tso-disable
+
+* In another shell we run the profile with and without GTPU with duration=300 s and sampled the stats.
+
+<<<
+
+===== Results
+
+*Gbps/cpu-util(%)* +
+
+This graph compares the gbps/cpu of the profile with GTPU and without
+
+image::images/gbps_cpu_1_profile.png[title="Gbps/CPU-Util",align="center",width={p_width}, link="images/gbps_cpu_1_profile.png"]
+
+We can see that the results of the profile without GTPU is better then the results with GTPU, even though the GTPU packets are bigger. +
+The reason for that is because the CPU utilization in the GTPU mode is also higher, we need to process more, like calculating the checksum for each packet and the overhead of generating the outer header.
+
+
+<<<
+
+The full results of the Gbps/CPU-util(%) graph: +
+
+
+.gbps/cpu with and without GTPU
+[options="header" , cols="^1,^2,^2"]
+|=================
+| Multiplier | With GTPU | Without GTPU
+|     3      |   0.620   |    0.774
+|     4      |   0.606   |    0.797
+|     5      |   0.594   |    0.741
+|     6      |   0.590   |    0.734
+|     7      |   0.572   |    0.719
+|     8      |   0.564   |    0.701
+|     9      |   0.564   |    0.686
+|     10     |   0.549   |    0.675
+|     11     |   0.546   |    0.659
+|     12     |   0.542   |    0.651
+|     13     |   0.535   |    0.641
+|     14     |   0.530   |    0.635
+|     15     |   0.528   |    0.624
+|=================
+
+<<<
+
+
+*CPU-Util (%)* +
+
+Here is a graph that Compares the CPU-Util (%) with GTPU and without GTPU.
+
+image::images/cpu-util_1_profile.png[title="CPU-Util",align="center",width={p_width}, link="images/cpu-util_1_profile.png"]
+
+As you can see the CPU-Util is higher when using the GTPU mode because of the extra work that TRex does when generating GTPU traffic, software checksum, encapsulation, decapsulation and etc.. +
+
+
+<<<
+
+The full results of the CPU-Util (%) graph +
+
+.CPU-Util (%) with and without GTPU
+[options="header" , cols="^1,^2,^2"]
+|=================
+| Multiplier | With GTPU | Without GTPU
+|     3      |   19.86   |    14.77
+|     4      |   27.40   |    20.54
+|     5      |   35.13   |    26.45
+|     6      |   42.92   |    32.41
+|     7      |   51.44   |    38.64
+|     8      |   58.22   |    44.90
+|     9      |   65.61   |    51.63
+|     10     |   70.47   |    58.50
+|     11     |   76.00   |    65.67
+|     12     |   80.82   |    71.35
+|     13     |   84.48   |    76.76
+|     14     |   88.10   |    81.78
+|     15     |   90.81   |    85.29
+|=================
+
+<<<
+
+*Gbps* +
+
+This graph compares the gbps with and without GTPU.
+
+image::images/gbps_1_profile.png[title="Gbps",align="center",width={p_width}, link="images/gbps_1_profile.png"]
+
+We can see that in small multiplier, with GTPU mode we are generating more traffic, because GTPU packets are bigger.
+But after certain point as the multiplier increases - the number of active flow grows and the overhead in the GTPU mode reduces the amount of traffic in compare to the regular mode.
+
+
+<<<
+
+The full results of the Gbps graph.
+
+.Gbps with and without GTPU
+[options="header" , cols="^1,^2,^2"]
+|=================
+| Multiplier | With GTPU | Without GTPU
+|     3      |    12.31  |    11.44
+|     4      |    16.60  |    16.37
+|     5      |    20.87  |    19.60
+|     6      |    25.31  |    23.79
+|     7      |    29.42  |    27.79
+|     8      |    32.81  |    31.46
+|     9      |    37.03  |    35.44
+|     10     |    38.67  |    39.46
+|     11     |    41.49  |    43.28
+|     12     |    43.81  |    46.44
+|     13     |    45.20  |    49.23
+|     14     |    46.71  |    51.96
+|     15     |    47.98  |    53.22
+|=================
 
 === Port service mode
 include::trex_port_service_mode.asciidoc[]
@@ -2799,6 +3752,10 @@ In short, the redirection to the correct core is done using the source port of L
 
 Naturally, all this logic has a performance impact. Fortunately, based on our tests, the impact is minor. This offers the possibility to scale in software mode as well. When reaching very high scale, a redirect drop counter will show in the flow table counters. This implies that the cores can't keep up with redirecting at the actual rate.
 
+[NOTE]
+=====================================================================
+From version v2.93, when software RSS is on, and one of the redirects queues is full. TRex tries to send packets in case the queue-drop flag was not used, and drops the packets in case the queue-drop flag was used.
+=====================================================================
 
 === Dynamic multiple profiles support
 
@@ -2922,13 +3879,16 @@ link:cp_astf_docs/index.html[python index]
 |   tcp.txbufsize   | 1K-1G  |32K |+|+| socket tx buffer size in bytes.
 |   tcp.rexmtthresh | 1-10   |3 |-|+| number of duplicate ack to trigger retransimtion.
 |   tcp.do_rfc1323  | bool   |1|-|+| enable timestamp rfc 1323. 
+|   tcp.do_sack     | bool   |1|-|+| enable SACK.
+|   tcp.cc_algo     | 0,1    |0|-|+| select congestion control algorithm (0 - newreno, 1 - cubic).
+|   tcp.reass_maxqlen | 0,1000 |100|-|+| maximum number of TCP segments per reassembly queue.
 |   tcp.keepinit    |2-65533|5|-|+| value in second for TCP keepalive.
 |   tcp.keepidle    |2-65533|5|-|+| value in second for TCP keepidle
 |   tcp.keepintvl   |2-65533|7|-|+| value in second for TCP keepalive interval
 |   tcp.blackhole   |0,1,2|0|-|+| 0 - return RST packet in case of error. 1- return of RST only in SYN. 2- don't return any RST packet, make a blackhole.
 |   tcp.delay_ack_msec | 20-50000|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
-|   tcp.no_delay    | 0-3   | 0|+|+|  In case of 1 disable Nagle and force PUSH. from v2.79 it was changed and there are two bits 1- disable nagle, 0x2 force PUSH flag (*NOT* standard it just to simulate Spirent) and will respond with ACK immediately (standard). 
-|   tcp.no_delay_counter    | 0-65533   | 0|+|+|  number of recv bytes to wait until ack is sent. notice ack can be triggered by tcp timer, in order to ensure fixed number of sent packets until ack you should increase the *tcp.initwnd* tunable. otherewise no_delay_counter will race with the tcp timer.
+|   tcp.no_delay    | 0-3   | 0|+|+| 2 bits: LSB - Nagle Algorithm (0 - Enabled, 1 - Disabled). MSB - Force Push (FP) (0 - Disabled, 1 - Enabled).
+|   tcp.no_delay_counter    | 0-65533   | 0|+|+|  number of recv bytes to wait until ack is sent. notice ack can be triggered by tcp timer, in order to ensure fixed number of sent packets until ack you should increase the *tcp.initwnd* tunable. otherwise no_delay_counter will race with the tcp timer.
 |   scheduler.rampup_sec    | 3-60000  | disabled |-|+|  scheduler rampup in seconds. After this time the throughput would be the maximum. the throughput increases linearly every 1 sec.
 |=================
 
@@ -3131,22 +4091,10 @@ ASTF mode can help solving the following requirements:
 In theory, we could have supported that, but it required much more effort because the NIC memory configuration is fundamentally different. For example, in ASTF mode, we need to configure all the Rx queues to receive the packets and to configure the RSS to split the packets to different interface queues. While in Stateful we filter most of the packets and count them in hardware.
 
 ==== Is your core TCP implementation based on prior work?    
-Yes, BSD4.4-Lite version of TCP with a bug fixes from freeBSD and our changes for scale of high concurrent flow and performance.
+Yes, first version was based on BSD4.4-Lite TCP logic with a bug fixes from latest and our changes for scale of high concurrent flow and performance.
+From v2.96 version, latest freebsd tcp loginc was ported by @jsmoon 
 The reasons why not to develop the tcp *core* logic from scratch can be found here link:https://news.ycombinator.com/item?id=12021195[Why do we use the Linux kernel's TCP stack?]
 
-==== What TCP RFCs are supported?
-
-* RFC 793
-* RFC 1122
-* RFC 1323
-* RFC 6928
-
-Not implemented:  
-
-* RFC 2018
-
-==== Could you have a more recent TCP implementation?     
-Yes, BSD4.4-Lite is from 1995 and does not have RFC 2018. We started as a POC and we plan to merge the latest freeBSD TCP core with our work.
 
 ==== Can I reduce the active flows with ASTF mode, there are too many of them?
 The short answer is no. The active (concurrent) flows derived from RTT and responses of the tested network/DUT. You can *increase* the number of active flows by adding delay command.
@@ -3182,7 +4130,31 @@ Yes. LRO improves the performance. GRO is not there yet.
 Curently the TCP/App layer counters are per client/server side. 
 We plan to add it in the interactive mode with RPC API. 
 
+==== GTPU FAQ
+===== I get drop even in low cpu utilization.
+In versions v2.92 and below TRex drop packets without GTPU header.
+So if the traffic includes packets without GTPU header TRex will drop them. +
+Another reason can be because of bad distribution - try add more tunnels,
+so the outer 5 tuple of the clients packets will be more diverse.
 
+===== When I am using more than 2 ports, there is no traffic on one or more ports.
+When using more than 2 ports. You need to make sure when you are using update_tunnel_client_record API, that you are updating the clients with all of the possible offset that TRex gives to the clients.
+
+===== I can't generate regular traffic after using the GTPU mode.
+You need to disable GTPU mode after you are done using it, because TRex doesn't generate Non GTPU packets in this mode.
+
+===== I can't activate/deactivate GTPU mode.
+In order to active/deactivate GTPU mode the server's state must be idle.
+
+===== I get tcp errors even in low cpu utilization.
+With GTPU mode the packets' size increases by 36/56 bytes, depending on the outer IP header version. +
+So you need to take the new packet's size into consideration and change the MSS in the profile you are using or change the MTU of your DUT.
+
+===== When I am using GTPU mode there is no traffic after I start my profile.
+You need to update the GTPU info for each client using the *update_tunnel_client_record* API.
+
+===== Trex doesn't generate rst packets in case of error.
+Trex doesn't generate RST packets in case of error with GTPU mode, since there is no tunnel context it can use for the packets.
 
 === Appendix
 

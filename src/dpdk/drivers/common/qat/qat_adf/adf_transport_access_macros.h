@@ -51,9 +51,11 @@
 #define ADF_MIN_RING_SIZE ADF_RING_SIZE_128
 #define ADF_MAX_RING_SIZE ADF_RING_SIZE_4M
 #define ADF_DEFAULT_RING_SIZE ADF_RING_SIZE_16K
+/* ARB CSR offset */
+#define ADF_ARB_RINGSRVARBEN_OFFSET 0x19C
 
 /* Maximum number of qps on a device for any service type */
-#define ADF_MAX_QPS_ON_ANY_SERVICE	2
+#define ADF_MAX_QPS_ON_ANY_SERVICE	4
 #define ADF_RING_DIR_TX			0
 #define ADF_RING_DIR_RX			1
 
@@ -70,7 +72,7 @@
 #define ADF_SIZE_TO_RING_SIZE_IN_BYTES(SIZE) ((1 << (SIZE - 1)) << 7)
 #define ADF_RING_SIZE_IN_BYTES_TO_SIZE(SIZE) ((1 << (SIZE - 1)) >> 7)
 
-/* Minimum ring bufer size for memory allocation */
+/* Minimum ring buffer size for memory allocation */
 #define ADF_RING_SIZE_BYTES_MIN(SIZE) ((SIZE < ADF_RING_SIZE_4K) ? \
 				ADF_RING_SIZE_4K : SIZE)
 #define ADF_RING_SIZE_MODULO(SIZE) (SIZE + 0x6)

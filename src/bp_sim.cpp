@@ -1962,20 +1962,6 @@ bool CCapFileFlowInfo::Create(){
 }
 
 
-void CCapFileFlowInfo::dump_pkt_sizes(void){
-    int i;
-    for (i=0; i<(int)Size(); i++) {
-        flow_pkt_info_t lp=GetPacket((uint32_t)i);
-        CGenNode node;
-        node.m_dest_ip  = 0x10000110;
-        node.m_src_ip   = 0x20000110;
-        node.m_src_port = 12;
-        rte_mbuf_t * buf=lp->generate_new_mbuf(&node);
-        //rte_pktmbuf_dump(buf, buf->pkt_len);
-        rte_pktmbuf_free(buf);
-    }
-}
-
 void CCapFileFlowInfo::RemoveAll(){
     int i;
     clear();
@@ -3140,6 +3126,13 @@ CIpInfoBase* CFlowGenListPerThread::client_lookup(uint32_t ip){
     }
 }
 
+void CFlowGenListPerThread::set_tunnel_handler(void* tunnel_handler, void* tunnel_ctx_del_cb) {
+    for (auto it : m_ip_info) {
+        it.second->set_tunnel_handler(tunnel_handler);
+        it.second->set_tunnel_ctx_del_cb(tunnel_ctx_del_cb);
+    }
+}
+
 
 void CFlowGenListPerThread::allocate_ip_info(CIpInfoBase* ip_info) {
     uint32_t ip = ip_info->get_ip();
@@ -3598,10 +3591,10 @@ inline int CNodeGenerator::flush_file_realtime(dsec_t max_time,
     m_scheduler_offset = offset;
     dsec_t burst_size = BURST_OFFSET_DTIME;
     if (CGlobalInfo::m_burst_offset_dtime > BURST_OFFSET_DTIME) {
+        burst_size = CGlobalInfo::m_burst_offset_dtime;
         if (CGlobalInfo::m_options.preview.getVMode() > 3) {
             std::cout << "burst_size = " << burst_size << std::endl;
         }
-        burst_size = CGlobalInfo::m_burst_offset_dtime;
     }
 
     thread->m_cpu_dp_u.start_work1();
@@ -4367,6 +4360,7 @@ uint16_t CFlowGenListPerThread::handle_stl_pkts(bool is_idle) {
             if (cnt==0) {
                 break;
             }
+            m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
             int i;
             for (i=0; i<(int)cnt;i++) {
                 rte_mbuf_t * m=rx_pkts[i];
@@ -4421,6 +4415,7 @@ bool CFlowGenListPerThread::check_msgs_from_rx() {
     if ( likely ( m_ring_from_rx->isEmpty() ) ) {
         return false;
     }
+    m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
 
     #ifdef  NAT_TRACE_
     printf(" %.03f got message from RX \n",now_sec());
@@ -4462,7 +4457,10 @@ bool CFlowGenListPerThread::check_msgs() {
     bool had_msg = false;
 
     /* inlined for performance */
-    if (m_dp_core->periodic_check_for_cp_messages()) {
+    if (m_dp_core->are_any_pending_cp_messages()) {
+        m_cpu_dp_u.start_work1();   // for TrexDpCore::idle_state_loop()
+
+        m_dp_core->periodic_check_for_cp_messages();
         had_msg = true;
     }
 
@@ -4758,16 +4756,6 @@ void CFlowGenList::Dump(FILE *fd){
 }
 
 
-void CFlowGenList::DumpPktSize(){
-
-    int i;
-    for (i=0; i<(int)m_cap_gen.size(); i++) {
-        CFlowGeneratorRec * lp=m_cap_gen[i];
-        lp->m_flow_info.dump_pkt_sizes();
-    }
-}
-
-
 void CFlowGenList::DumpCsv(FILE *fd){
     CFlowStats::DumpHeader(fd);
 
@@ -4953,6 +4941,41 @@ void CErfIFStl::fill_fsp_head(struct flow_stat_payload_header *fsp_head, uint16_
     fsp_head->time_stamp = 0x8899aabbccddeeff;
 }
 
+void CErfIFStl::fill_tpg_header(struct tpg_payload_header* header, uint32_t tpgid) {
+    header->magic = TPG_PAYLOAD_MAGIC;
+    header->tpgid = tpgid;
+    header->seq = 0xDEADBEEF;
+    header->reserved = 0;
+}
+
+void CErfIFStl::handle_latency_node(rte_mbuf_t* m, CGenNodeStateless* node_sl, bool is_const) {
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    uint16_t hw_id = node_sl->get_stat_hw_id();
+    rte_mbuf_t* mi;
+    if ( !(node_sl->is_latency_ieee_1588_enabled())) {
+        struct flow_stat_payload_header *fsp_head;
+        mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
+        fill_fsp_head(fsp_head, hw_id);
+    } else {
+        struct flow_stat_payload_header_ieee_1588 *fsp_head_ieee_1588;
+        mi = node_sl->alloc_flow_stat_mbuf_ieee_1588(m, fsp_head_ieee_1588);
+        fill_fsp_head(&(fsp_head_ieee_1588->fsp_hdr), hw_id);
+    }
+    fill_raw_packet(mi, (CGenNode *)node_sl, dir);
+    rte_pktmbuf_free(mi);
+}
+
+void CErfIFStl::handle_tpg_node(rte_mbuf_t* m, CGenNodeStateless* node_sl, bool is_const) {
+    pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
+    rte_mbuf_t* mi;
+    uint32_t tpgid = node_sl->get_stat_pgid();
+    struct tpg_payload_header* tpg_header;
+    mi = node_sl->alloc_tpg_mbuf(m, tpg_header, is_const);
+    fill_tpg_header(tpg_header, tpgid);
+    fill_raw_packet(mi, (CGenNode *)node_sl, dir);
+    rte_pktmbuf_free(mi);
+}
+
 int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
     pkt_dir_t dir=(pkt_dir_t)node_sl->get_mbuf_cache_dir();
 
@@ -4960,38 +4983,29 @@ int CErfIFStl::send_sl_node(CGenNodeStateless *node_sl) {
     if ( likely(node_sl->is_cache_mbuf_array()) ) {
         m=node_sl->cache_mbuf_array_get_cur();
         fill_raw_packet(m,(CGenNode *)node_sl,dir);
-    }else{
-        m=node_sl->get_cache_mbuf();
+    } else {
+        m = node_sl->get_cache_mbuf();
         bool is_const = false;
         if (m) {
             is_const = true;
             rte_pktmbuf_refcnt_update(m,1);
-        }else{
-            m=node_sl->alloc_node_with_vm();
+        } else {
+            m = node_sl->alloc_node_with_vm();
             assert(m);
         }
 
-        if (node_sl->is_stat_needed() && (node_sl->get_stat_hw_id() >= MAX_FLOW_STATS) ) {
-            /* latency packet. flow stat without latency handled like normal packet in simulation */
-            uint16_t hw_id = node_sl->get_stat_hw_id();
-            rte_mbuf_t *mi;
-            if ( !(node_sl->is_latency_ieee_1588_enabled())) {
-                struct flow_stat_payload_header *fsp_head;
-                mi = node_sl->alloc_flow_stat_mbuf(m, fsp_head, is_const);
-                fill_fsp_head(fsp_head, hw_id);
-            } else {
-                struct flow_stat_payload_header_ieee_1588 *fsp_head_ieee_1588;
-                mi = node_sl->alloc_flow_stat_mbuf_ieee_1588(m, fsp_head_ieee_1588);
-                fill_fsp_head(&(fsp_head_ieee_1588->fsp_hdr), hw_id);
-            }
-            fill_raw_packet(mi, (CGenNode *)node_sl, dir);
-            rte_pktmbuf_free(mi);
+        if (node_sl->is_stat_needed() && (node_sl->get_stat_hw_id() >= MAX_FLOW_STATS)) {
+            /* latency packet. flow stat without latency is handled like normal packet in simulation */
+            handle_latency_node(m, node_sl, is_const);
+        } else if (node_sl->is_stat_needed() && node_sl->is_tpg_stream()) {
+            // Handle TPG Packet
+            handle_tpg_node(m, node_sl, is_const);
         } else {
             fill_raw_packet(m,(CGenNode *)node_sl,dir);
             rte_pktmbuf_free(m);
         }
     }
-        /* check that we have mbuf  */
+    /* check that we have mbuf  */
     int rc = write_pkt(m_raw);
     BP_ASSERT(rc == 0);
 

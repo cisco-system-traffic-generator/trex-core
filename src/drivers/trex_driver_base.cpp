@@ -54,31 +54,29 @@ port_cfg_t::port_cfg_t() {
     m_tx_conf.tx_thresh.hthresh = TX_HTHRESH;
     m_tx_conf.tx_thresh.wthresh = TX_WTHRESH;
 
-    m_port_conf.rxmode.max_rx_pkt_len = 9*1024+22;
 
     m_port_conf.rxmode.offloads =
-        DEV_RX_OFFLOAD_JUMBO_FRAME |
-        DEV_RX_OFFLOAD_SCATTER;
+        RTE_ETH_RX_OFFLOAD_SCATTER;
 
     tx_offloads.common_best_effort =
-        DEV_TX_OFFLOAD_IPV4_CKSUM |
-        DEV_TX_OFFLOAD_UDP_CKSUM |
-        DEV_TX_OFFLOAD_TCP_CKSUM;
+        RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
+        RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
+        RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
 
     tx_offloads.common_required =
-        DEV_TX_OFFLOAD_MULTI_SEGS;
+        RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
     tx_offloads.astf_best_effort =
-        DEV_TX_OFFLOAD_TCP_TSO |
-        DEV_TX_OFFLOAD_UDP_TSO;
+        RTE_ETH_TX_OFFLOAD_TCP_TSO |
+        RTE_ETH_TX_OFFLOAD_UDP_TSO;
 
 }
 
 void port_cfg_t::update_var(void) {
     get_ex_drv()->update_configuration(this);
-    if ( (m_port_conf.rxmode.offloads & DEV_RX_OFFLOAD_TCP_LRO) && 
+    if ( (m_port_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_TCP_LRO) && 
         CGlobalInfo::m_options.preview.getLroOffloadDisable() ) {
-        m_port_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_TCP_LRO;
+        m_port_conf.rxmode.offloads &= ~RTE_ETH_RX_OFFLOAD_TCP_LRO;
         printf("Warning LRO is supported and asked to be disabled by user \n");
     }
 }
@@ -151,7 +149,8 @@ CTRexExtendedDriverDb::CTRexExtendedDriverDb() {
     register_driver(std::string("net_vmxnet3"), CTRexExtendedDriverVmxnet3::create);
     register_driver(std::string("net_virtio"), CTRexExtendedDriverVirtio::create);
     register_driver(std::string("net_ena"),CTRexExtendedDriverVirtio::create);
-    register_driver(std::string("net_i40e_vf"), CTRexExtendedDriverI40evf::create);
+    register_driver(std::string("net_iavf"), CTRexExtendedDriverIavf::create);
+    register_driver(std::string("net_i40e_vf"), CTRexExtendedDriverIavf::create);
     register_driver(std::string("net_ixgbe_vf"), CTRexExtendedDriverIxgbevf::create);
     register_driver(std::string("net_netvsc"), CTRexExtendedDriverNetvsc::create);
     register_driver(std::string("net_bonding"), CTRexExtendedDriverBonding::create);

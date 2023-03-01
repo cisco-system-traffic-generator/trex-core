@@ -71,20 +71,20 @@ public:
 
 };
 
-class CTRexExtendedDriverI40evf : public CTRexExtendedDriverVirtBase {
+class CTRexExtendedDriverIavf : public CTRexExtendedDriverVirtBase {
 public:
-    CTRexExtendedDriverI40evf();
+    CTRexExtendedDriverIavf();
     virtual bool get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
         return get_extended_stats_fixed(_if, stats, 4, 4);
     }
     virtual void update_configuration(port_cfg_t * cfg);
     static CTRexExtendedDriverBase * create() {
-        return ( new CTRexExtendedDriverI40evf() );
+        return ( new CTRexExtendedDriverIavf() );
     }
     virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
 };
 
-class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverI40evf {
+class CTRexExtendedDriverIxgbevf : public CTRexExtendedDriverIavf {
 
 public:
     CTRexExtendedDriverIxgbevf();
@@ -187,6 +187,13 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
     virtual int wait_for_stable_link();
     virtual void wait_after_link_up();
+    virtual bool extra_tx_queues_requires(tvpid_t tvpid);
+    virtual int verify_fw_ver(tvpid_t tvpid);
+
+private:
+    CTRexExtendedDriverBase *m_slave_drv; // slave device driver
+
+    void set_slave_driver(tvpid_t tvpid);
 };
 
 

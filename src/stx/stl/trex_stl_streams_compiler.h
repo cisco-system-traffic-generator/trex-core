@@ -201,15 +201,15 @@ private:
                                  const std::vector<TrexStreamsCompiledObj *>  &indirect_objs,
                                  std::vector<TrexStreamsCompiledObj *>        &direct_objs);
 
-    void compile_non_latency_streams(uint8_t                                port_id,
-                                     const std::vector<TrexStream *>        &streams,
-                                     std::vector<TrexStreamsCompiledObj *>  &objs,
-                                     uint8_t                                dp_core_count,
-                                     double                                 factor);
+    void compile_non_sequenced_streams(uint8_t                                port_id,
+                                       const std::vector<TrexStream *>        &streams,
+                                       std::vector<TrexStreamsCompiledObj *>  &objs,
+                                       uint8_t                                dp_core_count,
+                                       double                                 factor);
 
-    void compile_latency_streams(uint8_t                                port_id,
-                                 const std::vector<TrexStream *>        &streams,
-                                 TrexStreamsCompiledObj                 *&latency_obj);
+    void compile_sequenced_streams(uint8_t                                port_id,
+                                   const std::vector<TrexStream *>        &streams,
+                                   TrexStreamsCompiledObj                 *&sequenced_obj);
 
     void pre_compile_check(const std::vector<TrexStream *> &streams,
                            GraphNodeMap & nodes);

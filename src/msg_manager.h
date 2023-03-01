@@ -75,21 +75,15 @@ typedef CTRingSp<CGenNode>  CNodeRing;
    DP == traffic pkt generator */
 class CMessagingManager {
 public:
-    CMessagingManager(){
-        m_cp_to_dp=0;
-        m_dp_to_cp=0;
-        m_num_dp_threads=0;
-    }
-    bool Create(uint8_t num_dp_threads,std::string name);
+    CMessagingManager() : m_cp_to_dp(nullptr), m_dp_to_cp(nullptr), m_num_dp_threads(0) {}
+    bool Create(uint8_t num_dp_threads, std::string name, uint16_t ring_size = 1024);
     void Delete();
-    CNodeRing * getRingCpToDp(uint8_t thread_id);
-    CNodeRing * getRingDpToCp(uint8_t thread_id);
-    uint8_t get_num_threads(){
-        return (m_num_dp_threads);
-    }
+    CNodeRing* getRingCpToDp(uint8_t thread_id);
+    CNodeRing* getRingDpToCp(uint8_t thread_id);
+    inline uint8_t get_num_threads() { return (m_num_dp_threads);}
 private:
-    CNodeRing * m_cp_to_dp;
-    CNodeRing * m_dp_to_cp;
+    CNodeRing*  m_cp_to_dp;
+    CNodeRing*  m_dp_to_cp;
     uint8_t     m_num_dp_threads;
 };
 
@@ -103,11 +97,7 @@ typedef CTRing<rte_mbuf_t> CMbufRing;
 class CDpToDpMessagingManager {
 
 public:
-    CDpToDpMessagingManager() {
-        // Initiate values to zeroes.
-        m_dp_to_dp = nullptr;
-        m_num_dp_threads = 0;
-    }
+    CDpToDpMessagingManager() : m_dp_to_dp(nullptr), m_num_dp_threads(0) {}
 
     bool Create(uint8_t num_dp_threads, std::string name);
 

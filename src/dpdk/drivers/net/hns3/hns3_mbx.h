@@ -1,11 +1,9 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2018-2019 Hisilicon Limited.
+ * Copyright(c) 2018-2021 HiSilicon Limited.
  */
 
 #ifndef _HNS3_MBX_H_
 #define _HNS3_MBX_H_
-
-#define HNS3_MBX_VF_MSG_DATA_NUM	16
 
 enum HNS3_MBX_OPCODE {
 	HNS3_MBX_RESET = 0x01,          /* (VF -> PF) assert reset */
@@ -20,11 +18,11 @@ enum HNS3_MBX_OPCODE {
 	HNS3_MBX_API_NEGOTIATE,         /* (VF -> PF) negotiate API version */
 	HNS3_MBX_GET_QINFO,             /* (VF -> PF) get queue config */
 	HNS3_MBX_GET_QDEPTH,            /* (VF -> PF) get queue depth */
-	HNS3_MBX_GET_TCINFO,            /* (VF -> PF) get TC config */
+	HNS3_MBX_GET_BASIC_INFO,        /* (VF -> PF) get basic info */
 	HNS3_MBX_GET_RETA,              /* (VF -> PF) get RETA */
 	HNS3_MBX_GET_RSS_KEY,           /* (VF -> PF) get RSS key */
 	HNS3_MBX_GET_MAC_ADDR,          /* (VF -> PF) get MAC addr */
-	HNS3_MBX_PF_VF_RESP,            /* (PF -> VF) generate respone to VF */
+	HNS3_MBX_PF_VF_RESP,            /* (PF -> VF) generate response to VF */
 	HNS3_MBX_GET_BDNUM,             /* (VF -> PF) get BD num */
 	HNS3_MBX_GET_BUFSIZE,           /* (VF -> PF) get buffer size */
 	HNS3_MBX_GET_STREAMID,          /* (VF -> PF) get stream id */
@@ -49,6 +47,14 @@ enum HNS3_MBX_OPCODE {
 	HNS3_MBX_PUSH_LINK_STATUS = 201, /* (IMP -> PF) get port link status */
 };
 
+struct hns3_basic_info {
+	uint8_t hw_tc_map;
+	uint8_t rsv;
+	uint16_t pf_vf_if_version;
+	/* capabilities of VF dependent on PF */
+	uint32_t caps;
+};
+
 /* below are per-VF mac-vlan subcodes */
 enum hns3_mbx_mac_vlan_subcode {
 	HNS3_MBX_MAC_VLAN_UC_MODIFY = 0,        /* modify UC mac addr */
@@ -65,6 +71,7 @@ enum hns3_mbx_vlan_cfg_subcode {
 	HNS3_MBX_VLAN_TX_OFF_CFG,               /* set tx side vlan offload */
 	HNS3_MBX_VLAN_RX_OFF_CFG,               /* set rx side vlan offload */
 	HNS3_MBX_GET_PORT_BASE_VLAN_STATE = 4,  /* get port based vlan state */
+	HNS3_MBX_ENABLE_VLAN_FILTER,            /* set vlan filter state */
 };
 
 enum hns3_mbx_tbl_cfg_subcode {
@@ -80,15 +87,28 @@ enum hns3_mbx_link_fail_subcode {
 
 #define HNS3_MBX_MAX_MSG_SIZE	16
 #define HNS3_MBX_MAX_RESP_DATA_SIZE	8
-#define HNS3_MBX_RING_MAP_BASIC_MSG_NUM	3
-#define HNS3_MBX_RING_NODE_VARIABLE_NUM	3
+#define HNS3_MBX_DEF_TIME_LIMIT_MS	500
+
+enum {
+	HNS3_MBX_RESP_MATCHING_SCHEME_OF_ORIGINAL = 0,
+	HNS3_MBX_RESP_MATCHING_SCHEME_OF_MATCH_ID
+};
 
 struct hns3_mbx_resp_status {
 	rte_spinlock_t lock; /* protects against contending sync cmd resp */
+
+	uint8_t matching_scheme;
+
+	/* The following fields used in the matching scheme for original */
 	uint32_t req_msg_data;
 	uint32_t head;
 	uint32_t tail;
 	uint32_t lost;
+
+	/* The following fields used in the matching scheme for match_id */
+	uint16_t match_id;
+	bool received_match_resp;
+
 	int resp_status;
 	uint8_t additional_info[HNS3_MBX_MAX_RESP_DATA_SIZE];
 };
@@ -106,7 +126,8 @@ struct hns3_mbx_vf_to_pf_cmd {
 	uint8_t mbx_need_resp;
 	uint8_t rsv1;
 	uint8_t msg_len;
-	uint8_t rsv2[3];
+	uint8_t rsv2;
+	uint16_t match_id;
 	uint8_t msg[HNS3_MBX_MAX_MSG_SIZE];
 };
 
@@ -114,7 +135,8 @@ struct hns3_mbx_pf_to_vf_cmd {
 	uint8_t dest_vfid;
 	uint8_t rsv[3];
 	uint8_t msg_len;
-	uint8_t rsv1[3];
+	uint8_t rsv1;
+	uint16_t match_id;
 	uint16_t msg[8];
 };
 
@@ -131,12 +153,6 @@ struct hns3_vf_bind_vector_msg {
 	struct hns3_ring_chain_param param[HNS3_MBX_MAX_RING_CHAIN_PARAM_NUM];
 };
 
-struct hns3_vf_rst_cmd {
-	uint8_t dest_vfid;
-	uint8_t vf_rst;
-	uint8_t rsv[22];
-};
-
 struct hns3_pf_rst_done_cmd {
 	uint8_t pf_rst_done;
 	uint8_t rsv[23];
@@ -144,22 +160,8 @@ struct hns3_pf_rst_done_cmd {
 
 #define HNS3_PF_RESET_DONE_BIT		BIT(0)
 
-/* used by VF to store the received Async responses from PF */
-struct hns3_mbx_arq_ring {
-#define HNS3_MBX_MAX_ARQ_MSG_SIZE	8
-#define HNS3_MBX_MAX_ARQ_MSG_NUM	1024
-	uint32_t head;
-	uint32_t tail;
-	uint32_t count;
-	uint16_t msg_q[HNS3_MBX_MAX_ARQ_MSG_NUM][HNS3_MBX_MAX_ARQ_MSG_SIZE];
-};
-
 #define hns3_mbx_ring_ptr_move_crq(crq) \
 	((crq)->next_to_use = ((crq)->next_to_use + 1) % (crq)->desc_num)
-#define hns3_mbx_tail_ptr_move_arq(arq) \
-	((arq).tail = ((arq).tail + 1) % HNS3_MBX_MAX_ARQ_MSG_SIZE)
-#define hns3_mbx_head_ptr_move_arq(arq) \
-		((arq).head = ((arq).head + 1) % HNS3_MBX_MAX_ARQ_MSG_SIZE)
 
 struct hns3_hw;
 void hns3_dev_handle_mbx_msg(struct hns3_hw *hw);

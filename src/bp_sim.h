@@ -1,7 +1,7 @@
 #ifndef BP_SIM_H
 #define BP_SIM_H
 /*
- Hanoh Haim
+ Hanoch Haim
  Cisco Systems, Inc.
 */
 
@@ -72,6 +72,7 @@ limitations under the License.
 /* stateless includes */
 #include "stl/trex_stl_dp_core.h"
 #include "stl/trex_stl_fs.h"
+#include "stl/trex_stl_tpg.h"
 #include "hot_section.h"
 
 /* astf includes */
@@ -408,6 +409,23 @@ public:
     virtual void set_rx_burst_time(double time){
     }
 
+    virtual void set_tunnel(CTunnelHandler* tunnel_handler, bool loopback=false) {}
+
+    virtual void delete_tunnel() {}
+
+    virtual CTunnelHandler* get_tunnel_handler() {
+        return nullptr;
+    }
+
+    /**
+     * Set back pointer to DP core. Provide an empty implementation for
+     * the base class, so that simulator interfaces won't have to implement this.
+     *
+     * @param dp_core
+     *   Pointer to DP core.
+     */
+    virtual void set_dp_core(TrexDpCore* dp_core) {}
+
 
 protected:
     CPreviewMode             *m_preview_mode;
@@ -527,13 +545,6 @@ class CCapFileFlowInfo ;
    we are optimizing the allocation dealocation !!!
  */
 
-struct CNodeTcp {
-     double       sim_time;
-     rte_mbuf_t * mbuf;
-     uint8_t      dir;
-};
-
-
 struct CGenNodeBase  {
 public:
 
@@ -634,6 +645,13 @@ public:
             return (false);
         }
     }
+};
+
+
+struct CNodeTcp: public CGenNodeBase {
+     double       sim_time;
+     rte_mbuf_t * mbuf;
+     uint8_t      dir;
 };
 
 
@@ -747,6 +765,7 @@ public:
 
     inline void reset_pkt_in_flow(void);
     inline uint8_t get_plugin_id(void){
+        assert(m_template_info);
         return ( m_template_info->m_plugin_id);
     }
 
@@ -1083,8 +1102,49 @@ public:
     virtual pkt_dir_t port_id_to_dir(uint8_t port_id);
 
 private:
+
+    /**
+     * Handle a Latency packet by appending the Flow Stat Latency Header
+     * to the end of the payload.
+     *
+     * @param m
+     *   The original mbuf of the node
+     *
+     * @param node_sl
+     *   The stateless node.
+     *
+     * @param is_const
+     *   Is the mbuf const?
+     */
+    void handle_latency_node(rte_mbuf_t* m, CGenNodeStateless* node_sl, bool is_const);
+
+    /**
+     * Handle a TPG packet by appending the Tagged Packet Group Header
+     * to the end of the payload.
+     *
+     * @param m
+     *   The original mbuf of the node
+     *
+     * @param node_sl
+     *   The stateless node.
+     *
+     * @param is_const
+     *   Is the mbuf const?
+     */
+    void handle_tpg_node(rte_mbuf_t* m, CGenNodeStateless* node_sl, bool is_const);
     int send_sl_node(CGenNodeStateless * node_sl);
     void fill_fsp_head(struct flow_stat_payload_header *fsp_head, uint16_t hw_id);
+
+    /**
+     * Fill Tagged Packet Group Header. In case of Simulator, the sequence is not kept.
+     *
+     * @param tpg_header
+     *   Tagged Packet Group Header to fill.
+     *
+     * @param pgid
+     *   Packet Group Identifier to put in the header.
+     **/
+    void fill_tpg_header(struct tpg_payload_header* tpg_head, uint32_t pgid);
     int send_pcap_node(CGenNodePCAP * pcap_node);
 
 };
@@ -1815,7 +1875,7 @@ public:
     uint16_t            m_payload_offset;
     uint8_t             m_rw_mbuf_size;    /* first R/W mbuf size 64/128/256 */
     uint8_t             m_pad1;
-    uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exits */
+    uint16_t            m_ro_mbuf_size;    /* the size of the const mbuf, zero if does not exist */
 
 public:
 
@@ -2291,17 +2351,17 @@ inline void CFlowPktInfo::update_mbuf(rte_mbuf_t * m){
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
 
         if ( unlikely (m_pkt_indication.is_ipv6() ) ) {
-            m->ol_flags |= PKT_TX_IPV6 ;
+            m->ol_flags |= RTE_MBUF_F_TX_IPV6 ;
         }else{
             /* Ipv4*/
-            m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+            m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
         }
 
         if ( m_pkt_indication.m_desc.IsTcp() ) {
-            m->ol_flags |=   PKT_TX_TCP_CKSUM;
+            m->ol_flags |=   RTE_MBUF_F_TX_TCP_CKSUM;
         } else {
             if (m_pkt_indication.m_desc.IsUdp()) {
-                m->ol_flags |= PKT_TX_UDP_CKSUM;
+                m->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
             }
         }
     }
@@ -2314,10 +2374,10 @@ inline void CFlowPktInfo::update_tcp_cs(TCPHeader * tcp,
     if (CGlobalInfo::m_options.preview.getChecksumOffloadEnable()) {
         /* set pseudo-header checksum */
         if ( m_pkt_indication.is_ipv6() ){
-            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4->getPointer(), PKT_TX_IPV6 | PKT_TX_TCP_CKSUM));
+            tcp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4->getPointer(), RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_TCP_CKSUM));
         }else{
             tcp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *)ipv4->getPointer(),
-                                                             PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM));
+                                                             RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM));
         }
     }
 }
@@ -2329,10 +2389,10 @@ inline void CFlowPktInfo::update_udp_cs(UDPHeader * udp,
         /* set pseudo-header checksum */
         if ( m_pkt_indication.is_ipv6() ){
             udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *) ipv4->getPointer(),
-                                                         PKT_TX_IPV6 | PKT_TX_UDP_CKSUM));
+                                                         RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM));
         }else{
             udp->setChecksumRaw(rte_ipv4_phdr_cksum((struct rte_ipv4_hdr *) ipv4->getPointer(),
-                                                         PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_UDP_CKSUM));
+                                                         RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM));
         }
     } else {
         udp->setChecksum(0);
@@ -2812,7 +2872,6 @@ public:
     inline CFlowPktInfo * GetPacket(uint32_t index);
     void Append(CPacketIndication * pkt_indication);
     void RemoveAll();
-    void dump_pkt_sizes(void);
     enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, uint8_t plugin_id);
     enum load_cap_file_err load_cap_file(std::string cap_file, uint16_t _id, CFlowYamlInfo &flow_info);
 
@@ -3038,6 +3097,7 @@ class CTcpCtxCb;
 class CSyncBarrier;
 class CAstfDB;
 class CIpInfoBase;
+class CFlowBase;
 
 class CFlowGenListPerThread {
 
@@ -3239,6 +3299,7 @@ private:
 public:
     CIpInfoBase* get_ip_info(uint32_t ip);
     CIpInfoBase* client_lookup(uint32_t ip);
+    void set_tunnel_handler(void* tunnel_handler, void* tunnel_ctx_del_cb);
     void allocate_ip_info(CIpInfoBase* ip_info);
     void release_ip_info(CIpInfoBase* ip_info);
 
@@ -3292,7 +3353,7 @@ public:
     void remove_tcp_profile(profile_id_t profile_id);
     void Delete_tcp_ctx();
 
-    void generate_flow(bool &done, CPerProfileCtx * pctx);
+    void generate_flow(CPerProfileCtx * pctx, uint16_t tg_id = 0, CFlowBase* in_flow = nullptr);
 
     void handle_rx_flush(CGenNode * node,bool on_terminate);
     void handle_tx_fif(CGenNodeTXFIF * node,bool on_terminate);
@@ -3365,7 +3426,6 @@ public:
 public:
     void Dump(FILE *fd);
     void DumpCsv(FILE *fd);
-    void DumpPktSize();
     void UpdateFast();
     double GetCpuUtil();
     double GetCpuUtilRaw();

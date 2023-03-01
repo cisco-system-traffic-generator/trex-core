@@ -122,15 +122,32 @@ class STLSim(object):
         input_files  = [x for x in input_list if isinstance(x, str)]
         stream_list = [x for x in input_list if isinstance(x, STLStream)]
 
-        if tunables == None:
-            tunables = {}
+
+        tunable_dict = {}
+        help_flags = ('-h', '--help')
+        tunables_str = ','.join(list(filter(lambda x : '=' in x , tunables)))
+        # if the user chose to pass the tunables arguments in previous version (-t var1=x1,var2=x2..)
+        # we decode the tunables and then convert the output from dictionary to list in order to have the same format with the
+        # newer version.
+        if len(tunables_str):
+            help = False
+            if any(h in tunables for h in help_flags):
+                help = True
+            tunable_dict = parsing_opts.decode_tunables(tunables_str)
+            tunables = parsing_opts.convert_old_tunables_to_new_tunables(tunables_str, help=help)
+
+        tunable_dict["tunables"] = tunables
 
         for input_file in input_files:
             try:
-                if 'direction' not in tunables:
-                    tunables['direction'] = self.port_id % 2
+                direction = self.port_id % 2
 
-                profile = STLProfile.load(input_file, **tunables)
+                profile = STLProfile.load(input_file, direction=direction, **tunable_dict)
+                if any(h in tunables for h in help_flags):
+                    return True
+                
+                if profile is None:
+                    raise TRexError('Failed to convert STL profile')
 
             except TRexError as e:
                 s = format_text("\nError while loading profile '{0}'\n".format(input_file), 'bold')
@@ -413,9 +430,10 @@ def setParserOptions():
     parser.add_argument('-t',
                         help = 'sets tunable for a profile',
                         dest = 'tunables',
-                        default = None,
                         action = 'merge',
-                        type = parsing_opts.decode_tunables)
+                        default = [],
+                        nargs =  argparse.REMAINDER,
+                        type = str)
 
     parser.add_argument('-p', '--path',
                         help = "BP sim path",

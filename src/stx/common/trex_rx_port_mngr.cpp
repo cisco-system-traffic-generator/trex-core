@@ -452,13 +452,14 @@ RXPortManager::RXPortManager() : m_feature_api(this) {
     clear_all_features();
     m_stack          = nullptr;
     m_io             = nullptr;
+    m_tpg            = nullptr;
     m_port_id        = UINT8_MAX;
 }
 
 RXPortManager::~RXPortManager(void) {
     delete m_stack;
     delete m_parser;
-    m_stack = nullptr;
+    delete m_tpg;
 }
 
 struct CPlatformYamlInfo;
@@ -493,6 +494,7 @@ RXPortManager::create_async(uint32_t port_id,
     m_parser = new CFlowStatParser(CFlowStatParser::FLOW_STAT_PARSER_MODE_SW);
 
     set_feature(STACK);
+    m_tunnel_handler = nullptr;
 }
 
 std::string wait_stack_tasks(CStackBase *stack, double timeout_sec) {
@@ -575,6 +577,18 @@ bool RXPortManager::stop_capture_port(std::string &err) {
     return true;
 }
 
+void RXPortManager::enable_tpg(uint32_t num_tpgids, PacketGroupTagMgr* tag_mgr, CTPGTagCntr* port_cntrs) {
+    set_feature(TPG);
+    assert(m_tpg == nullptr);
+    m_tpg = new RxTPGPerPort(m_port_id, num_tpgids, tag_mgr, port_cntrs);
+}
+
+void RXPortManager::disable_tpg() {
+    unset_feature(TPG);
+    delete m_tpg;
+    m_tpg = nullptr;
+}
+
 void RXPortManager::handle_pkt(rte_mbuf_t *m) {
 
     /* handle features */
@@ -584,6 +598,10 @@ void RXPortManager::handle_pkt(rte_mbuf_t *m) {
 
     if (is_feature_set(LATENCY)) {
         m_latency.handle_pkt(m, m_port_id);
+    }
+
+    if (is_feature_set(TPG)) {
+        m_tpg->handle_pkt(m);
     }
 
     if (is_feature_set(QUEUE)) {
@@ -768,6 +786,13 @@ RXPortManager::tx_pkt(const std::string &pkt) {
 
 bool
 RXPortManager::tx_pkt(rte_mbuf_t *m) {
+    //tunnel mode
+    if (m_tunnel_handler) {
+        pkt_dir_t dir = port_id_to_dir(m_port_id);
+        if (m_tunnel_handler->on_tx(dir, m)) {
+            return false;
+        }
+    }
     TrexCaptureMngr::getInstance().handle_pkt_tx(m, m_port_id);
     return (m_io->tx_raw(m) == 0);
 }
@@ -857,6 +882,7 @@ RXFeatureAPI::get_port_id() {
 
 //#########################################################
 
+const hr_time_t err_duration_max = ptime_convert_dsec_hr(0.1); // 100 msec before restarting ZMQ
 
 bool  CZmqPacketWriter::flush(){
     if ( m_pkts_cnt == 0 ){
@@ -874,16 +900,17 @@ bool  CZmqPacketWriter::flush(){
     if (res < 0) {
         m_cnt->m_ezmq_tx_to_emu_err++;
         if (errno == EAGAIN){
-            cnt_err++;
-            if (cnt_err > 10) {
-                r = true; 
+            if ( err_first_ts == 0 ) {
+                err_first_ts = os_get_hr_tick_64();
+            } else if ( err_first_ts + err_duration_max > os_get_hr_tick_64() ) {
+                r = true;
                 m_cnt->m_ezmq_tx_to_emu_restart++;
             }
         }
     }else{
-        cnt_err = 0;
+        err_first_ts = 0;
         m_cnt->m_ezmq_tx_to_emu++;
-    }        
+    }
 
     m_pkts_cnt=0;
     m_b_size=4;
@@ -930,7 +957,7 @@ bool CZmqPacketWriter::Create(void * socket,CRxCoreErrCntrs * cnt){
     m_socket = socket;
     m_pkts_cnt =0;
     m_b_size = 4; 
-    cnt_err =0;
+    err_first_ts = 0;
     m_cnt = cnt;
     return true;
 }

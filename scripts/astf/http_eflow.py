@@ -22,7 +22,7 @@ class Prof1():
     def __init__(self):
         pass  # tunables
 
-    def create_profile(self,size,loop,mss):
+    def create_profile(self, size, loop, mss):
 
         http_response = 'HTTP/1.1 200 OK\r\nServer: Microsoft-IIS/6.0\r\nContent-Type: text/html\r\nContent-Length: 32000\r\n\r\n<html><pre>'+('*'*size*1024)+'</pre></html>'
 
@@ -44,12 +44,12 @@ class Prof1():
 
 
         info = ASTFGlobalInfo()
-        if mss:
-          info.tcp.mss = mss
+        info.tcp.mss = mss
         info.tcp.initwnd = 20  # start big
-        info.tcp.no_delay = 1   # to get fast feedback for acks
+        info.tcp.no_delay = 0  # to get fast feedback for acks
+        info.tcp.no_delay_counter = 2 * mss
         info.tcp.rxbufsize = 1024*1024  # 1MB window 
-        info.tcp.txbufsize = 1024*1024  
+        info.tcp.txbufsize = 1024*1024
         #info.tcp.do_rfc1323 =0
 
 
@@ -67,8 +67,8 @@ class Prof1():
         template = ASTFTemplate(client_template=temp_c, server_template=temp_s)
 
         # profile
-        profile = ASTFProfile(default_ip_gen=ip_gen, 
-                              templates=template,                              
+        profile = ASTFProfile(default_ip_gen=ip_gen,
+                              templates=template,
                               default_c_glob_info=info,
                               default_s_glob_info=info)
 
@@ -87,13 +87,14 @@ class Prof1():
                             help='how many chunks')
         parser.add_argument('--mss',
                             type=int,
-                            default=0,
+                            default=1460,
                             help='the mss of the traffic.')
         args = parser.parse_args(tunables)
 
         size = args.size
         loop = args.loop
         mss = args.mss
+        assert mss > 0, "mss must be greater than 0"
         return self.create_profile(size,loop,mss)
 
 

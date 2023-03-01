@@ -31,7 +31,7 @@ class STLPort(Port):
 
     MASK_ALL = ((1 << 64) - 1)
 
-    def __init__ (self, ctx, port_id, rpc, info, dynamic):
+    def __init__ (self, ctx, port_id, rpc, info, dynamic = True):
         Port.__init__(self, ctx, port_id, rpc, info)
 
         self.has_rx_streams = False

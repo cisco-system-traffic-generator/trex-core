@@ -11,22 +11,20 @@
 #define BNXT_MAX_TSO_SEGS	32
 #define BNXT_MIN_PKT_SIZE	52
 
+/* Number of transmit descriptors processed per inner loop in vector mode. */
+#define BNXT_TX_DESCS_PER_LOOP	4U
+
 struct bnxt_tx_ring_info {
 	uint16_t		tx_raw_prod;
 	uint16_t		tx_raw_cons;
 	struct bnxt_db_info     tx_db;
 
 	struct tx_bd_long	*tx_desc_ring;
-	struct bnxt_sw_tx_bd	*tx_buf_ring;
+	struct rte_mbuf		**tx_buf_ring;
 
 	rte_iova_t		tx_desc_mapping;
 
 	struct bnxt_ring	*tx_ring_struct;
-};
-
-struct bnxt_sw_tx_bd {
-	struct rte_mbuf		*mbuf; /* mbuf associated with TX descriptor */
-	unsigned short		nr_bds;
 };
 
 static inline uint32_t bnxt_tx_bds_in_hw(struct bnxt_tx_queue *txq)
@@ -53,29 +51,34 @@ uint16_t bnxt_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 uint16_t bnxt_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 			    uint16_t nb_pkts);
 #endif
+#if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
+uint16_t bnxt_xmit_pkts_vec_avx2(void *tx_queue, struct rte_mbuf **tx_pkts,
+				 uint16_t nb_pkts);
+#endif
 
 int bnxt_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id);
 int bnxt_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id);
+int bnxt_flush_tx_cmp(struct bnxt_cp_ring_info *cpr);
 
-#define PKT_TX_OIP_IIP_TCP_UDP_CKSUM	(PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM | \
-					PKT_TX_IP_CKSUM | PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_OIP_IIP_UDP_CKSUM	(PKT_TX_UDP_CKSUM | \
-					PKT_TX_IP_CKSUM | PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_OIP_IIP_TCP_CKSUM	(PKT_TX_TCP_CKSUM | \
-					PKT_TX_IP_CKSUM | PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_IIP_TCP_UDP_CKSUM	(PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM | \
-					PKT_TX_IP_CKSUM)
-#define PKT_TX_IIP_TCP_CKSUM		(PKT_TX_TCP_CKSUM | PKT_TX_IP_CKSUM)
-#define PKT_TX_IIP_UDP_CKSUM		(PKT_TX_UDP_CKSUM | PKT_TX_IP_CKSUM)
-#define PKT_TX_OIP_TCP_UDP_CKSUM	(PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM | \
-					PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_OIP_UDP_CKSUM		(PKT_TX_UDP_CKSUM | \
-					PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_OIP_TCP_CKSUM		(PKT_TX_TCP_CKSUM | \
-					PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_OIP_IIP_CKSUM		(PKT_TX_IP_CKSUM |	\
-					 PKT_TX_OUTER_IP_CKSUM)
-#define PKT_TX_TCP_UDP_CKSUM		(PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM)
+#define PKT_TX_OIP_IIP_TCP_UDP_CKSUM	(RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM | \
+					RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_OIP_IIP_UDP_CKSUM	(RTE_MBUF_F_TX_UDP_CKSUM | \
+					RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_OIP_IIP_TCP_CKSUM	(RTE_MBUF_F_TX_TCP_CKSUM | \
+					RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_IIP_TCP_UDP_CKSUM	(RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM | \
+					RTE_MBUF_F_TX_IP_CKSUM)
+#define PKT_TX_IIP_TCP_CKSUM		(RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM)
+#define PKT_TX_IIP_UDP_CKSUM		(RTE_MBUF_F_TX_UDP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM)
+#define PKT_TX_OIP_TCP_UDP_CKSUM	(RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM | \
+					RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_OIP_UDP_CKSUM		(RTE_MBUF_F_TX_UDP_CKSUM | \
+					RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_OIP_TCP_CKSUM		(RTE_MBUF_F_TX_TCP_CKSUM | \
+					RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_OIP_IIP_CKSUM		(RTE_MBUF_F_TX_IP_CKSUM |	\
+					 RTE_MBUF_F_TX_OUTER_IP_CKSUM)
+#define PKT_TX_TCP_UDP_CKSUM		(RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM)
 
 
 #define TX_BD_FLG_TIP_IP_TCP_UDP_CHKSUM	(TX_BD_LONG_LFLAGS_TCP_UDP_CHKSUM | \

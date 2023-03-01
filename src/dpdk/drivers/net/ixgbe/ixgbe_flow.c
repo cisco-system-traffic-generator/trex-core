@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <inttypes.h>
-#include <netinet/in.h>
 #include <rte_byteorder.h>
 #include <rte_common.h>
 #include <rte_cycles.h>
@@ -37,6 +36,7 @@
 #include "base/ixgbe_api.h"
 #include "base/ixgbe_vf.h"
 #include "base/ixgbe_common.h"
+#include "base/ixgbe_osdep.h"
 #include "ixgbe_ethdev.h"
 #include "ixgbe_bypass.h"
 #include "ixgbe_rxtx.h"
@@ -135,7 +135,7 @@ const struct rte_flow_action *next_no_void_action(
 }
 
 /**
- * Please aware there's an asumption for all the parsers.
+ * Please be aware there's an assumption for all the parsers.
  * rte_flow_item is using big endian, rte_flow_attr and
  * rte_flow_action are using CPU order.
  * Because the pattern is used to describe the packets,
@@ -1259,7 +1259,7 @@ cons_parse_l2_tn_filter(struct rte_eth_dev *dev,
 		return -rte_errno;
 	}
 
-	filter->l2_tunnel_type = RTE_L2_TUNNEL_TYPE_E_TAG;
+	filter->l2_tunnel_type = RTE_ETH_L2_TUNNEL_TYPE_E_TAG;
 	/**
 	 * grp and e_cid_base are bit fields and only use 14 bits.
 	 * e-tag id is taken as little endian by HW.
@@ -3261,7 +3261,7 @@ out:
 
 /**
  * Check if the flow rule is supported by ixgbe.
- * It only checkes the format. Don't guarantee the rule can be programmed into
+ * It only checks the format. Don't guarantee the rule can be programmed into
  * the HW. Because there can be no enough room for the rule.
  */
 static int
@@ -3437,6 +3437,7 @@ ixgbe_flow_destroy(struct rte_eth_dev *dev,
 			TAILQ_REMOVE(&ixgbe_flow_list,
 				ixgbe_flow_mem_ptr, entries);
 			rte_free(ixgbe_flow_mem_ptr);
+			break;
 		}
 	}
 	rte_free(flow);

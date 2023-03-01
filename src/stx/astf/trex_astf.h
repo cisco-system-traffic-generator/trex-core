@@ -28,8 +28,9 @@ limitations under the License.
 #include "common/trex_stx.h"
 #include "trex_astf_defs.h"
 #include "stt_cp.h"
+#include "stl/trex_stl.h"
 
-#include "tunnels/tunnel_handler.h"
+#include "tunnels/tunnel_factory.h"
 
 class TrexAstfPort;
 class CSyncBarrier;
@@ -37,10 +38,11 @@ class CRxAstfCore;
 class TrexAstf;
 class TrexCpToDpMsgBase;
 
+#define MAC_ADDR_MAX 1000
+#define IPV4_ADDR_MAX 1000
 typedef std::unordered_map<uint8_t, TrexAstfPort*> astf_port_map_t;
 typedef std::string cp_profile_id_t;
 
-const std::string DEFAULT_ASTF_PROFILE_ID = "_";
 
 typedef enum trex_astf_hash {
     HASH_OK,
@@ -105,12 +107,14 @@ public:
     void build();
     void transmit();
     void cleanup();
+    void remove();
     void all_dp_cores_finished(bool partial=false);
     void dp_core_finished();
     void dp_core_finished_partial();
     void dp_core_error(const std::string &err);
 
     void add_dp_profile_ctx(CPerProfileCtx* client, CPerProfileCtx* server);
+    void add_flow_info(Json::Value& flows);
 
     /*
      * publish event for each profile
@@ -135,6 +139,9 @@ public:
     void    set_establish_timeout(double timeout) { m_establish_timeout = timeout; }
     void    set_terminate_duration(double duration) { m_terminate_duration = duration; }
     void    set_factor(double mult) { m_factor = mult; }
+
+    void get_flow_info(Json::Value& flows, uint64_t index);
+    void init_flow_info(double interval);
 
     /*
      * clear statistics counter
@@ -162,6 +169,12 @@ private:
 
     CSTTCp*         m_stt_cp;
     TrexAstf*       m_astf_obj;
+
+    double          m_dump_interval;
+
+    std::vector<Json::Value> m_flows_info;
+    uint64_t        m_flows_limit;
+    uint64_t        m_flows_index;
 };
 
 
@@ -218,7 +231,7 @@ private:
 /***********************************************************
  * TRex adavanced stateful interactive object
  ***********************************************************/
-class TrexAstf : public TrexAstfProfile, public TrexSTX {
+class TrexAstf : public TrexAstfProfile, public TrexStateless {
 public:
     enum state_latency_e {
         STATE_L_IDLE,
@@ -297,6 +310,15 @@ public:
     void topo_set_loaded();
     void topo_get(Json::Value &obj);
 
+    bool tunnel_topo_cmp_hash(const std::string &hash);
+    void tunnel_topo_clear();
+    void tunnel_topo_append(const std::string &fragment);
+    void tunnel_topo_set_loaded();
+    void tunnel_topo_get(Json::Value &obj);
+    bool tunnel_topo_needs_parsing();
+    std::string* get_tunnel_topo_buffer() { return &m_tunnel_topo_buffer; }
+    void         set_tunnel_topo_parsed(bool topo) { m_tunnel_topo_parsed = topo; }
+    bool         is_tunnel_topo_parsed() { return m_tunnel_topo_parsed; }
     /**
      * Stats Related
      */
@@ -330,7 +352,7 @@ public:
     /**
      * Start transmit latency streams only 
      */
-    void start_transmit_latency(const lat_start_params_t &args);
+    void start_transmit_latency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo=nullptr, CTunnelsDB* tunnel_db=nullptr);
 
     /**
      * Stop transmit latency streams only 
@@ -414,13 +436,43 @@ public:
         return &m_fl->m_client_config_info;
     }
 
-    void set_tunnel_handler(CTunnelHandler *tunnel_handler) {
-        m_tunnel_handler = tunnel_handler;
+    void activate_tunnel_handler(bool activate, uint8_t type) {
+        if (activate) {
+            m_tunnel_handler = create_tunnel_handler(type, (uint8_t)(TUNNEL_MODE_CP));
+        } else {
+            delete m_tunnel_handler;
+            m_tunnel_handler = nullptr;
+        }
+        tunnel_topo_clear();
     }
+
+    void set_clients_info_ready(bool ready) {
+        m_is_clients_info_ready = ready;
+    }
+
+    bool get_clients_info_ready() {
+        return m_is_clients_info_ready;
+    }
+
+    void add_clients_info(Json::Value &clients_info) {
+        m_clients_info.push_back(clients_info);
+    }
+
+    bool get_clients_info(Json::Value &clients_info);
 
     CTunnelHandler *get_tunnel_handler(){
         return m_tunnel_handler;
     }
+    CCpDynStsInfra* get_cp_sts_infra();
+    vector<CSTTCp *> get_dyn_sttcp_list();
+    void insert_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
+    void get_ignored_mac_addresses(std::vector<uint64_t>& mac_addresses);
+    int get_ignored_macs_size();
+    void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
+    void get_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
+    int get_ignored_ips_size();
+
+    void add_flows_info(profile_id_t dp_profile_id, Json::Value& flows);
 
 protected:
     void change_state(state_e new_state);
@@ -428,26 +480,37 @@ protected:
     //void check_blacklist_states(const states_t &blacklist);
 
     void ports_report_state(state_e state);
-    state_latency_e m_l_state;
-    uint32_t        m_latency_pps;
-    bool            m_lat_with_traffic;
-    int32_t         m_lat_profile_id;
 
-    TrexOwner       m_owner;
-    state_e         m_state;
-    CSyncBarrier   *m_sync_b;
-    CFlowGenList   *m_fl;
-    CParserOption  *m_opts;
-    std::string     m_topo_buffer;
-    std::string     m_topo_hash;
-    bool            m_topo_parsed;
-    uint64_t        m_epoch;
-    CTunnelHandler *m_tunnel_handler;
+    state_latency_e              m_l_state;
+    uint32_t                     m_latency_pps;
+    bool                         m_lat_with_traffic;
+    int32_t                      m_lat_profile_id;
+    TrexOwner                    m_owner;
+    state_e                      m_state;
+    std::vector<Json::Value>     m_clients_info;
+    std::unordered_set<uint64_t> m_ignored_macs;
+    std::unordered_set<uint32_t> m_ignored_ips;
+    CSyncBarrier                *m_sync_b;
+    CFlowGenList                *m_fl;
+    CParserOption               *m_opts;
+    std::string                  m_topo_buffer;
+    std::string                  m_topo_hash;
+    bool                         m_topo_parsed;
+    std::string                  m_tunnel_topo_buffer;
+    std::string                  m_tunnel_topo_hash;
+    bool                         m_tunnel_topo_parsed;
+    bool                         m_is_clients_info_ready;
+    uint64_t                     m_epoch;
+    CTunnelHandler              *m_tunnel_handler;
+    CCpDynStsInfra              *m_cp_sts_infra;
 
 public:
     bool                m_stopping_dp;
     std::vector<int>    m_dp_states;
     std::vector<TrexCpToDpMsgBase*> m_suspended_msgs;
+
+    bool                m_starting_dp;
+    std::vector<TrexCpToDpMsgBase*> m_suspended_core0_msgs;
 };
 
 static inline TrexAstf * get_astf_object() {

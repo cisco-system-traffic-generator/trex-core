@@ -27,6 +27,7 @@ limitations under the License.
 CRteMemPool         CGlobalInfo::m_mem_pool[MAX_SOCKETS_SUPPORTED];
 uint32_t            CGlobalInfo::m_nodes_pool_size = 10*1024;
 double              CGlobalInfo::m_burst_offset_dtime;
+bool                CGlobalInfo::m_process_at_cp = false;
 CParserOption       CGlobalInfo::m_options;
 CGlobalMemory       CGlobalInfo::m_memory_cfg;
 CPlatformSocketInfo CGlobalInfo::m_socket;
@@ -280,8 +281,8 @@ void CPreviewMode::set_vlan_mode_verify(uint8_t mode) {
         // validate that there is no vlan both in platform config file and traffic profile
     if ((CGlobalInfo::m_options.preview.get_vlan_mode() != CPreviewMode::VLAN_MODE_NONE) &&
         ( CGlobalInfo::m_options.preview.get_vlan_mode() != mode ) ) {
-        fprintf(stderr, "Error: You are not allowed to specify vlan both in platform config file (--cfg) and traffic config file (-f)\n");
-        fprintf(stderr, "       Please remove vlan definition from one of the files, and try again.\n");
+        fprintf(stderr, "Error: You are not allowed to specify tunnel mode both in platform config file (--cfg) and traffic config file (-f)\n");
+        fprintf(stderr, "       Please remove tunnel modes definition from one of the files, and try again.\n");
         exit(1);
     }
     set_vlan_mode(mode);

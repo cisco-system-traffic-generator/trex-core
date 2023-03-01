@@ -40,3 +40,4 @@ trex:
   cores          : 2 
   astf_cores     : 1
   modes          : [loopback, virt_nics, VM, no_resilience, switch]
+  trex_add_args  : '--tso-disable'

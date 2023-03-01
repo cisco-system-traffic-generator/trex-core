@@ -149,7 +149,7 @@ public:
 
     StreamsFeeder(TrexStatelessProfile *mprofile) {
 
-        /* start pesimistic */
+        /* start pessimistic */
         m_success = false;
         m_mprofile = mprofile;
     }
@@ -165,6 +165,7 @@ public:
             m_out_streams.push_back(out_stream);
 
             CFlowStatRuleMgr::instance()->start_stream(out_stream);
+            TPGStreamMgr::instance()->start_stream(out_stream);
 
         }
     }
@@ -189,9 +190,11 @@ public:
             if (m_success) {
                 /* success path */
                 CFlowStatRuleMgr::instance()->copy_state(out_stream, in_stream);
+                TPGStreamMgr::instance()->copy_state(out_stream, in_stream);
             } else {
                 /* fail path */
                 CFlowStatRuleMgr::instance()->reset_stream(out_stream);
+                TPGStreamMgr::instance()->reset_stream(out_stream);
             }
             delete out_stream;
         }
@@ -411,6 +414,7 @@ TrexStatelessProfile::remove_rx_filters() {
 
     for (auto entry : m_stream_table) {
         CFlowStatRuleMgr::instance()->stop_stream(entry.second);
+        TPGStreamMgr::instance()->stop_stream(entry.second);
     }
 
 }
@@ -849,7 +853,9 @@ TrexStatelessProfile::add_stream(TrexStream *stream) {
     if (m_stream_table.size() >= MAX_STREAMS) {
         throw TrexException("Reached limit of " + std::to_string(MAX_STREAMS) + " streams at the port.");
     }
+
     CFlowStatRuleMgr::instance()->add_stream(stream);
+    TPGStreamMgr::instance()->add_stream(stream);
 
     m_stream_table.add_stream(stream);
     delete_streams_graph();
@@ -871,6 +877,7 @@ TrexStatelessProfile::remove_stream(TrexStream *stream) {
     verify_profile_state(PORT_STATE_STREAMS, "remove_stream");
 
     CFlowStatRuleMgr::instance()->del_stream(stream);
+    TPGStreamMgr::instance()->del_stream(stream);
 
     m_stream_table.remove_stream(stream);
     delete_streams_graph();
@@ -921,12 +928,21 @@ TrexStatelessPort::TrexStatelessPort(uint8_t port_id) : TrexPort(port_id) {
     TrexStatelessProfile *mprofile = new TrexStatelessProfile(m_port_id, default_profile);
     mprofile->m_dp_profile_id = ++m_dp_profile_id_inc;
     m_profile_table.add_profile(mprofile);
+    m_tpg_ctx = nullptr;
 }
 
 TrexStatelessPort::~TrexStatelessPort() {
 
     stop_traffic("*");
     remove_and_delete_all_streams("*");
+}
+
+void TrexStatelessPort::release() {
+    if (m_tpg_ctx != nullptr) {
+        std::string err_msg = "Please disable TPG in port " + std::to_string(unsigned(m_port_id)) + " before releasing.";
+        throw TrexException(err_msg);
+    }
+    TrexPort::release();
 }
 
 
