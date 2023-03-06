@@ -258,6 +258,7 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         self._tls_cert_file = None
         self._tls_key_file = None
         self._store_exported_files_on_disk = None
+        self._input_channel_capacity = None
         self._type = "http"
 
     def get_json(self):
@@ -269,6 +270,7 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         add_to_json_if_not_none(exporter_params, "tls_cert_file", self._tls_cert_file)
         add_to_json_if_not_none(exporter_params, "tls_key_file", self._tls_key_file)
         add_to_json_if_not_none(exporter_params, "store_exported_files_on_disk", self._store_exported_files_on_disk)
+        add_to_json_if_not_none(exporter_params, "input_channel_capacity", self._input_channel_capacity)
 
         if len(exporter_params) == 0:
             return None
@@ -290,6 +292,8 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
     def set_store_exported_files_on_disk(self, store_exported_files_on_disk):
         self._store_exported_files_on_disk = store_exported_files_on_disk
 
+    def set_input_channel_capacity(self, input_channel_capacity):
+        self._input_channel_capacity = input_channel_capacity
 
 class IpfixPlugin:
     def __init__(self, exporter_params, generators: IpfixGenerators):
