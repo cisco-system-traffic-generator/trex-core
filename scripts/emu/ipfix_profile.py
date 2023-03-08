@@ -30,6 +30,7 @@ class IpfixFields:
     def get(self, field, default = None):
         return self._fields.get(field, default)
 
+
 class IpfixGenerators:
     def __init__(self, fields, gen_names_list = None):
         self._fields = fields
@@ -86,6 +87,14 @@ class IpfixGenerators:
     def set_records_per_packet_all(self, records):
         for gen_name in self._generators:
                 self.set_records_per_packet(gen_name, records)
+
+    def set_engine_params(self, gen_name, params):
+        gen = self._generators.get(gen_name)
+        if gen:
+            engines = gen["engines"]
+            for engine in gen["engines"]:
+                engine["params"] = params
+            gen["engines"] = engines
 
 
 class IpfixExporterParamsFactory(metaclass=Singleton):
@@ -373,7 +382,7 @@ class IpfixProfile:
     def dump_json(self):
         return json.dumps(self.get_json(), indent=4)
 
-    def get_profile(self):
+    def get_profile(self) -> EMUProfile:
         return self._profile
 
     def get_devices_keys(self):
@@ -406,14 +415,14 @@ class IpfixDevicesAutoTriggerProfile:
         # Port number of the NS to be created
         ns_port = 0,
         # MAC address of the first device to be created
-        device_mac = "00:00:00:70:00:03",
+        device_mac = "00:00:00:70:00:01",
         # IPv4 address of the first device to be created
-        device_ipv4 = "1.1.1.3",
+        device_ipv4 = "128.1.1.1",
         # Domain ID of the first device to be created. Ignored if value is None.
         device_domain_id = None,
         # Number of devices to automatically create at the EMU server
         devices_num = 1,
-        # rampup_time should be given in Golang duration string format (example: "12s", "5m")
+        # Rampup_time should be given in Golang duration string format (example: "12s", "5m")
         rampup_time = None,
         # Number of sites per tenant
         sites_per_tenant = None,
