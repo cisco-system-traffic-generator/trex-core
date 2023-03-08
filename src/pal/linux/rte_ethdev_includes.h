@@ -9,6 +9,7 @@ struct rte_eth_link {
 };
 
 #define RTE_ETH_SPEED_NUM_100G    100000 /**< 100 Gbps */
+#define RTE_ETH_SPEED_NUM_200G    200000 /**< 200 Gbps */
 
 /**
  * Force a structure to be packed
