@@ -246,9 +246,9 @@ class TrexTUILatencyStats(TrexTUIPanel):
         self.client._show_global_stats(buffer = buffer)
 
         if self.is_histogram:
-            self.client._show_latency_histogram(buffer = buffer)
+            self.client._show_flow_latency_histogram(buffer = buffer)
         else:
-            self.client._show_latency_stats(buffer = buffer)
+            self.client._show_flow_latency_stats(buffer = buffer)
 
 
     def get_key_actions (self):
@@ -343,11 +343,13 @@ class TrexTUIAstfLatencyStats(TrexTUIPanel):
     def __init__ (self, mng):
         super(TrexTUIAstfLatencyStats, self).__init__(mng, 'lstats')
         self.key_actions = OrderedDict()
-        self.key_actions['v'] = {'action': self.action_toggle_view, 'legend': self.get_next_view, 'show': True}
+        self.key_actions['v'] = {'action': self.action_next_view, 'legend': self.get_next_view, 'show': True}
         self.views = [
             {'name': 'main latency', 'func': self.client._show_latency_stats},
             {'name': 'histogram', 'func': self.client._show_latency_histogram},
             {'name': 'counters', 'func': self.client._show_latency_counters},
+            {'name': 'latency(STL)', 'func': self.client._show_flow_latency_stats},
+            {'name': 'histogram(STL)', 'func': self.client._show_flow_latency_histogram},
             ]
         self.view_index = 0
         self.next_view_index = 1
@@ -366,7 +368,7 @@ class TrexTUIAstfLatencyStats(TrexTUIPanel):
         return self.key_actions
 
 
-    def action_toggle_view(self):
+    def action_next_view(self):
         self.view_index = self.next_view_index
         self.next_view_index = (1 + self.next_view_index) % len(self.views)
         return ""
@@ -456,6 +458,8 @@ class TrexTUIPanelManager():
             self.panels['lstats'] = TrexTUIAstfLatencyStats(self)
             self.key_actions['t'] = {'action': self.action_show_astats, 'legend': 'astf', 'show': True}
             self.key_actions['l'] = {'action': self.action_show_lstats, 'legend': 'latency', 'show': True}
+            self.panels['sstats'] = TrexTUIStreamsStats(self)
+            self.key_actions['s'] = {'action': self.action_show_sstats, 'legend': 'streams', 'show': True}
 
         # start with dashboard
         self.main_panel = self.panels['dashboard']
