@@ -382,11 +382,11 @@ zmq publisher at: tcp://*:4500
 <1> Output trimmed.
 
 [NOTE]
-See https://trex-tgn.cisco.com/trex/doc/trex_manual.html[TRex full manual] for a complete understading of the tool features and options.
+See link:https://trex-tgn.cisco.com/trex/doc/trex_manual.html[TRex full manual] for a complete understading of the tool features and options.
 
 ==== Updating TRex
 
-See https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_package[Related manual] section
+See link:https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_package[Related manual] section
 
 ==== TRex Live monitoring
 
