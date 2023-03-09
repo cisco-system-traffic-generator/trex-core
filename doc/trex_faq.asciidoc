@@ -367,10 +367,10 @@ You should increse the pool with that raise an error, for example in case of 204
    version       : 2
    interfaces    : ["02:00.0","02:00.1","84:00.0","84:00.1"]   # list of the interfaces to bind run ./dpdk_nic_bind.py --status
    memory    :                                          
-        traffic_mbuf_2048   : 8000 #<1>
+        traffic_mbuf_2048   : 2048 #<1>
 
 ----
-<1>  for mbuf for 2038 
+<1>  for mbuf for 2048 
 
 You can run TRex with `-v 7` to verify that the configuration has an effect
 
