@@ -54,7 +54,7 @@ TRex is the client requesting the pages. Figure 1 shows the topology in this cas
 TRex generates requests using *one* DP core and we will exercise the *whole* 16 cores of the NGINX server. The server is installed with the NGINX process on *all* 16 cores. 
 After some trial and error, it was determined that is is more difficult to separate Linux kernel/IRQ "context" events from user space process CPU%, so we chose to give the NGINX all server resources, and monitor to determine the limiting factor. +
 
-The objective is to simulate HTTP sessions as it was defined in our benchmark (e.g. new session for each REQ/RES, initwnd=2 etc.) and not to make the fastest most efficient TCP configuration. This might be the main difference betwean NGINX benchmark configuration and this document configuration. 
+The objective is to simulate HTTP sessions as it was defined in our benchmark (e.g. new session for each REQ/RES, initwnd=2 etc.) and not to make the fastest most efficient TCP configuration. This might be the main difference between NGINX benchmark configuration and this document configuration. 
 
 In both cases (client/server), the same type of x86 server was used:
 

@@ -2,7 +2,7 @@ TRex first time configuration
 =============================
 :author: hhaim with the Help of Amir Kroparo. New rev fixes by Ido Barnea.
 :email: <hhaim@cisco.com> 
-:description: TRex Getting started - instalation guide
+:description: TRex Getting started - installation guide
 :revdate: 2014-11-01
 :revnumber: 0.2
 :deckjs_theme: swiss

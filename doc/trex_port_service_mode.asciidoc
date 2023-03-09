@@ -21,7 +21,7 @@ The following illustrates how rx packets are handled. Only a portion are forward
 image::images/port_normal_mode.png[title="Port Under Normal Mode",align="left",width={p_width}, link="images/port_normal_mode.png"]
 
 
-In *service mode*, a port responds to ping and ARP requests, and also enables forwarding packets to the Python control plane for applying full duplex protocols (DCHP, IPv6 neighboring, and so on).
+In *service mode*, a port responds to ping and ARP requests, and also enables forwarding packets to the Python control plane for applying full duplex protocols (DHCP, IPv6 neighboring, and so on).
 
 The following illustrates how packets can be forwarded back to the Python client.
 

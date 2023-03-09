@@ -4432,7 +4432,7 @@ Lastly, in some use cases you want to clear the stats for the updated **tag_id**
 
 Since the mapping between tags and tag_id can be updated, we can loose track of it. In order to see the mapping in the server at all time, we can use this API.
 
-The API can receive 2 optional parameters, **min_tag** and **max_tag** and it will return all the tags in the range (**max_tag** excluded). By default it will return all tags.לא זה 
+The API can receive 2 optional parameters, **min_tag** and **max_tag** and it will return all the tags in the range (**max_tag** excluded). By default it will return all tags.
 
 .Get Tags Output
 [source, python]

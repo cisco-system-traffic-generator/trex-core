@@ -3172,7 +3172,7 @@ include::trex_port_service_mode.asciidoc[]
 
 Emu can simulate different services, for example DHCP, DHCPv6, DNS, MDNS etc. Many of these protocols run of top of TCP and UDP. TRex needs a way to know if it should filter these services or not. This way it can know if a packet belongs to ASTF or Emu. For packets to be filtered to Emu we need to apply the filters:
 
-- `dchp`: Forward DHCP packets to DHCP plugin in Emu
+- `dhcp`: Forward DHCP packets to DHCP plugin in Emu
 - `mdns`: Forward MDNS packets to MDNS plugin in Emu
 - `tran`: Forward packets to Transport plugin in Emu. Transport plugin simulates UDP/TCP. Emu transport generated packets use high source ports: [0xFF00-0xFFFF]. In order to separate the Emu's TCP/UDP from ASTF's TCP/UDP this filter forwards all packets whose source **or** destination port is in the aforementioned ranges to Emu.
 - `emu`: All of the previous flags together.

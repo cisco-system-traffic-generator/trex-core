@@ -164,8 +164,8 @@ The format should be *YAML*
 | tcp_checksum           | calculate TCP checksum
 | udp_checksum           | calculate UDP checksum
 | ipv4_total_length      | calculate ipv4 total length this pkt_size = header  + reset of packet
-| tlv                    | TLV length of the header (inlcudes the prev field length) example ip-option, tcp-option
-| le                     | little endian. deault is big
+| tlv                    | TLV length of the header (includes the prev field length) example ip-option, tcp-option
+| le                     | little endian. default is big
 | const                  | const field for example the 4 version of ipv4 header - this GUI won't give option to change this field
 | external               | marks the header as an external header for the GUI. for example IPv4 is external header and mac-addr is internal header ( compose external header)
 |=================
@@ -238,7 +238,7 @@ Example of value_based_next_header
 [source,python]
 ----
         value_based_next_header:
-            0x0800: 'ipv4'# name of an external or internal class , the GUI should distinct betwean internal and external
+            0x0800: 'ipv4'# name of an external or internal class , the GUI should distinct between internal and external
             0x0806: 'arp'
             0x86DD: 'ipv6'
             0x8100: 'vlan'
@@ -316,7 +316,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
 * The packet size is defined before the headers.  Header Should not be allowed to be added if the size + header size is bigger than packet size
 * "Payload" is predefined Fields that take the reset of the packet and user can edit it ( see xref:Payload[Payload] )
 * There would be a spare field in the Stream object so GUI could add more metadata for reconstructing the builder types
-  for example in this example Ethrenet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.
+  for example in this example Ethernet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.
 * Ip total length need to keep the total_pkt_size - this ip header . this should work for internal header too.
 * When GUI add header ("external") the total size of this header should be calculated ( varible size should be given a default - ipv4)
 

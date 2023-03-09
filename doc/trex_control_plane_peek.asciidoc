@@ -13,11 +13,11 @@ include::trex_ga.asciidoc[]
 === TRex traffic generator
 
 TRex traffic generator is a tool design the benchmark platforms with realistic traffic.
-This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
+This is a work-in-progress product, which is under constant development, new features are added and support for more router's functionality is achieved.
 
 === TRex Control
 
-TRex control plane is under developement, and a phase 1 is planned to be published soon (Apr 2015). +
+TRex control plane is under development, and a phase 1 is planned to be published soon (Apr 2015). +
 This document will shortly describe the planned control plane for TRex, which is planned to be more scalable and support automation more intuitively.
 
 ==== TRex Control Plane - High Level
@@ -44,7 +44,7 @@ Using class methods, the client interacts with TRex server, and enable it to per
 
   
 
-  - **Exmaple #1: Checking TRex status and Launching TRex**
+  - **Example #1: Checking TRex status and Launching TRex**
     The following program checks TRex status, and later on launches it, querying its status along different time slots.
 
 [source, python]
@@ -97,7 +97,7 @@ Is TRex running?  True {u'state': <TRexStatus.Running: 3>, u'verbose': u'TRex is
 <1> When looking at TRex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
 
 
-  * **Exmaple #2: Checking TRex status and Launching TRex with 'BAD PARAMETERS'**
+  * **Example #2: Checking TRex status and Launching TRex with 'BAD PARAMETERS'**
     The following program checks TRex status, and later on launches it with wrong input ('mdf' is not legal option), hence TRex run will not start and a message will be available.
 
 [source, python]
@@ -127,7 +127,7 @@ print "Is TRex running? ", trex.is_running(), trex.get_running_status() # <6>
 
 <2> `get_running_status()` returns a Python dictionary with TRex state, along with a verbose field containing extra info, if available.
 
-<3> TRex lanching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
+<3> TRex launching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
 
 <4> Wrong parameter ('mdf') injected.
 
@@ -150,12 +150,12 @@ Is TRex running?  False {u'state': <TRexStatus.Idle: 1>, u'verbose': u'TRex run 
 
 <1> When looking at TRex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
  
-<2> After TRex lanuching failed, a message indicating the failure reason. However, TRex is back Idle, ready to handle another launching request.
+<2> After TRex launching failed, a message indicating the failure reason. However, TRex is back Idle, ready to handle another launching request.
 
 
-  * **Exmaple #3: Launching TRex, monitor live data and stopping on demand**
-    The following program will launch TRex, and while it runs poll the server (every 5 seconds) for running inforamtion, such as latency, drops, and other extractable parameters. +
-    Then, after some criteria was met, TRex execution is terminated, enabeling others to use the resource instead of waiting for the entire execution to finish.
+  * **Example #3: Launching TRex, monitor live data and stopping on demand**
+    The following program will launch TRex, and while it runs poll the server (every 5 seconds) for running information, such as latency, drops, and other extractable parameters. +
+    Then, after some criteria was met, TRex execution is terminated, enabling others to use the resource instead of waiting for the entire execution to finish.
     
 [source, python]
 ----
@@ -187,7 +187,7 @@ print "Before Running, TRex status is: ", trex.get_running_status()
 <1> Running queries is still optional, although not mandatory in order to get stats.
 
 <2> `get_running_info()` will return the latest data dump available from TRex. + 
-    Some aditional data manipulation and queries are under developement, including manipulation over number of dumps, which is useful for avoiding "spikes" of singular behavior.
+    Some additional data manipulation and queries are under development, including manipulation over number of dumps, which is useful for avoiding "spikes" of singular behavior.
 
 <3> Data processing. This is fully customizable for the relevant test initiated.
 

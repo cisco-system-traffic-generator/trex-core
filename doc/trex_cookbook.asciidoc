@@ -67,7 +67,7 @@ For advanced stateful:
 
 ----
 
-*For a complete description of the command line paramters please refer to the manual*
+*For a complete description of the command line parameters please refer to the manual*
 
 
 === Connecting To The Server
@@ -517,7 +517,7 @@ Removing PCAP capture 41 from server                         [SUCCESS]
 
 Documentation: link:/trex_stateless.html[Stateless Mode]
 
-In the following section we will provide recipies for common tasks
+In the following section we will provide recipes for common tasks
 done in *TRex stateless mode*.
 
 For more information about TRex stateless mode please refer to the manual.

@@ -17,7 +17,7 @@ Since we do not have all cards in our lab, we could not test all of them. Will b
 
 * If not using ``--software'', following limitations apply:
 ** Only 1300 series Cisco adapter supported.
-** Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in Febuary 2017.
+** Must have VIC firmware version 2.0(13) for UCS C-series servers. Will be GA in February 2017.
 ** Must have VIC firmware version 3.1(2) for blade servers (which supports more filtering capabilities).
 ** The feature can be enabled via Cisco CIMC or USCM with the 'advanced filters' radio button.  When enabled, these additional flow director modes are available:
         RTE_ETH_FLOW_NONFRAG_IPV4_OTHER

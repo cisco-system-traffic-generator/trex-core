@@ -43,7 +43,7 @@ Rx-core is still limiting the performance of flow-stats
 
 *limitations*: 
 
-1. One flow will be redirected to one DP-core, hence better to to have traffic that split betwean cores 
+1. One flow will be redirected to one DP-core, hence better to to have traffic that split between cores 
 2. Generated latency stream from one core could re distributed to a number of cores (depends how hardware RX distributed works) -- this could create OOO indication. 
 
 Better to generate a latency stream that will be pinned to one DP core.
