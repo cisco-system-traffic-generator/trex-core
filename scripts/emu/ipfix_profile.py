@@ -102,7 +102,6 @@ class IpfixExporterParamsFactory(metaclass=Singleton):
         self._create_obj_db()
 
     def create_obj_from_dst_url(self, dst_url):
-        dst_url = self._escape_specifiers(dst_url)
         url = urlparse(dst_url)
         if url.scheme in self.obj_db:
             return self.obj_db[url.scheme](url)
@@ -136,33 +135,17 @@ class IpfixExporterParamsFactory(metaclass=Singleton):
         return obj
 
     def _create_http_obj(self, dst_url):
-        re_pattern = r"^/api/ipfixfilecollector/([\w-]+)/([\w-]+)/([\w-]+)/post_file$"
+        re_pattern = r"^/api/ipfixfilecollector/([%\w-]+)/([%\w-]+)/([%\w-]+)/post_file$"
         match = re.search(re_pattern, dst_url.path)
         if not match:
             return None
 
-        tenant_id = self._unescape_specifiers(match.groups()[0])
-        site_id = self._unescape_specifiers(match.groups()[1])
-        device_id = self._unescape_specifiers(match.groups()[2])
+        tenant_id = match.groups()[0]
+        site_id = match.groups()[1]
+        device_id = match.groups()[2]
 
         obj = IpfixHttpExporterParams(dst_url.hostname, dst_url.port, tenant_id, site_id, device_id)
         return obj
-
-    def _escape_specifiers(self, dst_url):
-        dst_url = dst_url.replace("%t", "円")
-        dst_url = dst_url.replace("%s", "冇")
-        dst_url = dst_url.replace("%d", "冈")
-        dst_url = dst_url.replace("%u", "冉")
-
-        return dst_url
-
-    def _unescape_specifiers(self, dst_url):
-        dst_url = dst_url.replace("円", "%t")
-        dst_url = dst_url.replace("冇", "%s")
-        dst_url = dst_url.replace("冈", "%d")
-        dst_url = dst_url.replace("冉", "%u")
-
-        return dst_url
 
 
 class IpfixExporterParams:
