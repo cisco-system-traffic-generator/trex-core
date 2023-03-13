@@ -107,9 +107,23 @@ typedef struct {
 
 /* a cp group of counters per side*/
 class CDynStsCpGroup {
+    uint64_t             *m_real_counters;
 public:
     CDynStsCpGroup(cp_dyn_sts_group_args_t* dyn_sts_group_args){
+        if (dyn_sts_group_args->real_counters == nullptr) {
+            m_real_counters = new uint64_t[dyn_sts_group_args->size]{};
+            dyn_sts_group_args->real_counters = m_real_counters;
+        } else {
+            m_real_counters = nullptr;
+        }
         m_dyn_sts_group_args = (*dyn_sts_group_args);
+    }
+
+    ~CDynStsCpGroup() {
+        if (m_real_counters) {
+            delete[] m_real_counters;
+            m_real_counters = nullptr;
+        }
     }
 
     /**

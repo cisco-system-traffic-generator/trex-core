@@ -58,6 +58,7 @@ public:
     void clear_counters();
     void create_clm_counters();
     void clear_sum_counters();
+    void dump_dyn_stats_desc(Json::Value&);
     bool add_dyn_stats(const meta_data_t* meta_data, cp_dyn_sts_group_args_t* dyn_sts_group_args);
     bool delete_dyn_sts(std::string sts_group_name);
     void clear_dps_dyn_counters();
@@ -97,6 +98,7 @@ public:
     /* externation counters --end */
 
     CGTblClmCounters    m_clm; /* utility for dump */
+    uint32_t            m_clm_static_size;
 
     std::vector<CTcpPerThreadCtx*>  m_tcp_ctx; /* vectors contexts*/
 
@@ -119,6 +121,7 @@ public:
     void Resize(uint16_t new_num_of_tg_ids);
     void DumpTGNames(Json::Value &result);
     void UpdateTGNames(const std::vector<std::string>& tg_names);
+    void DumpTGDynStatsDesc(Json::Value &result);
     void DumpTGStats(Json::Value &result, const std::vector<uint16_t>& tg_ids);
     void UpdateTGStats(const std::vector<uint16_t>& tg_ids);
     void clear_profile_ctx();

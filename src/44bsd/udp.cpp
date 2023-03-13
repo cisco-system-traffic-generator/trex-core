@@ -93,18 +93,17 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
             m->dynfield_ptr = ftp->m_tunnel_ctx;
         }
     }
+    m->l2_len = ftp->m_offset_ip;
+    m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
+    m->l4_len = UDP_HEADER_LEN;
     if (ftp->m_offload_flags & OFFLOAD_TX_CHKSUM) {
         if (!ftp->m_is_ipv6) {
-            m->l2_len = ftp->m_offset_ip;
-            m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
             m->ol_flags |= (RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM);
             IPHeader * ipv4=(IPHeader *)(p+ftp->m_offset_ip);
             ipv4->ClearCheckSum();
             ipv4->setTotalLength(udp_pyld_bytes+UDP_HEADER_LEN+IPV4_HDR_LEN);
             udp->setChecksumRaw(pkt_AddInetChecksumRaw(ftp->m_l4_pseudo_checksum ,PKT_NTOHS(udp_pyld_bytes+UDP_HEADER_LEN)));
         }else {
-            m->l2_len = ftp->m_offset_ip;
-            m->l3_len = ftp->m_offset_l4-ftp->m_offset_ip;
             m->ol_flags |= ( RTE_MBUF_F_TX_IPV6 | RTE_MBUF_F_TX_UDP_CKSUM);
             IPv6Header * ipv6=(IPv6Header *)(p+ftp->m_offset_ip);
             ipv6->setPayloadLen(udp_pyld_bytes+UDP_HEADER_LEN);
@@ -127,7 +126,7 @@ HOT_FUNC void CUdpFlow::update_checksum_and_lenght(CFlowTemplate *ftp,
 
 HOT_FUNC rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
     CFlowTemplate *ftp=&m_template;
-    int hlen = ftp->m_offset_l4+UDP_HEADER_LEN;
+    int hlen = ftp->m_offset_l4+UDP_HEADER_LEN+ftp->m_addon_len;
     rte_mbuf_t * m;
     if ( (hlen+buf->m_t_bytes)>=MAX_PKT_SIZE){
         INC_UDP_STAT(m_pctx, m_tg_id, udps_pkt_toobig);
@@ -143,12 +142,18 @@ HOT_FUNC rte_mbuf_t   * CUdpFlow::alloc_and_build(CMbufBuffer *      buf){
     }
     rte_mbuf_set_as_core_local(m);
     char *p=rte_pktmbuf_append(m,hlen);
-    memcpy(p,ftp->m_template_pkt,hlen);
+    if (unlikely(ftp->m_addon_pkt)) {
+        int pktlen = ftp->m_template_pktlen;
+        memcpy(p,ftp->m_template_pkt,pktlen);
+        memcpy(p+pktlen,ftp->m_addon_pkt,ftp->m_addon_len);
+    } else {
+        memcpy(p,ftp->m_template_pkt,hlen);
+    }
     UDPHeader * udp =(UDPHeader*)(p+ftp->m_offset_l4);
     /* update length*/
-    udp->setLength(buf->m_t_bytes+UDP_HEADER_LEN);
+    udp->setLength(buf->m_t_bytes+UDP_HEADER_LEN+ftp->m_addon_len);
     m->pkt_len+=buf->m_t_bytes;
-    update_checksum_and_lenght(ftp,m,buf->m_t_bytes,p);
+    update_checksum_and_lenght(ftp,m,buf->m_t_bytes+ftp->m_addon_len,p);
 
     if (buf->m_num_pkt==1) {
         /* common case, only one mbuf*/
@@ -196,11 +201,17 @@ void CUdpFlow::send_pkt(CMbufBuffer *      buf){
     assert(utl_rte_pktmbuf_verify(m)==0);
     #endif
 
+    uint32_t payload_len = m->pkt_len - (m->l2_len + m->l3_len + m->l4_len);
     INC_UDP_STAT(m_pctx, m_tg_id, udps_sndpkt);
-    INC_UDP_STAT_CNT(m_pctx, m_tg_id, udps_sndbyte,buf->m_t_bytes);
+    INC_UDP_STAT_CNT(m_pctx, m_tg_id, udps_sndbyte, payload_len);
 
     /* send the packet */
     m_pctx->m_ctx->m_cb->on_tx(m_pctx->m_ctx,0,m);
+}
+
+
+void CUdpFlow::flush_tx() {
+    m_pctx->m_ctx->m_cb->on_flush_tx();
 }
 
 
@@ -298,6 +309,9 @@ void CUdpFlow::on_rx_packet(struct rte_mbuf *m,
     INC_UDP_STAT(m_pctx, m_tg_id, udps_rcvpkt);
     INC_UDP_STAT_CNT(m_pctx, m_tg_id, udps_rcvbyte,total_l7_len);
     m_keepalive=0;
-    m_app.on_bh_rx_pkts(0,m); /* count the packets */
+    if (unlikely(m_app.get_emul_addon())) {
+        m_app.get_emul_addon()->recv_data(&m_app, m);
+    } else {
+        m_app.on_bh_rx_pkts(0,m); /* count the packets */
+    }
 }
-

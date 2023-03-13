@@ -960,6 +960,8 @@ main_src = SrcGroup(dir='src',
              '44bsd/tick_cmd_clock.cpp',
              '44bsd/udp.cpp',
 
+             '44bsd/udp_latency.cpp',
+
              'tunnels/gtp_man.cpp',
              'tunnels/tunnel_db.cpp',
 

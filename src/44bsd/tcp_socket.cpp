@@ -555,9 +555,13 @@ CEmulAppCmd* CEmulApp::process_cmd_one(CEmulAppCmd * cmd){
 
     case tcTX_PKT : 
         {
-           m_state=te_NONE;
-           m_api->send_pkt((CUdpFlow *)m_flow,cmd->u.m_tx_pkt.m_buf);
-           return next_cmd();
+            m_state=te_NONE;
+            if (get_emul_addon()) {
+                get_emul_addon()->send_data(this, cmd->u.m_tx_pkt.m_buf);
+            } else {
+                m_api->send_pkt((CUdpFlow *)m_flow, cmd->u.m_tx_pkt.m_buf);
+            }
+            return next_cmd();
         }
         break;
 
@@ -716,13 +720,17 @@ void CEmulApp::start(bool interrupt){
     /* there is at least one command */
     set_interrupt(interrupt);
     assert(m_program->get_size()>0);
-    if (!is_udp_flow()) {
+    if (unlikely(get_emul_addon())) {
+        m_addon_sts = m_pctx->m_appstat.m_addon_stats.get_addon_sts(m_flow->m_tg_id, get_emul_addon());
+        setup_emul_addon();
+    }
+    if (m_program->is_stream()) {
         m_q.set_window_size(m_api->get_tx_max_space(m_flow));
     }
     CEmulAppCmd * lpcmd=m_program->get_index(m_cmd_index);
     /* inject implicit TCP accept to avoid issue #604 */
     CEmulAppCmd temp_cmd;
-    if (!is_udp_flow() && !m_pctx->m_ctx->is_client_side() && (lpcmd->m_cmd == tcTX_BUFFER)) {
+    if (m_program->is_stream() && !m_pctx->m_ctx->is_client_side() && (lpcmd->m_cmd == tcTX_BUFFER)) {
         temp_cmd.m_cmd = tcCONNECT_WAIT;
         lpcmd = &temp_cmd;
         --m_cmd_index;  // rewind index for next_cmd()
@@ -1353,4 +1361,7 @@ void CAppStats::AddStatsVal(uint16_t tg_id, const uint8_t id, const uint64_t val
         counter_p[id] += val;
     }
 }
+
+
+std::vector<CEmulAddon*> CEmulAddonList::m_addon_list;
 

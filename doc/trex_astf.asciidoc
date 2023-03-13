@@ -2160,6 +2160,34 @@ ASTFAssociationRule(port=80, ip_start="48.0.0.0", ip_end="48.0.0.255",
                     l7_map=[0,1,2,3])                                   # for template 2
 ----
 
+==== Tutorial: UDP latency emulation with protcol add-on 
+
+You can measure latency time in micro-second unit on top of the UDP flow.
+
+*File*:: link:{github_astf_path}/udp_latency.py[astf/udp_latency.py]
+
+It can be simply activated by specifying `'latency'` to the UDP 'ASTFProgram'.
+
+[source,python]
+----
+ASTFProgram(stream=False, addon='latency')
+----
+
+The UDP latency addon will insert a latency header between the UDP header and UDP payload given by send_msg. So, udps_sendbyte and udps_rcvbyte will be larger than the payload size.
+Since the latency statistics is reported per template group only, you should specify tg_name to get the statistics counters.
+
+[source,python]
+----
+ASTFTemplate(client_template=temp_c, server_template=temp_s, tg_name='latency')
+----
+
+You can use template group API to get the counters. In trex-console, following command will show the latency counters.
+
+[source,bash]
+----
+[trex]>template_group stats --name latency
+----
+
 ==== Black list of MAC and IPv4 addresses
 
 Until version v2.97, in case the received packets are not destined for TRex server, TRex response depends on the tunable tcp.blackhole value. +

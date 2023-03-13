@@ -190,6 +190,8 @@ public:
              struct CTcpCb * tp,
              rte_mbuf_t *m);
 
+   void on_flush_tx();
+
    int on_flow_close(CTcpPerThreadCtx *ctx,
                      CFlowBase * flow);
 

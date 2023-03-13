@@ -730,6 +730,7 @@ TrexRpcCmdAstfGetTGNames::_run(const Json::Value &params, Json::Value &result) {
         result["result"]["epoch"] = server_epoch;
         if ( (initialized && server_epoch != epoch) || !initialized)  {
             lpstt->DumpTGNames(result["result"]);
+            lpstt->DumpTGDynStatsDesc(result["result"]["tg_addon_desc"]);
         }
     } else {
         generate_execute_err(result, "Statistics are not initialized yet for TGs");
