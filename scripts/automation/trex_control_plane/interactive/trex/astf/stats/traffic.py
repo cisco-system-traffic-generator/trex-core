@@ -239,23 +239,27 @@ class CAstfTrafficStats(object):
             del tg_id_data['epoch']
             del tg_id_data['name']
             assert tg_id_int != 0
+            tg_id_data['desc'] = self._desc + self.tg_names_dict[pid_input]['tg_addon_desc'][tg_id]
             processed_stats[self.tg_names_dict[pid_input]['tg_names'][tg_id_int-1]] = tg_id_data
         # Translate counters ids to names
         for tg_name in processed_stats.keys():
+            tg_desc = processed_stats[tg_name]['desc']
             for section in self.sections:
-                section_list = [0] * len(self._desc)
+                section_list = [0] * len(tg_desc)
                 for k, v in processed_stats[tg_name][section].items():
                     section_list[int(k)] = v
-                processed_stats[tg_name][section] = build_dict_vals_without_zero(self._desc, section_list, skip_zero)
+                processed_stats[tg_name][section] = build_dict_vals_without_zero(tg_desc, section_list, skip_zero)
+            del processed_stats[tg_name]['desc']
 
         return processed_stats
 
 
-    def _process_stats_for_table(self, stats):
+    def _process_stats_for_table(self, stats, pid_input = DEFAULT_PROFILE_ID):
         del stats['epoch']
-        for processed_stats in stats.values():
+        for tg_id, processed_stats in stats.items():
+            tg_desc_len = len(self._desc) + len(self.tg_names_dict[pid_input]['tg_addon_desc'][tg_id])
             for section in self.sections:
-                section_list = [0] * len(self._desc)
+                section_list = [0] * tg_desc_len
                 for k, v in processed_stats[section].items():
                     section_list[int(k)] = v
                 processed_stats[section] = section_list
@@ -301,6 +305,9 @@ class CAstfTrafficStats(object):
             for tgid, name in enumerate(tg_names):
                 tg_names_dic[name] = tgid+1
             tg_info['tg_names_dic'] = tg_names_dic
+            tg_info['tg_addon_desc'] = { str(tgid): [] for tgid in range(len(tg_names)+1) }
+            if 'tg_addon_desc' in rc.data().keys():
+                tg_info['tg_addon_desc'] = rc.data()['tg_addon_desc']
 
         self.tg_names_dict[profile_id] = tg_info
 
@@ -381,7 +388,7 @@ class CAstfTrafficStats(object):
             tg_ids = self._translate_names_to_ids(tg_names, pid_input)
             success, traffic_stats = self._get_traffic_tg_stats(tg_ids, pid_input = pid_input)
         if for_table:
-            return self._process_stats_for_table(traffic_stats)
+            return self._process_stats_for_table(traffic_stats, pid_input = pid_input)
         return self._process_stats(traffic_stats, skip_zero, pid_input = pid_input)
 
 
@@ -458,7 +465,7 @@ class CAstfTrafficStats(object):
                 name = self.tg_names_dict[pid_input]['tg_names'][tgid-1]
                 title = 'Profile ID : ' + pid_input + '. Template Group Name: ' + name + '. Number of template groups = ' + str(num_of_tgids)
                 data = self.get_traffic_tg_stats(tg_names = name, for_table=True, pid_input = pid_input)
-                sts_desc = self._desc
+                sts_desc = self._desc + self.tg_names_dict[pid_input]['tg_addon_desc'][str(tgid)]
                 max_desc_name_len = self._max_desc_name_len
         sec_count = len(self.sections)
 

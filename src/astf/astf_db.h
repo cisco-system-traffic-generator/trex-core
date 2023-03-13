@@ -220,6 +220,7 @@ class CTcpServerInfo {
     CEmulAppProgram *get_prog() {return m_prog;}
     CTcpTuneables *get_tuneables() {return m_tune;}
     uint32_t get_temp_idx() {return m_temp_idx;}
+    CEmulAddon *get_addon() {return m_prog->get_addon();}
 
     uint32_t get_ip_start() {return m_ip_start;}
     uint32_t get_ip_end() {return m_ip_end;}
@@ -231,6 +232,15 @@ class CTcpServerInfo {
     }
     std::vector<uint8_t> get_payload_params() { return m_payload_params; }
     bool is_payload_params() { return !m_payload_params.empty(); }
+    uint64_t get_server_id() {
+        uint64_t pval = 0;
+        int offset = get_addon() ? 0: 2;
+        for (int i = offset; i < m_payload_params.size(); i += offset) {
+            pval <<= 8;
+            pval |= m_payload_params[i++];
+        }
+        return pval;
+    }
 
  private:
     CEmulAppProgram *m_prog;
@@ -314,6 +324,7 @@ class CTcpTemplateInfo {
     CEmulAppProgram *    m_client_prog; /* client program per template */
     uint32_t m_num_bytes;
     uint16_t m_tg_id;                   /* template group id */
+    uint64_t m_server_id;               /* server connection id for add-on protocol */
 };
 
 typedef enum {
@@ -369,8 +380,16 @@ class CAstfDbRO {
         return m_templates[template_id].m_tg_id;
     }
 
+    uint64_t get_template_server_id(uint16_t template_id){
+        return m_templates[template_id].m_server_id;
+    }
+
     uint16_t get_num_of_tg_ids() {
         return m_num_of_tg_ids;
+    }
+
+    uint32_t get_num_of_templates() {
+        return m_templates.size();
     }
 
     // for tests in simulation
@@ -416,6 +435,7 @@ typedef enum {
 
 
 class CAstfJsonValidator;
+class CEmulAddon;
 
 class CAstfDB  : public CTRexDummyCommand  {
 
@@ -567,6 +587,8 @@ private:
 
     tcp_app_cmd_enum_t get_cmd(uint32_t program_index, uint32_t cmd_index);
     bool get_emul_stream(uint32_t program_index);
+    bool get_emul_addon_stream(uint32_t program_index);
+    CEmulAddon* get_emul_addon(uint32_t program_index);
 
     bool read_tunables(CTcpTuneables *tune, Json::Value json);
     bool convert_bufs(uint8_t socket_id);
@@ -641,6 +663,7 @@ private:
     Json::Value  m_val;
     Json::Value  m_buffers;
 
+    profile_id_t m_profile_id;
     std::vector<uint32_t> m_prog_lens; // program lengths in bytes
     std::vector<CAstfTemplatesRW *> m_rw_db;
     std::vector<CTcpTuneables *> m_s_tuneables;

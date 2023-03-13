@@ -49,6 +49,8 @@ public:
              struct CTcpCb * tp,
              rte_mbuf_t *m);
 
+   void on_flush_tx();
+
    int on_flow_close(CTcpPerThreadCtx *ctx,
                      CFlowBase * flow);
 
@@ -99,6 +101,10 @@ int CTcpIOCb::on_redirect_rx(CTcpPerThreadCtx *ctx,
                                rte_mbuf_t *m){
     pkt_dir_t   dir = ctx->m_ft.is_client_side()?CLIENT_SIDE:SERVER_SIDE;
     return(m_p->m_node_gen.m_v_if->redirect_to_rx_core(dir,m)?0:-1);
+}
+
+void CTcpIOCb::on_flush_tx(){
+    m_p->m_node_gen.m_v_if->flush_tx_queue();
 }
 
 int CTcpIOCb::on_tx(CTcpPerThreadCtx *ctx,
@@ -556,9 +562,11 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
 
     app_c = &c_flow->m_app;
 
+    app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
+    app_c->set_peer_id(cur_tmp_ro->get_template_server_id(template_id));
+
     if (is_udp){
         CUdpFlow * udp_flow=(CUdpFlow*)c_flow;;
-        app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
         app_c->set_bh_api(&m_udp_bh_api_impl_c);
         app_c->set_udp_flow_ctx(udp_flow->m_pctx,udp_flow);
         app_c->set_udp_flow();
@@ -576,7 +584,6 @@ void CFlowGenListPerThread::generate_flow(CPerProfileCtx * pctx, uint16_t _tg_id
 
     }else{
         CTcpFlow * tcp_flow=(CTcpFlow*)c_flow;
-        app_c->set_program(cur_tmp_ro->get_client_prog(template_id));
         app_c->set_bh_api(&m_tcp_bh_api_impl_c);
         app_c->set_flow_ctx(tcp_flow->m_pctx,tcp_flow);
         if (CGlobalInfo::m_options.preview.getEmulDebug() ){

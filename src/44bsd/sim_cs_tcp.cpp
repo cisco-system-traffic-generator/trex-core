@@ -185,6 +185,11 @@ int CTcpCtxDebug::on_redirect_rx(CTcpPerThreadCtx *ctx,
 }
 
 
+void CTcpCtxDebug::on_flush_tx() {
+    assert(0);
+}
+
+
 int CTcpCtxDebug::on_tx(CTcpPerThreadCtx *ctx,
                         struct CTcpCb * tp,
                         rte_mbuf_t *m){

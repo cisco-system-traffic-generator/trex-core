@@ -336,7 +336,7 @@ class ASTFProgram(object):
     MAX_DELAY = 700000 
     MAX_KEEPALIVE = 500000 
 
-    def __init__(self, file=None, side="c", commands=None,stream=True, s_delay=None, udp_mtu=None):
+    def __init__(self, file=None, side="c", commands=None,stream=True, s_delay=None, udp_mtu=None, addon=None):
         """
 
         :parameters:
@@ -359,6 +359,8 @@ class ASTFProgram(object):
                   udp_mtu: int or None
                       MTU for udp packets, if packets exceeding the specified value they will be cut down from L7 in order to fit. defaults to None.
 
+                  addon : string
+                      add-on name to handle data between program and base protocol.
 
 
         """
@@ -368,6 +370,7 @@ class ASTFProgram(object):
                      {"name": "commands", 'arg': commands, "t": ASTFCmd, "must": False, "allow_list": True},
                      {"name": "s_delay", 'arg': s_delay, "t": [ASTFCmdDelay, ASTFCmdDelayRnd], "must": False},
                      {"name": "udp_mtu", 'arg': udp_mtu, "t": int, "must": False},
+                     {"name": "addon", 'arg': addon, "t": str, "must": False},
                      ]}
         ArgVerify.verify(self.__class__.__name__, ver_args)
         side_vals = ["c", "s"]
@@ -384,6 +387,7 @@ class ASTFProgram(object):
         self.total_rcv_bytes = 0
         self.udp_mtu = udp_mtu
         self.s_delay = s_delay
+        self.addon = addon
         if file is not None:
             cap = pcap_reader(_ASTFCapPath.get_pcap_file_path(file))
             cap.analyze()
@@ -1143,6 +1147,8 @@ class ASTFProgram(object):
             ret['commands'].append(cmd.to_json())
         if self.stream==False:
             ret['stream']=False
+        if self.addon:
+            ret['addon']=self.addon
         return ret
 
     def dump(self, out, var_name):
@@ -1451,7 +1457,7 @@ class ASTFAssociationRule(object):
 
     """
 
-    def __init__(self, port=80, ip_start=None, ip_end=None, l7_map=None):
+    def __init__(self, port=80, ip_start=None, ip_end=None, l7_map=None, assoc_id=None):
         """
 
         :parameters:
@@ -1467,6 +1473,9 @@ class ASTFAssociationRule(object):
 
             l7_map: list or dict
                 L7 mapping content by byte offsets with optional masks and values
+
+            assoc_id: uint64_t
+                to specify a known value for the ASTFProgram addon handling
 
 
         """
@@ -1488,6 +1497,9 @@ class ASTFAssociationRule(object):
             l7_map = { "offset": list(l7_map) }
         if type(l7_map) is dict:
             self.fields['l7_map'] = l7_map
+
+        if assoc_id is not None:
+            self.fields['assoc_id'] = assoc_id
 
     @property
     def port(self):

@@ -37,6 +37,7 @@
  */
 
 #include <vector>
+#include <map>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -386,6 +387,114 @@ class CUdpFlow;
 class CPerProfileCtx;
 class CTcpPerThreadCtx;
 
+
+/* Add-on */
+class CEmulApp;
+class CMetaDataPerCounter;  // dyn_sts.h required
+using sts_desc_t = std::vector<CMetaDataPerCounter>;
+
+class CEmulAddon {
+    const std::string m_name;
+    const bool m_stream;
+    const uint8_t m_ip_proto;
+
+public:
+    CEmulAddon(std::string name, bool stream, uint8_t ip_proto) : m_name(name), m_stream(stream), m_ip_proto(ip_proto) {}
+    virtual ~CEmulAddon() {}
+
+    std::string const& get_name() const { return m_name; }
+    bool is_stream() const { return m_stream; }
+    uint8_t get_ip_proto() const { return m_ip_proto; }
+
+    virtual uint64_t new_connection_id(uint32_t profile_id, uint32_t template_idx) {
+        return (uint64_t)profile_id << 32 | template_idx;
+    }
+
+    virtual bool get_connection_id(uint8_t *data, uint16_t len, uint64_t& conn_id) = 0;
+
+    virtual void setup_connection(CEmulApp* app) {}
+
+    virtual void close_connection(CEmulApp* app) {}
+
+    virtual void send_data(CEmulApp* app, CMbufBuffer* buf) = 0;
+
+    virtual void recv_data(CEmulApp* app, struct rte_mbuf* m) = 0;
+
+    virtual sts_desc_t* get_stats_desc() const { return nullptr; }
+};
+
+class CEmulAddonList {
+private:
+    static std::vector<CEmulAddon*> m_addon_list;
+
+public:
+    static CEmulAddon* get_addon_by_name(std::string const& name, bool stream) {
+        for (auto addon: m_addon_list) {
+            if ((addon->get_name() == name) && (stream == addon->is_stream())) {
+                return addon;
+            }
+        }
+        return nullptr;
+    }
+
+    static void register_addon(CEmulAddon* addon) {
+        if (!get_addon_by_name(addon->get_name(), addon->is_stream())) {
+            m_addon_list.push_back(addon);
+        }
+    }
+};
+
+#define REGISTER_EMUL_ADDON(addon) \
+static void __attribute__((constructor, used)) addon ## _init(void) { \
+    CEmulAddonList::register_addon(new addon()); \
+}
+
+struct CAddonStats {
+    std::vector<std::map<const CEmulAddon*,uint64_t*>> m_sts_tg_id;
+
+public:
+    ~CAddonStats() {
+        Clear();
+        m_sts_tg_id.clear();
+    }
+
+    void Init(uint16_t num_of_tg_ids) {
+        Clear();
+        m_sts_tg_id.resize(num_of_tg_ids);
+    }
+
+    void Clear() {
+        for (auto& tg_sts: m_sts_tg_id) {
+            for (auto sts: tg_sts) {
+                delete[] sts.second;
+            }
+            tg_sts.clear();
+        }
+    }
+
+    void set_addon_sts(uint16_t tg_id, const CEmulAddon* addon, int num_counters) {
+        if (m_sts_tg_id[tg_id].find(addon) == m_sts_tg_id[tg_id].end()) {
+            m_sts_tg_id[tg_id][addon] = new uint64_t[num_counters]{};
+        }
+    }
+
+    uint64_t* get_addon_sts(uint16_t tg_id, const CEmulAddon* addon) {
+        if (m_sts_tg_id[tg_id].find(addon) != m_sts_tg_id[tg_id].end()) {
+            return m_sts_tg_id[tg_id][addon];
+        }
+        return nullptr;
+    }
+
+    std::vector<const CEmulAddon*> get_addon_list(uint16_t tg_id) const {
+        std::vector<const CEmulAddon*> addon_list;
+        for (auto& tg_sts : m_sts_tg_id[tg_id]) {
+            addon_list.push_back(tg_sts.first);
+        }
+        return addon_list;
+    }
+};
+
+
 /* Api from application to TCP */
 class CEmulAppApi {
 public:
@@ -429,6 +538,7 @@ public:
     ~CEmulAppProgram(){ 
         m_cmds.clear();
         m_stream=true;
+        m_addon=nullptr;
     }
 
     void add_cmd(CEmulAppCmd & cmd);
@@ -451,6 +561,15 @@ public:
     void set_stream(bool stream){
         m_stream = stream;
     }
+
+    CEmulAddon* get_addon() const {
+        return m_addon;
+    }
+
+    void set_addon(CEmulAddon* addon) {
+        m_addon = addon;
+    }
+
 private:
     bool is_common_commands(tcp_app_cmd_t cmd_id);
     bool is_udp_commands(tcp_app_cmd_t cmd_id);
@@ -458,6 +577,7 @@ private:
 private:
     bool                   m_stream;
     tcp_app_cmd_list_t     m_cmds; 
+    CEmulAddon*            m_addon; /* add-on protocol info */
 };
 
 
@@ -549,6 +669,7 @@ struct CAppStats {
     app_stat_int_t* m_sts_tg_id;
     app_stat_int_t  m_sts;
     uint16_t        m_num_of_tg_ids;
+    CAddonStats     m_addon_stats;
 public:
     CAppStats(uint16_t num_of_tg_ids=1);
     ~CAppStats();
@@ -614,10 +735,14 @@ public:
         assert(apVAR_NUM_SIZE==5);
         m_next_tg_id = 0;
         m_last_tg_id = 0;
+        m_emul_addon = nullptr;
+        m_peer_id = 0;
+        m_addon_sts = nullptr;
     }
 
     virtual ~CEmulApp(){
         force_stop_timer();
+        close_emul_addon();
     }
 
     static uint32_t timer_offset(void){
@@ -771,6 +896,7 @@ public:
 
     void set_program(CEmulAppProgram * prog){
         m_program = prog;
+        m_emul_addon = prog->get_addon();
     }
 
     void set_flow_ctx(CPerProfileCtx *  pctx,
@@ -795,6 +921,33 @@ public:
 
     void set_l7_check(bool enable) { m_l7check_enable = enable; }
     bool get_l7_check() const { return m_l7check_enable; }
+
+
+    CEmulAppApi* get_bh_api(){ return m_api; }
+
+    CEmulAddon* get_emul_addon() { return m_emul_addon; }
+
+    void setup_emul_addon() {
+        if (m_emul_addon) {
+            m_emul_addon->setup_connection(this);
+        }
+    }
+
+    void close_emul_addon() {
+        if (m_emul_addon) {
+            m_emul_addon->close_connection(this);
+        }
+    }
+
+    void set_peer_id(uint64_t id) { m_peer_id = id; }
+
+    uint64_t get_peer_id() const { return m_peer_id; }
+
+    void set_priv_data(void* data) { m_priv_data = data; }
+
+    void* get_priv_data() { return m_priv_data; }
+
+    uint64_t* get_addon_sts() const { return m_addon_sts; }
 
 public:
 
@@ -925,6 +1078,11 @@ private:
 
     uint16_t                m_next_tg_id;
     uint16_t                m_last_tg_id;
+
+    CEmulAddon             *m_emul_addon;
+    uint64_t                m_peer_id;
+    void                   *m_priv_data;
+    uint64_t               *m_addon_sts;
 };
 
 
