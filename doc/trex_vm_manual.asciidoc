@@ -174,9 +174,9 @@ It is designed to enable TRex newbies to explore this tool without any special r
 
 In order to use TRex VM, there are several easy steps to follow:
 
-  . Download and install Oracle VM Virtual Box Manager https://www.virtualbox.org/wiki/Downloads[(VB download link)]. + 
+  . Download and install Oracle VM Virtual Box Manager link:https://www.virtualbox.org/wiki/Downloads[(VB download link)]. + 
     During installation you will be asked to allow the installation of system devices component interactions. Allow it.
-  . Download the latest TRex VM by https://trex-tgn.cisco.com/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link]. Notice that this is the
+  . Download the latest TRex VM by link:https://trex-tgn.cisco.com/trex/T_Rex_162_VM_Fedora_21.ova[clicking on this link]. Notice that this is the
     latest VM image, not the latest TRex version. This can be used for demonstration purposes. After installation, you can upgrade to latest
     TRex image if needed (Instructions below).
   . Open Oracle VM Virtual Box application installed at step 1.
@@ -216,7 +216,7 @@ endif::backend-xhtml11[]
 [IMPORTANT]
 ====
 You may encounter "VT-x is disabled" error, as shown in the image below. +
-In that case, please refer to https://www.virtualbox.org/ticket/4130[this link] and follow the provided steps to overcome this issue.
+In that case, please refer to link:https://www.virtualbox.org/ticket/4130[this link] and follow the provided steps to overcome this issue.
 ====
 
 ifdef::backend-docbook[]
@@ -395,7 +395,7 @@ Once we have TRex up and running, we can monitor its performance using TRexViewe
 
 This can be done by following these steps:
 
-1. Download the latest version of TrexViewer application and install it using http://trex-tgn.cisco.com/trex/client_gui/setup.exe[this link].
+1. Download the latest version of TrexViewer application and install it using link:http://trex-tgn.cisco.com/trex/client_gui/setup.exe[this link].
 
 
 2. Start the application and fill in the following: + 
