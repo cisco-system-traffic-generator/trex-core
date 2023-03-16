@@ -251,6 +251,8 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         self._tls_key_file = None
         self._store_exported_files_on_disk = None
         self._input_channel_capacity = None
+        self._repeats_num = None
+        self._repeats_wait_time = None
         self._type = "http"
 
     def get_json(self):
@@ -263,6 +265,8 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         add_to_json_if_not_none(exporter_params, "tls_key_file", self._tls_key_file)
         add_to_json_if_not_none(exporter_params, "store_exported_files_on_disk", self._store_exported_files_on_disk)
         add_to_json_if_not_none(exporter_params, "input_channel_capacity", self._input_channel_capacity)
+        add_to_json_if_not_none(exporter_params, "repeats_num", self._repeats_num)
+        add_to_json_if_not_none(exporter_params, "repeats_wait_time", self._repeats_wait_time)
 
         if len(exporter_params) == 0:
             return None
@@ -286,6 +290,12 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
 
     def set_input_channel_capacity(self, input_channel_capacity):
         self._input_channel_capacity = input_channel_capacity
+
+    def set_repeats_num(self, repeats_num):
+        self._repeats_num = repeats_num
+
+    def set_repeats_wait_time(self, repeats_wait_time):
+        self._repeats_wait_time = repeats_wait_time
 
 class IpfixPlugin:
     def __init__(self, exporter_params, generators: IpfixGenerators):
