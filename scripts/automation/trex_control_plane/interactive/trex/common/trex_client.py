@@ -2932,8 +2932,8 @@ class TRexClient(object):
             A common method for STL/ASTF to clear stats
         """
 
-        # by default use all acquired ports
-        ports = ports if ports is not None else self.get_acquired_ports()
+        # by default use all ports
+        ports = ports if ports else self.get_all_ports()
 
         # validate
         ports = self.psv.validate('clear_stats', ports)
