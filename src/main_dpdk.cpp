@@ -4319,9 +4319,14 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
         }
     }
 
+    uint32_t port_mtu = global_platform_cfg_info.m_port_mtu;
+
+    if (!port_mtu) {
+        port_mtu = dev_info.max_rx_pktlen - trex_dev_get_overhead_len(dev_info.max_rx_pktlen, dev_info.max_mtu);
+    }
+
     /*update mtu based on the dev info*/
-    m_port_cfg.m_port_conf.rxmode.mtu = dev_info.max_rx_pktlen - trex_dev_get_overhead_len(dev_info.max_rx_pktlen, 
-                                                                                      dev_info.max_mtu);
+    m_port_cfg.m_port_conf.rxmode.mtu = port_mtu;
     m_port_cfg.update_var();
 
     if (m_port_cfg.m_port_conf.rxmode.mtu > dev_info.max_rx_pktlen ) {
