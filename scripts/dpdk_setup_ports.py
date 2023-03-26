@@ -508,7 +508,7 @@ Other network devices
     def check_ofed_version (self):
         ofed_info='/usr/bin/ofed_info'
 
-        ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+        ofed_ver_re = re.compile('.*[-](\d)(\d)?[.](\d)(\d)?[-].*')
 
         ofed_ver = 52
         ofed_ver_show = '5.2'
@@ -529,7 +529,12 @@ Other network devices
         if len(lines)>1:
             m= ofed_ver_re.match(str(lines[0]))
             if m:
-                ver=int(m.group(1))*10+int(m.group(2))
+                if (m.lastindex == 4):
+                    ver=int(m.group(1))*1000+int(m.group(2))*100+int(m.group(3))*10+int(m.group(4))
+                    ofed_ver = 2304
+                    ofed_ver_show = '23.04'
+                else:
+                    ver=int(m.group(1))*10+int(m.group(2))
                 if ver < ofed_ver:
                   print("Installed OFED version is '%s', should be at least '%s' and up." % (lines[0],ofed_ver_show))
                   sys.exit(-1);
