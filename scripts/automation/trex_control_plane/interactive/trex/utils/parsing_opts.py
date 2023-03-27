@@ -1497,7 +1497,7 @@ class OPTIONS_DB_ARGS:
     IPFIX_DIR_SCANS_NUM = ArgumentPack(
         ['--dir-scans-num'],
         {'type': int,
-         'default': 1,
+         'default': None,
          'dest': "dir_scans_num",
          'help': "Number of times to scan the input directory/file"})
 
