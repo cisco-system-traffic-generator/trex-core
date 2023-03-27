@@ -107,7 +107,7 @@ class Prof1:
         parser.add_argument('--exporter-compressed', default=None, dest="exporter_compressed", action=argparse.BooleanOptionalAction, help="HTTP exporter store exported files on disk")
         parser.add_argument('--exporter-store-exported-files-on-disk', default=None, dest="exporter_store_exported_files_on_disk", action=argparse.BooleanOptionalAction, help="HTTP exporter store exported files on disk")
         parser.add_argument('--exporter-repeats-num', type=int, default=None, dest="exporter_repeats_num", help="HTTP exporter number of times to repeat each export")
-        parser.add_argument('--exporter-repeats-wait-time', type=str, default=None, dest="exporter_repeats_wait_time", help="HTTP exporter time to wait between repeats")
+        parser.add_argument('--exporter-repeats-wait-time', type=str, default=None, dest="exporter_repeats_wait_time", help="HTTP exporter time to wait between file export repeats")
 
         args = parser.parse_args(tuneables)
 

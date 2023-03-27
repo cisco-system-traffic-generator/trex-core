@@ -11,6 +11,32 @@ class AVCGenerators(IpfixGenerators):
         self.__add_generators()
 
     def __add_generators(self):
+        self._generators["Dummy"] = {
+            "name": "Dummy",
+            "auto_start": True,
+            "rate_pps": 0.0,
+            "template_rate_pps": 0.0,
+            "data_records_num": 0,
+            "template_id": 256,
+            "fields": [
+                self._fields.get("flowStartSysUpTime"),
+            ],
+            "engines": [
+                {
+                    "engine_name": "flowStartSysUpTime",
+                    "engine_type": "uint",
+                    "params": {
+                        "size": 4,
+                        "offset": 3,
+                        "min": 1,
+                        "max": 10,
+                        "step": 1,
+                        "op": "inc",
+                    },
+                },
+            ],
+        }
+
         self._generators["256"] = {
             "name": "256",
             "auto_start": True,

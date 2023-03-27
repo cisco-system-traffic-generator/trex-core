@@ -1463,6 +1463,86 @@ class OPTIONS_DB_ARGS:
         'help': 'Use all namespaces for the action'})
 
     # Plugins cfg args
+
+    IPFIX_GEN_NAME = ArgumentPack(
+        ['-g', '--gen'],
+        {'type': str,
+         'dest': 'gen_name',
+         'required': True,
+         'help': 'Name of IPFix generator'})
+
+    IPFIX_GEN_RATE = ArgumentPack(
+        ['-r', '--rate'],
+        {'type': float,
+         'dest': 'rate',
+         'required': True,
+         'help': 'New rate (in pps) for template/data packets of an IPFix generator'})
+
+    IPFIX_DST_URL = ArgumentPack(
+        ['--dst-url'],
+        {'type': str,
+         'default': None,
+         'dest': "dst_url",
+         'required': True,
+         'help': "Exporter destination URL (must be HTTP/HTTPS or UDP)"})
+
+    IPFIX_DIR = ArgumentPack(
+        ['--dir'],
+        {'type': str,
+         'default': None,
+         'dest': "dir",
+         'required': True,
+         'help': "Path to a file or a directory of ipfix files to push"})
+
+    IPFIX_DIR_SCANS_NUM = ArgumentPack(
+        ['--dir-scans-num'],
+        {'type': int,
+         'default': 1,
+         'dest': "dir_scans_num",
+         'help': "Number of times to scan the input directory/file"})
+
+    IPFIX_FILES_WAIT_TIME = ArgumentPack(
+        ['--files-wait-time'],
+        {'type': str,
+         'default': None,
+         'dest': "files_wait_time",
+         'help': "Time to wait between each file export. If zero - use the timestamps from the file name"})
+
+    IPFIX_FILES_WAIT_TIME_SPEEDUP = ArgumentPack(
+        ['--files-wait-time-speedup'],
+        {'type': int,
+         'default': 1,
+         'dest': "files_wait_time_speedup",
+         'help': "Ignored if wait-time is non zero. Otherwise, specify a speedup factor for the wait time between files"})
+
+    IPFIX_HTTP_REPEATS_NUM = ArgumentPack(
+        ['--http-repeats-num'],
+        {'type': int,
+         'default': 1,
+         'dest': "http_repeats_num",
+         'help': "Number of times to repeat each http export"})
+
+    IPFIX_HTTP_REPEATS_WAIT_TIME = ArgumentPack(
+        ['--http-repeats-wait-time'],
+        {'type': str,
+         'default': None,
+         'dest': "http_repeats_wait_time",
+         'help': "Time to wait between http export repeats"})
+
+    IPFIX_HTTP_SITES_PER_TENANT = ArgumentPack(
+        ['--http-sites-per-tenant'],
+        {'type': int,
+         'default': None,
+         'dest': "http_sites_per_tenant",
+         'help': "Number of sites per tenant to be used in dst url"})
+
+    IPFIX_HTTP_DEVICES_PER_SITE = ArgumentPack(
+        ['--http-devices-per-site'],
+        {'type': int,
+         'default': None,
+         'dest': "http_devices_per_site",
+         'help': "Number of devices per site to be used in dst url"})
+
     ARP_ENABLE = ArgumentPack(
         ['--enable'],
         {'choices': ON_OFF_DICT,
@@ -1474,21 +1554,6 @@ class OPTIONS_DB_ARGS:
         {'choices': ON_OFF_DICT,
          'required': True,
          'help': 'Enable gratuitous ARP'})
-
-    GEN_NAME = ArgumentPack(
-        ['-g', '--gen'],
-        {'type': str,
-         'dest': 'gen_name',
-         'required': True,
-         'help': 'Name of IPFix generator'})
-
-    GEN_RATE = ArgumentPack(
-        ['-r', '--rate'],
-        {'type': float,
-         'dest': 'rate',
-         'required': True,
-         'help': 'New rate (in pps) for template/data packets of an IPFix generator'})
-
 
     MTU = ArgumentPack(
         ['--mtu'],

@@ -173,11 +173,15 @@ class IpfixUdpExporterParams(IpfixExporterParams):
         self._type = "udp"
         self._use_emu_client_ip_addr = None
         self._raw_socket_interface_name = None
+        self._export_from_dir = None
+        self._export_from_dir_params = None
 
     def get_json(self):
         exporter_params = {}
         add_to_json_if_not_none(exporter_params, "use_emu_client_ip_addr", self._use_emu_client_ip_addr)
         add_to_json_if_not_none(exporter_params, "raw_socket_interface_name", self._raw_socket_interface_name)
+        add_to_json_if_not_none(exporter_params, "export_from_dir", self._export_from_dir)
+        add_to_json_if_not_none(exporter_params, "export_from_dir_params", self._export_from_dir_params)
 
         if len(exporter_params) == 0:
             return None
@@ -192,6 +196,26 @@ class IpfixUdpExporterParams(IpfixExporterParams):
 
     def set_raw_socket_interface_name(self, raw_socket_interface_name):
         self._raw_socket_interface_name = raw_socket_interface_name
+
+    def set_export_from_dir(self, export_from_dir):
+        self._export_from_dir = export_from_dir
+
+    def set_export_from_dir_params(
+        self,
+        dir,
+        dir_scans_num = None,
+        files_wait_time = None,
+        files_wait_time_speedup = None,
+        packets_wait_time = None
+    ):
+        json = {}
+        json["dir"] = dir
+        add_to_json_if_not_none(json, "dir_scans_num", dir_scans_num)
+        add_to_json_if_not_none(json, "files_wait_time", files_wait_time)
+        add_to_json_if_not_none(json, "files_wait_time_speedup", files_wait_time_speedup)
+        add_to_json_if_not_none(json, "packets_wait_time", packets_wait_time)
+
+        self._export_from_dir_params = json
 
 
 class IpfixFileExporterParams(IpfixExporterParams):
@@ -253,6 +277,8 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         self._input_channel_capacity = None
         self._repeats_num = None
         self._repeats_wait_time = None
+        self._export_from_dir = None
+        self._export_from_dir_params = None
         self._type = "http"
 
     def get_json(self):
@@ -267,6 +293,8 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         add_to_json_if_not_none(exporter_params, "input_channel_capacity", self._input_channel_capacity)
         add_to_json_if_not_none(exporter_params, "repeats_num", self._repeats_num)
         add_to_json_if_not_none(exporter_params, "repeats_wait_time", self._repeats_wait_time)
+        add_to_json_if_not_none(exporter_params, "export_from_dir", self._export_from_dir)
+        add_to_json_if_not_none(exporter_params, "export_from_dir_params", self._export_from_dir_params)
 
         if len(exporter_params) == 0:
             return None
@@ -296,6 +324,25 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
 
     def set_repeats_wait_time(self, repeats_wait_time):
         self._repeats_wait_time = repeats_wait_time
+
+    def set_export_from_dir(self, export_from_dir):
+        self._export_from_dir = export_from_dir
+
+    def set_export_from_dir_params(
+        self,
+        dir,
+        dir_scans_num = None,
+        files_wait_time = None,
+        files_wait_time_speedup = None
+    ):
+        json = {}
+        json["dir"] = dir
+        add_to_json_if_not_none(json, "dir_scans_num", dir_scans_num)
+        add_to_json_if_not_none(json, "files_wait_time", files_wait_time)
+        add_to_json_if_not_none(json, "files_wait_time_speedup", files_wait_time_speedup)
+
+        self._export_from_dir_params = json
+
 
 class IpfixPlugin:
     def __init__(self, exporter_params, generators: IpfixGenerators):
