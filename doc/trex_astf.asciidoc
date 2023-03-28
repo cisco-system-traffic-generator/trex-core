@@ -75,7 +75,7 @@ image::images/t_c3.png[title="C/S mode",align="center",width={p_width}, link="im
 * TCP/UDP/Application statistics (per client side/per template)
 * Verify incoming IP/TCP/UDP checksum 
 * Python 2.7/3.0 Client API 
-* Ability to build a realistic traffic profile that includes TCP and UDP protocols (e.g. SFR EMIX)
+* Ability to build a realistic traffic profile that includes TCP and UDP protocols (e.g. EMIX)
 * IPv6/IPv4 
 * Fragmentation support 
 * Accurate latency for TCP flows - SYN/SYN ACK and REQ/RES latency histogram, usec resolution
@@ -1292,7 +1292,7 @@ It is like the simple simulator but simulates multiple templates and flows exacl
 * b.pcap output pcap file will be generated, it is the client side multiplex pcap.
 * There is no server side pcap file in this simulation because we are not simulating latency/jitter/drop in this case so the server should be the same as client side.
 
-Another example that will run sfr profile in release mode and will show the counters 
+Another example that will run EMIX profile in release mode and will show the counters 
 
 [source,bash]
 ----

@@ -96,7 +96,7 @@ file stats
  m_total_close_flows                     : 10 
  m_total_bytes                           : 1700 
 ----
-<1> Global statistics on the templates given. cps=connection per second. tps is template per second. they might be different in case of plugins where one template includes more than one flow. For example RTP flow in SFR profile (avl/delay_10_rtp_160k_full.pcap)
+<1> Global statistics on the templates given. cps=connection per second. tps is template per second. they might be different in case of plugins where one template includes more than one flow. For example RTP flow in EMIX profile (avl/delay_10_rtp_160k_full.pcap)
 <2> Generator output.
 
 
@@ -755,10 +755,10 @@ endif::backend-docbook[]
 The output above illustrates two HTTP flows and ten DNS flows in 1 second, as expected.
 
   
-=== SFR traffic YAML
+=== EMIX traffic YAML
 
-SFR traffic includes a combination of traffic templates. This traffic mix in the example below was defined by SFR France.
-This SFR traffic profile is used as our traffic profile for our ASR1k/ISR-G2 benchmark. It is also possible to use EMIX instead of IMIX traffic.
+EMIX traffic includes a combination of traffic templates. .
+This EMIX traffic profile is used as our traffic profile for our ASR1k/ISR-G2 benchmark. 
 
 The traffic was recorded from a Spirent C100 with a Pagent that introduce 10msec delay from client and server side.
 
@@ -2643,19 +2643,19 @@ Full command line reference can be found xref:cml-line[here]
 [bash]>sudo ./t-rex-64 -f cap2/simple_http.yaml -c 4 -m 100 -d 100 -l 1000
 ----
 
-.SFR 35Gb/sec traffic 
+.EMIX 35Gb/sec traffic 
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -m 35 -d 100 -p 
 ----
 
-.SFR 20Gb/sec traffic with latency 
+.EMIX 20Gb/sec traffic with latency 
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g.yaml -c 4 -m 20 -d 100 -l 1000
 ----
 
-.SFR ipv6 20Gb/sec traffic with latency 
+.EMIX ipv6 20Gb/sec traffic with latency 
 [source,bash]
 ----
 [bash]>sudo ./t-rex-64 -f avl/sfr_delay_10_1g_no_bundeling.yaml -c 4 -m 20 -d 100 -l 1000 --ipv6 
