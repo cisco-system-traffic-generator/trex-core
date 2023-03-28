@@ -1,8 +1,8 @@
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
-from emu.avc_ipfix_fields import AvcIpfixFields
-from emu.ipfix_profile import *
+from trex.emu.trex_emu_ipfix_fields import AvcIpfixFields
+from trex.emu.trex_emu_ipfix_profile import *
 from trex.emu.api import *
 
 PPACK_TAXONOMY_FILE = "./emu/taxonomy-pp63.xml"

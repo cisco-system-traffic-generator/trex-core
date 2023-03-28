@@ -1,6 +1,6 @@
 import argparse
-from emu.avc_ipfix_generators import AVCGenerators
-from emu.ipfix_profile import *
+from trex.emu.trex_emu_ipfix_generators import AVCGenerators
+from trex.emu.trex_emu_ipfix_profile import *
 from trex.emu.api import *
 
 

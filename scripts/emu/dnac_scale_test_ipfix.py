@@ -1,6 +1,6 @@
 import argparse
 from emu.dnac_scale_test_generators import DnacScaleTestGenerators
-from emu.ipfix_profile import *
+from trex.emu.trex_emu_ipfix_profile import *
 from trex.emu.api import *
 
 DEBUG = False

@@ -2,8 +2,8 @@ from trex.emu.api import *
 from trex.emu.emu_plugins.emu_plugin_base import *
 from trex.emu.trex_emu_validator import EMUValidator
 import trex.utils.parsing_opts as parsing_opts
-from emu.avc_ipfix_generators import AVCGenerators
-from emu.ipfix_profile import *
+from trex.emu.trex_emu_ipfix_generators import AVCGenerators
+from trex.emu.trex_emu_ipfix_profile import *
 
 class IPFIXPlugin(EMUPluginBase):
     """

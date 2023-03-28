@@ -1,7 +1,7 @@
 import time
 
-from emu.avc_ipfix_fields import AvcIpfixFields
-from emu.ipfix_profile import IpfixGenerators
+from trex.emu.trex_emu_ipfix_fields import AvcIpfixFields
+from trex.emu.trex_emu_ipfix_profile import IpfixGenerators
 
 
 class AVCGenerators(IpfixGenerators):

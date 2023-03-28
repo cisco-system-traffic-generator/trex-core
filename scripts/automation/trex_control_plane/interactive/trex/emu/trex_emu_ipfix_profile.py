@@ -1,7 +1,12 @@
 import unittest
 import argparse
 import json
-from urllib.parse import urlparse
+
+try:
+    from urllib.parse import urlparse
+except ImportError:
+     from urlparse import urlparse
+
 import re
 from trex.emu.api import *
 
@@ -97,7 +102,8 @@ class IpfixGenerators:
             gen["engines"] = engines
 
 
-class IpfixExporterParamsFactory(metaclass=Singleton):
+class IpfixExporterParamsFactory():
+    __metaclass__ = Singleton
     def __init__(self):
         self._create_obj_db()
 
@@ -189,7 +195,8 @@ class IpfixUdpExporterParams(IpfixExporterParams):
             return exporter_params
 
     def get_dst_url(self):
-        return f"{self._type}://{self._dst_ip_addr}:{self._dst_port}/"
+        return "{0}://{1}:{2}/".format(
+            self._type, self._dst_ip_addr, self._dst_port)
 
     def set_use_emu_client_ip_addr(self, use_emu_client_ip_addr):
         self._use_emu_client_ip_addr = use_emu_client_ip_addr
@@ -246,7 +253,7 @@ class IpfixFileExporterParams(IpfixExporterParams):
             return exporter_params
 
     def get_dst_url(self):
-        return f"{self._type}://{self._dir}/{self._name}"
+        return "{0}://{1}/{2}".format(self._type, self._dir, self._name)
 
     def set_max_size(self, max_size):
         self._max_size = max_size
@@ -302,7 +309,8 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
             return exporter_params
 
     def get_dst_url(self):
-        return f"{self._type}://{self._dst_ip_addr}:{self._dst_port}/api/ipfixfilecollector/{self._tenant_id}/{self._site_id}/{self._device_id}/post_file"
+        return "{0}://{1}:{2}/api/ipfixfilecollector/{3}/{4}/{5}/post_file".format(
+            self._type, self._dst_ip_addr, self._dst_port, self._tenant_id, self._site_id, self._device_id)
 
     def set_max_posts(self, max_posts):
         self._max_posts = max_posts
@@ -345,7 +353,7 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
 
 
 class IpfixPlugin:
-    def __init__(self, exporter_params, generators: IpfixGenerators):
+    def __init__(self, exporter_params, generators):
         self._exporter_params = exporter_params
         self._generators = generators
         self._NETFLOW_VERSION = 10
@@ -422,7 +430,7 @@ class IpfixProfile:
     def dump_json(self):
         return json.dumps(self.get_json(), indent=4)
 
-    def get_profile(self) -> EMUProfile:
+    def get_profile(self):
         return self._profile
 
     def get_devices_keys(self):

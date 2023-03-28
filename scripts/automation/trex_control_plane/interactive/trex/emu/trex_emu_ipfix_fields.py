@@ -1,4 +1,4 @@
-from emu.ipfix_profile import IpfixFields
+from trex.emu.trex_emu_ipfix_profile import IpfixFields
 
 
 class AvcIpfixFields(IpfixFields):
