@@ -1,14 +1,13 @@
-import unittest
-import argparse
 import json
+import re
 
 try:
     from urllib.parse import urlparse
 except ImportError:
      from urlparse import urlparse
 
-import re
 from trex.emu.api import *
+
 
 class Singleton(type):
     _instances = {}
@@ -24,6 +23,10 @@ def add_to_json_if_not_none(json, field, value):
         json[field] = value
 
 
+###############################################################
+                        # Fields
+###############################################################
+
 class IpfixFields:
     def __init__(self):
         self._fields = {} # Field name to configuration
@@ -35,6 +38,10 @@ class IpfixFields:
     def get(self, field, default = None):
         return self._fields.get(field, default)
 
+
+###############################################################
+                        # Generators
+###############################################################
 
 class IpfixGenerators:
     def __init__(self, fields, gen_names_list = None):
@@ -102,6 +109,10 @@ class IpfixGenerators:
             gen["engines"] = engines
 
 
+###############################################################
+                        # Exporters
+###############################################################
+
 class IpfixExporterParamsFactory():
     __metaclass__ = Singleton
     def __init__(self):
@@ -120,6 +131,7 @@ class IpfixExporterParamsFactory():
         self.obj_db["udp"] = self._create_udp_obj
         self.obj_db["file"] = self._create_file_obj
         self.obj_db["http"] = self._create_http_obj
+        self.obj_db["https"]: self._create_http_obj
 
     def _create_emu_udp_obj(self, dst_url):
         obj = IpfixUdpExporterParams(dst_url.hostname, dst_url.port)
@@ -150,7 +162,7 @@ class IpfixExporterParamsFactory():
         site_id = match.groups()[1]
         device_id = match.groups()[2]
 
-        obj = IpfixHttpExporterParams(dst_url.hostname, dst_url.port, tenant_id, site_id, device_id)
+        obj = IpfixHttpExporterParams(dst_url.scheme, dst_url.hostname, dst_url.port, tenant_id, site_id, device_id)
         return obj
 
 
@@ -175,7 +187,7 @@ class IpfixUdpExporterParams(IpfixExporterParams):
     def __init__(self, dst_ip_addr, dst_port):
         super(IpfixUdpExporterParams, self).__init__()
         self._dst_ip_addr = dst_ip_addr
-        self._dst_port = dst_port
+        self._dst_port = dst_port # urlparse can return dst_port None
         self._type = "udp"
         self._use_emu_client_ip_addr = None
         self._raw_socket_interface_name = None
@@ -189,14 +201,13 @@ class IpfixUdpExporterParams(IpfixExporterParams):
         add_to_json_if_not_none(exporter_params, "export_from_dir", self._export_from_dir)
         add_to_json_if_not_none(exporter_params, "export_from_dir_params", self._export_from_dir_params)
 
-        if len(exporter_params) == 0:
-            return None
-        else:
-            return exporter_params
+        return None if len(exporter_params) == 0 else exporter_params
 
     def get_dst_url(self):
-        return "{0}://{1}:{2}/".format(
-            self._type, self._dst_ip_addr, self._dst_port)
+        if self._dst_port is None:
+            return f"{self._type}://{self._dst_ip_addr}/"
+        else:
+            return f"{self._type}://{self._dst_ip_addr}:{self._dst_port}/"
 
     def set_use_emu_client_ip_addr(self, use_emu_client_ip_addr):
         self._use_emu_client_ip_addr = use_emu_client_ip_addr
@@ -247,10 +258,7 @@ class IpfixFileExporterParams(IpfixExporterParams):
         add_to_json_if_not_none(exporter_params, "max_files", self._max_files)
         add_to_json_if_not_none(exporter_params, "compress", self._compress)
 
-        if len(exporter_params) == 0:
-            return None
-        else:
-            return exporter_params
+        return None if len(exporter_params) == 0 else exporter_params
 
     def get_dst_url(self):
         return "{0}://{1}/{2}".format(self._type, self._dir, self._name)
@@ -270,10 +278,10 @@ class IpfixFileExporterParams(IpfixExporterParams):
 
 
 class IpfixHttpExporterParams(IpfixFileExporterParams):
-    def __init__(self, dst_ip_addr, dst_port, tenant_id, site_id, device_id):
+    def __init__(self, scheme, dst_ip_addr, dst_port, tenant_id, site_id, device_id):
         super(IpfixHttpExporterParams, self).__init__(None, None)
         self._dst_ip_addr = dst_ip_addr
-        self._dst_port = dst_port
+        self._dst_port = dst_port   # urlparse can return dst_port None
         self._tenant_id = tenant_id
         self._site_id = site_id
         self._device_id = device_id
@@ -286,7 +294,9 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         self._repeats_wait_time = None
         self._export_from_dir = None
         self._export_from_dir_params = None
-        self._type = "http"
+        if scheme not in ["http", "https"]:
+            raise ValueError(f"invalid scheme {scheme}, scheme should be http/s")
+        self._type = scheme
 
     def get_json(self):
         exporter_params = super(IpfixHttpExporterParams, self).get_json()
@@ -303,14 +313,13 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         add_to_json_if_not_none(exporter_params, "export_from_dir", self._export_from_dir)
         add_to_json_if_not_none(exporter_params, "export_from_dir_params", self._export_from_dir_params)
 
-        if len(exporter_params) == 0:
-            return None
-        else:
-            return exporter_params
+        return None if len(exporter_params) == 0 else exporter_params
 
     def get_dst_url(self):
-        return "{0}://{1}:{2}/api/ipfixfilecollector/{3}/{4}/{5}/post_file".format(
-            self._type, self._dst_ip_addr, self._dst_port, self._tenant_id, self._site_id, self._device_id)
+        if self._dst_port is None:
+            return f"{self._type}://{self._dst_ip_addr}/api/ipfixfilecollector/{self._tenant_id}/{self._site_id}/{self._device_id}/post_file"
+        else:
+            return f"{self._type}://{self._dst_ip_addr}:{self._dst_port}/api/ipfixfilecollector/{self._tenant_id}/{self._site_id}/{self._device_id}/post_file"
 
     def set_max_posts(self, max_posts):
         self._max_posts = max_posts
@@ -351,6 +360,10 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
 
         self._export_from_dir_params = json
 
+
+###############################################################
+                        # Plugin
+###############################################################
 
 class IpfixPlugin:
     def __init__(self, exporter_params, generators):
@@ -398,6 +411,9 @@ class IpfixPlugin:
     def set_auto_start(self, auto_start):
         self._auto_start = auto_start
 
+###############################################################
+                        # Profile
+###############################################################
 
 # Basic IPFIX profile with one namespace and one or more devices (EMU clients) with a given IPFIX plugin init JSON.
 class IpfixProfile:
@@ -452,6 +468,10 @@ class IpfixProfile:
         ns_obj = EMUNamespaceObj(ns_key=ns_key, plugs = ns_plugins, clients=clients)
         profile = EMUProfile(ns=ns_obj, def_ns_plugs=ns_plugins)
         self._profile = profile
+
+###############################################################
+                # Auto Trigger Profile
+###############################################################
 
 # IPFIX NS level profile to automatically trigger the creation of a given number of devices by the EMU server.
 # The created devices will be created gradually over the provided ramp-up time.
@@ -549,3 +569,7 @@ class IpfixDevicesAutoTriggerProfile:
         json["device_init"] = self._ipfix_plugin.get_json()
         ns_json = {"devices_auto_trigger" : json}
         return ns_json
+
+
+if __name__ == "__main__":
+    print("This file should be imported and not run")
