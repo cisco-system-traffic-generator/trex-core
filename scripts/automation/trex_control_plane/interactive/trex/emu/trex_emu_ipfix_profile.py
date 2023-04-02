@@ -131,7 +131,7 @@ class IpfixExporterParamsFactory():
         self.obj_db["udp"] = self._create_udp_obj
         self.obj_db["file"] = self._create_file_obj
         self.obj_db["http"] = self._create_http_obj
-        self.obj_db["https"]: self._create_http_obj
+        self.obj_db["https"] = self._create_http_obj
 
     def _create_emu_udp_obj(self, dst_url):
         obj = IpfixUdpExporterParams(dst_url.hostname, dst_url.port)
