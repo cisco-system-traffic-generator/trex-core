@@ -205,9 +205,9 @@ class IpfixUdpExporterParams(IpfixExporterParams):
 
     def get_dst_url(self):
         if self._dst_port is None:
-            return f"{self._type}://{self._dst_ip_addr}/"
+            return "{0}://{1}/".format(self._type, self._dst_ip_addr)
         else:
-            return f"{self._type}://{self._dst_ip_addr}:{self._dst_port}/"
+            return "{0}://{1}:{2}/".format(self._type, self._dst_ip_addr, self._dst_port)
 
     def set_use_emu_client_ip_addr(self, use_emu_client_ip_addr):
         self._use_emu_client_ip_addr = use_emu_client_ip_addr
@@ -295,7 +295,7 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         self._export_from_dir = None
         self._export_from_dir_params = None
         if scheme not in ["http", "https"]:
-            raise ValueError(f"invalid scheme {scheme}, scheme should be http/s")
+            raise ValueError("invalid scheme {}, scheme should be http/s".format(scheme))
         self._type = scheme
 
     def get_json(self):
@@ -317,9 +317,11 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
 
     def get_dst_url(self):
         if self._dst_port is None:
-            return f"{self._type}://{self._dst_ip_addr}/api/ipfixfilecollector/{self._tenant_id}/{self._site_id}/{self._device_id}/post_file"
+            return "{0}://{1}/api/ipfixfilecollector/{2}/{3}/{4}/post_file".format(
+                self._type, self._dst_ip_addr, self._tenant_id, self._site_id, self._device_id)
         else:
-            return f"{self._type}://{self._dst_ip_addr}:{self._dst_port}/api/ipfixfilecollector/{self._tenant_id}/{self._site_id}/{self._device_id}/post_file"
+            return "{0}://{1}:{2}/api/ipfixfilecollector/{3}/{4}/{5}/post_file".format(
+                self._type, self._dst_ip_addr, self._dst_port, self._tenant_id, self._site_id, self._device_id)
 
     def set_max_posts(self, max_posts):
         self._max_posts = max_posts
