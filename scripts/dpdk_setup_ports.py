@@ -729,7 +729,7 @@ Other network devices
             pass # should we fail here?
 
     def is_hugepage_file_exits(self,socket_id):
-        t = ['2048','1048576']
+        t = ['1048576', '2048']
         for obj in t:
             if map_driver.args.ignore_numa:
                 filename = '/sys/kernel/mm/hugepages/hugepages-{}kB/nr_hugepages'.format(obj)
