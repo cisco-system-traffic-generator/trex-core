@@ -513,6 +513,7 @@ class IPFIXPlugin(EMUPluginBase):
                                         parsing_opts.IPFIX_HTTP_REPEATS_WAIT_TIME,
                                         parsing_opts.IPFIX_HTTP_SITES_PER_TENANT,
                                         parsing_opts.IPFIX_HTTP_DEVICES_PER_SITE,
+                                        parsing_opts.IPFIX_UDP_PACKETS_WAIT_TIME,
                                         )
         opts = parser.parse_args(line.split())
 
