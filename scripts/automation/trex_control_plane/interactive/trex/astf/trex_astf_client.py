@@ -1194,7 +1194,7 @@ class ASTFClient(STLClient):
                     clear all the profiles sts
         """
         if clear_all:
-            self.traffic_stats.clear_dynamic_stats(clear_all)
+            self.traffic_stats.clear_dynamic_stats(clear_all = True)
         if pid_input:
             self.traffic_stats.clear_dynamic_stats(pid_input)
         return self.traffic_stats.clear_dynamic_stats(is_sum = True)

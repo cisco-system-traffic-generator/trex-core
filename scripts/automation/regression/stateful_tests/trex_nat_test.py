@@ -72,6 +72,13 @@ class CTRexNoNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
 class CTRexNat_Test(CTRexGeneral_Test):#(unittest.TestCase):
     """This class defines the NAT testcase of the TRex traffic generator"""
 
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        setup = CTRexScenario.setup_name
+        if setup in ['trex25']:
+            cls.skip("Skipping CTRexNat_Test's tests")
+
     def setUp(self):
         self.unsupported_modes = ['loopback'] # NAT requires device
         super(CTRexNat_Test, self).setUp() # launch super test class setUp process

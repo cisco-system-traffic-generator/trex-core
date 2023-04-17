@@ -1740,6 +1740,9 @@ TrexRpcCmdSetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
     if (params["process_at_cp"] != Json::Value::null) {
         CGlobalInfo::m_process_at_cp = parse_bool(params, "process_at_cp", result);
     }
+    if (params["do_mbuf_cache"] != Json::Value::null) {
+        CGlobalInfo::m_do_mbuf_cache = parse_bool(params, "do_mbuf_cache", result);
+    }
     return (TREX_RPC_CMD_OK);
 }
 
@@ -1749,6 +1752,7 @@ TrexRpcCmdGetGlobalCfg::_run(const Json::Value &params, Json::Value &result) {
 
     section["sched_max_stretch"] = CGlobalInfo::m_burst_offset_dtime;
     section["process_at_cp"] = CGlobalInfo::m_process_at_cp;
+    section["do_mbuf_cache"] = CGlobalInfo::m_do_mbuf_cache;
 
     return (TREX_RPC_CMD_OK);
 }

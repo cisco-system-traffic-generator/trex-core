@@ -590,7 +590,7 @@ Setting wired side                                           [SUCCESS]
 
 ==== Screenshots
 
-image::images/wlc_stf_sfr.png[title="Stateful output SFR profile",align="center"]
+image::images/wlc_stf_sfr.png[title="Stateful output EMIX profile",align="center"]
 
 image::images/wlc_stf_proxy.png[title="trex-console TUI",align="center"]
 
