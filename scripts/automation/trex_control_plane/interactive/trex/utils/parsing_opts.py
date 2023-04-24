@@ -1550,6 +1550,14 @@ class OPTIONS_DB_ARGS:
          'dest': "udp_packets_wait_time",
          'help': "Time to wait before sending the next packet of the same file (ipg)"})
 
+    IPFIX_PROFILE_CFG_FILE = ArgumentPack(
+        ['--profile-cfg-file'],
+        {'type': str,
+         'default': None,
+         'dest': "profile_cfg_file",
+         'required': True,
+         'help': "Path to ipfix profile json config file"})
+
     ARP_ENABLE = ArgumentPack(
         ['--enable'],
         {'choices': ON_OFF_DICT,
