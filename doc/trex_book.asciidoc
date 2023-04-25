@@ -289,7 +289,7 @@ Supported Linux versions:
 
 NOTE: Additional OS versions may be supported by compiling the necessary drivers.
 
-To check whether a kernel is 64-bit, verify that the ouput of the following command is `x86_64`.
+To check whether a kernel is 64-bit, verify that the output of the following command is `x86_64`.
 
 [source,bash]
 ----

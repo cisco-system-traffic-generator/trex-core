@@ -36,7 +36,7 @@ Newer release notes: link:release_notes.html[link]
 ** Add support for more than one DP core in software mode see link:trex_appendix_software_mode.html[software mode]
 ** Add support for Field Engine dependent variables link:trex_stateless.html#_tutorial_field_engine_dependent_variables[dependent_variables]
 * ASTF interactive - add support for topology link:trex_astf.html#_interactive_mode[interactive_mode]
-* ZMQ: enable hearbeat. This is good for situations that the client and server are remote (e.g. The server at the lab and client GUI at DC)  and a firewall betwean them drop the connection after a long time without keepalive. Another side feature is the ability to set the time-out of the connection for remote connection.
+* ZMQ: enable hearbeat. This is good for situations that the client and server are remote (e.g. The server at the lab and client GUI at DC)  and a firewall between them drop the connection after a long time without keepalive. Another side feature is the ability to set the time-out of the connection for remote connection.
 
 == Release 2.48 ==
 
@@ -78,7 +78,7 @@ trex>stop
 ------------------
  
 * An updated manual with the new features  link:trex_astf.html[astf]
-* ASTF API docomentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
+* ASTF API documentation is here link:cp_astf_docs/api/client_code.html[python_astf_api] link:trex_astf.html#_tutorial_python_automation_v2_47_and_up[automation]
 * ASTF RPC spec for developers is here link:trex_rpc_server_spec.html#_rpc_commands_astf[rpc]
 * STL: add stream pinning to core see link:trex_stateless.html#_tutorial_core_pinning[core_pinning]
 * ASTF/STL Linux network namespace emulation stacks see link:trex_manual.html#_emulation_stacks[emulation]
@@ -134,7 +134,7 @@ trex>stop
 from trex.stl.api import *
 ----
 
-** For backward compatability old code still works:
+** For backward compatibility old code still works:
 +
 ----
 from trex_stl_lib.api import *

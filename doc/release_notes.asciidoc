@@ -426,7 +426,7 @@ Minor version
 * ASTF keep-alive packet is with ACK bit on
 * STL 
 ** fix Python exception in case of a huge latency packets drop 
-** Support Intel X722 NIC with new firware 
+** Support Intel X722 NIC with new firmware 
 
 == Release 2.60 ==
 
