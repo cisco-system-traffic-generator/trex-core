@@ -154,7 +154,7 @@ Using these commands the configuration is:
 [bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -d 1000 -l 1000 --l-pkt-mode 2 -m 1000  --learn-mode 1 -k 1
 ----
 
-This is more realistic traffic for enterprise (we removed from SFR file the bidirectional UDP traffic templates, which (as described above), are not supported in this mode).
+This is more realistic traffic for enterprise (we removed from EMIX file the bidirectional UDP traffic templates, which (as described above), are not supported in this mode).
 
 *Enterprise profile:*::
 [source,bash]

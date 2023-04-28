@@ -336,7 +336,7 @@ WARNING: For Mellanox CX-5/4 there is a need to upgrade the distro to CentOs 7.4
 == Release 2.30 ==
 
 * Advance Stateful (ASTF) with scalable TCP support 
-** Support all SFR profile with TCP flows 
+** Support all EMIX profile with TCP flows 
 ** Mellanox driver issue workaround see here link:https://trex-tgn.cisco.com/youtrack/issue/trex-481[trex-481]
 ** Hardening
 ** Add full simulation support using `./astf-sim --full`  see here link:trex_astf.html[ASTF mode] 

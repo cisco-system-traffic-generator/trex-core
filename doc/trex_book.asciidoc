@@ -959,7 +959,7 @@ anchor:trex_load_bal[]
 If you want simple VLAN support, this is probably *not* the feature to use. This feature is used for load balancing. To configure VLAN support, see the ``vlan'' field in the xref:trex_config_yaml_config_file[Platform YAML] section.
 
 
-The VLAN Trunk TRex feature attempts to solve the router port bandwidth limitation when the traffic profile is asymmetric (example: Asymmetric SFR profile).
+The VLAN Trunk TRex feature attempts to solve the router port bandwidth limitation when the traffic profile is asymmetric (example: Asymmetric EMIX profile).
 
 This feature converts asymmetric traffic to symmetric, from the port perspective, using router sub-interfaces. This requires TRex to send the traffic on two VLANs, as described below.
 
@@ -985,7 +985,7 @@ For a full file example, see the TRex source in: scripts/cap2/ipv4_load_balance.
 
 *Problem definition:*::
 
-Scenario: TRex with two ports and an SFR traffic profile.
+Scenario: TRex with two ports and an EMIX traffic profile.
 
 .Without VLAN/sub interfaces, all client emulated traffic is sent on port 0, and all server emulated traffic (example: HTTP response) on port 1.
 [source,python]
@@ -1729,7 +1729,7 @@ This mode can provide better connections-per-second performance than mode 1. But
 [bash]>sudo ./t-rex-64 -f cap2/http_simple.yaml -c 4  -l 1000 -d 100000 -m 30  --learn-mode 1
 ----
 
-*SFR traffic without bundling/ALG support*
+*EMIX traffic without bundling/ALG support*
 
 [source,bash]
 ----

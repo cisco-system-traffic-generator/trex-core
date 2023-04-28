@@ -230,7 +230,7 @@ If you are confused you probably need Stateless. :-)
 | /exp            | Golden PCAP file for unit-tests
 | /cfg            | Examples of config files
 | /cap2           | Stateful profiles 
-| /avl            | Stateful profiles - SFR profile
+| /avl            | Stateful profiles - EMIX profile
 | /automation     | Python client/server code for both Stateful and Stateless
 | /automation/regression     | Regression for Stateless and Stateful
 | /automation/config     | Regression setups config files
