@@ -25,9 +25,9 @@ class PpackTaxonomy:
             self.application_id = int(engine_id) << 24 | int(selector_id)
 
         def __str__(self):
-            s = f"name: {self.name}\n" + \
-                f"application_id: {self.application_id} [{self.engine_id}:{self.selector_id}]\n" + \
-                f"help_string: {self.help_string}\n"
+            s = "name: {1}\napplication_id: {2} [{3}}:{4}]\nhelp_string: {5}\n".format(
+                self.name, self.application_id, self.engine_id,
+                self.selector_id, self.help_string)
             return s
 
     def __init__(self, ppack_taxonomy_file = PPACK_TAXONOMY_FILE):

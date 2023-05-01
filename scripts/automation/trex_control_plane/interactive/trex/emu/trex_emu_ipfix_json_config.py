@@ -7,7 +7,7 @@ from trex.emu.trex_emu_ipfix_profile import *
 from trex.emu.api import *
 
 class IpfixProfileJsonConfig:
-    def __init__(self, config_file: str):
+    def __init__(self, config_file):
         self._config_file = config_file
         self._config_json = defaultdict()
         self._profile = IpfixDevicesAutoTriggerListProfile()
@@ -28,7 +28,7 @@ class IpfixProfileJsonConfig:
 
     def _load_config_file(self):
         if not os.path.exists(self._config_file):
-            raise TRexError(f"Config file does not exist - {self._config_file}")
+            raise TRexError("config file does not exist - {1}".format(self._config_file))
 
         with open(self._config_file, "r" ) as f:
             config_json = json.load(f)
@@ -60,7 +60,7 @@ class IpfixProfileJsonConfig:
                 exporter_params.set_use_emu_client_ip_addr(_exporter_params.get("use_emu_client_ip_addr", None))
                 exporter_params.set_raw_socket_interface_name(_exporter_params.get("raw_socket_interface_name", None))
             else:
-                raise ValueError(f'unsupported exporter type - {exporter_params.get_type()}')
+                raise ValueError("unsupported exporter type - {1}".format(exporter_params.get_type()))
 
             if not "generators_params" in device_group:
                 raise ValueError('"generators_params" does not exist in config file')
