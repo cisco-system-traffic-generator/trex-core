@@ -59,9 +59,6 @@ class _CPcapReader_help(object):
         new_pkts = []
         new_dirs = []
         for pkt in self._pkts:
-            if pkt.is_empty():
-                continue
-
             if combined_data:
                 if combined_data.direction == pkt.direction:
                     combined_data += pkt
