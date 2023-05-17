@@ -466,6 +466,14 @@ public:
         return (btGetMaskBit32(m_flags1, 26, 26) ? true : false);
     }
 
+    void set_defer_start_queues(bool enable) {
+        btSetMaskBit32(m_flags1, 27, 27, (enable ? 1 : 0) );
+    }
+
+    bool get_defer_start_queues() {
+        return (btGetMaskBit32(m_flags1, 27, 27) ? true : false);
+    }
+
 public:
     void Dump(FILE *fd);
 

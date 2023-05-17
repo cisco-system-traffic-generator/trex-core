@@ -89,6 +89,7 @@ class CPhyEthIF  {
         m_rx_queue=rx_queue;
     }
     virtual void conf_queues();
+    virtual void start_queues();
 
     virtual void configure(uint16_t nb_rx_queue,
                    uint16_t nb_tx_queue,
@@ -302,6 +303,7 @@ class CPhyEthIFDummy : public CPhyEthIF {
         m_is_dummy = true;
     }
     void conf_queues() {}
+    void start_queues() {}
     void configure(uint16_t, uint16_t, const struct rte_eth_conf *) {}
     int dump_fdir_global_stats(FILE *fd) { return 0; }
     int reset_hw_flow_stats() { return 0; }
