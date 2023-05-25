@@ -856,12 +856,12 @@ void CFlowGenListPerThread::unload_tcp_profile(profile_id_t profile_id, bool is_
 
     if (astf_db) {
         astf_db->clear_db_ro_rw(nullptr, m_thread_id);
-
-        m_c_tcp->set_template_ro(nullptr, profile_id);
-        m_c_tcp->set_template_rw(nullptr, profile_id);
-        m_s_tcp->set_template_ro(nullptr, profile_id);
-        m_s_tcp->set_template_rw(nullptr, profile_id);
     }
+
+    m_c_tcp->set_template_ro(nullptr, profile_id);
+    m_c_tcp->set_template_rw(nullptr, profile_id);
+    m_s_tcp->set_template_ro(nullptr, profile_id);
+    m_s_tcp->set_template_rw(nullptr, profile_id);
 
     if (is_last) {
         m_sched_accurate = false;

@@ -175,6 +175,8 @@ private:
     std::vector<Json::Value> m_flows_info;
     uint64_t        m_flows_limit;
     uint64_t        m_flows_index;
+
+    bool            m_process_at_cp;    // temporary keep
 };
 
 
