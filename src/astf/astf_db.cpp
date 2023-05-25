@@ -1261,6 +1261,14 @@ void CAstfDB::get_thread_ip_range(uint16_t thread_id, uint16_t max_threads, uint
 
 CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGeneratorSmart *g_gen,
                                               uint16_t thread_id, uint16_t max_threads, uint16_t dual_port_id) {
+    if (unlikely(m_rw_db.size() >= max_threads)) { // when CP already created all
+        for (auto rw_db: m_rw_db) {
+            if (rw_db && rw_db->get_thread_id() == thread_id) {
+                return rw_db;
+            }
+        }
+    }
+
     CAstfTemplatesRW *ret = new CAstfTemplatesRW();
     assert(ret);
     ret->Create(thread_id,max_threads);

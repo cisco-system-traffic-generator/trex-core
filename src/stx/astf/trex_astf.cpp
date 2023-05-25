@@ -962,6 +962,7 @@ TrexAstfPerProfile::TrexAstfPerProfile(TrexAstf* astf_obj,
     m_profile_hash = "";
     m_profile_parsed = false;
     m_profile_stopping = false;
+    m_process_at_cp = false;
 
     m_active_cores = 0;
     m_partial_cores = 0;
@@ -1149,10 +1150,32 @@ void TrexAstfPerProfile::build() {
     }
 
     if (CGlobalInfo::m_process_at_cp) {
-        auto num_ports = CGlobalInfo::m_options.get_expected_ports();
-        astf_db->set_factor(m_factor);
-        for (uint8_t port_id = 0; port_id < num_ports; port_id += 2) {
-            astf_db->get_db_ro(CGlobalInfo::m_socket.port_to_socket(port_id));
+        try {
+            astf_db->set_factor(m_factor);
+            for (auto flow_gen : get_platform_api().get_fl()->m_threads_info) {
+                auto dual_port_id = flow_gen->getDualPortId();
+
+                if (!astf_db->get_db_ro(dual_port_id)) {
+                    throw TrexException("Could not create RO template database at CP");
+                }
+
+                auto socket_id = flow_gen->get_memory_socket_id();
+                auto thread_id = flow_gen->m_thread_id;
+                auto max_threads = flow_gen->m_max_threads;
+
+                if (!astf_db->get_db_template_rw(socket_id, nullptr, thread_id, max_threads, dual_port_id)) {
+                    throw TrexException("Could not create RW per-thread database at CP");
+                }
+            }
+        } catch (const Json::LogicError &ex) {
+            m_error = ex.what();
+        } catch (const TrexException &ex) {
+            m_error = ex.what();
+        }
+
+        if (!m_error.empty()) {
+            all_dp_cores_finished();
+            return;
         }
     }
 
@@ -1187,6 +1210,13 @@ void TrexAstfPerProfile::cleanup() {
     m_astf_obj->handle_stop_latency();
 
     auto astf_db = CAstfDB::instance(m_dp_profile_id);
+
+    if (CGlobalInfo::m_process_at_cp) {
+        astf_db = nullptr;
+        /* cleanup astf_db should be done after DP core finished profile cleanup */
+        m_process_at_cp = true;
+    }
+
     TrexCpToDpMsgBase *msg = new TrexAstfDpDeleteTcp(m_dp_profile_id, false, astf_db);
     m_astf_obj->send_message_to_all_dp(msg);
 }
@@ -1232,6 +1262,13 @@ void TrexAstfPerProfile::all_dp_cores_finished(bool partial) {
             }
             break;
         case STATE_CLEANUP:
+            if (m_process_at_cp) {
+                auto astf_db = CAstfDB::instance(m_dp_profile_id);
+                for (auto flow_gen : get_platform_api().get_fl()->m_threads_info) {
+                    astf_db->clear_db_ro_rw(nullptr, flow_gen->m_thread_id);
+                }
+                m_process_at_cp = false;
+            }
             profile_change_state(STATE_LOADED);
             break;
         case STATE_DELETE:
