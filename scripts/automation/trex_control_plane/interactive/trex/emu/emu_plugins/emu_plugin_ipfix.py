@@ -4,6 +4,9 @@ from trex.emu.trex_emu_validator import EMUValidator
 import trex.utils.parsing_opts as parsing_opts
 from trex.emu.trex_emu_ipfix_generators import AVCGenerators
 from trex.emu.trex_emu_ipfix_profile import *
+from trex.emu.trex_emu_ipfix_json_config import *
+
+DEBUG = False
 
 class IPFIXPlugin(EMUPluginBase):
     """
@@ -513,6 +516,7 @@ class IPFIXPlugin(EMUPluginBase):
                                         parsing_opts.IPFIX_HTTP_REPEATS_WAIT_TIME,
                                         parsing_opts.IPFIX_HTTP_SITES_PER_TENANT,
                                         parsing_opts.IPFIX_HTTP_DEVICES_PER_SITE,
+                                        parsing_opts.IPFIX_UDP_PACKETS_WAIT_TIME,
                                         )
         opts = parser.parse_args(line.split())
 
@@ -546,8 +550,31 @@ class IPFIXPlugin(EMUPluginBase):
                                                  sites_per_tenant = opts.http_sites_per_tenant,
                                                  devices_per_site = opts.http_devices_per_site)
 
-        if True:
+        if DEBUG:
             print(profile.dump_json())
 
         self.emu_c.remove_profile()
         self.emu_c.load_profile(profile.get_profile())
+
+    @plugin_api('ipfix_load_profile_cfg', 'emu')
+    def ipfix_load_profile_from_cfg_file(self, line):
+        """Create an IPFIX profile based on a JSON config file.\n"""
+        parser = parsing_opts.gen_parser(self,
+                                        "ipfix_load_profile_from_cfg_file",
+                                        self.ipfix_load_profile_from_cfg_file.__doc__,
+                                        parsing_opts.IPFIX_PROFILE_CFG_FILE,
+                                        )
+        opts = parser.parse_args(line.split())
+
+        try:
+            config = IpfixProfileJsonConfig(opts.profile_cfg_file)
+            profile = config.get_profile()
+        except ValueError as error:
+            print("Failed to create profile from config file, err:", error)
+            return
+
+        if DEBUG:
+            print(config.dump_profile_json())
+
+        self.emu_c.remove_profile()
+        self.emu_c.load_profile(profile)

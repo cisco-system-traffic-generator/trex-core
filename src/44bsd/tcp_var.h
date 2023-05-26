@@ -357,6 +357,31 @@ public:
     inline bool is_tunnel(){
         return CGlobalInfo::m_options.m_tunnel_enabled;
     }
+
+    void init_addon_pkt() {
+        m_addon_len = 0;
+        m_addon_pkt = nullptr;
+    }
+
+    uint8_t* reserve_addon(uint8_t len) {
+        if (m_addon_pkt == nullptr) {
+            m_addon_len = len;
+            if (len + m_template_pktlen <= sizeof(m_template_pkt)) {
+                return &m_template_pkt[m_template_pktlen];
+            }
+            m_addon_pkt = new uint8_t[len];
+        }
+        assert(m_addon_len == len);
+        return m_addon_pkt;
+    }
+
+    void delete_addon_pkt() {
+        if (m_addon_pkt) {
+            delete[] m_addon_pkt;
+        }
+        init_addon_pkt();
+    }
+
 private:
     /* support either UDP or TCP for now */
     bool is_tcp(){
@@ -387,6 +412,8 @@ public:
     uint8_t   m_offset_ip;  /* offset of ip_header in template */
     uint8_t   m_is_ipv6;
     uint8_t   m_proto;      /* 6 - TCP ,0x11- UDP */
+    uint8_t   m_addon_len;  /* add-on protocol header length */
+    uint8_t  *m_addon_pkt;  /* (optional) packet for add-on protocol header */
 
     uint8_t   m_offload_flags;
     #define OFFLOAD_TX_CHKSUM   0x0001      /* DPDK_CHECK_SUM */
@@ -394,11 +421,15 @@ public:
     #define OFFLOAD_RX_CHKSUM   0x0004      /* check RX checksum L4*/
 
     uint8_t  m_template_pkt[PACKET_TEMPLATE_SIZE];   /* template packet */
+    uint8_t  m_template_pktlen;  /* the length of m_template_pkt */
 };
 
 inline bool CFlowTemplate::is_tcp_tso(){
    return( ((m_offload_flags & TCP_OFFLOAD_TSO)==TCP_OFFLOAD_TSO)?true:false);
 }
+
+
+class CEmulAddon;
 
 
 class CFlowBase {
@@ -555,6 +586,8 @@ public:
     void init();
 
     void send_pkt(CMbufBuffer * buf);
+
+    void flush_tx();
 
     void disconnect();
 
@@ -735,6 +768,8 @@ public:
     virtual int on_tx(CTcpPerThreadCtx *ctx,
                       struct CTcpCb * tp,
                       rte_mbuf_t *m)=0;
+
+    virtual void on_flush_tx()=0;
 
     virtual int on_flow_close(CTcpPerThreadCtx *ctx,
                               CFlowBase * flow)=0;
@@ -979,6 +1014,8 @@ class CServerIpPayloadInfo : CServerIpInfo {
     CServerTemplateInfo* m_template_ref;    // IP only template >> latest payload template
     std::set<CTcpFlow*> m_template_flows;   // flows to update reference template info
 
+    CEmulAddon* m_addon_info;
+
 public:
     CServerIpPayloadInfo() {}
     CServerIpPayloadInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp);
@@ -993,12 +1030,14 @@ public:
 
     bool is_rule_equal(const payload_rule_t& rule) { return m_payload_rule == rule; }
     bool is_rule_equal(CServerIpPayloadInfo& in) { return is_rule_equal(in.m_payload_rule); }
-    bool is_payload_rule() { return !m_payload_rule.empty(); }
+    bool has_payload_rule() { return !m_payload_rule.empty(); }
     bool is_payload_enough(uint16_t len) {
         PayloadRule rule = m_payload_rule.back(); // offset value is ascending order
         return len > rule.m_offset;
     }
     bool is_server_compatible(CTcpServerInfo* server);
+
+    CEmulAddon* get_addon_info() const { return m_addon_info; }
 
     payload_value_t get_payload_value(uint8_t* data) {
         payload_value_t pval = 0;
@@ -1014,9 +1053,7 @@ public:
         auto& map = m_payload_map;
         return (map.find(pval) != map.end()) ? &map[pval]: nullptr;
     }
-    CServerTemplateInfo* get_template_info(uint8_t* data) {
-        return data ? get_template_info(get_payload_value(data)): nullptr;
-    }
+    CServerTemplateInfo* get_template_info(uint8_t* data, uint16_t len);
     void set_reference_template_info(CServerTemplateInfo* temp) { m_template_ref = temp; }
     CServerTemplateInfo* get_reference_template_info();
 
@@ -1084,6 +1121,7 @@ class CServerPortInfo {
     CServerTemplateInfo *m_template_cache;    // all ip range's template cache for the fast lookup.
 
     void update_payload_template_reference(CServerTemplateInfo* temp);
+    void remove_payload_template_reference(CServerTemplateInfo* temp);
     bool insert_template_payload(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
     CServerTemplateInfo* get_template_info_by_ip(uint32_t ip);
     CServerTemplateInfo* get_template_info_by_payload(uint32_t ip, uint8_t* data, uint16_t len);
@@ -1091,6 +1129,7 @@ public:
     bool is_empty() { return m_ip_map.empty() && m_ip_map_payload.empty(); }
 
     bool insert_template_info(CTcpServerInfo* info, CPerProfileCtx* pctx, std::string& msg);
+    bool remove_template_info(CTcpServerInfo* info, CPerProfileCtx* pctx);
     void remove_template_info_by_profile(CPerProfileCtx* pctx);
 
     CServerIpPayloadInfo* get_ip_payload_info(uint32_t ip);

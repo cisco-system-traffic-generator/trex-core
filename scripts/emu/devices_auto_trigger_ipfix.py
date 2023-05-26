@@ -3,6 +3,7 @@ from trex.emu.trex_emu_ipfix_generators import AVCGenerators
 from trex.emu.trex_emu_ipfix_profile import *
 from trex.emu.api import *
 
+DEBUG = False
 
 class AVCProfiles:
     def __init__(self):
@@ -132,7 +133,7 @@ class Prof1:
         if args.domain_id not in domain_ids:
             raise TRexError("Invalid domain id {}. Domain id should be in {}".format(args.domain_id, domain_ids))
 
-        return self.avc_profiles.get_devices_auto_trigger_profile(
+        profile = self.avc_profiles.get_devices_auto_trigger_profile(
             args.domain_id, 
             device_mac = args.device_mac,
             device_ipv4 = args.device_ipv4,
@@ -142,6 +143,11 @@ class Prof1:
             devices_per_site = args.devices_per_site,
             total_rate_pps = args.total_rate_pps
         ).get_profile()
+
+        if DEBUG:
+            print(profile.dump_json())
+
+        return profile
 
 def register():
     return Prof1()

@@ -166,6 +166,12 @@ void CTcpStats::Dump(FILE *fd){
     MYC(tcps_sack_rcv_blocks);
     MYC(tcps_sack_send_blocks);
     MYC(tcps_sack_sboverflow);
+
+    MYC(tcps_ecn_ce);
+    MYC(tcps_ecn_ect0);
+    MYC(tcps_ecn_ect1);
+    MYC(tcps_ecn_shs);
+    MYC(tcps_ecn_rcwnd);
 }
 
 void CTcpStats::Resize(uint16_t new_num_of_tg_ids) {
@@ -233,6 +239,7 @@ void CFlowBase::Create(CPerProfileCtx *pctx, uint16_t tg_id){
     m_tg_id=tg_id;
     m_base_flow=nullptr;
     m_exec_flow=nullptr;
+    m_template.init_addon_pkt();
 }
 
 void CFlowBase::Delete() {
@@ -240,6 +247,7 @@ void CFlowBase::Delete() {
          m_pctx->m_ctx->m_tunnel_handler->delete_tunnel_ctx(m_template.m_tunnel_ctx);
     }
     m_template.m_tunnel_ctx = nullptr;
+    m_template.delete_addon_pkt();
 }
 
 void CFlowBase::init(){
@@ -537,6 +545,8 @@ void CTcpFlow::to_json(Json::Value& obj) const {
             opts << "/timestamps";
         if (tp->t_flags & TF_SACK_PERMIT)
             opts << "/sack";
+        if (tp->t_flags2 & TF2_ECN_PERMIT)
+            opts << "/ecn";
         if ((tp->t_flags & TF_REQ_SCALE) && (tp->t_flags & TF_RCVD_SCALE)) {
             opts << "/wscale";
             obj["snd_wscale"] = tp->snd_scale;
@@ -699,6 +709,7 @@ CTcpTunableCtx::CTcpTunableCtx() {
     use_inbound_mac = 1;
 
     tcp_cc_algo = 0;
+    tcp_do_ecn = 0;
 
     sb_max = SB_MAX;        /* patchable, not used  */
     tcp_max_tso = TCP_TSO_MAX_DEFAULT;
@@ -784,6 +795,10 @@ void CTcpTunableCtx::update_tuneables(CTcpTuneables *tune) {
         tcp_cc_algo = (int)tune->m_tcp_cc_algo;
     }
 
+    if (tune->is_valid_field(CTcpTuneables::tcp_do_ecn)) {
+        tcp_do_ecn = (int)tune->m_tcp_do_ecn;
+    }
+
     if (tune->is_valid_field(CTcpTuneables::tcp_reass_maxqlen)) {
         tcp_reass_maxqlen = (int)tune->m_tcp_reass_maxqlen;
     }
@@ -794,6 +809,20 @@ void CTcpPerThreadCtx::resize_stats(profile_id_t profile_id) {
     get_tcpstat(profile_id)->Resize(num_of_tg_ids);
     get_udpstat(profile_id)->Resize(num_of_tg_ids);
     get_appstat(profile_id)->Resize(num_of_tg_ids);
+
+    CAddonStats& addon_stats = get_appstat(profile_id)->m_addon_stats;
+    addon_stats.Init(num_of_tg_ids);
+    CAstfDbRO* template_ro = get_template_ro(profile_id);
+    for (uint32_t temp_id = 0; temp_id < template_ro->get_num_of_templates(); temp_id++) {
+        CEmulAddon* addon = template_ro->get_client_prog(temp_id)->get_addon();
+        if (addon) {
+            sts_desc_t* sts_desc = addon->get_stats_desc();
+            if (sts_desc) {
+                uint16_t tg_id = template_ro->get_template_tg_id(temp_id);
+                addon_stats.set_addon_sts(tg_id, addon, sts_desc->size());
+            }
+        }
+    }
 }
 
 bool CTcpPerThreadCtx::Create(uint32_t size,
@@ -981,16 +1010,22 @@ bool CServerTemplateInfo::has_payload_params() {
 
 CServerIpPayloadInfo::CServerIpPayloadInfo(uint32_t start, uint32_t end, CServerTemplateInfo& temp) : CServerIpInfo(start,end) {
     auto payload_params = temp.get_server_info()->get_payload_params();
-    assert(payload_params.size() % 3 == 0);
+    if (temp.get_server_info()->get_addon()) {
+        assert(payload_params.size() == sizeof(payload_value_t));
+    } else {
+        assert(payload_params.size() % 3 == 0);
+    }
 
     m_template_ref = nullptr;
+    m_addon_info = temp.get_server_info()->get_addon();
     if (payload_params.size()) {
         payload_value_t pval = 0;
         for (int i = 0; i < payload_params.size();) {
-            auto offset = payload_params[i++];
-            auto mask = payload_params[i++];
-            m_payload_rule.push_back(PayloadRule{ mask, offset });
-
+            if (!m_addon_info) {
+                auto offset = payload_params[i++];
+                auto mask = payload_params[i++];
+                m_payload_rule.push_back(PayloadRule{ mask, offset });
+            }
             pval <<= 8;
             pval |= payload_params[i++];
         }
@@ -1004,6 +1039,11 @@ bool CServerIpPayloadInfo::is_server_compatible(CTcpServerInfo* in_server) {
         auto ref_server = it->second.get_server_info();
         auto ref_tune = ref_server->get_tuneables();
         auto in_tune = in_server->get_tuneables();
+
+        if (ref_server->get_addon() != in_server->get_addon()) {
+            return false;
+        }
+
         if (ref_tune->get_bitfield() != in_tune->get_bitfield()) {
             return false;
         }
@@ -1035,6 +1075,23 @@ bool CServerIpPayloadInfo::is_server_compatible(CTcpServerInfo* in_server) {
         }
     }
     return true;
+}
+
+
+CServerTemplateInfo* CServerIpPayloadInfo::get_template_info(uint8_t* data, uint16_t len) {
+    if (unlikely(get_addon_info())) {
+        uint64_t id_val = 0;
+        if (!get_addon_info()->get_connection_id(data, len, id_val)) {
+            /* get_reference_template_info() can be used when the id cannot be resolved yet.
+             * Later the proper profile ctx and template will be bound with resolved id.
+             * But the profile ctx should keep read-only reference during resolution from the flow.
+             * It can be used after the flow has loosely coupled with the protofile ctx.
+             */
+            return nullptr;
+        }
+        return get_template_info(id_val);
+    }
+    return get_template_info(get_payload_value(data));
 }
 
 
@@ -1115,9 +1172,7 @@ CServerTemplateInfo* CServerPortInfo::get_template_info_by_payload(uint32_t ip, 
     auto it = m_ip_map_payload.lower_bound(ip);
     if (it != m_ip_map_payload.end() && it->second.is_ip_in(ip)) {
         if (data && len) {
-            if (it->second.is_payload_enough(len)) {
-                return it->second.get_template_info(data);
-            }
+            return it->second.get_template_info(data, len);
         } else {
             return it->second.get_reference_template_info();
         }
@@ -1156,6 +1211,19 @@ void CServerPortInfo::update_payload_template_reference(CServerTemplateInfo* tem
             break;
         }
         it->second.set_reference_template_info(temp);
+    }
+}
+
+void CServerPortInfo::remove_payload_template_reference(CServerTemplateInfo* temp) {
+    auto server = temp->get_server_info();
+    auto ip_start = server->get_ip_start();
+    auto ip_end = server->get_ip_end();
+
+    for (auto it = m_ip_map_payload.lower_bound(ip_start); it != m_ip_map_payload.end(); it++) {
+        if (!it->second.is_ip_overlap(ip_start, ip_end)) {
+            break;
+        }
+        it->second.set_reference_template_info(nullptr);
     }
 }
 
@@ -1261,6 +1329,29 @@ bool CServerPortInfo::insert_template_info(CTcpServerInfo* server, CPerProfileCt
     // set m_ip_map's template info to the reference of m_ip_map_payload
     update_payload_template_reference(m_ip_map[ip_end].get_template_info());
     return true;
+}
+
+bool CServerPortInfo::remove_template_info(CTcpServerInfo* server, CPerProfileCtx* pctx) {
+    if (server->is_payload_params()) {
+        auto it = m_ip_map_payload.find(server->get_ip_end());
+        if (it != m_ip_map_payload.end() && it->second.remove_template_info(pctx)) {
+            m_ip_map_payload.erase(it);
+            return true;
+        }
+    } else {
+        auto it = m_ip_map.find(server->get_ip_end());
+        if (it != m_ip_map.end() && it->second.get_template_info()->get_profile_ctx() == pctx) {
+            if (it->second.get_template_info() == m_template_cache) {
+                m_template_cache = nullptr;
+            }
+            if (!m_ip_map_payload.empty()) {
+                remove_payload_template_reference(it->second.get_template_info());
+            }
+            m_ip_map.erase(it);
+            return true;
+        }
+    }
+    return false;
 }
 
 void CServerPortInfo::remove_template_info_by_profile(CPerProfileCtx* pctx) {
@@ -1746,6 +1837,7 @@ void CFlowTemplate::build_template_tcp(CPerProfileCtx * pctx){
          0x00, 0x00, 0x00, 0x00, // checksum ,urgent pointer
          0x00, 0x00, 0x00, 0x00
        };
+       m_template_pktlen = m_offset_l4 + sizeof(tcp_header);
 
        uint8_t *p=m_template_pkt;
        TCPHeader *lpTCP=(TCPHeader *)(p+m_offset_l4);
@@ -1771,6 +1863,7 @@ void CFlowTemplate::build_template_udp(CPerProfileCtx * pctx){
         0x00, 0x00, 0x00, 0x00, // src, dst ports  //UDP
         0x00, 0x00, 0x00, 0x00, 
     };
+    m_template_pktlen = m_offset_l4 + sizeof(udp_header);
 
     uint8_t *p=m_template_pkt;
     UDPHeader *lpUDP=(UDPHeader *)(p+m_offset_l4);
@@ -1866,6 +1959,17 @@ int
 tcp_ip_output(struct tcpcb *tp, struct mbuf *m, int iptos)
 {
     CTcpPerThreadCtx* ctx = ((CTcpCb*)tp)->m_ctx;
+
+    if (unlikely(iptos)) {
+        if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
+            IPHeader* ipv4 = rte_pktmbuf_mtod_offset(m, IPHeader*, m->l2_len);
+            ipv4->updateTos(ipv4->getTOS() | iptos);
+        }
+        if (m->ol_flags & RTE_MBUF_F_TX_IPV6) {
+            IPv6Header* ipv6 = rte_pktmbuf_mtod_offset(m, IPv6Header*, m->l2_len);
+            ipv6->setTrafficClass(ipv6->getTrafficClass() | iptos);
+        }
+    }
 
     return ctx->m_cb->on_tx(ctx, (CTcpCb*)tp, (struct rte_mbuf*)m);
 }

@@ -486,7 +486,7 @@ Run the following:
 | --ip | List of IPs to use for each interface. If --ip and --dest-macs are not specified, the script assumes loopback connections (0&#8596;1, 2&#8596;3 etc.). | --ip 1.2.3.4 5.6.7.8
 |--def-gw | List of default gateways to use for each interface. When using the --ip option, also use the --def_gw option. | --def-gw 3.4.5.6 7.8.9.10
 | --ci | Cores include: White list of cores to use. Include enough cores for each NUMA. | --ci 0 2 4 5 6
-| --ce | Cores exclude: Black list of cores to exclude. When excluding cores, ensure that enough remain for each NUMA. | --ci 10 11 12
+| --ce | Cores exclude: Black list of cores to exclude. When excluding cores, ensure that enough remain for each NUMA. | --ce 10 11 12
 | --no-ht | No HyperThreading: Use only one thread of each core specified in the configuration file. |
 | --prefix | (Advanced option) Prefix to be used in TRex configuration in case of parallel instances. | --prefix first_instance
 | --zmq-pub-port | (Advanced option) ZMQ Publisher port to be used in TRex configuration in case of parallel instances. | --zmq-pub-port 4000

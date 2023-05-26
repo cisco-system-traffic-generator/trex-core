@@ -1543,6 +1543,21 @@ class OPTIONS_DB_ARGS:
          'dest': "http_devices_per_site",
          'help': "Number of devices per site to be used in dst url"})
 
+    IPFIX_UDP_PACKETS_WAIT_TIME = ArgumentPack(
+        ['--udp-packets-wait-time'],
+        {'type': str,
+         'default': None,
+         'dest': "udp_packets_wait_time",
+         'help': "Time to wait before sending the next packet of the same file (ipg)"})
+
+    IPFIX_PROFILE_CFG_FILE = ArgumentPack(
+        ['--profile-cfg-file'],
+        {'type': str,
+         'default': None,
+         'dest': "profile_cfg_file",
+         'required': True,
+         'help': "Path to ipfix profile json config file"})
+
     ARP_ENABLE = ArgumentPack(
         ['--enable'],
         {'choices': ON_OFF_DICT,

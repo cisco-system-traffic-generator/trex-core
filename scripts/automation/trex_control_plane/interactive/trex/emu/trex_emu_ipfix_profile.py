@@ -1,5 +1,6 @@
 import json
 import re
+from collections import defaultdict
 
 try:
     from urllib.parse import urlparse
@@ -529,6 +530,9 @@ class IpfixDevicesAutoTriggerProfile:
     def get_devices_keys(self):
             return self._clients_keys
 
+    def get_ns_ipfix_plugin_json(self):
+         return self._create_ns_ipfix_plugin_json()
+
     def set_clients_generator(
         self,
         client_ipv4,
@@ -571,6 +575,35 @@ class IpfixDevicesAutoTriggerProfile:
         json["device_init"] = self._ipfix_plugin.get_json()
         ns_json = {"devices_auto_trigger" : json}
         return ns_json
+
+# A profile consisting of a list of IPFIX devices-auto-trigger namespaces.
+class IpfixDevicesAutoTriggerListProfile:
+    def __init__(self):
+        self.dat_profiles = defaultdict()
+        self.curr_ns_port = 0
+        self._profile = EMUProfile()
+
+    def add_devices_auto_trigger_profile(self, dat_profile):
+        self.dat_profiles[self.curr_ns_port] = dat_profile
+        self.curr_ns_port += 1
+        self._create_profile()
+
+    def get_json(self):
+        return self.get_profile().to_json()
+
+    def dump_json(self):
+        return json.dumps(self.get_json(), indent=4)
+
+    def get_profile(self):
+        return self._profile
+
+    def _create_profile(self):
+        self._profile = EMUProfile()
+        for ns_port, dat_profile in self.dat_profiles.items():
+            ns_plugin = {"ipfix" : dat_profile.get_ns_ipfix_plugin_json()}
+            ns_key = EMUNamespaceKey(vport=ns_port)
+            ns_obj = EMUNamespaceObj(ns_key=ns_key, plugs = ns_plugin, clients=[])
+            self._profile.add_ns(ns_obj)
 
 
 if __name__ == "__main__":

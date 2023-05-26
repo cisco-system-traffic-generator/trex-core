@@ -82,7 +82,9 @@ CAstfDB::~CAstfDB(){
 
 CAstfDB* CAstfDB::get_instance(profile_id_t profile_id) {
     if (m_instances.find(profile_id) == m_instances.end()) {
-        m_instances[profile_id] = new CAstfDB();
+        CAstfDB* astf_db = new CAstfDB();
+        astf_db->m_profile_id = profile_id;
+        m_instances[profile_id] = astf_db;
     }
     return m_instances[profile_id];
 }
@@ -394,6 +396,33 @@ bool CAstfDB::get_emul_stream(uint32_t program_index){
         return(true);
     }
     return(cmd["stream"].asBool());
+}
+
+
+bool CAstfDB::get_emul_addon_stream(uint32_t program_index){
+    CEmulAddon* addon = get_emul_addon(program_index);
+
+    if (addon) {
+        return addon->get_ip_proto() == IPHeader::Protocol::TCP;
+    }
+
+    return get_emul_stream(program_index);
+}
+
+
+CEmulAddon* CAstfDB::get_emul_addon(uint32_t program_index){
+    Json::Value cmd;
+
+    try {
+        cmd = m_val["program_list"][program_index];
+    } catch(std::exception &e) {
+        return nullptr;
+    }
+    if (cmd["addon"] == Json::nullValue){
+        return nullptr;
+    }
+
+    return CEmulAddonList::get_addon_by_name(cmd["addon"].asString(), get_emul_stream(program_index));
 }
 
 
@@ -1063,6 +1092,14 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
                 tunable_min_max_u32("cc_algo",tune->m_tcp_cc_algo,0,1);
             }
 
+            if (read_tunable_uint8(tune,json,"do_ecn",CTcpTuneables::tcp_do_ecn,tune->m_tcp_do_ecn)){
+                tunable_min_max_u32("do_ecn",tune->m_tcp_do_ecn,0,2);
+                if (tune->m_tcp_do_ecn > 0 && get_dpdk_mode()->is_hardware_filter_needed()) {
+                    Json::Value result;
+                    generate_parse_err(result,"do_ecn does not support with hardware filter. use --software.");
+                }
+            }
+
             if (read_tunable_uint16(tune,json,"reass_maxqlen",CTcpTuneables::tcp_reass_maxqlen,tune->m_tcp_reass_maxqlen)){
                 tunable_min_max_u32("reass_maxqlen",tune->m_tcp_reass_maxqlen,0,1000);
             }
@@ -1348,7 +1385,7 @@ CAstfTemplatesRW *CAstfDB::get_db_template_rw(uint8_t socket_id, CTupleGenerator
             dist_tids.push_back(index);
         }
         template_ro.m_destination_port = c_temp["port"].asInt();
-        template_ro.m_stream = get_emul_stream(c_temp["program_index"].asInt());
+        template_ro.m_stream = get_emul_addon_stream(c_temp["program_index"].asInt());
         temp_rw->Create(g_gen, index, thread_id, &template_ro, dual_port_id);
 
         bool is_cont = false;
@@ -1468,7 +1505,8 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
     for (uint32_t index = 0; index < m_val["templates"].size(); index++) {
         // build association table
         uint16_t port = m_val["templates"][index]["server_template"]["assoc"][0]["port"].asInt();
-        bool is_stream = get_emul_stream(m_val["templates"][index]["server_template"]["program_index"].asInt());
+        uint32_t s_prog_index = m_val["templates"][index]["server_template"]["program_index"].asInt();
+        bool is_stream = get_emul_addon_stream(s_prog_index);
         CTcpDataAssocParams tcp_params(port,is_stream);
         CEmulAppProgram *prog_p = get_prog(index, 1, socket_id);
         assert(prog_p);
@@ -1491,12 +1529,12 @@ bool CAstfDB::build_assoc_translation(uint8_t socket_id) {
         template_cps = cps_factor(m_val["templates"][index]["client_template"]["cps"].asDouble());
         one_template.m_dport = m_val["templates"][index]["client_template"]["port"].asInt();
         uint32_t c_prog_index = m_val["templates"][index]["client_template"]["program_index"].asInt();
-        uint32_t s_prog_index = m_val["templates"][index]["server_template"]["program_index"].asInt();
         uint16_t tg_id = m_val["templates"][index]["tg_id"].asInt();
         if ( tg_id > num_of_tg_ids || tg_id < 0 ) {
             throw TrexException("TG ID not in range, it should be between 0 and " + std::to_string(num_of_tg_ids));
         }
         one_template.m_tg_id = tg_id;
+        one_template.m_server_id = server_info->get_server_id();
         num_bytes_in_template += m_prog_lens[c_prog_index];
         num_bytes_in_template += m_prog_lens[s_prog_index];
         one_template.m_client_prog = m_tcp_data[socket_id].m_prog_list[c_prog_index];
@@ -1524,6 +1562,24 @@ void CAstfDB::update_server_info(CTcpServerInfo* server_info) {
 
     server_info->set_ip_start(ip_start);
     server_info->set_ip_end(ip_end);
+
+    /* update server ID for add-on protocol */
+    auto addon = server_info->get_addon();
+    if (addon) {
+        std::vector<uint8_t> id_params;
+        uint64_t server_id = 0;
+        if (assoc["assoc_id"] != Json::nullValue) {
+            server_id = assoc["assoc_id"].asUInt64();
+        } else {
+            // generate unique server_id from profile_id and template_idx
+            server_id = addon->new_connection_id(m_profile_id, temp_idx);
+        }
+        for (int i = sizeof(server_id) - 1; i >= 0; i--) {
+            id_params.push_back(server_id >> i * 8);
+        }
+        server_info->append_payload_params(id_params);
+        return;
+    }
 
     /* update payload params */
     Json::Value l7_map = assoc["l7_map"];
@@ -1658,6 +1714,7 @@ bool CAstfDB::convert_progs(uint8_t socket_id) {
         assert(prog);
         bool is_stream = get_emul_stream(program_index);
         prog->set_stream(is_stream);
+        prog->set_addon(get_emul_addon(program_index));
         uint64_t total_rx_wm = 0;
 
         cmd_index = 0;
