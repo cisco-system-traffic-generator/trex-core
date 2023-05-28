@@ -381,32 +381,10 @@ zmq publisher at: tcp://*:4500
 
 <1> Output trimmed.
 
-[NOTE]
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-See link:https://trex-tgn.cisco.com/trex/doc/trex_manual.html[TRex full manual] for a complete understading of the tool features and options.
-=======
-See link:trex_manual.html[TRex full manual] for a complete understading of the tool features and options.
->>>>>>> a10bdf6f3 (Update trex_vm_manual.asciidoc)
 
 ==== Updating TRex
 
-See link:https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_package[Related manual] section
-=======
-See https://trex-tgn.cisco.com/trex/doc/trex_manual.html[TRex full manual] for a complete understading of the tool features and options.
-
-==== Updating TRex
-
-See https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_package[Related manual] section
->>>>>>> 083e91a2f (Update trex_vm_manual.asciidoc)
-=======
-See link:https://trex-tgn.cisco.com/trex/doc/trex_manual.html[TRex full manual] for a complete understading of the tool features and options.
-
-==== Updating TRex
-
-See link:https://trex-tgn.cisco.com/trex/doc/trex_manual.html#_obtaining_the_trex_package[Related manual] section
->>>>>>> 8575896bd (Update trex_vm_manual.asciidoc)
+See link:trex_manual.html#_obtaining_the_trex_package[Related manual] section
 
 ==== TRex Live monitoring
 
