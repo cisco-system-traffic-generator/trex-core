@@ -26,6 +26,10 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 3.03 ==
+
+* minor bug fixes 
+
 == Release 3.02 ==
 * minor change, build issue with 3.01 for mlx5 driver 
 
