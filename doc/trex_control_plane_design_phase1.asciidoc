@@ -15,12 +15,12 @@ include::trex_ga.asciidoc[]
 === TRex traffic generator
 
 TRex traffic generator is a tool design the benchmark platforms with realistic traffic.
-This is a work-in-progress product, which is under constant developement, new features are added and support for more router's fuctionality is achieved.
+This is a work-in-progress product, which is under constant development, new features are added and support for more router's functionality is achieved.
 
 === TRex Control Plane
 
 TRex control (phase 1) is the base API, based on which any future API will be developed. +
-This document will describe the current control plane for TRex, and its scalable features as a directive for future developement.
+This document will describe the current control plane for TRex, and its scalable features as a directive for future development.
 
 ==== TRex Control Plane - Architecture and Deployment notes
 
@@ -49,7 +49,7 @@ The Python test script block represents any automation code or external module t
 
 Such script can use other JSON-RPC based implementations of this CTRexClient module, as long as it corresponds with the known server methods and JSON-RPC protocol.
 
-At next phases, an under developement integrated module will serve the clients, hence eliminating even the internal TCP messaging on the machine footnote:[updating server side planned to have almost no affect on the client side].
+At next phases, an under development integrated module will serve the clients, hence eliminating even the internal TCP messaging on the machine footnote:[updating server side planned to have almost no affect on the client side].
 
 == Using the API
 
@@ -80,17 +80,17 @@ The server code is deployed by default with TRex (starting version 1.63 ) and ca
 [NOTE]
 The [RUN_COMMAND] is used only when server launched as a daemon application.
 
-Running this command with `--help` option will prompt the help menu, explaning all the available options.
+Running this command with `--help` option will prompt the help menu, explaining all the available options.
 
 ===== Daemon commands
 
 The following daemon commands are supported:
 
-  1. **`start`**: This option starts the daemon application of TRex server, using the following command options (detailed exmplanation on this next time).
+  1. **`start`**: This option starts the daemon application of TRex server, using the following command options (detailed explanation on this next time).
 
   2. **`stop`**: Stop the daemon application.
 
-  3. **`restart`**: Stop the current daemon proccess, then relaunch it with the provided parameters (the parameters must be re-entered).
+  3. **`restart`**: Stop the current daemon process, then relaunch it with the provided parameters (the parameters must be re-entered).
 
   3. **`show`**: Prompt whether the daemon is running or not.
 
@@ -180,7 +180,7 @@ The `CTRexClient` instance is initialized in the following way:
 Once these parameter has been passed, you're ready to interact with TRex.
 
 [NOTE] 
-The most common initialization will simply use the hostname, such that common initilization lookes like: + 
+The most common initialization will simply use the hostname, such that common initialization lookes like: + 
 `trex = CTRexClient('trex_host_name')`
 
 ==== `CTRexClient` module usage
@@ -190,7 +190,7 @@ This section covers with great detail the usage of the client module. Each of th
   - **`start_trex (f, d, block_to_success, timeout, trex_cmd_options)`** +
     Issue a request to start TRex with certain configuration. The server will only handle the request if the TRex is in `Idle` status. +
     Once the status has been confirmed, TRex server will issue for this single client a token, so that only that client may abort running TRex session. +
-    `f` and `d` parameters are mandatory, as they are crucial parameter in setting TRex behaviour. Also, `d` parameter must be at least 30 seconds or larger.
+    `f` and `d` parameters are mandatory, as they are crucial parameter in setting TRex behavior. Also, `d` parameter must be at least 30 seconds or larger.
     By default (and by design) this method **blocks** until TRex status changes to either 'Running' or back to 'Idle'.
 
   - **`stop_trex()`** +
@@ -261,7 +261,7 @@ These methods are:
 
   - **`is_done_warmup()`** +
     This will return `True` only if TRex has reached its expected transmission bandwidth footnote:[A 3% deviation is allowed.]. +
-    This parameter is important since in most cases, the most relevent test cases are interesting when TRex produces its expected TX, based on which the platform is tested and benchmerked.
+    This parameter is important since in most cases, the most relevant test cases are interesting when TRex produces its expected TX, based on which the platform is tested and benchmerked.
 
   - **`get_latest_dump()`** +
     Fetches the latest polled dump saved in history.
@@ -325,7 +325,7 @@ print "Is TRex running? ", trex.is_running(), trex.get_running_status() # <5>
 
 <2> `get_running_status()` returns a Python dictionary with TRex state, along with a verbose field containing extra info, if available.
 
-<3> TRex lanching. All types of inputs are supported. Some fields (such as 'f' and 'd' are mandatory).
+<3> TRex launching. All types of inputs are supported. Some fields (such as 'f' and 'd' are mandatory).
 
 <4> Going to sleep for few seconds, allowing TRex to start.
 
@@ -379,7 +379,7 @@ print "Is TRex running? ", trex.is_running(), trex.get_running_status() # <6>
 
 <2> `get_running_status()` returns a Python dictionary with TRex state, along with a verbose field containing extra info, if available.
 
-<3> TRex lanching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
+<3> TRex launching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
 
 <4> Wrong parameter ('mdf') injected.
 
@@ -402,7 +402,7 @@ Is TRex running?  False {u'state': <TRexStatus.Idle: 1>, u'verbose': u'TRex run 
 
 <1> When looking at TRex status, both an enum status (`Idle, Starting, Running`) and verbose output are available.
  
-<2> After TRex lanuching failed, a message indicating the failure reason. However, TRex is back Idle, ready to handle another launching request.
+<2> After TRex launching failed, a message indicating the failure reason. However, TRex is back Idle, ready to handle another launching request.
 
 
 === Example #3: Launching TRex, let it run until custom condition is satisfied
@@ -444,8 +444,8 @@ print "Before Running, TRex status is: ", trex.get_running_status()
 
 === Example #4: Launching TRex, monitor live data and stopping on demand
 
-The following program will launch TRex, and while it runs poll the server (every 5 seconds) for running inforamtion, such as latency, drops, and other extractable parameters. +
-Then, after some criteria was met, TRex execution is terminated, enabeling others to use the resource instead of waiting for the entire execution to finish.
+The following program will launch TRex, and while it runs poll the server (every 5 seconds) for running information, such as latency, drops, and other extractable parameters. +
+Then, after some criteria was met, TRex execution is terminated, enabling others to use the resource instead of waiting for the entire execution to finish.
     
 [source, python]
 ----

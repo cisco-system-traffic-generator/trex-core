@@ -46,7 +46,7 @@ test_res should maintain this structure:
 Example:
 ('VM - 64 bytes, multi CPU, cache size 1024','stl','performance','19.711146','19.0','22.0')
 ----
-== Analize and generate plots and data tables
+== Analyze and generate plots and data tables
 Use the script TRexDataAnalysis.py to create the plots and data tables for your test results: +
 1. run create_all_data with the entire data dictionary that was fetched, to create plots and tables for each setup provided in the dictionary. +
 provide a "save_path" to save the graphs and plots to your desired location +
