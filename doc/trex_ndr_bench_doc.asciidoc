@@ -249,7 +249,7 @@ class MyNDRPlugin():
 
     def pre_iteration(self, finding_max_rate, run_results=None, **kwargs): <1>
         # Pre iteration function. This function will run before TRex transmits to the DUT.
-        # Could use this to better prepare the DUT, for example define shapers, policers, increase
+        # Could use this to better prepare the DUT, for example define shapers, polices, increase
         # buffers and queues.
         # You can receive tunables in the command line, through the kwargs argument.
         pass
@@ -328,7 +328,7 @@ As mentioned, the run to find the max rate exhausts the CPU (99.49% utilization)
 
 A more useful application of the API would be the following:
 
-Implement a class for a device under test. Connect to the device either by console or ssh, and send to it commands before the iteration. Such a case would be QoS, which might offer bigger buffers, define shapers or policers to lower the drops. Also the decision whether to stop can be a function of the results in the device under test, maybe CPU usage.
+Implement a class for a device under test. Connect to the device either by console or ssh, and send to it commands before the iteration. Such a case would be QoS, which might offer bigger buffers, define shapers or polices to lower the drops. Also the decision whether to stop can be a function of the results in the device under test, maybe CPU usage.
 
 We implemented a simple version (without connecting to a real device), just for an example:
 

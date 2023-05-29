@@ -14,7 +14,7 @@ Each queue can be defined with the following attributes:
 * Which ports on either Tx/Rx it should capture
 * Whether it should be 'cyclic' or 'fixed'
 
-image::images/packet_capture_arch.png[title="Packet Captruing Architecture",align="left",width={p_width}, link="images/packet_capture_arch.png"]
+image::images/packet_capture_arch.png[title="Packet Capturing Architecture",align="left",width={p_width}, link="images/packet_capture_arch.png"]
 
 // the image should be saved without the red squiggley underscores (for spell-check) under words like Scapy and Wireshark
 
@@ -27,7 +27,7 @@ For example, a queue of 1 million packets can be allocated as a cyclic queue and
 Before demonstrating how to use *Packet Capturing*, it is helpful to review how *filtering* is done.
 
 
-Each packet capture is assigned a filter (by default, a filter that matches any packet). Any filter that follows the syntax rules of *The Berekely Packet Filter (BPF)* can be assigned.
+Each packet capture is assigned a filter (by default, a filter that matches any packet). Any filter that follows the syntax rules of *The Berkeley Packet Filter (BPF)* can be assigned.
 
 
 BPF filters are widely used by the Linux kernel, TCP dump and others. Basically any 'tcpdump' filtering tutorial can be used to define a filter for TRex.
@@ -166,7 +166,7 @@ trex(service)>arp -p 3                                                        <3
 
 Resolving destination on port(s) [3]:                        [SUCCESS]
 
-Port 3 - Recieved ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8              <4>
+Port 3 - Received ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8              <4>
 38.14 [ms]
 
 trex(service)>
@@ -230,10 +230,10 @@ trex(service)>arp                                                             <5
 
 Resolving destination on port(s) [0, 1, 2, 3]:               [SUCCESS]
 
-Port 0 - Recieved ARP reply from: 4.4.4.4, hw: 90:e2:ba:af:13:89
-Port 1 - Recieved ARP reply from: 3.3.3.3, hw: 90:e2:ba:af:13:88
-Port 2 - Recieved ARP reply from: 2.2.2.2, hw: 90:e2:ba:ae:88:b9
-Port 3 - Recieved ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8
+Port 0 - Received ARP reply from: 4.4.4.4, hw: 90:e2:ba:af:13:89
+Port 1 - Received ARP reply from: 3.3.3.3, hw: 90:e2:ba:af:13:88
+Port 2 - Received ARP reply from: 2.2.2.2, hw: 90:e2:ba:ae:88:b9
+Port 3 - Received ARP reply from: 1.1.1.1, hw: 90:e2:ba:ae:88:b8
 
 ----
 <1> Activate a monitor using a Wireshark pipe and a UDP filter (BPF).

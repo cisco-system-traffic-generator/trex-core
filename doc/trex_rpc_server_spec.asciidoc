@@ -179,7 +179,7 @@ The following RPC commands are supported
 * *Valid States* - 'not relevant'
 * *Description* - Sync with server about API classes. This allows the server and the client
                   to be sure they are fully synced.
-		  The return values are used for furthur communication with the server.
+		  The return values are used for further communication with the server.
 		  every API from a specific class requires its corresponding api_h parameter
 		  added to the specific parameters of the function.
 * *Parameters* - 

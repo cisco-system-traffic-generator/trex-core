@@ -190,7 +190,7 @@ html, body {
 
 == DNS simple profile example
 
-* traffic profile is in YAML fomat 
+* traffic profile is in YAML format 
 
 [source,python]
 ----
@@ -291,7 +291,7 @@ chart("#chart1",dns_data,["dns"],"time-sec","flow-id");
 <1> Diffrent CPS  
 
 * Inter packet Gap (IPG) is taken from pcap file 
-* IPG can be manualy set  
+* IPG can be manually set  
 
 == HTTP & DNS profile chart
 
@@ -1219,7 +1219,7 @@ $.sudo /t-rex-64 -f [traffic_yaml] -m [muti]  -d [duration]  -l [Hz=1000] -c [co
    Duration of the test in sec
  
 *-l=Hz* ::
-  Latency pakets rate (Hz)  
+  Latency packets rate (Hz)  
   
 *-c*::
  How many cores to use
@@ -1237,7 +1237,7 @@ $.sudo /t-rex-64 -f [traffic_yaml] -m [muti]  -d [duration]  -l [Hz=1000] -c [co
 image:images/TrexViewer.png[width=500]   
 
 * Monitor GUI works on Windows 7
-* Nonitor real-time properties of TRex ( e.g min/max/average latency,jitter ) 
+* Monitor real-time properties of TRex ( e.g min/max/average latency,jitter ) 
 
 == Python API and automation tools
 

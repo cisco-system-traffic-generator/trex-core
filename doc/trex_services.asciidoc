@@ -51,7 +51,7 @@ print(arp.get_record())
 
 [source,bash]
 ----
-Recieved ARP reply from: 1.1.1.1, hw: b8:46:dd:63:21:e4"
+Received ARP reply from: 1.1.1.1, hw: b8:46:dd:63:21:e4"
 ----
 
 
@@ -71,7 +71,7 @@ executing services can be used to dynamically acquire data prior to the test and
 An example of using DHCP service to cutomize a test
 
 
-Let's assume that our topology includes a DHCP server which will allow traffic from previously leased addreses only.
+Let's assume that our topology includes a DHCP server which will allow traffic from previously leased address only.
 Without services we will not be able to statically generate a test that will be accepted by the server.
 
 However,
@@ -109,7 +109,7 @@ for dhcp in dhcps:
     record = dhcp.get_record()
     print('client: MAC {0} - DHCP: {1}'.format(dhcp.get_mac(),record))
  
-# let's filter all the DHCPs that successfuly moved to 'BOUND' state
+# let's filter all the DHCPs that successfully moved to 'BOUND' state
 # refer to the DHCP code reference to see all the available states
 bounded_dhcps = [dhcp for dhcp in dhcps if dhcp.state == 'BOUND']
 
@@ -162,7 +162,7 @@ optional parameters:
 * retries: number of retries in case of timeouts (default=1)
 * src_mac: source mac address to be used in Ethernet packets (default taken from port in use) 
 * timeout: timeout in seconds to wait for neighbor advertisements in response to our neighbor solicitation packets (default 2)
-* verify_timeout: timeout in seconds to wait for neighbor soliciation messages from a neighbor, after our NS was answered (Neighbor verification is not always performed, but depends on *our* state in the neighbors ND cache).
+* verify_timeout: timeout in seconds to wait for neighbor solicitation messages from a neighbor, after our NS was answered (Neighbor verification is not always performed, but depends on *our* state in the neighbors ND cache).
 * vlan: vlan identifiers used for dot1q/dot1ad vlan headers (e.g. [200,2] uses outer vlan 200, inner vlan 2)
 * fmt: encapsulation format used for vlan tagging ('Q': dot1q, 'D': dot1ad). Double tagging can be formatted with "QQ" (double-dot1q) or "DQ" (dot1q in dot1ad), or 'DD' or 'QD' ....
 * verbose_level: increase logging of IPv6 service instances (e.g service_level = STLServiceIPv6ND.ERROR)

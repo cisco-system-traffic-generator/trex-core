@@ -58,10 +58,10 @@ Error codes are given according to this table: [also follows the JSON-RPC spec, 
 == Data Bases and Data Structures used in Scapy Server
 === build_pkt, build_pkt_ex, reconstruct_pkt packet model [[build_pkt_input]]
 
-Following JSON represents a Scapy structure, which can be used to build packet from scratch(build_pkt) or to modify particular fields in the prococol(reconstruct_pkt). Most fields can be omitted, in this case default or calculated values will be used.
+Following JSON represents a Scapy structure, which can be used to build packet from scratch(build_pkt) or to modify particular fields in the protocol(reconstruct_pkt). Most fields can be omitted, in this case default or calculated values will be used.
 For reconstruct_pkt default values will be taken from the original packet.
 
-Exaples of JSON payloads and their scapy expression alternatives
+Examples of JSON payloads and their scapy expression alternatives
 
 [source,python]
 ----
@@ -255,7 +255,7 @@ with the binary payload and field values and offsets defined
                     "id": "options",
                     "length": 2,
                     "offset": 20,
-                    "value": { # options can not be representted as a human string, so they are passed as an expression
+                    "value": { # options can not be represented as a human string, so they are passed as an expression
                         "expr": "[]",
                         "vtype": "EXPRESSION"
                     }
@@ -668,7 +668,7 @@ The following RPC commands are supported. Please refer to databases section for 
 === GetAll
 * *Name* - 'get_all'
 * *Description* - Returns the supported protocols library (DB) and Field-to-RegEx mapping library, and their MD5 
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - JSON format of dictionary. see table below
 
 .Object type 'return values for get_all' 
@@ -766,7 +766,7 @@ The following RPC commands are supported. Please refer to databases section for 
 === Get Version
 * *Name* - 'get_version'
 * *Description* - Queries the server for version information
-* *Paramters* - None
+* *Parameters* - None
 * *Result* ['object'] - See table below
 
 .Object type 'return values for get_version' 
@@ -810,25 +810,25 @@ The following RPC commands are supported. Please refer to databases section for 
 * *Name* - 'build_pkt'
 * *Description* - Builds a new packet from the definition and returns binary data and json structure +
 * *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
-* *Paramters* - JSON xref:build_pkt_input[packet definition model].
+* *Parameters* - JSON xref:build_pkt_input[packet definition model].
 
 === Build Packet and VM instructions
 * *Name* - 'build_pkt_ex'
 * *Description* - Builds a new packet with VM instructions from the definition and returns binary data and json structure +
 * *Return Value* - Returns xref:build_pkt_ex_output[Scapy packet result with VM instructions payload].
-* *Paramters* - JSON xref:build_pkt_input[Packet definition model].
+* *Parameters* - JSON xref:build_pkt_input[Packet definition model].
 
 === Create packet from binary data and modify fields
 * *Name* - 'reconstruct_pkt'
 * *Description* - Builds a new packet from the binary data and returns binary data and json structure +
 * *Return Value* - Returns xref:build_pkt_output[Scapy packet result payload].
-* *Paramters* - base64-encoded packet bytes, optional JSON xref:build_pkt_input[packet definition model] with fields to override.
+* *Parameters* - base64-encoded packet bytes, optional JSON xref:build_pkt_input[packet definition model] with fields to override.
 
 === Get protocol definitions
 * *Name* - 'get_definitions'
 * *Description* - Returns definitions for protocols and fields +
 * *Return Value* - array of protocol definitions in a "result.protocols" json. xref:get_definitions_model[Output model]
-* *Paramters* - array of protocol class names to define or null to fetch metadata for all protocols. ex. ["Ether", "TCP"]
+* *Parameters* - array of protocol class names to define or null to fetch metadata for all protocols. ex. ["Ether", "TCP"]
 
 === Get protocol tree hierarchy example
 * *Name* - 'get_tree'

@@ -74,7 +74,7 @@ print "Is TRex running? ", trex.is_running(), trex.get_running_status() # <5>
 
 <2> `get_running_status()` returns a Python dictionary with TRex state, along with a verbose field containing extra info, if available.
 
-<3> TRex lanching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
+<3> TRex launching. All types of inputs are supported. Some fields (such as 'f' and 'c' are mandatory).
 
 <4> Going to sleep for few seconds, allowing TRex to start.
 

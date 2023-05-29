@@ -1,9 +1,9 @@
-Latency Measurments using IEEE 1588 packets in Latency Stream
+Latency Measurements using IEEE 1588 packets in Latency Stream
 =============================================================
 
 == Feature Overview
 
-This feature is a combination of software and hardware NIC’s IEEE 1588 support. In HW terminology it is also referred as TimeSync feature. NIC can take timestamps of sent and received latency packets. Using DPDK APIs we can read these timestamps from the NIC HW register. Using the 2-step mechanism of IEEE 1588 (PTP) protocol we send the accurate timestamp (t1) which is read from the NIC in a Follow Up packet rather than in the same packet. Received timestamp (t2) is still taken on the first packet (SYNC) itself. In this way with a combination of software(PTP protocol, DPDK APIs) and HW support (leveraging IEEE 1588 support) more accurate latency and jitter measurements can be obtatined.
+This feature is a combination of software and hardware NIC’s IEEE 1588 support. In HW terminology it is also referred as TimeSync feature. NIC can take timestamps of sent and received latency packets. Using DPDK APIs we can read these timestamps from the NIC HW register. Using the 2-step mechanism of IEEE 1588 (PTP) protocol we send the accurate timestamp (t1) which is read from the NIC in a Follow Up packet rather than in the same packet. Received timestamp (t2) is still taken on the first packet (SYNC) itself. In this way with a combination of software(PTP protocol, DPDK APIs) and HW support (leveraging IEEE 1588 support) more accurate latency and jitter measurements can be obtained.
 
 == Limitations
 

@@ -17,7 +17,7 @@ endif::backend-xhtml11[]
 
 == Abstract
 
-Perfomance measurement tools are an integral part of network testing.
+Performance measurement tools are an integral part of network testing.
 There is no shortage of open source tools for network performance
 testing in the Linux world. To enumerate a few popular tools in the
 Linux world: Netperf, iperf, Linux kernel based pktgen. 
