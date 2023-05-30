@@ -1992,10 +1992,22 @@ class TRexClient(object):
 
             :parameters:
                 params: dictionary
-                    dictionary of global configuration parameters. Available parameters:
-                    "sched_max_stretch", type = double, default = 0.0, units = usec, scheduler's maximum time for stretch in case it is a high value there won't be a scheduler compensation on burst and time will not be stretch. 0.0 means use the default internal value (~100usec). value could not be lower than 100usec will be considered as 100usec. The change cannot be applied to the current epoch.
-                    "process_at_cp", type = bool, default = False, ASTF profile needs to prepare for traffic generation. By default, it is performed at DP cores. But when you run multiple profiles, since it consumes DP processing power, it may affect the traffic generation. This parameter can remove the process from DP cores and perform it at CP core.
-                    "do_mbuf_cache", type = bool, default = False, ASTF profile's buffer can be filled with specific pattern. This parameter enables the cached mbuf for the same patterns. It will save 2K mbuf consumption when you run lots of profiles with the same patterns. But, since a pattern consumes a 2K mbuf permanently, please enable this parameter only the patterns are limited.
+                    | dictionary of global configuration parameters. Available parameters:
+                    |
+                    |   sched_max_stretch: double
+                    |       The maximum time for scheduler stretch.
+                    |
+                    |       Scheduler's maximum time for stretch in case it is a high value there won't be a scheduler compensation on burst and time will not be stretch. 0.0 means use the default internal value (~100usec). value could not be lower than 100usec will be considered as 100usec. The change cannot be applied to the current epoch. Default = 0.0, Units = usec.
+                    |
+                    |   process_at_cp: bool
+                    |       Enable parsing processing at CP core.
+                    |
+                    |       ASTF profile needs to prepare for traffic generation. By default, it is performed at DP cores. But when you run multiple profiles, since it consumes DP processing power, it may affect the traffic generation. This parameter can remove the process from DP cores and perform it at CP core. Default = False.
+                    |
+                    |   do_mbuf_cache: bool
+                    |       Enable mbuf caching.
+                    |
+                    |       ASTF profile's buffer can be filled with specific pattern. This parameter enables the cached mbuf for the same patterns. It will save 2K mbuf consumption when you run lots of profiles with the same patterns. But, since a pattern consumes a 2K mbuf permanently, please enable this parameter only the patterns are limited. Default = False.
 
             :raises:
                 + :exc:`TRexError`
