@@ -17,7 +17,7 @@ Python-like example::
 
    c.start(ports = [0, 1], mult = "5mpps", duration = 10, core_mask = [0x1,0xe] )
 
-   c.start(ports = [0, 1], mult = "5mpps", duration = 10, core_mask = core_mask=STLClient.CORE_MASK_PIN )
+   c.start(ports = [0, 1], mult = "5mpps", duration = 10, core_mask = STLClient.CORE_MASK_PIN )
    
 Console-like example::
 
