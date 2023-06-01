@@ -1160,7 +1160,7 @@ int utl_mbuf_buffer_create_and_copy(uint8_t socket,
         uint32_t alloc_size = bsd_umin(blk_size,size);
         auto copy_size = bsd_umin(d_size, alloc_size);
         rte_mbuf_t* m;
-        if (mbuf_fill && (alloc_size == blk_size)) {
+        if (!copy_size && mbuf_fill && (alloc_size == blk_size)) {
             m = mbuf_fill;
             rte_mbuf_refcnt_update(m, 1);
         } else {
