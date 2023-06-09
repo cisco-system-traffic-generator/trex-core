@@ -264,7 +264,7 @@ It was integrated into TRex to run alongside in order to exploit it’s features
 ** OSPF (v2/v3) RFC 2328/ RFC 5340
 ** RIP - RIPv1 (RFC 1058),RIPv2 (RFC 2453), RIPng (RFC 2080), and RIP cryptographic authentication (RFC 4822).
 * Scale of Millions of routes (depends on the protocol scale e.g. BGP) in a few seconds
-* Integration with Multi-RX software model (-software and -c higher than 1) to supprt dynamic filters for BIRD protocols while keeping high rates of traffic
+* Integration with Multi-RX software model (-software and -c higher than 1) to support dynamic filters for BIRD protocols while keeping high rates of traffic
 * Can support up to 10K veth (virtual interfaces) each with different QinQ/VLAN configuration
 * Simple automation Python API for pushing configuration and read statistics
 
