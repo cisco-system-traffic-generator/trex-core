@@ -1154,12 +1154,12 @@ void TrexAstfPerProfile::build() {
             astf_db->set_factor(m_factor);
             for (auto flow_gen : get_platform_api().get_fl()->m_threads_info) {
                 auto dual_port_id = flow_gen->getDualPortId();
+                auto socket_id = flow_gen->get_memory_socket_id();
 
-                if (!astf_db->get_db_ro(dual_port_id)) {
+                if (!astf_db->get_db_ro(socket_id)) {
                     throw TrexException("Could not create RO template database at CP");
                 }
 
-                auto socket_id = flow_gen->get_memory_socket_id();
                 auto thread_id = flow_gen->m_thread_id;
                 auto max_threads = flow_gen->m_max_threads;
 
