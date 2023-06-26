@@ -671,9 +671,10 @@ def check_ofed(ctx):
     ctx.start_msg('Checking for OFED')
     ofed_info='/usr/bin/ofed_info'
 
-    ofed_ver_re = re.compile('.*[-](\d)[.](\d)[-].*')
+    ofed_ver_re = re.compile('.*[-](\d+)[.](\d+)[-].*')
 
-    ofed_ver= 42
+    ofed_major_ver = 4
+    ofed_minor_ver = 2
     ofed_ver_show= '4.2'
 
     if not os.path.isfile(ofed_info):
@@ -692,8 +693,12 @@ def check_ofed(ctx):
 
     m= ofed_ver_re.match(str(lines[0]))
     if m:
-        ver=int(m.group(1))*10+int(m.group(2))
-        if ver < ofed_ver:
+        is_version_okay = False
+        if int(m.group(1)) > ofed_major_ver:
+            is_version_okay = True
+        elif int(m.group(1)) == ofed_major_ver and int(m.group(2)) >= ofed_minor_ver:
+            is_version_okay = True
+        if not is_version_okay:
           ctx.end_msg("installed OFED version is '%s' should be at least '%s' and up - try with ./b configure --no-mlx flag" % (lines[0],ofed_ver_show),'YELLOW')
           return False
     else:
