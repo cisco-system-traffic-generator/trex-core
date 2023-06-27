@@ -80,7 +80,7 @@ class ELKManager:
             sorted_tests_data[setup_name] = {}
             for test_name in setup_tests_data:
                 sorted_tests_data[setup_name][test_name] = sorted(setup_tests_data[test_name],
-                                                                  key=lambda (_, timestamp, __, ___): timestamp)
+                                                                  key=lambda timestamp: timestamp[1])
         return sorted_tests_data
 
     def fetch_and_parse(self):
