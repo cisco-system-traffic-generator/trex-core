@@ -20,6 +20,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <array>
+
 #include "astf/astf_db.h"
 #include "bp_sim.h"
 #include "stt_cp.h"
