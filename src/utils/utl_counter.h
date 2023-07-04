@@ -389,9 +389,8 @@ private:
 
 class CTblGCounters {
 public:
-    CTblGCounters() : m_epoch(m_internal_epoch) {
+    CTblGCounters() : m_internal_epoch(0), m_epoch(m_internal_epoch) {
         m_free_objects = false;
-        m_internal_epoch = 0;
     }
 
     ~CTblGCounters();
@@ -435,8 +434,8 @@ private:
 
 
 private:
-    std::reference_wrapper<uint64_t>    m_epoch;
     uint64_t                            m_internal_epoch;
+    std::reference_wrapper<uint64_t>    m_epoch;
     bool                                m_free_objects;
     std::vector<CGTblClmCounters*>      m_counters;
 };
