@@ -2223,7 +2223,7 @@ class CRxCheck1 : public CRxCheckCallbackBase {
 public:
 
     virtual void handle_packet(rte_mbuf_t  * m){
-        rte_pktmbuf_mtod(m, char*);
+        (void) rte_pktmbuf_mtod(m, char*);
         CRx_check_header * rx_p;
         rte_mbuf_t  * m2 = m->next;
         rx_p=(CRx_check_header *)rte_pktmbuf_mtod(m2, char*);
