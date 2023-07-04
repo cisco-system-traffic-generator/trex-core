@@ -19,6 +19,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <ctime>
+
 #include "trex_owner.h"
 #include "common/basic_utils.h"
 
