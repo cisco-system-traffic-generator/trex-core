@@ -1023,6 +1023,7 @@ main_src = SrcGroup(dir='src',
              'drivers/trex_driver_i40e.cpp',
              'drivers/trex_driver_igb.cpp',
              'drivers/trex_driver_ixgbe.cpp',
+             'drivers/trex_driver_igc.cpp',
              'drivers/trex_driver_mlx5.cpp',
              'drivers/trex_driver_ice.cpp',
              'drivers/trex_driver_ntacc.cpp',
@@ -1326,6 +1327,20 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  #i40e
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
 
+                 #igc
+                 'drivers/net/igc/base/igc_api.c',
+                 'drivers/net/igc/base/igc_base.c',
+                 'drivers/net/igc/base/igc_i225.c',
+                 'drivers/net/igc/base/igc_mac.c',
+                 'drivers/net/igc/base/igc_manage.c',
+                 'drivers/net/igc/base/igc_nvm.c',
+                 'drivers/net/igc/base/igc_osdep.c',
+                 'drivers/net/igc/base/igc_phy.c',
+                 'drivers/net/igc/igc_txrx.c',
+                 'drivers/net/igc/igc_ethdev.c',
+                 'drivers/net/igc/igc_filter.c',
+                 'drivers/net/igc/igc_flow.c',
+                 'drivers/net/igc/igc_logs.c',
 
                 #  #virtio
                   'drivers/net/virtio/virtio_rxtx_simple_sse.c',
@@ -2068,6 +2083,8 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/i40e/base/
                         ../src/dpdk/drivers/net/ixgbe/
                         ../src/dpdk/drivers/net/ixgbe/base/
+                        ../src/dpdk/drivers/net/igc/
+                        ../src/dpdk/drivers/net/igc/base/
                         ../src/dpdk/drivers/net/mlx4/
                         ../src/dpdk/drivers/net/mlx5/
                         ../src/dpdk/drivers/net/ntacc/

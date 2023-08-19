@@ -199,6 +199,8 @@ void DpdkTRexPortAttr::get_supported_speeds(supp_speeds_t &supp_speeds){
     uint32_t speed_capa = m_dev_info.speed_capa;
     if (speed_capa & RTE_ETH_LINK_SPEED_1G)
         supp_speeds.push_back(RTE_ETH_SPEED_NUM_1G);
+    if (speed_capa & RTE_ETH_LINK_SPEED_2_5G)
+        supp_speeds.push_back(RTE_ETH_SPEED_NUM_2_5G);
     if (speed_capa & RTE_ETH_LINK_SPEED_10G)
         supp_speeds.push_back(RTE_ETH_SPEED_NUM_10G);
     if (speed_capa & RTE_ETH_LINK_SPEED_25G)
