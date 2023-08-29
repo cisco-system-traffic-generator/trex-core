@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+== Release 3.04 ==
+
+* Upgrade to DPDK 23.03 for new Cloud drivers 
+** iavf works now for i40evf 
+
+
 == Release 3.03 ==
 
 * minor bug fixes 
