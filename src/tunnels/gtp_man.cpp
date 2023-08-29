@@ -183,14 +183,14 @@ void* CGtpuMan::get_opposite_ctx() {
     if (iph->getVersion() == IPHeader::Protocol::IP) {
         udp = (UDPHeader*) ((uint8_t *)iph + IPV4_HDR_LEN);
         GTPUHeader *gtpu = (GTPUHeader*)((uint8_t *)udp + UDP_HEADER_LEN);
-        opposite_context = new CGtpuCtx(gtpu->getTeid(), iph->mySource, iph->myDestination, udp->getSourcePort());
+        opposite_context = new CGtpuCtx(gtpu->getTeid(), iph->myDestination, iph->mySource, udp->getSourcePort());
     } else {
         IPv6Header * ipv6 = (IPv6Header *)iph;
         udp = (UDPHeader *) ((uint8_t *)ipv6 + IPV6_HDR_LEN);
         GTPUHeader *gtpu = (GTPUHeader*)((uint8_t *)udp + UDP_HEADER_LEN);
         ipv6_addr_t src_ipv6, dst_ipv6;
-        memcpy(src_ipv6.addr, ipv6->mySource, sizeof(uint16_t) * IPV6_16b_ADDR_GROUPS);
-        memcpy(dst_ipv6.addr, ipv6->myDestination, sizeof(uint16_t) * IPV6_16b_ADDR_GROUPS);
+        memcpy(src_ipv6.addr, ipv6->myDestination, sizeof(uint16_t) * IPV6_16b_ADDR_GROUPS);
+        memcpy(dst_ipv6.addr, ipv6->mySource, sizeof(uint16_t) * IPV6_16b_ADDR_GROUPS);
         opposite_context = new CGtpuCtx(gtpu->getTeid(), &src_ipv6, &dst_ipv6, udp->getSourcePort());
     }
     return (void *)opposite_context;
