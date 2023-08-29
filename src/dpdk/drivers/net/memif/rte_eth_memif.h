@@ -25,6 +25,8 @@
 #define ETH_MEMIF_DISC_STRING_SIZE		96
 #define ETH_MEMIF_SECRET_SIZE			24
 
+#define MAX_PKT_BURST				32
+
 extern int memif_logtype;
 
 #define MIF_LOG(level, fmt, args...) \
@@ -89,6 +91,8 @@ struct pmd_internals {
 /**< use abstract socket address */
 
 	char *socket_filename;			/**< pointer to socket filename */
+	uid_t owner_uid;			/**< socket owner uid */
+	gid_t owner_gid;			/**< socket owner gid */
 	char secret[ETH_MEMIF_SECRET_SIZE]; /**< secret (optional security parameter) */
 
 	struct memif_control_channel *cc;	/**< control channel */
@@ -180,6 +184,10 @@ const char *memif_version(void);
 #define __NR_memfd_create 360
 #elif defined __i386__
 #define __NR_memfd_create 356
+#elif defined __riscv
+#define __NR_memfd_create 279
+#elif defined __loongarch__
+#define __NR_memfd_create 279
 #else
 #error "__NR_memfd_create unknown for this architecture"
 #endif

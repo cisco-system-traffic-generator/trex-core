@@ -11,7 +11,7 @@
 #include <errno.h>
 
 #include <ethdev_driver.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_mbuf.h>
 #include <rte_common.h>
 #include <rte_interrupts.h>
@@ -733,6 +733,7 @@ int
 mlx5_hairpin_cap_get(struct rte_eth_dev *dev, struct rte_eth_hairpin_cap *cap)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_hca_attr *hca_attr;
 
 	if (!mlx5_devx_obj_ops_en(priv->sh)) {
 		rte_errno = ENOTSUP;
@@ -742,5 +743,10 @@ mlx5_hairpin_cap_get(struct rte_eth_dev *dev, struct rte_eth_hairpin_cap *cap)
 	cap->max_rx_2_tx = 1;
 	cap->max_tx_2_rx = 1;
 	cap->max_nb_desc = 8192;
+	hca_attr = &priv->sh->cdev->config.hca_attr;
+	cap->rx_cap.locked_device_memory = hca_attr->hairpin_data_buffer_locked;
+	cap->rx_cap.rte_memory = 0;
+	cap->tx_cap.locked_device_memory = 0;
+	cap->tx_cap.rte_memory = hca_attr->hairpin_sq_wq_in_host_mem;
 	return 0;
 }

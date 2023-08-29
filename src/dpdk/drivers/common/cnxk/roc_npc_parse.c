@@ -21,6 +21,20 @@ npc_parse_meta_items(struct npc_parse_state *pst)
 	return 0;
 }
 
+int
+npc_parse_mark_item(struct npc_parse_state *pst)
+{
+	if (pst->pattern->type == ROC_NPC_ITEM_TYPE_MARK) {
+		if (pst->flow->nix_intf != NIX_INTF_RX)
+			return -EINVAL;
+
+		pst->is_second_pass_rule = true;
+		pst->pattern++;
+	}
+
+	return 0;
+}
+
 static int
 npc_flow_raw_item_prepare(const struct roc_npc_flow_item_raw *raw_spec,
 			  const struct roc_npc_flow_item_raw *raw_mask,
@@ -179,6 +193,7 @@ npc_parse_la(struct npc_parse_state *pst)
 	if (pst->pattern->type != ROC_NPC_ITEM_TYPE_ETH)
 		return 0;
 
+	pst->has_eth_type = true;
 	eth_item = pst->pattern->spec;
 
 	lid = NPC_LID_LA;
@@ -224,10 +239,185 @@ npc_parse_la(struct npc_parse_state *pst)
 
 #define NPC_MAX_SUPPORTED_VLANS 3
 
+static int
+npc_parse_vlan_count(const struct roc_npc_item_info *pattern,
+		     const struct roc_npc_item_info **pattern_list,
+		     const struct roc_npc_flow_item_vlan **vlan_items, int *vlan_count)
+{
+	*vlan_count = 0;
+	while (pattern->type == ROC_NPC_ITEM_TYPE_VLAN) {
+		if (*vlan_count > NPC_MAX_SUPPORTED_VLANS - 1)
+			return NPC_ERR_PATTERN_NOTSUP;
+
+		/* Don't support ranges */
+		if (pattern->last != NULL)
+			return NPC_ERR_INVALID_RANGE;
+
+		/* If spec is NULL, both mask and last must be NULL, this
+		 * makes it to match ANY value (eq to mask = 0).
+		 * Setting either mask or last without spec is an error
+		 */
+		if (pattern->spec == NULL) {
+			if (pattern->last != NULL && pattern->mask != NULL)
+				return NPC_ERR_INVALID_SPEC;
+		}
+
+		pattern_list[*vlan_count] = pattern;
+		vlan_items[*vlan_count] = pattern->spec;
+		(*vlan_count)++;
+
+		pattern++;
+		pattern = npc_parse_skip_void_and_any_items(pattern);
+	}
+
+	return 0;
+}
+
+static int
+npc_parse_vlan_ltype_get(struct npc_parse_state *pst,
+			 const struct roc_npc_flow_item_vlan **vlan_item, int vlan_count,
+			 int *ltype, int *lflags)
+{
+	switch (vlan_count) {
+	case 1:
+		*ltype = NPC_LT_LB_CTAG;
+		if (vlan_item[0] && vlan_item[0]->has_more_vlan)
+			*ltype = NPC_LT_LB_STAG_QINQ;
+		break;
+	case 2:
+		if (vlan_item[1] && vlan_item[1]->has_more_vlan) {
+			if (!(pst->npc->keyx_supp_nmask[pst->nix_intf] &
+			      0x3ULL << NPC_LFLAG_LB_OFFSET))
+				return NPC_ERR_PATTERN_NOTSUP;
+
+			/* This lflag value will match either one of
+			 * NPC_F_LB_L_WITH_STAG_STAG,
+			 * NPC_F_LB_L_WITH_QINQ_CTAG,
+			 * NPC_F_LB_L_WITH_QINQ_QINQ and
+			 * NPC_F_LB_L_WITH_ITAG (0b0100 to 0b0111). For
+			 * NPC_F_LB_L_WITH_ITAG, ltype is NPC_LT_LB_ETAG
+			 * hence will not match.
+			 */
+
+			*lflags = NPC_F_LB_L_WITH_QINQ_CTAG & NPC_F_LB_L_WITH_QINQ_QINQ &
+				  NPC_F_LB_L_WITH_STAG_STAG;
+		}
+		*ltype = NPC_LT_LB_STAG_QINQ;
+		break;
+	case 3:
+		if (vlan_item[2] && vlan_item[2]->has_more_vlan)
+			return NPC_ERR_PATTERN_NOTSUP;
+		if (!(pst->npc->keyx_supp_nmask[pst->nix_intf] & 0x3ULL << NPC_LFLAG_LB_OFFSET))
+			return NPC_ERR_PATTERN_NOTSUP;
+		*ltype = NPC_LT_LB_STAG_QINQ;
+		*lflags = NPC_F_STAG_STAG_CTAG;
+		break;
+	default:
+		return NPC_ERR_PATTERN_NOTSUP;
+	}
+
+	return 0;
+}
+
+static int
+npc_update_vlan_parse_state(struct npc_parse_state *pst, const struct roc_npc_item_info *pattern,
+			    int lid, int lt, uint8_t lflags, int vlan_count)
+{
+	uint8_t vlan_spec[NPC_MAX_SUPPORTED_VLANS * sizeof(struct roc_vlan_hdr)];
+	uint8_t vlan_mask[NPC_MAX_SUPPORTED_VLANS * sizeof(struct roc_vlan_hdr)];
+	int rc = 0, i, offset = NPC_TPID_LENGTH;
+	struct npc_parse_item_info parse_info;
+	char hw_mask[NPC_MAX_EXTRACT_HW_LEN];
+
+	memset(vlan_spec, 0, sizeof(struct roc_vlan_hdr) * NPC_MAX_SUPPORTED_VLANS);
+	memset(vlan_mask, 0, sizeof(struct roc_vlan_hdr) * NPC_MAX_SUPPORTED_VLANS);
+	memset(&parse_info, 0, sizeof(parse_info));
+
+	if (vlan_count > 2)
+		vlan_count = 2;
+
+	for (i = 0; i < vlan_count; i++) {
+		if (pattern[i].spec)
+			memcpy(vlan_spec + offset, pattern[i].spec, sizeof(struct roc_vlan_hdr));
+		if (pattern[i].mask)
+			memcpy(vlan_mask + offset, pattern[i].mask, sizeof(struct roc_vlan_hdr));
+
+		offset += 4;
+	}
+
+	parse_info.def_mask = NULL;
+	parse_info.spec = vlan_spec;
+	parse_info.mask = vlan_mask;
+	parse_info.def_mask = NULL;
+	parse_info.hw_hdr_len = 0;
+
+	lid = NPC_LID_LB;
+	parse_info.hw_mask = hw_mask;
+
+	if (lt == NPC_LT_LB_CTAG)
+		parse_info.len = sizeof(struct roc_vlan_hdr) + NPC_TPID_LENGTH;
+
+	if (lt == NPC_LT_LB_STAG_QINQ)
+		parse_info.len = sizeof(struct roc_vlan_hdr) * 2 + NPC_TPID_LENGTH;
+
+	memset(hw_mask, 0, sizeof(hw_mask));
+
+	parse_info.hw_mask = &hw_mask;
+	npc_get_hw_supp_mask(pst, &parse_info, lid, lt);
+
+	rc = npc_mask_is_supported(parse_info.mask, parse_info.hw_mask, parse_info.len);
+	if (!rc)
+		return NPC_ERR_INVALID_MASK;
+
+	/* Point pattern to last item consumed */
+	pst->pattern = pattern;
+	return npc_update_parse_state(pst, &parse_info, lid, lt, lflags);
+}
+
+static int
+npc_parse_lb_vlan(struct npc_parse_state *pst)
+{
+	const struct roc_npc_flow_item_vlan *vlan_items[NPC_MAX_SUPPORTED_VLANS];
+	const struct roc_npc_item_info *pattern_list[NPC_MAX_SUPPORTED_VLANS];
+	const struct roc_npc_item_info *last_pattern;
+	int vlan_count = 0, rc = 0;
+	int lid, lt, lflags;
+
+	lid = NPC_LID_LB;
+	lflags = 0;
+	last_pattern = pst->pattern;
+
+	rc = npc_parse_vlan_count(pst->pattern, pattern_list, vlan_items, &vlan_count);
+	if (rc)
+		return rc;
+
+	rc = npc_parse_vlan_ltype_get(pst, vlan_items, vlan_count, &lt, &lflags);
+	if (rc)
+		return rc;
+
+	if (vlan_count == 3) {
+		if (pattern_list[2]->spec != NULL && pattern_list[2]->mask != NULL &&
+		    pattern_list[2]->last != NULL)
+			return NPC_ERR_PATTERN_NOTSUP;
+
+		/* Matching can be done only for two tags. */
+		vlan_count = 2;
+		last_pattern++;
+	}
+
+	rc = npc_update_vlan_parse_state(pst, pattern_list[0], lid, lt, lflags, vlan_count);
+	if (rc)
+		return rc;
+
+	if (vlan_count > 1)
+		pst->pattern = last_pattern + vlan_count;
+
+	return 0;
+}
+
 int
 npc_parse_lb(struct npc_parse_state *pst)
 {
-	const struct roc_npc_flow_item_vlan *vlan_item[NPC_MAX_SUPPORTED_VLANS];
 	const struct roc_npc_item_info *pattern = pst->pattern;
 	const struct roc_npc_item_info *last_pattern;
 	const struct roc_npc_flow_item_raw *raw_spec;
@@ -236,7 +426,6 @@ npc_parse_lb(struct npc_parse_state *pst)
 	char hw_mask[NPC_MAX_EXTRACT_HW_LEN];
 	struct npc_parse_item_info info;
 	int lid, lt, lflags, len = 0;
-	int nr_vlans = 0;
 	int rc;
 
 	info.def_mask = NULL;
@@ -253,68 +442,10 @@ npc_parse_lb(struct npc_parse_state *pst)
 		/* RTE vlan is either 802.1q or 802.1ad,
 		 * this maps to either CTAG/STAG. We need to decide
 		 * based on number of VLANS present. Matching is
-		 * supported on first tag only.
+		 * supported on first two tags.
 		 */
-		info.hw_mask = NULL;
-		info.len = sizeof(vlan_item[0]->hdr);
 
-		pattern = pst->pattern;
-		while (pattern->type == ROC_NPC_ITEM_TYPE_VLAN) {
-			if (nr_vlans > NPC_MAX_SUPPORTED_VLANS - 1)
-				return NPC_ERR_PATTERN_NOTSUP;
-
-			vlan_item[nr_vlans] = pattern->spec;
-			nr_vlans++;
-
-			/* Basic validation of Second/Third vlan item */
-			if (nr_vlans > 1) {
-				rc = npc_parse_item_basic(pattern, &info);
-				if (rc != 0)
-					return rc;
-			}
-			last_pattern = pattern;
-			pattern++;
-			pattern = npc_parse_skip_void_and_any_items(pattern);
-		}
-
-		switch (nr_vlans) {
-		case 1:
-			lt = NPC_LT_LB_CTAG;
-			if (vlan_item[0] && vlan_item[0]->has_more_vlan)
-				lt = NPC_LT_LB_STAG_QINQ;
-			break;
-		case 2:
-			if (vlan_item[1] && vlan_item[1]->has_more_vlan) {
-				if (!(pst->npc->keyx_supp_nmask[pst->nix_intf] &
-				      0x3ULL << NPC_LFLAG_LB_OFFSET))
-					return NPC_ERR_PATTERN_NOTSUP;
-
-				/* This lflag value will match either one of
-				 * NPC_F_LB_L_WITH_STAG_STAG,
-				 * NPC_F_LB_L_WITH_QINQ_CTAG,
-				 * NPC_F_LB_L_WITH_QINQ_QINQ and
-				 * NPC_F_LB_L_WITH_ITAG (0b0100 to 0b0111). For
-				 * NPC_F_LB_L_WITH_ITAG, ltype is NPC_LT_LB_ETAG
-				 * hence will not match.
-				 */
-
-				lflags = NPC_F_LB_L_WITH_QINQ_CTAG &
-					 NPC_F_LB_L_WITH_QINQ_QINQ &
-					 NPC_F_LB_L_WITH_STAG_STAG;
-			} else {
-				lflags = NPC_F_LB_L_WITH_CTAG;
-			}
-			lt = NPC_LT_LB_STAG_QINQ;
-			break;
-		case 3:
-			if (vlan_item[2] && vlan_item[2]->has_more_vlan)
-				return NPC_ERR_PATTERN_NOTSUP;
-			lt = NPC_LT_LB_STAG_QINQ;
-			lflags = NPC_F_STAG_STAG_CTAG;
-			break;
-		default:
-			return NPC_ERR_PATTERN_NOTSUP;
-		}
+		return npc_parse_lb_vlan(pst);
 	} else if (pst->pattern->type == ROC_NPC_ITEM_TYPE_E_TAG) {
 		/* we can support ETAG and match a subsequent CTAG
 		 * without any matching support.
@@ -337,15 +468,10 @@ npc_parse_lb(struct npc_parse_state *pst)
 		}
 		info.len = pattern->size;
 	} else if (pst->pattern->type == ROC_NPC_ITEM_TYPE_QINQ) {
-		vlan_item[0] = pst->pattern->spec;
 		info.hw_mask = NULL;
-		info.len = sizeof(vlan_item[0]->hdr);
+		info.len = pattern->size;
 		lt = NPC_LT_LB_STAG_QINQ;
 		lflags = NPC_F_STAG_CTAG;
-		if (vlan_item[0] && vlan_item[0]->has_more_vlan) {
-			lflags = NPC_F_LB_L_WITH_QINQ_CTAG &
-				 NPC_F_LB_L_WITH_QINQ_QINQ;
-		}
 	} else if (pst->pattern->type == ROC_NPC_ITEM_TYPE_RAW) {
 		raw_spec = pst->pattern->spec;
 		if (raw_spec->relative)
@@ -537,10 +663,131 @@ npc_handle_ipv6ext_attr(const struct roc_npc_flow_item_ipv6 *ipv6_spec,
 	return 0;
 }
 
+static int
+npc_process_ipv6_item(struct npc_parse_state *pst)
+{
+	uint8_t ipv6_hdr_mask[sizeof(struct roc_ipv6_hdr) + sizeof(struct roc_ipv6_fragment_ext)];
+	uint8_t ipv6_hdr_buf[sizeof(struct roc_ipv6_hdr) + sizeof(struct roc_ipv6_fragment_ext)];
+	const struct roc_npc_flow_item_ipv6 *ipv6_spec, *ipv6_mask;
+	const struct roc_npc_item_info *pattern = pst->pattern;
+	int offset = 0, rc = 0, lid, item_count = 0;
+	struct npc_parse_item_info parse_info;
+	char hw_mask[NPC_MAX_EXTRACT_HW_LEN];
+	uint8_t flags = 0, ltype;
+
+	memset(ipv6_hdr_buf, 0, sizeof(ipv6_hdr_buf));
+	memset(ipv6_hdr_mask, 0, sizeof(ipv6_hdr_mask));
+
+	ipv6_spec = pst->pattern->spec;
+	ipv6_mask = pst->pattern->mask;
+
+	parse_info.def_mask = NULL;
+	parse_info.spec = ipv6_hdr_buf;
+	parse_info.mask = ipv6_hdr_mask;
+	parse_info.def_mask = NULL;
+	parse_info.hw_hdr_len = 0;
+	parse_info.len = sizeof(ipv6_spec->hdr);
+
+	pst->set_ipv6ext_ltype_mask = true;
+
+	lid = NPC_LID_LC;
+	ltype = NPC_LT_LC_IP6;
+
+	if (pattern->type == ROC_NPC_ITEM_TYPE_IPV6) {
+		item_count++;
+		if (ipv6_spec) {
+			memcpy(ipv6_hdr_buf, &ipv6_spec->hdr, sizeof(struct roc_ipv6_hdr));
+			rc = npc_handle_ipv6ext_attr(ipv6_spec, pst, &flags);
+			if (rc)
+				return rc;
+		}
+		if (ipv6_mask)
+			memcpy(ipv6_hdr_mask, &ipv6_mask->hdr, sizeof(struct roc_ipv6_hdr));
+	}
+
+	offset = sizeof(struct roc_ipv6_hdr);
+
+	while (pattern->type != ROC_NPC_ITEM_TYPE_END) {
+		/* Don't support ranges */
+		if (pattern->last != NULL)
+			return NPC_ERR_INVALID_RANGE;
+
+		/* If spec is NULL, both mask and last must be NULL, this
+		 * makes it to match ANY value (eq to mask = 0).
+		 * Setting either mask or last without spec is
+		 * an error
+		 */
+		if (pattern->spec == NULL) {
+			if (pattern->last != NULL && pattern->mask != NULL)
+				return NPC_ERR_INVALID_SPEC;
+		}
+		/* Either one ROC_NPC_ITEM_TYPE_IPV6_EXT or
+		 * one ROC_NPC_ITEM_TYPE_IPV6_FRAG_EXT is supported
+		 * following an ROC_NPC_ITEM_TYPE_IPV6 item.
+		 */
+		if (pattern->type == ROC_NPC_ITEM_TYPE_IPV6_EXT) {
+			item_count++;
+			ltype = NPC_LT_LC_IP6_EXT;
+			parse_info.len =
+				sizeof(struct roc_ipv6_hdr) + sizeof(struct roc_flow_item_ipv6_ext);
+			if (pattern->spec)
+				memcpy(ipv6_hdr_buf + offset, pattern->spec,
+				       sizeof(struct roc_flow_item_ipv6_ext));
+			if (pattern->mask)
+				memcpy(ipv6_hdr_mask + offset, pattern->mask,
+				       sizeof(struct roc_flow_item_ipv6_ext));
+			break;
+		} else if (pattern->type == ROC_NPC_ITEM_TYPE_IPV6_FRAG_EXT) {
+			item_count++;
+			ltype = NPC_LT_LC_IP6_EXT;
+			flags = NPC_F_LC_U_IP6_FRAG;
+			parse_info.len =
+				sizeof(struct roc_ipv6_hdr) + sizeof(struct roc_ipv6_fragment_ext);
+			if (pattern->spec)
+				memcpy(ipv6_hdr_buf + offset, pattern->spec,
+				       sizeof(struct roc_ipv6_fragment_ext));
+			if (pattern->mask)
+				memcpy(ipv6_hdr_mask + offset, pattern->mask,
+				       sizeof(struct roc_ipv6_fragment_ext));
+
+			break;
+		}
+
+		pattern++;
+		pattern = npc_parse_skip_void_and_any_items(pattern);
+	}
+
+	memset(hw_mask, 0, sizeof(hw_mask));
+
+	parse_info.hw_mask = &hw_mask;
+	npc_get_hw_supp_mask(pst, &parse_info, lid, ltype);
+
+	rc = npc_mask_is_supported(parse_info.mask, parse_info.hw_mask, parse_info.len);
+	if (!rc)
+		return NPC_ERR_INVALID_MASK;
+
+	rc = npc_update_parse_state(pst, &parse_info, lid, ltype, flags);
+	if (rc)
+		return rc;
+
+	if (pst->npc->hash_extract_cap) {
+		rc = npc_process_ipv6_field_hash(parse_info.spec, parse_info.mask, pst, ltype);
+		if (rc)
+			return rc;
+	}
+
+	/* npc_update_parse_state() increments pattern once.
+	 * Check if additional increment is required.
+	 */
+	if (item_count == 2)
+		pst->pattern++;
+
+	return 0;
+}
+
 int
 npc_parse_lc(struct npc_parse_state *pst)
 {
-	const struct roc_npc_flow_item_ipv6 *ipv6_spec;
 	const struct roc_npc_flow_item_raw *raw_spec;
 	uint8_t raw_spec_buf[NPC_MAX_RAW_ITEM_LEN];
 	uint8_t raw_mask_buf[NPC_MAX_RAW_ITEM_LEN];
@@ -565,25 +812,12 @@ npc_parse_lc(struct npc_parse_state *pst)
 		info.len = pst->pattern->size;
 		break;
 	case ROC_NPC_ITEM_TYPE_IPV6:
-		ipv6_spec = pst->pattern->spec;
-		lid = NPC_LID_LC;
-		lt = NPC_LT_LC_IP6;
-		if (ipv6_spec) {
-			rc = npc_handle_ipv6ext_attr(ipv6_spec, pst, &flags);
-			if (rc)
-				return rc;
-		}
-		info.len = sizeof(ipv6_spec->hdr);
-		break;
+	case ROC_NPC_ITEM_TYPE_IPV6_EXT:
+	case ROC_NPC_ITEM_TYPE_IPV6_FRAG_EXT:
+		return npc_process_ipv6_item(pst);
 	case ROC_NPC_ITEM_TYPE_ARP_ETH_IPV4:
 		lt = NPC_LT_LC_ARP;
 		info.len = pst->pattern->size;
-		break;
-	case ROC_NPC_ITEM_TYPE_IPV6_EXT:
-		lid = NPC_LID_LC;
-		lt = NPC_LT_LC_IP6_EXT;
-		info.len = pst->pattern->size;
-		info.hw_hdr_len = 40;
 		break;
 	case ROC_NPC_ITEM_TYPE_L3_CUSTOM:
 		lt = NPC_LT_LC_CUSTOM0;
@@ -683,11 +917,13 @@ npc_parse_ld(struct npc_parse_state *pst)
 	case ROC_NPC_ITEM_TYPE_GRE:
 		lt = NPC_LT_LD_GRE;
 		info.len = pst->pattern->size;
+		pst->tunnel = 1;
 		break;
 	case ROC_NPC_ITEM_TYPE_GRE_KEY:
 		lt = NPC_LT_LD_GRE;
 		info.len = pst->pattern->size;
 		info.hw_hdr_len = 4;
+		pst->tunnel = 1;
 		break;
 	case ROC_NPC_ITEM_TYPE_NVGRE:
 		lt = NPC_LT_LD_NVGRE;
@@ -712,6 +948,7 @@ int
 npc_parse_le(struct npc_parse_state *pst)
 {
 	const struct roc_npc_item_info *pattern = pst->pattern;
+	const struct roc_npc_item_esp_hdr *esp = NULL;
 	char hw_mask[NPC_MAX_EXTRACT_HW_LEN];
 	struct npc_parse_item_info info;
 	int lid, lt, lflags;
@@ -768,6 +1005,9 @@ npc_parse_le(struct npc_parse_state *pst)
 	case ROC_NPC_ITEM_TYPE_ESP:
 		lt = NPC_LT_LE_ESP;
 		info.len = pst->pattern->size;
+		esp = (const struct roc_npc_item_esp_hdr *)pattern->spec;
+		if (esp)
+			pst->flow->spi_to_sa_info.spi = esp->spi;
 		break;
 	default:
 		return 0;

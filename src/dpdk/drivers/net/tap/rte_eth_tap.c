@@ -10,7 +10,7 @@
 #include <ethdev_driver.h>
 #include <ethdev_vdev.h>
 #include <rte_malloc.h>
-#include <rte_bus_vdev.h>
+#include <bus_vdev_driver.h>
 #include <rte_kvargs.h>
 #include <rte_net.h>
 #include <rte_debug.h>
@@ -30,6 +30,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/uio.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -54,6 +55,7 @@
 #define ETH_TAP_REMOTE_ARG      "remote"
 #define ETH_TAP_MAC_ARG         "mac"
 #define ETH_TAP_MAC_FIXED       "fixed"
+#define ETH_TAP_PERSIST_ARG     "persist"
 
 #define ETH_TAP_USR_MAC_FMT     "xx:xx:xx:xx:xx:xx"
 #define ETH_TAP_CMP_MAC_FMT     "0123456789ABCDEFabcdef"
@@ -92,6 +94,7 @@ static const char *valid_arguments[] = {
 	ETH_TAP_IFACE_ARG,
 	ETH_TAP_REMOTE_ARG,
 	ETH_TAP_MAC_ARG,
+	ETH_TAP_PERSIST_ARG,
 	NULL
 };
 
@@ -140,11 +143,14 @@ static int tap_intr_handle_set(struct rte_eth_dev *dev, int set);
  * @param[in] is_keepalive
  *   Keepalive flag
  *
+ * @param[in] persistent
+ *   Mark device as persistent
+ *
  * @return
  *   -1 on failure, fd on success
  */
 static int
-tun_alloc(struct pmd_internals *pmd, int is_keepalive)
+tun_alloc(struct pmd_internals *pmd, int is_keepalive, int persistent)
 {
 	struct ifreq ifr;
 #ifdef IFF_MULTI_QUEUE
@@ -190,6 +196,14 @@ tun_alloc(struct pmd_internals *pmd, int is_keepalive)
 	/* Set the TUN/TAP configuration and set the name if needed */
 	if (ioctl(fd, TUNSETIFF, (void *)&ifr) < 0) {
 		TAP_LOG(WARNING, "Unable to set TUNSETIFF for %s: %s",
+			ifr.ifr_name, strerror(errno));
+		goto error;
+	}
+
+	/* Keep the device after application exit */
+	if (persistent && ioctl(fd, TUNSETPERSIST, 1) < 0) {
+		TAP_LOG(WARNING,
+			"Unable to set persist %s: %s",
 			ifr.ifr_name, strerror(errno));
 		goto error;
 	}
@@ -973,6 +987,7 @@ tap_mp_req_start_rxtx(const struct rte_mp_msg *request, __rte_unused const void 
 static int
 tap_dev_stop(struct rte_eth_dev *dev)
 {
+	struct pmd_internals *pmd = dev->data->dev_private;
 	int i;
 
 	for (i = 0; i < dev->data->nb_tx_queues; i++)
@@ -981,7 +996,8 @@ tap_dev_stop(struct rte_eth_dev *dev)
 		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	tap_intr_handle_set(dev, 0);
-	tap_link_set_down(dev);
+	if (!pmd->persist)
+		tap_link_set_down(dev);
 
 	return 0;
 }
@@ -1066,7 +1082,7 @@ tap_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 
 	dev_info->if_index = internals->if_index;
 	dev_info->max_mac_addrs = 1;
-	dev_info->max_rx_pktlen = (uint32_t)RTE_ETHER_MAX_VLAN_FRAME_LEN;
+	dev_info->max_rx_pktlen = RTE_ETHER_MAX_JUMBO_FRAME_LEN;
 	dev_info->max_rx_queues = RTE_PMD_TAP_MAX_QUEUES;
 	dev_info->max_tx_queues = RTE_PMD_TAP_MAX_QUEUES;
 	dev_info->min_rx_bufsize = 0;
@@ -1165,7 +1181,8 @@ tap_dev_close(struct rte_eth_dev *dev)
 		return 0;
 	}
 
-	tap_link_set_down(dev);
+	if (!internals->persist)
+		tap_link_set_down(dev);
 	if (internals->nlsk_fd != -1) {
 		tap_flow_flush(dev, NULL);
 		tap_flow_implicit_flush(internals, NULL);
@@ -1212,6 +1229,8 @@ tap_dev_close(struct rte_eth_dev *dev)
 	internals = dev->data->dev_private;
 	TAP_LOG(DEBUG, "Closing %s Ethernet device on numa %u",
 		tuntap_types[internals->type], rte_socket_id());
+
+	rte_intr_instance_free(internals->intr_handle);
 
 	if (internals->ioctl_sock != -1) {
 		close(internals->ioctl_sock);
@@ -1551,7 +1570,7 @@ tap_setup_queue(struct rte_eth_dev *dev,
 			pmd->name, *other_fd, dir, qid, *fd);
 	} else {
 		/* Both RX and TX fds do not exist (equal -1). Create fd */
-		*fd = tun_alloc(pmd, 0);
+		*fd = tun_alloc(pmd, 0, 0);
 		if (*fd < 0) {
 			*fd = -1; /* restore original value */
 			TAP_LOG(ERR, "%s: tun_alloc() failed.", pmd->name);
@@ -1956,7 +1975,7 @@ static const struct eth_dev_ops ops = {
 static int
 eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
 		   char *remote_iface, struct rte_ether_addr *mac_addr,
-		   enum rte_tuntap_type type)
+		   enum rte_tuntap_type type, int persist)
 {
 	int numa_node = rte_socket_id();
 	struct rte_eth_dev *dev;
@@ -2048,7 +2067,7 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
 	 * This keep-alive file descriptor will guarantee that the TUN device
 	 * exists even when all of its queues are closed
 	 */
-	pmd->ka_fd = tun_alloc(pmd, 1);
+	pmd->ka_fd = tun_alloc(pmd, 1, persist);
 	if (pmd->ka_fd == -1) {
 		TAP_LOG(ERR, "Unable to create %s interface", tuntap_name);
 		goto error_exit;
@@ -2067,6 +2086,9 @@ eth_dev_tap_create(struct rte_vdev_device *vdev, const char *tap_name,
 		if (tap_ioctl(pmd, SIOCSIFHWADDR, &ifr, 0, LOCAL_ONLY) < 0)
 			goto error_exit;
 	}
+
+	/* Make network device persist after application exit */
+	pmd->persist = persist;
 
 	/*
 	 * Set up everything related to rte_flow:
@@ -2177,8 +2199,8 @@ error_exit:
 		close(pmd->ioctl_sock);
 	/* mac_addrs must not be freed alone because part of dev_private */
 	dev->data->mac_addrs = NULL;
-	rte_eth_dev_release_port(dev);
 	rte_intr_instance_free(pmd->intr_handle);
+	rte_eth_dev_release_port(dev);
 
 error_exit_nodev:
 	TAP_LOG(ERR, "%s Unable to initialize %s",
@@ -2358,7 +2380,7 @@ rte_pmd_tun_probe(struct rte_vdev_device *dev)
 	TAP_LOG(DEBUG, "Initializing pmd_tun for %s", name);
 
 	ret = eth_dev_tap_create(dev, tun_name, remote_iface, 0,
-				 ETH_TUNTAP_TYPE_TUN);
+				 ETH_TUNTAP_TYPE_TUN, 0);
 
 leave:
 	if (ret == -1) {
@@ -2488,6 +2510,7 @@ rte_pmd_tap_probe(struct rte_vdev_device *dev)
 	struct rte_ether_addr user_mac = { .addr_bytes = {0} };
 	struct rte_eth_dev *eth_dev;
 	int tap_devices_count_increased = 0;
+	int persist = 0;
 
 	name = rte_vdev_device_name(dev);
 	params = rte_vdev_device_args(dev);
@@ -2571,6 +2594,9 @@ rte_pmd_tap_probe(struct rte_vdev_device *dev)
 				if (ret == -1)
 					goto leave;
 			}
+
+			if (rte_kvargs_count(kvlist, ETH_TAP_PERSIST_ARG) == 1)
+				persist = 1;
 		}
 	}
 	pmd_link.link_speed = speed;
@@ -2589,7 +2615,7 @@ rte_pmd_tap_probe(struct rte_vdev_device *dev)
 	tap_devices_count++;
 	tap_devices_count_increased = 1;
 	ret = eth_dev_tap_create(dev, tap_name, remote_iface, &user_mac,
-		ETH_TUNTAP_TYPE_TAP);
+				 ETH_TUNTAP_TYPE_TAP, persist);
 
 leave:
 	if (ret == -1) {

@@ -12,3 +12,4 @@ if is_windows
 endif
 
 sources = files('rte_mempool_bucket.c')
+require_iova_in_mbuf = false

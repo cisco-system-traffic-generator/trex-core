@@ -171,7 +171,7 @@ nix_cqe_xtract_mseg(const union nix_rx_parse_u *rx, struct rte_mbuf *mbuf,
 }
 
 static inline int
-ipsec_antireplay_check(struct roc_onf_ipsec_inb_sa *sa,
+ipsec_antireplay_check(struct roc_ie_on_inb_sa *sa,
 		       struct cn9k_inb_priv_data *priv, uintptr_t data,
 		       uint32_t win_sz)
 {
@@ -183,7 +183,7 @@ ipsec_antireplay_check(struct roc_onf_ipsec_inb_sa *sa,
 	uint8_t esn;
 	int rc;
 
-	esn = sa->ctl.esn_en;
+	esn = sa->common_sa.ctl.esn_en;
 	seql = rte_be_to_cpu_32(*((uint32_t *)(data + IPSEC_SQ_LO_IDX)));
 
 	if (!esn) {
@@ -200,11 +200,12 @@ ipsec_antireplay_check(struct roc_onf_ipsec_inb_sa *sa,
 	rte_spinlock_lock(&ar->lock);
 	rc = cnxk_on_anti_replay_check(seq, ar, win_sz);
 	if (esn && !rc) {
-		seq_in_sa = ((uint64_t)rte_be_to_cpu_32(sa->esn_hi) << 32) |
-			    rte_be_to_cpu_32(sa->esn_low);
+		seq_in_sa = ((uint64_t)rte_be_to_cpu_32(sa->common_sa.seq_t.th)
+			     << 32) |
+			    rte_be_to_cpu_32(sa->common_sa.seq_t.tl);
 		if (seq > seq_in_sa) {
-			sa->esn_low = rte_cpu_to_be_32(seql);
-			sa->esn_hi = rte_cpu_to_be_32(seqh);
+			sa->common_sa.seq_t.tl = rte_cpu_to_be_32(seql);
+			sa->common_sa.seq_t.th = rte_cpu_to_be_32(seqh);
 		}
 	}
 	rte_spinlock_unlock(&ar->lock);
@@ -259,16 +260,17 @@ nix_rx_sec_mbuf_err_update(const union nix_rx_parse_u *rx, uint16_t res,
 }
 
 static __rte_always_inline uint64_t
-nix_rx_sec_mbuf_update(const struct nix_cqe_hdr_s *cq, struct rte_mbuf *m,
-		       uintptr_t sa_base, uint64_t *rearm_val, uint16_t *len)
+nix_rx_sec_mbuf_update(const struct nix_cqe_hdr_s *cq, struct rte_mbuf *m, uintptr_t sa_base,
+		       uint64_t *rearm_val, uint16_t *len, uint32_t packet_type)
 {
 	uintptr_t res_sg0 = ((uintptr_t)cq + ROC_ONF_IPSEC_INB_RES_OFF - 8);
 	const union nix_rx_parse_u *rx =
 		(const union nix_rx_parse_u *)((const uint64_t *)cq + 1);
 	struct cn9k_inb_priv_data *sa_priv;
-	struct roc_onf_ipsec_inb_sa *sa;
+	struct roc_ie_on_inb_sa *sa;
 	uint8_t lcptr = rx->lcptr;
-	struct rte_ipv4_hdr *ipv4;
+	struct rte_ipv4_hdr *ip;
+	struct rte_ipv6_hdr *ip6;
 	uint16_t data_off, res;
 	uint32_t spi, win_sz;
 	uint32_t spi_mask;
@@ -279,6 +281,7 @@ nix_rx_sec_mbuf_update(const struct nix_cqe_hdr_s *cq, struct rte_mbuf *m,
 	res = *(uint64_t *)(res_sg0 + 8);
 	data_off = *rearm_val & (BIT_ULL(16) - 1);
 	data = (uintptr_t)m->buf_addr;
+
 	data += data_off;
 
 	rte_prefetch0((void *)data);
@@ -294,10 +297,10 @@ nix_rx_sec_mbuf_update(const struct nix_cqe_hdr_s *cq, struct rte_mbuf *m,
 	sa_w = sa_base & (ROC_NIX_INL_SA_BASE_ALIGN - 1);
 	sa_base &= ~(ROC_NIX_INL_SA_BASE_ALIGN - 1);
 	spi_mask = (1ULL << sa_w) - 1;
-	sa = roc_nix_inl_onf_ipsec_inb_sa(sa_base, spi & spi_mask);
+	sa = roc_nix_inl_on_ipsec_inb_sa(sa_base, spi & spi_mask);
 
 	/* Update dynamic field with userdata */
-	sa_priv = roc_nix_inl_onf_ipsec_inb_sa_sw_rsvd(sa);
+	sa_priv = roc_nix_inl_on_ipsec_inb_sa_sw_rsvd(sa);
 	dw = *(__uint128_t *)sa_priv;
 	*rte_security_dynfield(m) = (uint64_t)dw;
 
@@ -309,16 +312,30 @@ nix_rx_sec_mbuf_update(const struct nix_cqe_hdr_s *cq, struct rte_mbuf *m,
 	}
 
 	/* Get total length from IPv4 header. We can assume only IPv4 */
-	ipv4 = (struct rte_ipv4_hdr *)(data + ROC_ONF_IPSEC_INB_SPI_SEQ_SZ +
-				       ROC_ONF_IPSEC_INB_MAX_L2_SZ);
+	ip = (struct rte_ipv4_hdr *)(data + ROC_ONF_IPSEC_INB_SPI_SEQ_SZ +
+				     ROC_ONF_IPSEC_INB_MAX_L2_SZ);
+
+	packet_type = (packet_type & ~(RTE_PTYPE_L3_MASK | RTE_PTYPE_TUNNEL_MASK));
+	if (((ip->version_ihl & 0xf0) >> RTE_IPV4_IHL_MULTIPLIER) ==
+	    IPVERSION) {
+		*len = rte_be_to_cpu_16(ip->total_length) + lcptr;
+		packet_type |= RTE_PTYPE_L3_IPV4_EXT_UNKNOWN;
+	} else {
+		PLT_ASSERT(((ip->version_ihl & 0xf0) >>
+			    RTE_IPV4_IHL_MULTIPLIER) == 6);
+		ip6 = (struct rte_ipv6_hdr *)ip;
+		*len = rte_be_to_cpu_16(ip6->payload_len) +
+		       sizeof(struct rte_ipv6_hdr) + lcptr;
+		packet_type |= RTE_PTYPE_L3_IPV6_EXT_UNKNOWN;
+	}
 
 	/* Update data offset */
-	data_off += (ROC_ONF_IPSEC_INB_SPI_SEQ_SZ +
-		     ROC_ONF_IPSEC_INB_MAX_L2_SZ);
+	data_off +=
+		(ROC_ONF_IPSEC_INB_SPI_SEQ_SZ + ROC_ONF_IPSEC_INB_MAX_L2_SZ);
 	*rearm_val = *rearm_val & ~(BIT_ULL(16) - 1);
 	*rearm_val |= data_off;
 
-	*len = rte_be_to_cpu_16(ipv4->total_length) + lcptr;
+	m->packet_type = packet_type;
 	return RTE_MBUF_F_RX_SEC_OFFLOAD;
 }
 
@@ -350,14 +367,7 @@ cn9k_nix_cqe_to_mbuf(const struct nix_cqe_hdr_s *cq, const uint32_t tag,
 		/* Get SA Base from lookup mem */
 		sa_base = cnxk_nix_sa_base_get(port, lookup_mem);
 
-		ol_flags |= nix_rx_sec_mbuf_update(cq, mbuf, sa_base, &val,
-						   &len);
-
-		/* Only Tunnel inner IPv4 is supported */
-		packet_type = (packet_type &
-			       ~(RTE_PTYPE_L3_MASK | RTE_PTYPE_TUNNEL_MASK));
-		packet_type |= RTE_PTYPE_L3_IPV4_EXT_UNKNOWN;
-		mbuf->packet_type = packet_type;
+		ol_flags |= nix_rx_sec_mbuf_update(cq, mbuf, sa_base, &val, &len, packet_type);
 		goto skip_parse;
 	}
 

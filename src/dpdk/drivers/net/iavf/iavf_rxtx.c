@@ -24,6 +24,9 @@
 #include <rte_ip.h>
 #include <rte_net.h>
 #include <rte_vect.h>
+#include <rte_vxlan.h>
+#include <rte_gtp.h>
+#include <rte_geneve.h>
 
 #include "iavf.h"
 #include "iavf_rxtx.h"
@@ -31,6 +34,46 @@
 #include "iavf_ipsec_crypto.h"
 #endif
 #include "rte_pmd_iavf.h"
+
+#define GRE_CHECKSUM_PRESENT	0x8000
+#define GRE_KEY_PRESENT		0x2000
+#define GRE_SEQUENCE_PRESENT	0x1000
+#define GRE_EXT_LEN		4
+#define GRE_SUPPORTED_FIELDS	(GRE_CHECKSUM_PRESENT | GRE_KEY_PRESENT |\
+				 GRE_SEQUENCE_PRESENT)
+
+#ifndef IPPROTO_IPIP
+#define IPPROTO_IPIP 4
+#endif
+#ifndef IPPROTO_GRE
+#define IPPROTO_GRE	47
+#endif
+
+static uint16_t vxlan_gpe_udp_port = RTE_VXLAN_GPE_DEFAULT_PORT;
+static uint16_t geneve_udp_port = RTE_GENEVE_DEFAULT_PORT;
+
+struct simple_gre_hdr {
+	uint16_t flags;
+	uint16_t proto;
+} __rte_packed;
+
+/* structure that caches offload info for the current packet */
+struct offload_info {
+	uint16_t ethertype;
+	uint8_t gso_enable;
+	uint16_t l2_len;
+	uint16_t l3_len;
+	uint16_t l4_len;
+	uint8_t l4_proto;
+	uint8_t is_tunnel;
+	uint16_t outer_ethertype;
+	uint16_t outer_l2_len;
+	uint16_t outer_l3_len;
+	uint8_t outer_l4_proto;
+	uint16_t tso_segsz;
+	uint16_t tunnel_tso_segsz;
+	uint32_t pkt_len;
+};
 
 /* Offset of mbuf dynamic field for protocol extraction's metadata */
 int rte_pmd_ifd_dynfield_proto_xtr_metadata_offs = -1;
@@ -364,12 +407,24 @@ release_txq_mbufs(struct iavf_tx_queue *txq)
 	}
 }
 
-static const struct iavf_rxq_ops def_rxq_ops = {
-	.release_mbufs = release_rxq_mbufs,
+static const
+struct iavf_rxq_ops iavf_rxq_release_mbufs_ops[] = {
+	[IAVF_REL_MBUFS_DEFAULT].release_mbufs = release_rxq_mbufs,
+#ifdef RTE_ARCH_X86
+	[IAVF_REL_MBUFS_SSE_VEC].release_mbufs = iavf_rx_queue_release_mbufs_sse,
+#endif
 };
 
-static const struct iavf_txq_ops def_txq_ops = {
-	.release_mbufs = release_txq_mbufs,
+static const
+struct iavf_txq_ops iavf_txq_release_mbufs_ops[] = {
+	[IAVF_REL_MBUFS_DEFAULT].release_mbufs = release_txq_mbufs,
+#ifdef RTE_ARCH_X86
+	[IAVF_REL_MBUFS_SSE_VEC].release_mbufs = iavf_tx_queue_release_mbufs_sse,
+#ifdef CC_AVX512_SUPPORT
+	[IAVF_REL_MBUFS_AVX512_VEC].release_mbufs = iavf_tx_queue_release_mbufs_avx512,
+#endif
+#endif
+
 };
 
 static inline void
@@ -479,6 +534,8 @@ iavf_rxd_to_pkt_fields_by_comms_aux_v2(struct iavf_rx_queue *rxq,
 
 static const
 iavf_rxd_to_pkt_fields_t rxd_to_pkt_fields_ops[IAVF_RXDID_LAST + 1] = {
+	[IAVF_RXDID_LEGACY_0] = iavf_rxd_to_pkt_fields_by_comms_ovs,
+	[IAVF_RXDID_LEGACY_1] = iavf_rxd_to_pkt_fields_by_comms_ovs,
 	[IAVF_RXDID_COMMS_AUX_VLAN] = iavf_rxd_to_pkt_fields_by_comms_aux_v1,
 	[IAVF_RXDID_COMMS_AUX_IPV4] = iavf_rxd_to_pkt_fields_by_comms_aux_v1,
 	[IAVF_RXDID_COMMS_AUX_IPV6] = iavf_rxd_to_pkt_fields_by_comms_aux_v1,
@@ -523,6 +580,8 @@ iavf_select_rxd_to_pkt_fields_handler(struct iavf_rx_queue *rxq, uint32_t rxdid)
 			rte_pmd_ifd_dynflag_proto_xtr_ipsec_crypto_said_mask;
 		break;
 	case IAVF_RXDID_COMMS_OVS_1:
+	case IAVF_RXDID_LEGACY_0:
+	case IAVF_RXDID_LEGACY_1:
 		break;
 	default:
 		/* update this according to the RXDID for FLEX_DESC_NONE */
@@ -555,6 +614,9 @@ iavf_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
 	uint64_t offloads;
 
 	PMD_INIT_FUNC_TRACE();
+
+	if (ad->closed)
+		return -EIO;
 
 	offloads = rx_conf->offloads | dev->data->dev_conf.rxmode.offloads;
 
@@ -676,7 +738,7 @@ iavf_dev_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
 	rxq->q_set = true;
 	dev->data->rx_queues[queue_idx] = rxq;
 	rxq->qrx_tail = hw->hw_addr + IAVF_QRX_TAIL1(rxq->queue_id);
-	rxq->ops = &def_rxq_ops;
+	rxq->rel_mbufs_type = IAVF_REL_MBUFS_DEFAULT;
 
 	if (check_rx_bulk_allow(rxq) == true) {
 		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
@@ -716,6 +778,9 @@ iavf_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	uint64_t offloads;
 
 	PMD_INIT_FUNC_TRACE();
+
+	if (adapter->closed)
+		return -EIO;
 
 	offloads = tx_conf->offloads | dev->data->dev_conf.txmode.offloads;
 
@@ -761,10 +826,13 @@ iavf_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		else
 			insertion_cap = insertion_support->inner;
 
-		if (insertion_cap & VIRTCHNL_VLAN_TAG_LOCATION_L2TAG1)
+		if (insertion_cap & VIRTCHNL_VLAN_TAG_LOCATION_L2TAG1) {
 			txq->vlan_flag = IAVF_TX_FLAGS_VLAN_TAG_LOC_L2TAG1;
-		else if (insertion_cap & VIRTCHNL_VLAN_TAG_LOCATION_L2TAG2)
+			PMD_INIT_LOG(DEBUG, "VLAN insertion_cap: L2TAG1");
+		} else if (insertion_cap & VIRTCHNL_VLAN_TAG_LOCATION_L2TAG2) {
 			txq->vlan_flag = IAVF_TX_FLAGS_VLAN_TAG_LOC_L2TAG2;
+			PMD_INIT_LOG(DEBUG, "VLAN insertion_cap: L2TAG2");
+		}
 	} else {
 		txq->vlan_flag = IAVF_TX_FLAGS_VLAN_TAG_LOC_L2TAG1;
 	}
@@ -813,7 +881,7 @@ iavf_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	txq->q_set = true;
 	dev->data->tx_queues[queue_idx] = txq;
 	txq->qtx_tail = hw->hw_addr + IAVF_QTX_TAIL1(queue_idx);
-	txq->ops = &def_txq_ops;
+	txq->rel_mbufs_type = IAVF_REL_MBUFS_DEFAULT;
 
 	if (check_tx_vec_allow(txq) == false) {
 		struct iavf_adapter *ad =
@@ -884,6 +952,15 @@ iavf_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 			RTE_ETH_QUEUE_STATE_STARTED;
 	}
 
+	if (dev->data->dev_conf.rxmode.offloads &
+	    RTE_ETH_RX_OFFLOAD_TIMESTAMP) {
+		if (iavf_get_phc_time(rxq)) {
+			PMD_DRV_LOG(ERR, "get physical time failed");
+			return err;
+		}
+		rxq->hw_time_update = rte_get_timer_cycles() / (rte_get_timer_hz() / 1000);
+	}
+
 	return err;
 }
 
@@ -929,6 +1006,7 @@ iavf_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 {
 	struct iavf_adapter *adapter =
 		IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 	struct iavf_rx_queue *rxq;
 	int err;
 
@@ -937,7 +1015,11 @@ iavf_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	if (rx_queue_id >= dev->data->nb_rx_queues)
 		return -EINVAL;
 
-	err = iavf_switch_queue(adapter, rx_queue_id, true, false);
+	if (!vf->lv_enabled)
+		err = iavf_switch_queue(adapter, rx_queue_id, true, false);
+	else
+		err = iavf_switch_queue_lv(adapter, rx_queue_id, true, false);
+
 	if (err) {
 		PMD_DRV_LOG(ERR, "Failed to switch RX queue %u off",
 			    rx_queue_id);
@@ -945,7 +1027,7 @@ iavf_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	}
 
 	rxq = dev->data->rx_queues[rx_queue_id];
-	rxq->ops->release_mbufs(rxq);
+	iavf_rxq_release_mbufs_ops[rxq->rel_mbufs_type].release_mbufs(rxq);
 	reset_rx_queue(rxq);
 	dev->data->rx_queue_state[rx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
 
@@ -957,6 +1039,7 @@ iavf_dev_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 {
 	struct iavf_adapter *adapter =
 		IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
 	struct iavf_tx_queue *txq;
 	int err;
 
@@ -965,7 +1048,11 @@ iavf_dev_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	if (tx_queue_id >= dev->data->nb_tx_queues)
 		return -EINVAL;
 
-	err = iavf_switch_queue(adapter, tx_queue_id, false, false);
+	if (!vf->lv_enabled)
+		err = iavf_switch_queue(adapter, tx_queue_id, false, false);
+	else
+		err = iavf_switch_queue_lv(adapter, tx_queue_id, false, false);
+
 	if (err) {
 		PMD_DRV_LOG(ERR, "Failed to switch TX queue %u off",
 			    tx_queue_id);
@@ -973,7 +1060,7 @@ iavf_dev_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	}
 
 	txq = dev->data->tx_queues[tx_queue_id];
-	txq->ops->release_mbufs(txq);
+	iavf_txq_release_mbufs_ops[txq->rel_mbufs_type].release_mbufs(txq);
 	reset_tx_queue(txq);
 	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STOPPED;
 
@@ -988,7 +1075,7 @@ iavf_dev_rx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
 	if (!q)
 		return;
 
-	q->ops->release_mbufs(q);
+	iavf_rxq_release_mbufs_ops[q->rel_mbufs_type].release_mbufs(q);
 	rte_free(q->sw_ring);
 	rte_memzone_free(q->mz);
 	rte_free(q);
@@ -1002,7 +1089,7 @@ iavf_dev_tx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
 	if (!q)
 		return;
 
-	q->ops->release_mbufs(q);
+	iavf_txq_release_mbufs_ops[q->rel_mbufs_type].release_mbufs(q);
 	rte_free(q->sw_ring);
 	rte_memzone_free(q->mz);
 	rte_free(q);
@@ -1036,7 +1123,7 @@ iavf_stop_queues(struct rte_eth_dev *dev)
 		txq = dev->data->tx_queues[i];
 		if (!txq)
 			continue;
-		txq->ops->release_mbufs(txq);
+		iavf_txq_release_mbufs_ops[txq->rel_mbufs_type].release_mbufs(txq);
 		reset_tx_queue(txq);
 		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 	}
@@ -1044,7 +1131,7 @@ iavf_stop_queues(struct rte_eth_dev *dev)
 		rxq = dev->data->rx_queues[i];
 		if (!rxq)
 			continue;
-		rxq->ops->release_mbufs(rxq);
+		iavf_rxq_release_mbufs_ops[rxq->rel_mbufs_type].release_mbufs(rxq);
 		reset_rx_queue(rxq);
 		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 	}
@@ -1248,7 +1335,9 @@ iavf_flex_rxd_error_to_pkt_flags(uint16_t stat_err0)
 		return 0;
 
 	if (likely(!(stat_err0 & IAVF_RX_FLEX_ERR0_BITS))) {
-		flags |= (RTE_MBUF_F_RX_IP_CKSUM_GOOD | RTE_MBUF_F_RX_L4_CKSUM_GOOD);
+		flags |= (RTE_MBUF_F_RX_IP_CKSUM_GOOD |
+			RTE_MBUF_F_RX_L4_CKSUM_GOOD |
+			RTE_MBUF_F_RX_OUTER_L4_CKSUM_GOOD);
 		return flags;
 	}
 
@@ -1264,6 +1353,11 @@ iavf_flex_rxd_error_to_pkt_flags(uint16_t stat_err0)
 
 	if (unlikely(stat_err0 & (1 << IAVF_RX_FLEX_DESC_STATUS0_XSUM_EIPE_S)))
 		flags |= RTE_MBUF_F_RX_OUTER_IP_CKSUM_BAD;
+
+	if (unlikely(stat_err0 & (1 << IAVF_RX_FLEX_DESC_STATUS0_XSUM_EUDPE_S)))
+		flags |= RTE_MBUF_F_RX_OUTER_L4_CKSUM_BAD;
+	else
+		flags |= RTE_MBUF_F_RX_OUTER_L4_CKSUM_GOOD;
 
 	return flags;
 }
@@ -1420,6 +1514,7 @@ iavf_recv_pkts_flex_rxd(void *rx_queue,
 	uint64_t dma_addr;
 	uint64_t pkt_flags;
 	const uint32_t *ptype_tbl;
+	uint64_t ts_ns;
 
 	nb_rx = 0;
 	nb_hold = 0;
@@ -1427,6 +1522,16 @@ iavf_recv_pkts_flex_rxd(void *rx_queue,
 	rx_id = rxq->rx_tail;
 	rx_ring = rxq->rx_ring;
 	ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+
+	if (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP) {
+		uint64_t sw_cur_time = rte_get_timer_cycles() / (rte_get_timer_hz() / 1000);
+
+		if (sw_cur_time - rxq->hw_time_update > 4) {
+			if (iavf_get_phc_time(rxq))
+				PMD_DRV_LOG(ERR, "get physical time failed");
+			rxq->hw_time_update = sw_cur_time;
+		}
+	}
 
 	while (nb_rx < nb_pkts) {
 		rxdp = (volatile union iavf_rx_flex_desc *)&rx_ring[rx_id];
@@ -1489,6 +1594,20 @@ iavf_recv_pkts_flex_rxd(void *rx_queue,
 				&rxq->stats.ipsec_crypto);
 		rxd_to_pkt_fields_ops[rxq->rxdid](rxq, rxm, &rxd);
 		pkt_flags = iavf_flex_rxd_error_to_pkt_flags(rx_stat_err0);
+
+		if (iavf_timestamp_dynflag > 0) {
+			ts_ns = iavf_tstamp_convert_32b_64b(rxq->phc_time,
+				rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high));
+
+			rxq->phc_time = ts_ns;
+			rxq->hw_time_update = rte_get_timer_cycles() / (rte_get_timer_hz() / 1000);
+
+			*RTE_MBUF_DYNFIELD(rxm,
+				iavf_timestamp_dynfield_offset,
+				rte_mbuf_timestamp_t *) = ts_ns;
+			rxm->ol_flags |= iavf_timestamp_dynflag;
+		}
+
 		rxm->ol_flags |= pkt_flags;
 
 		rx_pkts[nb_rx++] = rxm;
@@ -1517,10 +1636,21 @@ iavf_recv_scattered_pkts_flex_rxd(void *rx_queue, struct rte_mbuf **rx_pkts,
 	uint16_t rx_stat_err0;
 	uint64_t dma_addr;
 	uint64_t pkt_flags;
+	uint64_t ts_ns;
 
 	volatile union iavf_rx_desc *rx_ring = rxq->rx_ring;
 	volatile union iavf_rx_flex_desc *rxdp;
 	const uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+
+	if (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP) {
+		uint64_t sw_cur_time = rte_get_timer_cycles() / (rte_get_timer_hz() / 1000);
+
+		if (sw_cur_time - rxq->hw_time_update > 4) {
+			if (iavf_get_phc_time(rxq))
+				PMD_DRV_LOG(ERR, "get physical time failed");
+			rxq->hw_time_update = sw_cur_time;
+		}
+	}
 
 	while (nb_rx < nb_pkts) {
 		rxdp = (volatile union iavf_rx_flex_desc *)&rx_ring[rx_id];
@@ -1633,6 +1763,19 @@ iavf_recv_scattered_pkts_flex_rxd(void *rx_queue, struct rte_mbuf **rx_pkts,
 				&rxq->stats.ipsec_crypto);
 		rxd_to_pkt_fields_ops[rxq->rxdid](rxq, first_seg, &rxd);
 		pkt_flags = iavf_flex_rxd_error_to_pkt_flags(rx_stat_err0);
+
+		if (iavf_timestamp_dynflag > 0) {
+			ts_ns = iavf_tstamp_convert_32b_64b(rxq->phc_time,
+				rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high));
+
+			rxq->phc_time = ts_ns;
+			rxq->hw_time_update = rte_get_timer_cycles() / (rte_get_timer_hz() / 1000);
+
+			*RTE_MBUF_DYNFIELD(first_seg,
+				iavf_timestamp_dynfield_offset,
+				rte_mbuf_timestamp_t *) = ts_ns;
+			first_seg->ol_flags |= iavf_timestamp_dynflag;
+		}
 
 		first_seg->ol_flags |= pkt_flags;
 
@@ -1815,7 +1958,9 @@ iavf_recv_scattered_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 
 #define IAVF_LOOK_AHEAD 8
 static inline int
-iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq)
+iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq,
+			    struct rte_mbuf **rx_pkts,
+			    uint16_t nb_pkts)
 {
 	volatile union iavf_rx_flex_desc *rxdp;
 	struct rte_mbuf **rxep;
@@ -1824,8 +1969,10 @@ iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq)
 	uint16_t pkt_len;
 	int32_t s[IAVF_LOOK_AHEAD], var, nb_dd;
 	int32_t i, j, nb_rx = 0;
+	int32_t nb_staged = 0;
 	uint64_t pkt_flags;
 	const uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+	uint64_t ts_ns;
 
 	rxdp = (volatile union iavf_rx_flex_desc *)&rxq->rx_ring[rxq->rx_tail];
 	rxep = &rxq->sw_ring[rxq->rx_tail];
@@ -1836,6 +1983,16 @@ iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq)
 	if (!(stat_err0 & (1 << IAVF_RX_FLEX_DESC_STATUS0_DD_S)))
 		return 0;
 
+	if (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP) {
+		uint64_t sw_cur_time = rte_get_timer_cycles() / (rte_get_timer_hz() / 1000);
+
+		if (sw_cur_time - rxq->hw_time_update > 4) {
+			if (iavf_get_phc_time(rxq))
+				PMD_DRV_LOG(ERR, "get physical time failed");
+			rxq->hw_time_update = sw_cur_time;
+		}
+	}
+
 	/* Scan LOOK_AHEAD descriptors at a time to determine which
 	 * descriptors reference packets that are ready to be received.
 	 */
@@ -1845,7 +2002,8 @@ iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq)
 		for (j = IAVF_LOOK_AHEAD - 1; j >= 0; j--)
 			s[j] = rte_le_to_cpu_16(rxdp[j].wb.status_error0);
 
-		rte_smp_rmb();
+		/* This barrier is to order loads of different words in the descriptor */
+		rte_atomic_thread_fence(__ATOMIC_ACQUIRE);
 
 		/* Compute how many contiguous DD bits were set */
 		for (j = 0, nb_dd = 0; j < IAVF_LOOK_AHEAD; j++) {
@@ -1869,8 +2027,6 @@ iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq)
 #endif
 		}
 
-		nb_rx += nb_dd;
-
 		/* Translate descriptor info to mbuf parameters */
 		for (j = 0; j < nb_dd; j++) {
 			IAVF_DUMP_RX_DESC(rxq, &rxdp[j],
@@ -1893,25 +2049,49 @@ iavf_rx_scan_hw_ring_flex_rxd(struct iavf_rx_queue *rxq)
 			stat_err0 = rte_le_to_cpu_16(rxdp[j].wb.status_error0);
 			pkt_flags = iavf_flex_rxd_error_to_pkt_flags(stat_err0);
 
-			mb->ol_flags |= pkt_flags;
-		}
+			if (iavf_timestamp_dynflag > 0) {
+				ts_ns = iavf_tstamp_convert_32b_64b(rxq->phc_time,
+					rte_le_to_cpu_32(rxdp[j].wb.flex_ts.ts_high));
 
-		for (j = 0; j < IAVF_LOOK_AHEAD; j++)
-			rxq->rx_stage[i + j] = rxep[j];
+				rxq->phc_time = ts_ns;
+				rxq->hw_time_update = rte_get_timer_cycles() /
+					(rte_get_timer_hz() / 1000);
+
+				*RTE_MBUF_DYNFIELD(mb,
+					iavf_timestamp_dynfield_offset,
+					rte_mbuf_timestamp_t *) = ts_ns;
+				mb->ol_flags |= iavf_timestamp_dynflag;
+			}
+
+			mb->ol_flags |= pkt_flags;
+
+			/* Put up to nb_pkts directly into buffers */
+			if ((i + j) < nb_pkts) {
+				rx_pkts[i + j] = rxep[j];
+				nb_rx++;
+			} else {
+				/* Stage excess pkts received */
+				rxq->rx_stage[nb_staged] = rxep[j];
+				nb_staged++;
+			}
+		}
 
 		if (nb_dd != IAVF_LOOK_AHEAD)
 			break;
 	}
 
+	/* Update rxq->rx_nb_avail to reflect number of staged pkts */
+	rxq->rx_nb_avail = nb_staged;
+
 	/* Clear software ring entries */
-	for (i = 0; i < nb_rx; i++)
+	for (i = 0; i < (nb_rx + nb_staged); i++)
 		rxq->sw_ring[rxq->rx_tail + i] = NULL;
 
 	return nb_rx;
 }
 
 static inline int
-iavf_rx_scan_hw_ring(struct iavf_rx_queue *rxq)
+iavf_rx_scan_hw_ring(struct iavf_rx_queue *rxq, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 {
 	volatile union iavf_rx_desc *rxdp;
 	struct rte_mbuf **rxep;
@@ -1921,6 +2101,7 @@ iavf_rx_scan_hw_ring(struct iavf_rx_queue *rxq)
 	uint32_t rx_status;
 	int32_t s[IAVF_LOOK_AHEAD], var, nb_dd;
 	int32_t i, j, nb_rx = 0;
+	int32_t nb_staged = 0;
 	uint64_t pkt_flags;
 	const uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
 
@@ -1948,7 +2129,8 @@ iavf_rx_scan_hw_ring(struct iavf_rx_queue *rxq)
 			       IAVF_RXD_QW1_STATUS_SHIFT;
 		}
 
-		rte_smp_rmb();
+		/* This barrier is to order loads of different words in the descriptor */
+		rte_atomic_thread_fence(__ATOMIC_ACQUIRE);
 
 		/* Compute how many contiguous DD bits were set */
 		for (j = 0, nb_dd = 0; j < IAVF_LOOK_AHEAD; j++) {
@@ -1971,8 +2153,6 @@ iavf_rx_scan_hw_ring(struct iavf_rx_queue *rxq)
 			nb_dd += var;
 #endif
 		}
-
-		nb_rx += nb_dd;
 
 		/* Translate descriptor info to mbuf parameters */
 		for (j = 0; j < nb_dd; j++) {
@@ -2002,17 +2182,26 @@ iavf_rx_scan_hw_ring(struct iavf_rx_queue *rxq)
 				pkt_flags |= iavf_rxd_build_fdir(&rxdp[j], mb);
 
 			mb->ol_flags |= pkt_flags;
-		}
 
-		for (j = 0; j < IAVF_LOOK_AHEAD; j++)
-			rxq->rx_stage[i + j] = rxep[j];
+			/* Put up to nb_pkts directly into buffers */
+			if ((i + j) < nb_pkts) {
+				rx_pkts[i + j] = rxep[j];
+				nb_rx++;
+			} else { /* Stage excess pkts received */
+				rxq->rx_stage[nb_staged] = rxep[j];
+				nb_staged++;
+			}
+		}
 
 		if (nb_dd != IAVF_LOOK_AHEAD)
 			break;
 	}
 
+	/* Update rxq->rx_nb_avail to reflect number of staged pkts */
+	rxq->rx_nb_avail = nb_staged;
+
 	/* Clear software ring entries */
-	for (i = 0; i < nb_rx; i++)
+	for (i = 0; i < (nb_rx + nb_staged); i++)
 		rxq->sw_ring[rxq->rx_tail + i] = NULL;
 
 	return nb_rx;
@@ -2100,23 +2289,31 @@ rx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		return iavf_rx_fill_from_stage(rxq, rx_pkts, nb_pkts);
 
 	if (rxq->rxdid >= IAVF_RXDID_FLEX_NIC && rxq->rxdid <= IAVF_RXDID_LAST)
-		nb_rx = (uint16_t)iavf_rx_scan_hw_ring_flex_rxd(rxq);
+		nb_rx = (uint16_t)iavf_rx_scan_hw_ring_flex_rxd(rxq, rx_pkts, nb_pkts);
 	else
-		nb_rx = (uint16_t)iavf_rx_scan_hw_ring(rxq);
+		nb_rx = (uint16_t)iavf_rx_scan_hw_ring(rxq, rx_pkts, nb_pkts);
+
 	rxq->rx_next_avail = 0;
-	rxq->rx_nb_avail = nb_rx;
-	rxq->rx_tail = (uint16_t)(rxq->rx_tail + nb_rx);
+	rxq->rx_tail = (uint16_t)(rxq->rx_tail + nb_rx + rxq->rx_nb_avail);
 
 	if (rxq->rx_tail > rxq->rx_free_trigger) {
 		if (iavf_rx_alloc_bufs(rxq) != 0) {
-			uint16_t i, j;
+			uint16_t i, j, nb_staged;
 
 			/* TODO: count rx_mbuf_alloc_failed here */
 
+			nb_staged = rxq->rx_nb_avail;
 			rxq->rx_nb_avail = 0;
-			rxq->rx_tail = (uint16_t)(rxq->rx_tail - nb_rx);
-			for (i = 0, j = rxq->rx_tail; i < nb_rx; i++, j++)
+
+			rxq->rx_tail = (uint16_t)(rxq->rx_tail - (nb_rx + nb_staged));
+			for (i = 0, j = rxq->rx_tail; i < nb_rx; i++, j++) {
+				rxq->sw_ring[j] = rx_pkts[i];
+				rx_pkts[i] = NULL;
+			}
+			for (i = 0, j = rxq->rx_tail + nb_rx; i < nb_staged; i++, j++) {
 				rxq->sw_ring[j] = rxq->rx_stage[i];
+				rx_pkts[i] = NULL;
+			}
 
 			return 0;
 		}
@@ -2129,10 +2326,7 @@ rx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		   rxq->port_id, rxq->queue_id,
 		   rxq->rx_tail, nb_rx);
 
-	if (rxq->rx_nb_avail)
-		return iavf_rx_fill_from_stage(rxq, rx_pkts, nb_pkts);
-
-	return 0;
+	return nb_rx;
 }
 
 static uint16_t
@@ -2205,7 +2399,8 @@ static inline uint16_t
 iavf_calc_context_desc(uint64_t flags, uint8_t vlan_flag)
 {
 	if (flags & (RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_UDP_SEG |
-			RTE_MBUF_F_TX_TUNNEL_MASK))
+	    RTE_MBUF_F_TX_TUNNEL_MASK | RTE_MBUF_F_TX_OUTER_IP_CKSUM |
+	    RTE_MBUF_F_TX_OUTER_UDP_CKSUM))
 		return 1;
 	if (flags & RTE_MBUF_F_TX_VLAN &&
 	    vlan_flag & IAVF_TX_FLAGS_VLAN_TAG_LOC_L2TAG2)
@@ -2270,6 +2465,50 @@ iavf_fill_ctx_desc_tunnelling_field(volatile uint64_t *qw0,
 	break;
 	}
 
+	if (!(m->ol_flags & RTE_MBUF_F_TX_SEC_OFFLOAD)) {
+		/* L4TUNT: L4 Tunneling Type */
+		switch (m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
+		case RTE_MBUF_F_TX_TUNNEL_IPIP:
+			/* for non UDP / GRE tunneling, set to 00b */
+			break;
+		case RTE_MBUF_F_TX_TUNNEL_VXLAN:
+		case RTE_MBUF_F_TX_TUNNEL_VXLAN_GPE:
+		case RTE_MBUF_F_TX_TUNNEL_GTP:
+		case RTE_MBUF_F_TX_TUNNEL_GENEVE:
+			eip_typ |= IAVF_TXD_CTX_UDP_TUNNELING;
+			break;
+		case RTE_MBUF_F_TX_TUNNEL_GRE:
+			eip_typ |= IAVF_TXD_CTX_GRE_TUNNELING;
+			break;
+		default:
+			PMD_TX_LOG(ERR, "Tunnel type not supported");
+			return;
+		}
+
+		/* L4TUNLEN: L4 Tunneling Length, in Words
+		 *
+		 * We depend on app to set rte_mbuf.l2_len correctly.
+		 * For IP in GRE it should be set to the length of the GRE
+		 * header;
+		 * For MAC in GRE or MAC in UDP it should be set to the length
+		 * of the GRE or UDP headers plus the inner MAC up to including
+		 * its last Ethertype.
+		 * If MPLS labels exists, it should include them as well.
+		 */
+		eip_typ |= (m->l2_len >> 1) << IAVF_TXD_CTX_QW0_NATLEN_SHIFT;
+
+		/**
+		 * Calculate the tunneling UDP checksum.
+		 * Shall be set only if L4TUNT = 01b and EIPT is not zero
+		 */
+		if ((eip_typ & (IAVF_TX_CTX_EXT_IP_IPV6 |
+					IAVF_TX_CTX_EXT_IP_IPV4 |
+					IAVF_TX_CTX_EXT_IP_IPV4_NO_CSUM)) &&
+				(eip_typ & IAVF_TXD_CTX_UDP_TUNNELING) &&
+				(m->ol_flags & RTE_MBUF_F_TX_OUTER_UDP_CKSUM))
+			eip_typ |= IAVF_TXD_CTX_QW0_L4T_CS_MASK;
+	}
+
 	*qw0 = eip_typ << IAVF_TXD_CTX_QW0_TUN_PARAMS_EIPT_SHIFT |
 		eip_len << IAVF_TXD_CTX_QW0_TUN_PARAMS_EIPLEN_SHIFT |
 		eip_noinc << IAVF_TXD_CTX_QW0_TUN_PARAMS_EIP_NOINC_SHIFT;
@@ -2285,6 +2524,7 @@ iavf_fill_ctx_desc_segmentation_field(volatile uint64_t *field,
 {
 	uint64_t segmentation_field = 0;
 	uint64_t total_length = 0;
+
 #ifdef RTE_LIB_SECURITY
 	if (m->ol_flags & RTE_MBUF_F_TX_SEC_OFFLOAD) {
 		total_length = ipsec_md->l4_payload_len;
@@ -2300,7 +2540,6 @@ iavf_fill_ctx_desc_segmentation_field(volatile uint64_t *field,
     if (m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK)
         total_length -= m->outer_l3_len;
 #endif
-
 #ifdef RTE_LIBRTE_IAVF_DEBUG_TX
 	if (!m->l4_len || !m->tso_segsz)
 		PMD_TX_LOG(DEBUG, "L4 length %d, LSO Segment size %d",
@@ -2350,7 +2589,6 @@ iavf_fill_context_desc(volatile struct iavf_tx_context_desc *desc,
 			iavf_fill_ctx_desc_ipsec_field(&desc_qws->qw1,
 				ipsec_md);
 #endif
-
 		*tlen = iavf_fill_ctx_desc_segmentation_field(&desc_qws->qw1,
 				                                      m
 #ifdef RTE_LIB_SECURITY
@@ -2426,12 +2664,20 @@ iavf_build_data_desc_cmd_offset_fields(volatile uint64_t *qw1,
 	}
 
 	/* Set MACLEN */
-	offset |= (m->l2_len >> 1) << IAVF_TX_DESC_LENGTH_MACLEN_SHIFT;
+	if (m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK &&
+			!(m->ol_flags & RTE_MBUF_F_TX_SEC_OFFLOAD))
+		offset |= (m->outer_l2_len >> 1)
+			<< IAVF_TX_DESC_LENGTH_MACLEN_SHIFT;
+	else
+		offset |= (m->l2_len >> 1)
+			<< IAVF_TX_DESC_LENGTH_MACLEN_SHIFT;
 
 	/* Enable L3 checksum offloading inner */
-	if (m->ol_flags & (RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_IPV4)) {
-		command |= IAVF_TX_DESC_CMD_IIPT_IPV4_CSUM;
-		offset |= (m->l3_len >> 2) << IAVF_TX_DESC_LENGTH_IPLEN_SHIFT;
+	if (m->ol_flags & RTE_MBUF_F_TX_IP_CKSUM) {
+		if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
+			command |= IAVF_TX_DESC_CMD_IIPT_IPV4_CSUM;
+			offset |= (m->l3_len >> 2) << IAVF_TX_DESC_LENGTH_IPLEN_SHIFT;
+		}
 	} else if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
 		command |= IAVF_TX_DESC_CMD_IIPT_IPV4;
 		offset |= (m->l3_len >> 2) << IAVF_TX_DESC_LENGTH_IPLEN_SHIFT;
@@ -2440,10 +2686,21 @@ iavf_build_data_desc_cmd_offset_fields(volatile uint64_t *qw1,
 		offset |= (m->l3_len >> 2) << IAVF_TX_DESC_LENGTH_IPLEN_SHIFT;
 	}
 
-	if (m->ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
-		command |= IAVF_TX_DESC_CMD_L4T_EOFT_TCP;
+	if (m->ol_flags & (RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_UDP_SEG)) {
+		if (m->ol_flags & RTE_MBUF_F_TX_TCP_SEG)
+			command |= IAVF_TX_DESC_CMD_L4T_EOFT_TCP;
+		else
+			command |= IAVF_TX_DESC_CMD_L4T_EOFT_UDP;
 		offset |= (m->l4_len >> 2) <<
 			      IAVF_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
+
+		*qw1 = rte_cpu_to_le_64((((uint64_t)command <<
+			IAVF_TXD_DATA_QW1_CMD_SHIFT) & IAVF_TXD_DATA_QW1_CMD_MASK) |
+			(((uint64_t)offset << IAVF_TXD_DATA_QW1_OFFSET_SHIFT) &
+			IAVF_TXD_DATA_QW1_OFFSET_MASK) |
+			((uint64_t)l2tag1 << IAVF_TXD_DATA_QW1_L2TAG1_SHIFT));
+
+		return;
 	}
 
 	/* Enable L4 checksum offloads */
@@ -2472,50 +2729,36 @@ iavf_build_data_desc_cmd_offset_fields(volatile uint64_t *qw1,
 		((uint64_t)l2tag1 << IAVF_TXD_DATA_QW1_L2TAG1_SHIFT));
 }
 
+/* Calculate the number of TX descriptors needed for each pkt */
+static inline uint16_t
+iavf_calc_pkt_desc(struct rte_mbuf *tx_pkt)
+{
+	struct rte_mbuf *txd = tx_pkt;
+	uint16_t count = 0;
+
+	while (txd != NULL) {
+		count += (txd->data_len + IAVF_MAX_DATA_PER_TXD - 1) /
+			IAVF_MAX_DATA_PER_TXD;
+		txd = txd->next;
+	}
+
+	return count;
+}
+
 static inline void
 iavf_fill_data_desc(volatile struct iavf_tx_desc *desc,
-	struct rte_mbuf *m, uint64_t desc_template,
-	uint16_t tlen, uint16_t ipseclen)
+	uint64_t desc_template,	uint16_t buffsz,
+	uint64_t buffer_addr)
 {
-	uint32_t hdrlen = m->l2_len;
-	uint32_t bufsz = 0;
-
 	/* fill data descriptor qw1 from template */
 	desc->cmd_type_offset_bsz = desc_template;
 
-	/* set data buffer address */
-	desc->buffer_addr = rte_mbuf_data_iova(m);
-
-	/* calculate data buffer size less set header lengths */
-	if ((m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) &&
-			(m->ol_flags & (RTE_MBUF_F_TX_TCP_SEG |
-					RTE_MBUF_F_TX_UDP_SEG))) {
-		hdrlen += m->outer_l3_len;
-		if (m->ol_flags & RTE_MBUF_F_TX_L4_MASK)
-			hdrlen += m->l3_len + m->l4_len;
-		else
-			hdrlen += m->l3_len;
-		if (m->ol_flags & RTE_MBUF_F_TX_SEC_OFFLOAD)
-			hdrlen += ipseclen;
-		bufsz = hdrlen + tlen;
-	} else if ((m->ol_flags & RTE_MBUF_F_TX_SEC_OFFLOAD) &&
-			(m->ol_flags & (RTE_MBUF_F_TX_TCP_SEG |
-					RTE_MBUF_F_TX_UDP_SEG))) {
-		hdrlen += m->outer_l3_len + m->l3_len + ipseclen;
-		if (m->ol_flags & RTE_MBUF_F_TX_L4_MASK)
-			hdrlen += m->l4_len;
-		bufsz = hdrlen + tlen;
-
-	} else {
-		bufsz = m->data_len;
-	}
-
 	/* set data buffer size */
 	desc->cmd_type_offset_bsz |=
-		(((uint64_t)bufsz << IAVF_TXD_DATA_QW1_TX_BUF_SZ_SHIFT) &
+		(((uint64_t)buffsz << IAVF_TXD_DATA_QW1_TX_BUF_SZ_SHIFT) &
 		IAVF_TXD_DATA_QW1_TX_BUF_SZ_MASK);
 
-	desc->buffer_addr = rte_cpu_to_le_64(desc->buffer_addr);
+	desc->buffer_addr = rte_cpu_to_le_64(buffer_addr);
 	desc->cmd_type_offset_bsz = rte_cpu_to_le_64(desc->cmd_type_offset_bsz);
 }
 
@@ -2540,8 +2783,10 @@ iavf_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	struct iavf_tx_entry *txe_ring = txq->sw_ring;
 	struct iavf_tx_entry *txe, *txn;
 	struct rte_mbuf *mb, *mb_seg;
+	uint64_t buf_dma_addr;
 	uint16_t desc_idx, desc_idx_last;
 	uint16_t idx;
+	uint16_t slen;
 
 
 	/* Check if the descriptor ring needs to be cleaned. */
@@ -2550,12 +2795,6 @@ iavf_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 	desc_idx = txq->tx_tail;
 	txe = &txe_ring[desc_idx];
-
-#ifdef RTE_LIBRTE_IAVF_DEBUG_TX_DESC_RING
-		iavf_dump_tx_entry_ring(txq);
-		iavf_dump_tx_desc_ring(txq);
-#endif
-
 
 	for (idx = 0; idx < nb_pkts; idx++) {
 		volatile struct iavf_tx_desc *ddesc;
@@ -2586,8 +2825,14 @@ iavf_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		 * The number of descriptors that must be allocated for
 		 * a packet equals to the number of the segments of that
 		 * packet plus the context and ipsec descriptors if needed.
+		 * Recalculate the needed tx descs when TSO enabled in case
+		 * the mbuf data size exceeds max data size that hw allows
+		 * per tx desc.
 		 */
-		nb_desc_required = nb_desc_data + nb_desc_ctx + nb_desc_ipsec;
+		if (mb->ol_flags & RTE_MBUF_F_TX_TCP_SEG)
+			nb_desc_required = iavf_calc_pkt_desc(mb) + nb_desc_ctx + nb_desc_ipsec;
+		else
+			nb_desc_required = nb_desc_data + nb_desc_ctx + nb_desc_ipsec;
 
 		desc_idx_last = (uint16_t)(desc_idx + nb_desc_required - 1);
 
@@ -2664,9 +2909,11 @@ iavf_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 				rte_pktmbuf_free_seg(txe->mbuf);
 				txe->mbuf = NULL;
 		}
+
 #ifdef RTE_LIB_SECURITY
 			iavf_fill_ipsec_desc(ipsec_desc, ipsec_md, &ipseclen);
 #endif
+
 			IAVF_DUMP_TX_DESC(txq, ipsec_desc, desc_idx);
 
 			txe->last_id = desc_idx_last;
@@ -2687,8 +2934,40 @@ iavf_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 				rte_pktmbuf_free_seg(txe->mbuf);
 
 			txe->mbuf = mb_seg;
-			iavf_fill_data_desc(ddesc, mb_seg,
-					ddesc_template, tlen, ipseclen);
+
+			if ((mb_seg->ol_flags & RTE_MBUF_F_TX_SEC_OFFLOAD) &&
+					(mb_seg->ol_flags &
+						(RTE_MBUF_F_TX_TCP_SEG |
+						RTE_MBUF_F_TX_UDP_SEG))) {
+				slen = tlen + mb_seg->l2_len + mb_seg->l3_len +
+						mb_seg->outer_l3_len + ipseclen;
+				if (mb_seg->ol_flags & RTE_MBUF_F_TX_L4_MASK)
+					slen += mb_seg->l4_len;
+			} else {
+				slen = mb_seg->data_len;
+			}
+
+			buf_dma_addr = rte_mbuf_data_iova(mb_seg);
+			while ((mb_seg->ol_flags & (RTE_MBUF_F_TX_TCP_SEG |
+					RTE_MBUF_F_TX_UDP_SEG)) &&
+					unlikely(slen > IAVF_MAX_DATA_PER_TXD)) {
+				iavf_fill_data_desc(ddesc, ddesc_template,
+					IAVF_MAX_DATA_PER_TXD, buf_dma_addr);
+
+				IAVF_DUMP_TX_DESC(txq, ddesc, desc_idx);
+
+				buf_dma_addr += IAVF_MAX_DATA_PER_TXD;
+				slen -= IAVF_MAX_DATA_PER_TXD;
+
+				txe->last_id = desc_idx_last;
+				desc_idx = txe->next_id;
+				txe = txn;
+				ddesc = &txr[desc_idx];
+				txn = &txe_ring[txe->next_id];
+			}
+
+			iavf_fill_data_desc(ddesc, ddesc_template,
+					slen, buf_dma_addr);
 
 			IAVF_DUMP_TX_DESC(txq, ddesc, desc_idx);
 
@@ -2754,6 +3033,600 @@ iavf_check_vlan_up2tc(struct iavf_tx_queue *txq, struct rte_mbuf *m)
 	}
 }
 
+/* Parse an IPv4 header to fill l3_len, l4_len, and l4_proto */
+static inline void
+parse_ipv4(struct rte_ipv4_hdr *ipv4_hdr, struct offload_info *info)
+{
+	struct rte_tcp_hdr *tcp_hdr;
+
+	info->l3_len = rte_ipv4_hdr_len(ipv4_hdr);
+	info->l4_proto = ipv4_hdr->next_proto_id;
+
+	/* only fill l4_len for TCP, it's useful for TSO */
+	if (info->l4_proto == IPPROTO_TCP) {
+		tcp_hdr = (struct rte_tcp_hdr *)
+			((char *)ipv4_hdr + info->l3_len);
+		info->l4_len = (tcp_hdr->data_off & 0xf0) >> 2;
+	} else if (info->l4_proto == IPPROTO_UDP) {
+		info->l4_len = sizeof(struct rte_udp_hdr);
+	} else {
+		info->l4_len = 0;
+	}
+}
+
+/* Parse an IPv6 header to fill l3_len, l4_len, and l4_proto */
+static inline void
+parse_ipv6(struct rte_ipv6_hdr *ipv6_hdr, struct offload_info *info)
+{
+	struct rte_tcp_hdr *tcp_hdr;
+
+	info->l3_len = sizeof(struct rte_ipv6_hdr);
+	info->l4_proto = ipv6_hdr->proto;
+
+	/* only fill l4_len for TCP, it's useful for TSO */
+	if (info->l4_proto == IPPROTO_TCP) {
+		tcp_hdr = (struct rte_tcp_hdr *)
+			((char *)ipv6_hdr + info->l3_len);
+		info->l4_len = (tcp_hdr->data_off & 0xf0) >> 2;
+	} else if (info->l4_proto == IPPROTO_UDP) {
+		info->l4_len = sizeof(struct rte_udp_hdr);
+	} else {
+		info->l4_len = 0;
+	}
+}
+
+/*
+ * Parse an ethernet header to fill the ethertype, l2_len, l3_len and
+ * ipproto. This function is able to recognize IPv4/IPv6 with optional VLAN
+ * headers. The l4_len argument is only set in case of TCP (useful for TSO).
+ */
+static inline void
+parse_ethernet(struct rte_ether_hdr *eth_hdr, struct offload_info *info)
+{
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_ipv6_hdr *ipv6_hdr;
+	struct rte_vlan_hdr *vlan_hdr;
+
+	info->l2_len = sizeof(struct rte_ether_hdr);
+	info->ethertype = eth_hdr->ether_type;
+
+	while (info->ethertype == rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN) ||
+	       info->ethertype == rte_cpu_to_be_16(RTE_ETHER_TYPE_QINQ)) {
+		vlan_hdr = (struct rte_vlan_hdr *)
+			((char *)eth_hdr + info->l2_len);
+		info->l2_len  += sizeof(struct rte_vlan_hdr);
+		info->ethertype = vlan_hdr->eth_proto;
+	}
+
+	switch (info->ethertype) {
+	case RTE_STATIC_BSWAP16(RTE_ETHER_TYPE_IPV4):
+		ipv4_hdr = (struct rte_ipv4_hdr *)
+			((char *)eth_hdr + info->l2_len);
+		parse_ipv4(ipv4_hdr, info);
+		break;
+	case RTE_STATIC_BSWAP16(RTE_ETHER_TYPE_IPV6):
+		ipv6_hdr = (struct rte_ipv6_hdr *)
+			((char *)eth_hdr + info->l2_len);
+		parse_ipv6(ipv6_hdr, info);
+		break;
+	default:
+		info->l4_len = 0;
+		info->l3_len = 0;
+		info->l4_proto = 0;
+		break;
+	}
+}
+
+/* Fill in outer layers length */
+static inline void
+update_tunnel_outer(struct offload_info *info)
+{
+	info->is_tunnel = 1;
+	info->outer_ethertype = info->ethertype;
+	info->outer_l2_len = info->l2_len;
+	info->outer_l3_len = info->l3_len;
+	info->outer_l4_proto = info->l4_proto;
+}
+
+/*
+ * Parse a GTP protocol header.
+ * No optional fields and next extension header type.
+ */
+static inline void
+parse_gtp(struct rte_udp_hdr *udp_hdr,
+	  struct offload_info *info)
+{
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_ipv6_hdr *ipv6_hdr;
+	struct rte_gtp_hdr *gtp_hdr;
+	uint8_t gtp_len = sizeof(*gtp_hdr);
+	uint8_t ip_ver;
+
+	/* Check UDP destination port. */
+	if (udp_hdr->dst_port != rte_cpu_to_be_16(RTE_GTPC_UDP_PORT) &&
+	    udp_hdr->src_port != rte_cpu_to_be_16(RTE_GTPC_UDP_PORT) &&
+	    udp_hdr->dst_port != rte_cpu_to_be_16(RTE_GTPU_UDP_PORT))
+		return;
+
+	update_tunnel_outer(info);
+	info->l2_len = 0;
+
+	gtp_hdr = (struct rte_gtp_hdr *)((char *)udp_hdr +
+		  sizeof(struct rte_udp_hdr));
+
+	/*
+	 * Check message type. If message type is 0xff, it is
+	 * a GTP data packet. If not, it is a GTP control packet
+	 */
+	if (gtp_hdr->msg_type == 0xff) {
+		ip_ver = *(uint8_t *)((char *)udp_hdr +
+			 sizeof(struct rte_udp_hdr) +
+			 sizeof(struct rte_gtp_hdr));
+		ip_ver = (ip_ver) & 0xf0;
+
+		if (ip_ver == RTE_GTP_TYPE_IPV4) {
+			ipv4_hdr = (struct rte_ipv4_hdr *)((char *)gtp_hdr +
+				   gtp_len);
+			info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+			parse_ipv4(ipv4_hdr, info);
+		} else if (ip_ver == RTE_GTP_TYPE_IPV6) {
+			ipv6_hdr = (struct rte_ipv6_hdr *)((char *)gtp_hdr +
+				   gtp_len);
+			info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
+			parse_ipv6(ipv6_hdr, info);
+		}
+	} else {
+		info->ethertype = 0;
+		info->l4_len = 0;
+		info->l3_len = 0;
+		info->l4_proto = 0;
+	}
+
+	info->l2_len += RTE_ETHER_GTP_HLEN;
+}
+
+/* Parse a VXLAN header */
+static inline void
+parse_vxlan(struct rte_udp_hdr *udp_hdr,
+	    struct offload_info *info)
+{
+	struct rte_ether_hdr *eth_hdr;
+
+	/* check UDP destination port, RTE_VXLAN_DEFAULT_PORT (4789) is the
+	 * default VXLAN port (rfc7348) or that the Rx offload flag is set
+	 * (i40e only currently)
+	 */
+	if (udp_hdr->dst_port != rte_cpu_to_be_16(RTE_VXLAN_DEFAULT_PORT))
+		return;
+
+	update_tunnel_outer(info);
+
+	eth_hdr = (struct rte_ether_hdr *)((char *)udp_hdr +
+		sizeof(struct rte_udp_hdr) +
+		sizeof(struct rte_vxlan_hdr));
+
+	parse_ethernet(eth_hdr, info);
+	info->l2_len += RTE_ETHER_VXLAN_HLEN; /* add UDP + VXLAN */
+}
+
+/* Parse a VXLAN-GPE header */
+static inline void
+parse_vxlan_gpe(struct rte_udp_hdr *udp_hdr,
+	    struct offload_info *info)
+{
+	struct rte_ether_hdr *eth_hdr;
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_ipv6_hdr *ipv6_hdr;
+	struct rte_vxlan_gpe_hdr *vxlan_gpe_hdr;
+	uint8_t vxlan_gpe_len = sizeof(*vxlan_gpe_hdr);
+
+	/* Check UDP destination port. */
+	if (udp_hdr->dst_port != rte_cpu_to_be_16(vxlan_gpe_udp_port))
+		return;
+
+	vxlan_gpe_hdr = (struct rte_vxlan_gpe_hdr *)((char *)udp_hdr +
+				sizeof(struct rte_udp_hdr));
+
+	if (!vxlan_gpe_hdr->proto || vxlan_gpe_hdr->proto ==
+	    RTE_VXLAN_GPE_TYPE_IPV4) {
+		update_tunnel_outer(info);
+
+		ipv4_hdr = (struct rte_ipv4_hdr *)((char *)vxlan_gpe_hdr +
+			   vxlan_gpe_len);
+
+		parse_ipv4(ipv4_hdr, info);
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		info->l2_len = 0;
+
+	} else if (vxlan_gpe_hdr->proto == RTE_VXLAN_GPE_TYPE_IPV6) {
+		update_tunnel_outer(info);
+
+		ipv6_hdr = (struct rte_ipv6_hdr *)((char *)vxlan_gpe_hdr +
+			   vxlan_gpe_len);
+
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
+		parse_ipv6(ipv6_hdr, info);
+		info->l2_len = 0;
+
+	} else if (vxlan_gpe_hdr->proto == RTE_VXLAN_GPE_TYPE_ETH) {
+		update_tunnel_outer(info);
+
+		eth_hdr = (struct rte_ether_hdr *)((char *)vxlan_gpe_hdr +
+			  vxlan_gpe_len);
+
+		parse_ethernet(eth_hdr, info);
+	} else {
+		return;
+	}
+
+	info->l2_len += RTE_ETHER_VXLAN_GPE_HLEN;
+}
+
+/* Parse a GENEVE header */
+static inline void
+parse_geneve(struct rte_udp_hdr *udp_hdr,
+	    struct offload_info *info)
+{
+	struct rte_ether_hdr *eth_hdr;
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_ipv6_hdr *ipv6_hdr;
+	struct rte_geneve_hdr *geneve_hdr;
+	uint16_t geneve_len;
+
+	/* Check UDP destination port. */
+	if (udp_hdr->dst_port != rte_cpu_to_be_16(geneve_udp_port))
+		return;
+
+	geneve_hdr = (struct rte_geneve_hdr *)((char *)udp_hdr +
+				sizeof(struct rte_udp_hdr));
+	geneve_len = sizeof(struct rte_geneve_hdr) + geneve_hdr->opt_len * 4;
+	if (!geneve_hdr->proto || geneve_hdr->proto ==
+	    rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+		update_tunnel_outer(info);
+		ipv4_hdr = (struct rte_ipv4_hdr *)((char *)geneve_hdr +
+			   geneve_len);
+		parse_ipv4(ipv4_hdr, info);
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		info->l2_len = 0;
+	} else if (geneve_hdr->proto == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6)) {
+		update_tunnel_outer(info);
+		ipv6_hdr = (struct rte_ipv6_hdr *)((char *)geneve_hdr +
+			   geneve_len);
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
+		parse_ipv6(ipv6_hdr, info);
+		info->l2_len = 0;
+
+	} else if (geneve_hdr->proto == rte_cpu_to_be_16(RTE_GENEVE_TYPE_ETH)) {
+		update_tunnel_outer(info);
+		eth_hdr = (struct rte_ether_hdr *)((char *)geneve_hdr +
+			  geneve_len);
+		parse_ethernet(eth_hdr, info);
+	} else {
+		return;
+	}
+
+	info->l2_len +=
+		(sizeof(struct rte_udp_hdr) + sizeof(struct rte_geneve_hdr) +
+		((struct rte_geneve_hdr *)geneve_hdr)->opt_len * 4);
+}
+
+/* Parse a GRE header */
+static inline void
+parse_gre(struct simple_gre_hdr *gre_hdr, struct offload_info *info)
+{
+	struct rte_ether_hdr *eth_hdr;
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_ipv6_hdr *ipv6_hdr;
+	uint8_t gre_len = 0;
+
+	gre_len += sizeof(struct simple_gre_hdr);
+
+	if (gre_hdr->flags & rte_cpu_to_be_16(GRE_KEY_PRESENT))
+		gre_len += GRE_EXT_LEN;
+	if (gre_hdr->flags & rte_cpu_to_be_16(GRE_SEQUENCE_PRESENT))
+		gre_len += GRE_EXT_LEN;
+	if (gre_hdr->flags & rte_cpu_to_be_16(GRE_CHECKSUM_PRESENT))
+		gre_len += GRE_EXT_LEN;
+
+	if (gre_hdr->proto == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+		update_tunnel_outer(info);
+
+		ipv4_hdr = (struct rte_ipv4_hdr *)((char *)gre_hdr + gre_len);
+
+		parse_ipv4(ipv4_hdr, info);
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+		info->l2_len = 0;
+
+	} else if (gre_hdr->proto == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6)) {
+		update_tunnel_outer(info);
+
+		ipv6_hdr = (struct rte_ipv6_hdr *)((char *)gre_hdr + gre_len);
+
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
+		parse_ipv6(ipv6_hdr, info);
+		info->l2_len = 0;
+
+	} else if (gre_hdr->proto == rte_cpu_to_be_16(RTE_ETHER_TYPE_TEB)) {
+		update_tunnel_outer(info);
+
+		eth_hdr = (struct rte_ether_hdr *)((char *)gre_hdr + gre_len);
+
+		parse_ethernet(eth_hdr, info);
+	} else {
+		return;
+	}
+
+	info->l2_len += gre_len;
+}
+
+/* Parse an encapsulated IP or IPv6 header */
+static inline void
+parse_encap_ip(void *encap_ip, struct offload_info *info)
+{
+	struct rte_ipv4_hdr *ipv4_hdr = encap_ip;
+	struct rte_ipv6_hdr *ipv6_hdr = encap_ip;
+	uint8_t ip_version;
+
+	ip_version = (ipv4_hdr->version_ihl & 0xf0) >> 4;
+
+	if (ip_version != 4 && ip_version != 6)
+		return;
+
+	info->is_tunnel = 1;
+	info->outer_ethertype = info->ethertype;
+	info->outer_l2_len = info->l2_len;
+	info->outer_l3_len = info->l3_len;
+
+	if (ip_version == 4) {
+		parse_ipv4(ipv4_hdr, info);
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+	} else {
+		parse_ipv6(ipv6_hdr, info);
+		info->ethertype = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
+	}
+	info->l2_len = 0;
+}
+
+static  inline int
+check_mbuf_len(struct offload_info *info, struct rte_mbuf *m)
+{
+	if (m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
+		if (info->outer_l2_len != m->outer_l2_len) {
+			PMD_TX_LOG(ERR, "outer_l2_len error in mbuf. Original "
+			"length: %hu, calculated length: %u", m->outer_l2_len,
+			info->outer_l2_len);
+			return -1;
+		}
+		if (info->outer_l3_len != m->outer_l3_len) {
+			PMD_TX_LOG(ERR, "outer_l3_len error in mbuf. Original "
+			"length: %hu,calculated length: %u", m->outer_l3_len,
+			info->outer_l3_len);
+			return -1;
+		}
+	}
+
+	if (info->l2_len != m->l2_len) {
+		PMD_TX_LOG(ERR, "l2_len error in mbuf. Original "
+		"length: %hu, calculated length: %u", m->l2_len,
+		info->l2_len);
+		return -1;
+	}
+	if (info->l3_len != m->l3_len) {
+		PMD_TX_LOG(ERR, "l3_len error in mbuf. Original "
+		"length: %hu, calculated length: %u", m->l3_len,
+		info->l3_len);
+		return -1;
+	}
+	if (info->l4_len != m->l4_len) {
+		PMD_TX_LOG(ERR, "l4_len error in mbuf. Original "
+		"length: %hu, calculated length: %u", m->l4_len,
+		info->l4_len);
+		return -1;
+	}
+
+	return 0;
+}
+
+static  inline int
+check_ether_type(struct offload_info *info, struct rte_mbuf *m)
+{
+	int ret = 0;
+
+	if (m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
+		if (info->outer_ethertype ==
+			rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+			if (!(m->ol_flags & RTE_MBUF_F_TX_OUTER_IPV4)) {
+				PMD_TX_LOG(ERR, "Outer ethernet type is ipv4, "
+				"tx offload missing `RTE_MBUF_F_TX_OUTER_IPV4` flag.");
+				ret = -1;
+			}
+			if (m->ol_flags & RTE_MBUF_F_TX_OUTER_IPV6) {
+				PMD_TX_LOG(ERR, "Outer ethernet type is ipv4, tx "
+				"offload contains wrong `RTE_MBUF_F_TX_OUTER_IPV6` flag");
+				ret = -1;
+			}
+		} else if (info->outer_ethertype ==
+			rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6)) {
+			if (!(m->ol_flags & RTE_MBUF_F_TX_OUTER_IPV6)) {
+				PMD_TX_LOG(ERR, "Outer ethernet type is ipv6, "
+				"tx offload missing `RTE_MBUF_F_TX_OUTER_IPV6` flag.");
+				ret = -1;
+			}
+			if (m->ol_flags & RTE_MBUF_F_TX_OUTER_IPV4) {
+				PMD_TX_LOG(ERR, "Outer ethernet type is ipv6, tx "
+				"offload contains wrong `RTE_MBUF_F_TX_OUTER_IPV4` flag");
+				ret = -1;
+			}
+		}
+	}
+
+	if (info->ethertype ==
+		rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+		if (!(m->ol_flags & RTE_MBUF_F_TX_IPV4)) {
+			PMD_TX_LOG(ERR, "Ethernet type is ipv4, tx offload "
+			"missing `RTE_MBUF_F_TX_IPV4` flag.");
+			ret = -1;
+		}
+		if (m->ol_flags & RTE_MBUF_F_TX_IPV6) {
+			PMD_TX_LOG(ERR, "Ethernet type is ipv4, tx "
+			"offload contains wrong `RTE_MBUF_F_TX_IPV6` flag");
+			ret = -1;
+		}
+	} else if (info->ethertype ==
+		rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6)) {
+		if (!(m->ol_flags & RTE_MBUF_F_TX_IPV6)) {
+			PMD_TX_LOG(ERR, "Ethernet type is ipv6, tx offload "
+			"missing `RTE_MBUF_F_TX_IPV6` flag.");
+			ret = -1;
+		}
+		if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
+			PMD_TX_LOG(ERR, "Ethernet type is ipv6, tx offload "
+			"contains wrong `RTE_MBUF_F_TX_IPV4` flag");
+			ret = -1;
+		}
+	}
+
+	return ret;
+}
+
+/* Check whether the parameters of mbuf are correct. */
+__rte_unused static  inline int
+iavf_check_mbuf(struct rte_mbuf *m)
+{
+	struct rte_ether_hdr *eth_hdr;
+	void *l3_hdr = NULL; /* can be IPv4 or IPv6 */
+	struct offload_info info = {0};
+	uint64_t ol_flags = m->ol_flags;
+	uint64_t tunnel_type = ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK;
+
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	parse_ethernet(eth_hdr, &info);
+	l3_hdr = (char *)eth_hdr + info.l2_len;
+	if (info.l4_proto == IPPROTO_UDP) {
+		struct rte_udp_hdr *udp_hdr;
+
+		udp_hdr = (struct rte_udp_hdr *)
+			((char *)l3_hdr + info.l3_len);
+		parse_gtp(udp_hdr, &info);
+		if (info.is_tunnel) {
+			if (!tunnel_type) {
+				PMD_TX_LOG(ERR, "gtp tunnel packet missing tx "
+				"offload missing `RTE_MBUF_F_TX_TUNNEL_GTP` flag.");
+				return -1;
+			}
+			if (tunnel_type != RTE_MBUF_F_TX_TUNNEL_GTP) {
+				PMD_TX_LOG(ERR, "gtp tunnel packet, tx offload has wrong "
+				"`%s` flag, correct is `RTE_MBUF_F_TX_TUNNEL_GTP` flag",
+				rte_get_tx_ol_flag_name(tunnel_type));
+				return -1;
+			}
+			goto check_len;
+		}
+		parse_vxlan_gpe(udp_hdr, &info);
+		if (info.is_tunnel) {
+			if (!tunnel_type) {
+				PMD_TX_LOG(ERR, "vxlan gpe tunnel packet missing tx "
+				"offload missing `RTE_MBUF_F_TX_TUNNEL_VXLAN_GPE` flag.");
+				return -1;
+			}
+			if (tunnel_type != RTE_MBUF_F_TX_TUNNEL_VXLAN_GPE) {
+				PMD_TX_LOG(ERR, "vxlan gpe tunnel packet, tx offload has "
+				"wrong `%s` flag, correct is "
+				"`RTE_MBUF_F_TX_TUNNEL_VXLAN_GPE` flag",
+				rte_get_tx_ol_flag_name(tunnel_type));
+				return -1;
+			}
+			goto check_len;
+		}
+		parse_vxlan(udp_hdr, &info);
+		if (info.is_tunnel) {
+			if (!tunnel_type) {
+				PMD_TX_LOG(ERR, "vxlan tunnel packet missing tx "
+				"offload missing `RTE_MBUF_F_TX_TUNNEL_VXLAN` flag.");
+				return -1;
+			}
+			if (tunnel_type != RTE_MBUF_F_TX_TUNNEL_VXLAN) {
+				PMD_TX_LOG(ERR, "vxlan tunnel packet, tx offload has "
+				"wrong `%s` flag, correct is "
+				"`RTE_MBUF_F_TX_TUNNEL_VXLAN` flag",
+				rte_get_tx_ol_flag_name(tunnel_type));
+				return -1;
+			}
+			goto check_len;
+		}
+		parse_geneve(udp_hdr, &info);
+		if (info.is_tunnel) {
+			if (!tunnel_type) {
+				PMD_TX_LOG(ERR, "geneve tunnel packet missing tx "
+				"offload missing `RTE_MBUF_F_TX_TUNNEL_GENEVE` flag.");
+				return -1;
+			}
+			if (tunnel_type != RTE_MBUF_F_TX_TUNNEL_GENEVE) {
+				PMD_TX_LOG(ERR, "geneve tunnel packet, tx offload has "
+				"wrong `%s` flag, correct is "
+				"`RTE_MBUF_F_TX_TUNNEL_GENEVE` flag",
+				rte_get_tx_ol_flag_name(tunnel_type));
+				return -1;
+			}
+			goto check_len;
+		}
+		/* Always keep last. */
+		if (unlikely(RTE_ETH_IS_TUNNEL_PKT(m->packet_type)
+			!= 0)) {
+			PMD_TX_LOG(ERR, "Unknown tunnel packet. UDP dst port: %hu",
+				udp_hdr->dst_port);
+				return -1;
+		}
+	} else if (info.l4_proto == IPPROTO_GRE) {
+		struct simple_gre_hdr *gre_hdr;
+
+		gre_hdr = (struct simple_gre_hdr *)((char *)l3_hdr +
+			info.l3_len);
+		parse_gre(gre_hdr, &info);
+		if (info.is_tunnel) {
+			if (!tunnel_type) {
+				PMD_TX_LOG(ERR, "gre tunnel packet missing tx "
+				"offload missing `RTE_MBUF_F_TX_TUNNEL_GRE` flag.");
+				return -1;
+			}
+			if (tunnel_type != RTE_MBUF_F_TX_TUNNEL_GRE) {
+				PMD_TX_LOG(ERR, "gre tunnel packet, tx offload has "
+				"wrong `%s` flag, correct is "
+				"`RTE_MBUF_F_TX_TUNNEL_GRE` flag",
+				rte_get_tx_ol_flag_name(tunnel_type));
+				return -1;
+			}
+			goto check_len;
+		}
+	} else if (info.l4_proto == IPPROTO_IPIP) {
+		void *encap_ip_hdr;
+
+		encap_ip_hdr = (char *)l3_hdr + info.l3_len;
+		parse_encap_ip(encap_ip_hdr, &info);
+		if (info.is_tunnel) {
+			if (!tunnel_type) {
+				PMD_TX_LOG(ERR, "Ipip tunnel packet missing tx "
+				"offload missing `RTE_MBUF_F_TX_TUNNEL_IPIP` flag.");
+				return -1;
+			}
+			if (tunnel_type != RTE_MBUF_F_TX_TUNNEL_IPIP) {
+				PMD_TX_LOG(ERR, "Ipip tunnel packet, tx offload has "
+				"wrong `%s` flag, correct is "
+				"`RTE_MBUF_F_TX_TUNNEL_IPIP` flag",
+				rte_get_tx_ol_flag_name(tunnel_type));
+				return -1;
+			}
+			goto check_len;
+		}
+	}
+
+check_len:
+	if (check_mbuf_len(&info, m) != 0)
+		return -1;
+
+	return check_ether_type(&info, m);
+}
+
 /* TX prep functions */
 uint16_t
 iavf_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
@@ -2764,7 +3637,12 @@ iavf_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 	struct rte_mbuf *m;
 	struct iavf_tx_queue *txq = tx_queue;
 	struct rte_eth_dev *dev = &rte_eth_devices[txq->port_id];
+	uint16_t max_frame_size = dev->data->mtu + IAVF_ETH_OVERHEAD;
 	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+	struct iavf_adapter *adapter = IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+
+	if (adapter->closed)
+		return 0;
 
 	for (i = 0; i < nb_pkts; i++) {
 		m = tx_pkts[i];
@@ -2785,6 +3663,14 @@ iavf_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		if (ol_flags & IAVF_TX_OFFLOAD_NOTSUP_MASK) {
 			rte_errno = ENOTSUP;
+			return i;
+		}
+
+		/* check the data_len in mbuf */
+		if (m->data_len < IAVF_TX_MIN_PKT_LEN ||
+			m->data_len > max_frame_size) {
+			rte_errno = EINVAL;
+			PMD_DRV_LOG(ERR, "INVALID mbuf: bad data_len=[%hu]", m->data_len);
 			return i;
 		}
 
@@ -2809,6 +3695,14 @@ iavf_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 				return i;
 			}
 		}
+
+#ifdef RTE_ETHDEV_DEBUG_TX
+		ret = iavf_check_mbuf(m);
+		if (ret != 0) {
+			rte_errno = EINVAL;
+			return i;
+		}
+#endif
 	}
 
 	return i;
@@ -2821,14 +3715,27 @@ iavf_set_rx_function(struct rte_eth_dev *dev)
 	struct iavf_adapter *adapter =
 		IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+	int i;
+	struct iavf_rx_queue *rxq;
+	bool use_flex = true;
+
+	for (i = 0; i < dev->data->nb_rx_queues; i++) {
+		rxq = dev->data->rx_queues[i];
+		if (rxq->rxdid <= IAVF_RXDID_LEGACY_1) {
+			PMD_DRV_LOG(NOTICE, "request RXDID[%d] in Queue[%d] is legacy, "
+				"set rx_pkt_burst as legacy for all queues", rxq->rxdid, i);
+			use_flex = false;
+		} else if (!(vf->supported_rxdid & BIT(rxq->rxdid))) {
+			PMD_DRV_LOG(NOTICE, "request RXDID[%d] in Queue[%d] is not supported, "
+				"set rx_pkt_burst as legacy for all queues", rxq->rxdid, i);
+			use_flex = false;
+		}
+	}
 
 #ifdef RTE_ARCH_X86
-	struct iavf_rx_queue *rxq;
-	int i;
 	int check_ret;
 	bool use_avx2 = false;
 	bool use_avx512 = false;
-	bool use_flex = false;
 
 	check_ret = iavf_rx_vec_dev_check(dev);
 	if (check_ret >= 0 &&
@@ -2844,10 +3751,6 @@ iavf_set_rx_function(struct rte_eth_dev *dev)
 		    rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_512)
 			use_avx512 = true;
 #endif
-
-		if (vf->vf_res->vf_cap_flags &
-			VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC)
-			use_flex = true;
 
 		for (i = 0; i < dev->data->nb_rx_queues; i++) {
 			rxq = dev->data->rx_queues[i];
@@ -2947,12 +3850,26 @@ iavf_set_rx_function(struct rte_eth_dev *dev)
 
 		return;
 	}
+#elif defined RTE_ARCH_ARM
+	int check_ret;
 
+	check_ret = iavf_rx_vec_dev_check(dev);
+	if (check_ret >= 0 &&
+	    rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_128) {
+		PMD_DRV_LOG(DEBUG, "Using a Vector Rx callback (port=%d).",
+			    dev->data->port_id);
+		for (i = 0; i < dev->data->nb_rx_queues; i++) {
+			rxq = dev->data->rx_queues[i];
+			(void)iavf_rxq_vec_setup(rxq);
+		}
+		dev->rx_pkt_burst = iavf_recv_pkts_vec;
+		return;
+	}
 #endif
 	if (dev->data->scattered_rx) {
 		PMD_DRV_LOG(DEBUG, "Using a Scattered Rx callback (port=%d).",
 			    dev->data->port_id);
-		if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC)
+		if (use_flex)
 			dev->rx_pkt_burst = iavf_recv_scattered_pkts_flex_rxd;
 		else
 			dev->rx_pkt_burst = iavf_recv_scattered_pkts;
@@ -2963,7 +3880,7 @@ iavf_set_rx_function(struct rte_eth_dev *dev)
 	} else {
 		PMD_DRV_LOG(DEBUG, "Using Basic Rx callback (port=%d).",
 			    dev->data->port_id);
-		if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC)
+		if (use_flex)
 			dev->rx_pkt_burst = iavf_recv_pkts_flex_rxd;
 		else
 			dev->rx_pkt_burst = iavf_recv_pkts;
@@ -3019,10 +3936,15 @@ iavf_set_tx_function(struct rte_eth_dev *dev)
 				dev->tx_pkt_burst = iavf_xmit_pkts_vec_avx512;
 				PMD_DRV_LOG(DEBUG, "Using AVX512 Vector Tx (port %d).",
 					    dev->data->port_id);
-			} else {
+			} else if (check_ret == IAVF_VECTOR_OFFLOAD_PATH) {
 				dev->tx_pkt_burst = iavf_xmit_pkts_vec_avx512_offload;
 				dev->tx_pkt_prepare = iavf_prep_pkts;
 				PMD_DRV_LOG(DEBUG, "Using AVX512 OFFLOAD Vector Tx (port %d).",
+					    dev->data->port_id);
+			} else {
+				dev->tx_pkt_burst = iavf_xmit_pkts_vec_avx512_ctx_offload;
+				dev->tx_pkt_prepare = iavf_prep_pkts;
+				PMD_DRV_LOG(DEBUG, "Using AVX512 CONTEXT OFFLOAD Vector Tx (port %d).",
 					    dev->data->port_id);
 			}
 		}
@@ -3058,14 +3980,14 @@ iavf_tx_done_cleanup_full(struct iavf_tx_queue *txq,
 			uint32_t free_cnt)
 {
 	struct iavf_tx_entry *swr_ring = txq->sw_ring;
-	uint16_t i, tx_last, tx_id;
+	uint16_t tx_last, tx_id;
 	uint16_t nb_tx_free_last;
 	uint16_t nb_tx_to_clean;
-	uint32_t pkt_cnt;
+	uint32_t pkt_cnt = 0;
 
-	/* Start free mbuf from the next of tx_tail */
-	tx_last = txq->tx_tail;
-	tx_id  = swr_ring[tx_last].next_id;
+	/* Start free mbuf from tx_tail */
+	tx_id = txq->tx_tail;
+	tx_last = tx_id;
 
 	if (txq->nb_free == 0 && iavf_xmit_cleanup(txq))
 		return 0;
@@ -3078,10 +4000,8 @@ iavf_tx_done_cleanup_full(struct iavf_tx_queue *txq,
 	/* Loop through swr_ring to count the amount of
 	 * freeable mubfs and packets.
 	 */
-	for (pkt_cnt = 0; pkt_cnt < free_cnt; ) {
-		for (i = 0; i < nb_tx_to_clean &&
-			pkt_cnt < free_cnt &&
-			tx_id != tx_last; i++) {
+	while (pkt_cnt < free_cnt) {
+		do {
 			if (swr_ring[tx_id].mbuf != NULL) {
 				rte_pktmbuf_free_seg(swr_ring[tx_id].mbuf);
 				swr_ring[tx_id].mbuf = NULL;
@@ -3094,7 +4014,7 @@ iavf_tx_done_cleanup_full(struct iavf_tx_queue *txq,
 			}
 
 			tx_id = swr_ring[tx_id].next_id;
-		}
+		} while (--nb_tx_to_clean && pkt_cnt < free_cnt && tx_id != tx_last);
 
 		if (txq->rs_thresh > txq->nb_tx_desc -
 			txq->nb_free || tx_id == tx_last)

@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2021 Intel Corporation
+ * Copyright(c) 2001-2022 Intel Corporation
  */
 
 #ifndef _ICE_SWITCH_H_
 #define _ICE_SWITCH_H_
 
-#include "ice_common.h"
+#include "ice_type.h"
 #include "ice_protocol_type.h"
 
 #define ICE_SW_CFG_MAX_BUF_LEN 2048
@@ -28,7 +28,10 @@
 #define ICE_PROFID_PPPOE_IPV6_UDP	39
 #define ICE_PROFID_PPPOE_IPV6_OTHER	40
 #define ICE_PROFID_IPV4_GTPC_TEID	41
+#define ICE_PROFID_IPV4_GTPC_NO_TEID		42
 #define ICE_PROFID_IPV4_GTPU_TEID		43
+#define ICE_PROFID_IPV6_GTPC_TEID		44
+#define ICE_PROFID_IPV6_GTPC_NO_TEID		45
 #define ICE_PROFID_IPV6_GTPU_TEID		46
 #define ICE_PROFID_IPV4_GTPU_EH_IPV4_OTHER	47
 #define ICE_PROFID_IPV4_GTPU_IPV4_OTHER		48
@@ -203,7 +206,7 @@ struct ice_fltr_info {
 
 struct ice_update_recipe_lkup_idx_params {
 	u16 rid;
-	u16 fv_idx;
+	u8 fv_idx;
 	bool ignore_valid;
 	u16 mask;
 	bool mask_valid;
@@ -216,6 +219,48 @@ struct ice_adv_lkup_elem {
 	union ice_prot_hdr m_u;	/* Mask of header values to match */
 };
 
+struct lg_entry_vsi_fwd {
+	u16 vsi_list;
+	u8 list;
+	u8 valid;
+};
+
+struct lg_entry_to_q {
+	u16 q_idx;
+	u8 q_region_sz;
+	u8 q_pri;
+};
+
+struct lg_entry_prune {
+	u16 vsi_list;
+	u8 list;
+	u8 egr;
+	u8 ing;
+	u8 prune_t;
+};
+
+struct lg_entry_mirror {
+	u16 mirror_vsi;
+};
+
+struct lg_entry_generic_act {
+	u16 generic_value;
+	u8 offset;
+	u8 priority;
+};
+
+struct lg_entry_statistics {
+	u8 counter_idx;
+};
+
+union lg_act_entry {
+	struct lg_entry_vsi_fwd vsi_fwd;
+	struct lg_entry_to_q to_q;
+	struct lg_entry_prune prune;
+	struct lg_entry_mirror mirror;
+	struct lg_entry_generic_act generic_act;
+	struct lg_entry_statistics statistics;
+};
 struct ice_prof_type_entry {
 	u16 prof_id;
 	enum ice_sw_tunnel_type type;
@@ -239,6 +284,7 @@ struct ice_sw_act_ctrl {
 	/* software VSI handle */
 	u16 vsi_handle;
 	u8 qgrp_size;
+	u32 markid;
 };
 
 struct ice_rule_query_data {
@@ -266,6 +312,7 @@ struct ice_adv_rule_info {
 	u32 priority;
 	u8 rx; /* true means LOOKUP_RX otherwise LOOKUP_TX */
 	u16 fltr_rule_id;
+	u16 lg_id;
 	struct ice_adv_rule_flags_info flags_info;
 };
 
@@ -486,6 +533,8 @@ void ice_remove_vsi_fltr(struct ice_hw *hw, u16 vsi_handle);
 enum ice_status
 ice_cfg_dflt_vsi(struct ice_port_info *pi, u16 vsi_handle, bool set,
 		 u8 direction);
+bool ice_check_if_dflt_vsi(struct ice_port_info *pi, u16 vsi_handle,
+			   bool *rule_exists);
 enum ice_status
 ice_set_vsi_promisc(struct ice_hw *hw, u16 vsi_handle, u8 promisc_mask,
 		    u16 vid);

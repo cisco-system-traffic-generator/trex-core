@@ -6,7 +6,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <ethdev_driver.h>
 #include <ethdev_pci.h>
 #include <rte_malloc.h>
@@ -97,6 +97,7 @@ static const struct rte_pci_id bnxt_pci_id_map[] = {
 #define BNXT_DEVARG_REP_FC_R2F  "rep-fc-r2f"
 #define BNXT_DEVARG_REP_FC_F2R  "rep-fc-f2r"
 #define BNXT_DEVARG_APP_ID	"app-id"
+#define BNXT_DEVARG_IEEE_1588	"ieee-1588"
 
 static const char *const bnxt_dev_args[] = {
 	BNXT_DEVARG_REPRESENTOR,
@@ -109,6 +110,7 @@ static const char *const bnxt_dev_args[] = {
 	BNXT_DEVARG_REP_FC_R2F,
 	BNXT_DEVARG_REP_FC_F2R,
 	BNXT_DEVARG_APP_ID,
+	BNXT_DEVARG_IEEE_1588,
 	NULL
 };
 
@@ -116,6 +118,11 @@ static const char *const bnxt_dev_args[] = {
  * app-id = an non-negative 8-bit number
  */
 #define BNXT_DEVARG_APP_ID_INVALID(val)			((val) > 255)
+
+/*
+ * ieee-1588 = an non-negative 8-bit number
+ */
+#define BNXT_DEVARG_IEEE_1588_INVALID(val)			((val) > 255)
 
 /*
  * flow_xstat == false to disable the feature
@@ -177,6 +184,7 @@ static int bnxt_restore_vlan_filters(struct bnxt *bp);
 static void bnxt_dev_recover(void *arg);
 static void bnxt_free_error_recovery_info(struct bnxt *bp);
 static void bnxt_free_rep_info(struct bnxt *bp);
+static int bnxt_check_fw_ready(struct bnxt *bp);
 
 int is_bnxt_in_error(struct bnxt *bp)
 {
@@ -659,6 +667,19 @@ static int bnxt_init_ctx_mem(struct bnxt *bp)
 	return rc;
 }
 
+static inline bool bnxt_force_link_config(struct bnxt *bp)
+{
+	uint16_t subsystem_device_id = bp->pdev->id.subsystem_device_id;
+
+	switch (subsystem_device_id) {
+	case BROADCOM_DEV_957508_N2100:
+	case BROADCOM_DEV_957414_N225:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static int bnxt_update_phy_setting(struct bnxt *bp)
 {
 	struct rte_eth_link new;
@@ -671,11 +692,12 @@ static int bnxt_update_phy_setting(struct bnxt *bp)
 	}
 
 	/*
-	 * On BCM957508-N2100 adapters, FW will not allow any user other
-	 * than BMC to shutdown the port. bnxt_get_hwrm_link_config() call
-	 * always returns link up. Force phy update always in that case.
+	 * Device is not obliged link down in certain scenarios, even
+	 * when forced. When FW does not allow any user other than BMC
+	 * to shutdown the port, bnxt_get_hwrm_link_config() call always
+	 * returns link up. Force phy update always in that case.
 	 */
-	if (!new.link_status || IS_BNXT_DEV_957508_N2100(bp)) {
+	if (!new.link_status || bnxt_force_link_config(bp)) {
 		rc = bnxt_set_hwrm_link_config(bp, true);
 		if (rc) {
 			PMD_DRV_LOG(ERR, "Failed to update PHY settings\n");
@@ -708,7 +730,7 @@ static int bnxt_alloc_prev_ring_stats(struct bnxt *bp)
 					     sizeof(struct bnxt_ring_stats) *
 					     bp->tx_cp_nr_rings,
 					     0);
-	if (bp->prev_tx_ring_stats == NULL)
+	if (bp->tx_cp_nr_rings > 0 && bp->prev_tx_ring_stats == NULL)
 		goto error;
 
 	return 0;
@@ -888,6 +910,7 @@ static int bnxt_shutdown_nic(struct bnxt *bp)
 
 uint32_t bnxt_get_speed_capabilities(struct bnxt *bp)
 {
+	uint32_t pam4_link_speed = 0;
 	uint32_t link_speed = 0;
 	uint32_t speed_capa = 0;
 
@@ -897,8 +920,8 @@ uint32_t bnxt_get_speed_capabilities(struct bnxt *bp)
 	link_speed = bp->link_info->support_speeds;
 
 	/* If PAM4 is configured, use PAM4 supported speed */
-	if (link_speed == 0 && bp->link_info->support_pam4_speeds > 0)
-		link_speed = bp->link_info->support_pam4_speeds;
+	if (bp->link_info->support_pam4_speeds > 0)
+		pam4_link_speed = bp->link_info->support_pam4_speeds;
 
 	if (link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_LINK_SPEED_100MB)
 		speed_capa |= RTE_ETH_LINK_SPEED_100M;
@@ -920,11 +943,11 @@ uint32_t bnxt_get_speed_capabilities(struct bnxt *bp)
 		speed_capa |= RTE_ETH_LINK_SPEED_50G;
 	if (link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_SPEEDS_100GB)
 		speed_capa |= RTE_ETH_LINK_SPEED_100G;
-	if (link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_50G)
+	if (pam4_link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_50G)
 		speed_capa |= RTE_ETH_LINK_SPEED_50G;
-	if (link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_100G)
+	if (pam4_link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_100G)
 		speed_capa |= RTE_ETH_LINK_SPEED_100G;
-	if (link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_200G)
+	if (pam4_link_speed & HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_200G)
 		speed_capa |= RTE_ETH_LINK_SPEED_200G;
 
 	if (bp->link_info->auto_mode ==
@@ -971,16 +994,10 @@ static int bnxt_dev_info_get_op(struct rte_eth_dev *eth_dev,
 	dev_info->min_rx_bufsize = 1;
 	dev_info->max_rx_pktlen = BNXT_MAX_PKT_LEN;
 
-	dev_info->rx_offload_capa = BNXT_DEV_RX_OFFLOAD_SUPPORT;
-	if (bp->flags & BNXT_FLAG_PTP_SUPPORTED)
-		dev_info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_TIMESTAMP;
-	if (bp->vnic_cap_flags & BNXT_VNIC_CAP_VLAN_RX_STRIP)
-		dev_info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_VLAN_STRIP;
+	dev_info->rx_offload_capa = bnxt_get_rx_port_offloads(bp);
 	dev_info->tx_queue_offload_capa = RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
-	dev_info->tx_offload_capa = BNXT_DEV_TX_OFFLOAD_SUPPORT |
+	dev_info->tx_offload_capa = bnxt_get_tx_port_offloads(bp) |
 				    dev_info->tx_queue_offload_capa;
-	if (bp->fw_cap & BNXT_FW_CAP_VLAN_TX_INSERT)
-		dev_info->tx_offload_capa |= RTE_ETH_TX_OFFLOAD_VLAN_INSERT;
 	dev_info->flow_type_rss_offloads = BNXT_ETH_RSS_SUPPORT;
 
 	dev_info->speed_capa = bnxt_get_speed_capabilities(bp);
@@ -1007,7 +1024,6 @@ static int bnxt_dev_info_get_op(struct rte_eth_dev *eth_dev,
 		.tx_free_thresh = 32,
 		.tx_rs_thresh = 32,
 	};
-	eth_dev->data->dev_conf.intr_conf.lsc = 1;
 
 	dev_info->rx_desc_lim.nb_min = BNXT_MIN_RING_DESC;
 	dev_info->rx_desc_lim.nb_max = BNXT_MAX_RX_RING_DESC;
@@ -1052,6 +1068,8 @@ found:
 
 	dev_info->vmdq_pool_base = 0;
 	dev_info->vmdq_queue_base = 0;
+
+	dev_info->err_handle_mode = RTE_ETH_ERROR_HANDLE_MODE_PROACTIVE;
 
 	return 0;
 }
@@ -1218,9 +1236,7 @@ bnxt_receive_function(struct rte_eth_dev *eth_dev)
 		return bnxt_recv_pkts;
 	}
 
-#if (defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)) && \
-	!defined(RTE_LIBRTE_IEEE1588)
-
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)
 	/* Vector mode receive cannot be enabled if scattered rx is in use. */
 	if (eth_dev->data->scattered_rx)
 		goto use_scalar_rx;
@@ -1247,6 +1263,9 @@ bnxt_receive_function(struct rte_eth_dev *eth_dev)
 		  RTE_ETH_RX_OFFLOAD_OUTER_UDP_CKSUM |
 		  RTE_ETH_RX_OFFLOAD_RSS_HASH |
 		  RTE_ETH_RX_OFFLOAD_VLAN_FILTER))
+		goto use_scalar_rx;
+
+	if (bp->ieee_1588)
 		goto use_scalar_rx;
 
 #if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
@@ -1289,8 +1308,7 @@ bnxt_transmit_function(struct rte_eth_dev *eth_dev)
 	if (BNXT_CHIP_SR2(bp))
 		return bnxt_xmit_pkts;
 
-#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64) && \
-	!defined(RTE_LIBRTE_IEEE1588)
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)
 	uint64_t offloads = eth_dev->data->dev_conf.txmode.offloads;
 
 	/*
@@ -1299,7 +1317,7 @@ bnxt_transmit_function(struct rte_eth_dev *eth_dev)
 	 */
 	if (eth_dev->data->scattered_rx ||
 	    (offloads & ~RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE) ||
-	    BNXT_TRUFLOW_EN(bp))
+	    BNXT_TRUFLOW_EN(bp) || bp->ieee_1588)
 		goto use_scalar_tx;
 
 #if defined(RTE_ARCH_X86) && defined(CC_AVX2_SUPPORT)
@@ -1342,6 +1360,11 @@ static int bnxt_handle_if_change_status(struct bnxt *bp)
 
 	/* clear fatal flag so that re-init happens */
 	bp->flags &= ~BNXT_FLAG_FATAL_ERROR;
+
+	rc = bnxt_check_fw_ready(bp);
+	if (rc)
+		return rc;
+
 	rc = bnxt_init_resources(bp, true);
 
 	bp->flags &= ~BNXT_FLAG_IF_CHANGE_HOT_FW_RESET_DONE;
@@ -1553,11 +1576,6 @@ int bnxt_dev_start_op(struct rte_eth_dev *eth_dev)
 	int vlan_mask = 0;
 	int rc, retry_cnt = BNXT_IF_CHANGE_RETRY_COUNT;
 
-	if (!eth_dev->data->nb_tx_queues || !eth_dev->data->nb_rx_queues) {
-		PMD_DRV_LOG(ERR, "Queues are not configured yet!\n");
-		return -EINVAL;
-	}
-
 	if (bp->rx_cp_nr_rings > RTE_ETHDEV_QUEUE_STAT_CNTRS)
 		PMD_DRV_LOG(ERR,
 			    "RxQ cnt %d > RTE_ETHDEV_QUEUE_STAT_CNTRS %d\n",
@@ -1594,7 +1612,7 @@ int bnxt_dev_start_op(struct rte_eth_dev *eth_dev)
 
 	eth_dev->data->dev_started = 1;
 
-	bnxt_link_update_op(eth_dev, 1);
+	bnxt_link_update_op(eth_dev, 0);
 
 	if (rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER)
 		vlan_mask |= RTE_ETH_VLAN_FILTER_MASK;
@@ -1644,6 +1662,7 @@ static void bnxt_drv_uninit(struct bnxt *bp)
 	bnxt_free_link_info(bp);
 	bnxt_free_parent_info(bp);
 	bnxt_uninit_locks(bp);
+	bnxt_free_rep_info(bp);
 
 	rte_memzone_free((const struct rte_memzone *)bp->tx_mem_zone);
 	bp->tx_mem_zone = NULL;
@@ -1818,6 +1837,14 @@ int bnxt_link_update_op(struct rte_eth_dev *eth_dev, int wait_to_complete)
 	if (bp->link_info == NULL)
 		goto out;
 
+	/* Only single function PF can bring the phy down.
+	 * In certain scenarios, device is not obliged link down even when forced.
+	 * When port is stopped, report link down in those cases.
+	 */
+	if (!eth_dev->data->dev_started &&
+	    (!BNXT_SINGLE_PF(bp) || bnxt_force_link_config(bp)))
+		goto out;
+
 	do {
 		/* Retrieve link info from hardware */
 		rc = bnxt_get_hwrm_link_config(bp, &new);
@@ -1834,12 +1861,6 @@ int bnxt_link_update_op(struct rte_eth_dev *eth_dev, int wait_to_complete)
 
 		rte_delay_ms(BNXT_LINK_WAIT_INTERVAL);
 	} while (cnt--);
-
-	/* Only single function PF can bring phy down.
-	 * When port is stopped, report link down for VF/MH/NPAR functions.
-	 */
-	if (!BNXT_SINGLE_PF(bp) && !eth_dev->data->dev_started)
-		memset(&new, 0, sizeof(new));
 
 out:
 	/* Timed out or success */
@@ -2130,8 +2151,6 @@ static int bnxt_rss_hash_update_op(struct rte_eth_dev *eth_dev,
 		if (rss_conf->rss_hf & BNXT_ETH_RSS_SUPPORT)
 			return -EINVAL;
 	}
-
-	bp->flags |= BNXT_FLAG_UPDATE_HASH;
 
 	/* Update the default RSS VNIC(s) */
 	vnic = BNXT_GET_DEFAULT_VNIC(bp);
@@ -3009,9 +3028,7 @@ bnxt_tx_burst_mode_get(struct rte_eth_dev *dev, __rte_unused uint16_t queue_id,
 
 int bnxt_mtu_set_op(struct rte_eth_dev *eth_dev, uint16_t new_mtu)
 {
-	uint32_t overhead = BNXT_MAX_PKT_LEN - BNXT_MAX_MTU;
 	struct bnxt *bp = eth_dev->data->dev_private;
-	uint32_t new_pkt_size;
 	uint32_t rc;
 	uint32_t i;
 
@@ -3019,34 +3036,24 @@ int bnxt_mtu_set_op(struct rte_eth_dev *eth_dev, uint16_t new_mtu)
 	if (rc)
 		return rc;
 
+	/* Return if port is active */
+	if (eth_dev->data->dev_started) {
+		PMD_DRV_LOG(ERR, "Stop port before changing MTU\n");
+		return -EBUSY;
+	}
+
 	/* Exit if receive queues are not configured yet */
 	if (!eth_dev->data->nb_rx_queues)
-		return rc;
+		return -ENOTSUP;
 
-	new_pkt_size = new_mtu + overhead;
-
-	/*
-	 * Disallow any MTU change that would require scattered receive support
-	 * if it is not already enabled.
-	 */
-	if (eth_dev->data->dev_started &&
-	    !eth_dev->data->scattered_rx &&
-	    (new_pkt_size >
-	     eth_dev->data->min_rx_buf_size - RTE_PKTMBUF_HEADROOM)) {
-		PMD_DRV_LOG(ERR,
-			    "MTU change would require scattered rx support. ");
-		PMD_DRV_LOG(ERR, "Stop port before changing MTU.\n");
-		return -EINVAL;
-	}
+	/* Is there a change in mtu setting? */
+	if (eth_dev->data->mtu == new_mtu)
+		return 0;
 
 	if (new_mtu > RTE_ETHER_MTU)
 		bp->flags |= BNXT_FLAG_JUMBO;
 	else
 		bp->flags &= ~BNXT_FLAG_JUMBO;
-
-	/* Is there a change in mtu setting? */
-	if (eth_dev->data->mtu == new_mtu)
-		return rc;
 
 	for (i = 0; i < bp->nr_vnics; i++) {
 		struct bnxt_vnic_info *vnic = &bp->vnic_info[i];
@@ -4316,7 +4323,7 @@ static int bnxt_restore_filters(struct bnxt *bp)
 
 static int bnxt_check_fw_ready(struct bnxt *bp)
 {
-	int timeout = bp->fw_reset_max_msecs;
+	int timeout = bp->fw_reset_max_msecs ? : BNXT_MAX_FW_RESET_TIMEOUT;
 	int rc = 0;
 
 	do {
@@ -4383,13 +4390,18 @@ static void bnxt_dev_recover(void *arg)
 	PMD_DRV_LOG(INFO, "Port: %u Recovered from FW reset\n",
 		    bp->eth_dev->data->port_id);
 	pthread_mutex_unlock(&bp->err_recovery_lock);
-
+	rte_eth_dev_callback_process(bp->eth_dev,
+				     RTE_ETH_EVENT_RECOVERY_SUCCESS,
+				     NULL);
 	return;
 err_start:
 	bnxt_dev_stop(bp->eth_dev);
 err:
 	bp->flags |= BNXT_FLAG_FATAL_ERROR;
 	bnxt_uninit_resources(bp, false);
+	rte_eth_dev_callback_process(bp->eth_dev,
+				     RTE_ETH_EVENT_RECOVERY_FAILED,
+				     NULL);
 	if (bp->eth_dev->data->dev_conf.intr_conf.rmv)
 		rte_eth_dev_callback_process(bp->eth_dev,
 					     RTE_ETH_EVENT_INTR_RMV,
@@ -4560,6 +4572,10 @@ reset:
 	bnxt_stop_rxtx(bp->eth_dev);
 
 	PMD_DRV_LOG(ERR, "Detected FW dead condition\n");
+
+	rte_eth_dev_callback_process(bp->eth_dev,
+				     RTE_ETH_EVENT_ERR_RECOVERING,
+				     NULL);
 
 	if (bnxt_is_primary_func(bp))
 		wait_msec = info->primary_func_wait_period;
@@ -5273,11 +5289,34 @@ bnxt_init_locks(struct bnxt *bp)
 	return err;
 }
 
+/* This should be called after we have queried trusted VF cap */
+static int bnxt_alloc_switch_domain(struct bnxt *bp)
+{
+	int rc = 0;
+
+	if (BNXT_PF(bp) || BNXT_VF_IS_TRUSTED(bp)) {
+		rc = rte_eth_switch_domain_alloc(&bp->switch_domain_id);
+		if (rc)
+			PMD_DRV_LOG(ERR,
+				    "Failed to alloc switch domain: %d\n", rc);
+		else
+			PMD_DRV_LOG(INFO,
+				    "Switch domain allocated %d\n",
+				    bp->switch_domain_id);
+	}
+
+	return rc;
+}
+
 static int bnxt_init_resources(struct bnxt *bp, bool reconfig_dev)
 {
 	int rc = 0;
 
 	rc = bnxt_get_config(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_alloc_switch_domain(bp);
 	if (rc)
 		return rc;
 
@@ -5450,6 +5489,42 @@ bnxt_parse_devarg_app_id(__rte_unused const char *key,
 
 	bp->app_id = app_id;
 	PMD_DRV_LOG(INFO, "app-id=%d feature enabled.\n", (uint16_t)app_id);
+
+	return 0;
+}
+
+static int
+bnxt_parse_devarg_ieee_1588(__rte_unused const char *key,
+			    const char *value, void *opaque_arg)
+{
+	struct bnxt *bp = opaque_arg;
+	unsigned long ieee_1588;
+	char *end = NULL;
+
+	if (!value || !opaque_arg) {
+		PMD_DRV_LOG(ERR,
+			    "Invalid parameter passed to ieee-1588 "
+			    "devargs.\n");
+		return -EINVAL;
+	}
+
+	ieee_1588 = strtoul(value, &end, 10);
+	if (end == NULL || *end != '\0' ||
+	    (ieee_1588 == ULONG_MAX && errno == ERANGE)) {
+		PMD_DRV_LOG(ERR,
+			    "Invalid parameter passed to ieee_1588 "
+			    "devargs.\n");
+		return -EINVAL;
+	}
+
+	if (BNXT_DEVARG_IEEE_1588_INVALID(ieee_1588)) {
+		PMD_DRV_LOG(ERR, "Invalid ieee-1588(%d) devargs.\n",
+			    (uint16_t)ieee_1588);
+		return -EINVAL;
+	}
+
+	bp->ieee_1588 = ieee_1588;
+	PMD_DRV_LOG(INFO, "ieee-1588=%d feature enabled.\n", (uint16_t)ieee_1588);
 
 	return 0;
 }
@@ -5716,26 +5791,15 @@ err:
 	rte_kvargs_process(kvlist, BNXT_DEVARG_APP_ID,
 			   bnxt_parse_devarg_app_id, bp);
 
+	/*
+	 * Handler for "ieee-1588" devarg.
+	 * Invoked as for ex: "-a 000:00:0d.0,ieee-1588=1"
+	 */
+	rte_kvargs_process(kvlist, BNXT_DEVARG_IEEE_1588,
+			   bnxt_parse_devarg_ieee_1588, bp);
+
 	rte_kvargs_free(kvlist);
 	return ret;
-}
-
-static int bnxt_alloc_switch_domain(struct bnxt *bp)
-{
-	int rc = 0;
-
-	if (BNXT_PF(bp) || BNXT_VF_IS_TRUSTED(bp)) {
-		rc = rte_eth_switch_domain_alloc(&bp->switch_domain_id);
-		if (rc)
-			PMD_DRV_LOG(ERR,
-				    "Failed to alloc switch domain: %d\n", rc);
-		else
-			PMD_DRV_LOG(INFO,
-				    "Switch domain allocated %d\n",
-				    bp->switch_domain_id);
-	}
-
-	return rc;
 }
 
 /* Allocate and initialize various fields in bnxt struct that
@@ -5814,10 +5878,6 @@ static int bnxt_drv_init(struct rte_eth_dev *eth_dev)
 	if (rc)
 		return rc;
 
-	rc = bnxt_alloc_switch_domain(bp);
-	if (rc)
-		return rc;
-
 	return rc;
 }
 
@@ -5848,6 +5908,7 @@ bnxt_dev_init(struct rte_eth_dev *eth_dev, void *params __rte_unused)
 
 	rte_eth_copy_pci_info(eth_dev, pci_dev);
 	eth_dev->data->dev_flags |= RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS;
+	eth_dev->data->dev_flags |= RTE_ETH_DEV_INTR_LSC;
 
 	bp = eth_dev->data->dev_private;
 
@@ -5978,9 +6039,7 @@ bnxt_uninit_resources(struct bnxt *bp, bool reconfig_dev)
 	bnxt_uninit_ctx_mem(bp);
 
 	bnxt_free_flow_stats_info(bp);
-	if (bp->rep_info != NULL)
-		bnxt_free_switch_domain(bp);
-	bnxt_free_rep_info(bp);
+	bnxt_free_switch_domain(bp);
 	rte_free(bp->ptp_cfg);
 	bp->ptp_cfg = NULL;
 	return rc;

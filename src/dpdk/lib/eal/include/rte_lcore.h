@@ -11,6 +11,9 @@
  * API for lcore and socket manipulation
  *
  */
+#include <stdio.h>
+
+#include <rte_compat.h>
 #include <rte_config.h>
 #include <rte_per_lcore.h>
 #include <rte_eal.h>
@@ -160,9 +163,6 @@ unsigned int
 rte_lcore_to_socket_id(unsigned int lcore_id);
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
- *
  * Return the id of the lcore on a socket starting from zero.
  *
  * @param lcore_id
@@ -170,25 +170,19 @@ rte_lcore_to_socket_id(unsigned int lcore_id);
  * @return
  *   The relative index, or -1 if not enabled.
  */
-__rte_experimental
-int
-rte_lcore_to_cpu_id(int lcore_id);
+int rte_lcore_to_cpu_id(int lcore_id);
 
 #ifdef RTE_HAS_CPUSET
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
- *
  * Return the cpuset for a given lcore.
+ *
  * @param lcore_id
  *   the targeted lcore, which MUST be between 0 and RTE_MAX_LCORE-1.
  * @return
  *   The cpuset of that lcore
  */
-__rte_experimental
-rte_cpuset_t
-rte_lcore_cpuset(unsigned int lcore_id);
+rte_cpuset_t rte_lcore_cpuset(unsigned int lcore_id);
 
 #endif /* RTE_HAS_CPUSET */
 
@@ -335,6 +329,55 @@ int
 rte_lcore_iterate(rte_lcore_iterate_cb cb, void *arg);
 
 /**
+ * lcore usage statistics.
+ */
+struct rte_lcore_usage {
+	/**
+	 * The total amount of time that the application has been running on
+	 * this lcore, in TSC cycles.
+	 */
+	uint64_t total_cycles;
+	/**
+	 * The amount of time the application was busy, handling some
+	 * workload on this lcore, in TSC cycles.
+	 */
+	uint64_t busy_cycles;
+};
+
+/**
+ * Callback to allow applications to report lcore usage.
+ *
+ * @param [in] lcore_id
+ *   The lcore to consider.
+ * @param [out] usage
+ *   Counters representing this lcore usage. This can never be NULL.
+ * @return
+ *   - 0 if fields in usage were updated successfully. The fields that the
+ *     application does not support must not be modified.
+ *   - a negative value if the information is not available or if any error
+ *     occurred.
+ */
+typedef int (*rte_lcore_usage_cb)(unsigned int lcore_id, struct rte_lcore_usage *usage);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice.
+ *
+ * Register a callback from an application to be called in rte_lcore_dump() and
+ * the /eal/lcore/info telemetry endpoint handler. Applications are expected to
+ * report lcore usage statistics via this callback.
+ *
+ * If a callback was already registered, it can be replaced with another callback
+ * or unregistered with NULL. The previously registered callback may remain in
+ * use for an undetermined period of time.
+ *
+ * @param cb
+ *   The callback function.
+ */
+__rte_experimental
+void rte_lcore_register_usage_cb(rte_lcore_usage_cb cb);
+
+/**
  * List all lcores.
  *
  * @param f
@@ -356,23 +399,6 @@ rte_lcore_dump(FILE *f);
  *   On success, return 0; otherwise return a negative value.
  */
 int rte_thread_setname(pthread_t id, const char *name);
-
-/**
- * Get thread name.
- *
- * @note It fails with glibc < 2.12.
- *
- * @param id
- *   Thread id.
- * @param name
- *   Thread name to set.
- * @param len
- *   Thread name buffer length.
- * @return
- *   On success, return 0; otherwise return a negative value.
- */
-__rte_experimental
-int rte_thread_getname(pthread_t id, char *name, size_t len);
 
 /**
  * Register current non-EAL thread as a lcore.

@@ -8,20 +8,27 @@
 static int
 tim_fill_msix(struct roc_tim *roc_tim, uint16_t nb_ring)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
+	struct sso *sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
 	struct tim *tim = roc_tim_to_tim_priv(roc_tim);
+	struct dev *dev = &sso->dev;
 	struct msix_offset_rsp *rsp;
+	struct mbox *mbox = mbox_get(dev->mbox);
 	int i, rc;
 
-	mbox_alloc_msg_msix_offset(dev->mbox);
-	rc = mbox_process_msg(dev->mbox, (void **)&rsp);
-	if (rc < 0)
-		return rc;
+	mbox_alloc_msg_msix_offset(mbox);
+	rc = mbox_process_msg(mbox, (void **)&rsp);
+	if (rc) {
+		rc = -EIO;
+		goto exit;
+	}
 
 	for (i = 0; i < nb_ring; i++)
 		tim->tim_msix_offsets[i] = rsp->timlf_msixoff[i];
 
-	return 0;
+	rc = 0;
+exit:
+	mbox_put(mbox);
+	return rc;
 }
 
 static void
@@ -88,20 +95,23 @@ int
 roc_tim_lf_enable(struct roc_tim *roc_tim, uint8_t ring_id, uint64_t *start_tsc,
 		  uint32_t *cur_bkt)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
+	struct sso *sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
+	struct dev *dev = &sso->dev;
+	struct mbox *mbox = mbox_get(dev->mbox);
 	struct tim_enable_rsp *rsp;
 	struct tim_ring_req *req;
 	int rc = -ENOSPC;
 
-	req = mbox_alloc_msg_tim_enable_ring(dev->mbox);
+	req = mbox_alloc_msg_tim_enable_ring(mbox);
 	if (req == NULL)
-		return rc;
+		goto fail;
 	req->ring = ring_id;
 
 	rc = mbox_process_msg(dev->mbox, (void **)&rsp);
-	if (rc < 0) {
+	if (rc) {
 		tim_err_desc(rc);
-		return rc;
+		rc = -EIO;
+		goto fail;
 	}
 
 	if (cur_bkt)
@@ -109,28 +119,34 @@ roc_tim_lf_enable(struct roc_tim *roc_tim, uint8_t ring_id, uint64_t *start_tsc,
 	if (start_tsc)
 		*start_tsc = rsp->timestarted;
 
-	return 0;
+fail:
+	mbox_put(mbox);
+	return rc;
 }
 
 int
 roc_tim_lf_disable(struct roc_tim *roc_tim, uint8_t ring_id)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
+	struct sso *sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
+	struct dev *dev = &sso->dev;
+	struct mbox *mbox = mbox_get(dev->mbox);
 	struct tim_ring_req *req;
 	int rc = -ENOSPC;
 
-	req = mbox_alloc_msg_tim_disable_ring(dev->mbox);
+	req = mbox_alloc_msg_tim_disable_ring(mbox);
 	if (req == NULL)
-		return rc;
+		goto fail;
 	req->ring = ring_id;
 
 	rc = mbox_process(dev->mbox);
-	if (rc < 0) {
+	if (rc) {
 		tim_err_desc(rc);
-		return rc;
+		rc = -EIO;
 	}
 
-	return 0;
+fail:
+	mbox_put(mbox);
+	return rc;
 }
 
 uintptr_t
@@ -147,13 +163,15 @@ roc_tim_lf_config(struct roc_tim *roc_tim, uint8_t ring_id,
 		  uint8_t ena_dfb, uint32_t bucket_sz, uint32_t chunk_sz,
 		  uint32_t interval, uint64_t intervalns, uint64_t clockfreq)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
+	struct sso *sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
+	struct dev *dev = &sso->dev;
+	struct mbox *mbox = mbox_get(dev->mbox);
 	struct tim_config_req *req;
 	int rc = -ENOSPC;
 
-	req = mbox_alloc_msg_tim_config_ring(dev->mbox);
+	req = mbox_alloc_msg_tim_config_ring(mbox);
 	if (req == NULL)
-		return rc;
+		goto fail;
 	req->ring = ring_id;
 	req->bigendian = false;
 	req->bucketsize = bucket_sz;
@@ -166,13 +184,15 @@ roc_tim_lf_config(struct roc_tim *roc_tim, uint8_t ring_id,
 	req->clockfreq = clockfreq;
 	req->gpioedge = TIM_GPIO_LTOH_TRANS;
 
-	rc = mbox_process(dev->mbox);
-	if (rc < 0) {
+	rc = mbox_process(mbox);
+	if (rc) {
 		tim_err_desc(rc);
-		return rc;
+		rc = -EIO;
 	}
 
-	return 0;
+fail:
+	mbox_put(mbox);
+	return rc;
 }
 
 int
@@ -180,27 +200,32 @@ roc_tim_lf_interval(struct roc_tim *roc_tim, enum roc_tim_clk_src clk_src,
 		    uint64_t clockfreq, uint64_t *intervalns,
 		    uint64_t *interval)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
+	struct sso *sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
+	struct dev *dev = &sso->dev;
+	struct mbox *mbox = mbox_get(dev->mbox);
 	struct tim_intvl_req *req;
 	struct tim_intvl_rsp *rsp;
 	int rc = -ENOSPC;
 
-	req = mbox_alloc_msg_tim_get_min_intvl(dev->mbox);
+	req = mbox_alloc_msg_tim_get_min_intvl(mbox);
 	if (req == NULL)
-		return rc;
+		goto fail;
 
 	req->clockfreq = clockfreq;
 	req->clocksource = clk_src;
 	rc = mbox_process_msg(dev->mbox, (void **)&rsp);
-	if (rc < 0) {
+	if (rc) {
 		tim_err_desc(rc);
-		return rc;
+		rc = -EIO;
+		goto fail;
 	}
 
 	*intervalns = rsp->intvl_ns;
 	*interval = rsp->intvl_cyc;
 
-	return 0;
+fail:
+	mbox_put(mbox);
+	return rc;
 }
 
 int
@@ -212,19 +237,21 @@ roc_tim_lf_alloc(struct roc_tim *roc_tim, uint8_t ring_id, uint64_t *clk)
 	struct tim_lf_alloc_req *req;
 	struct tim_lf_alloc_rsp *rsp;
 	struct dev *dev = &sso->dev;
+	struct mbox *mbox = mbox_get(dev->mbox);
 	int rc = -ENOSPC;
 
-	req = mbox_alloc_msg_tim_lf_alloc(dev->mbox);
+	req = mbox_alloc_msg_tim_lf_alloc(mbox);
 	if (req == NULL)
-		return rc;
+		goto fail;
 	req->npa_pf_func = idev_npa_pffunc_get();
 	req->sso_pf_func = idev_sso_pffunc_get();
 	req->ring = ring_id;
 
-	rc = mbox_process_msg(dev->mbox, (void **)&rsp);
-	if (rc < 0) {
+	rc = mbox_process_msg(mbox, (void **)&rsp);
+	if (rc) {
 		tim_err_desc(rc);
-		return rc;
+		rc = -EIO;
+		goto fail;
 	}
 
 	if (clk)
@@ -234,13 +261,19 @@ roc_tim_lf_alloc(struct roc_tim *roc_tim, uint8_t ring_id, uint64_t *clk)
 				   tim->tim_msix_offsets[ring_id]);
 	if (rc < 0) {
 		plt_tim_dbg("Failed to register Ring[%d] IRQ", ring_id);
-		free_req = mbox_alloc_msg_tim_lf_free(dev->mbox);
-		if (free_req == NULL)
-			return -ENOSPC;
+		free_req = mbox_alloc_msg_tim_lf_free(mbox);
+		if (free_req == NULL) {
+			rc = -ENOSPC;
+			goto fail;
+		}
 		free_req->ring = ring_id;
-		mbox_process(dev->mbox);
+		rc = mbox_process(mbox);
+		if (rc)
+			rc = -EIO;
 	}
 
+fail:
+	mbox_put(dev->mbox);
 	return rc;
 }
 
@@ -256,16 +289,41 @@ roc_tim_lf_free(struct roc_tim *roc_tim, uint8_t ring_id)
 	tim_unregister_irq_priv(roc_tim, sso->pci_dev->intr_handle, ring_id,
 				tim->tim_msix_offsets[ring_id]);
 
-	req = mbox_alloc_msg_tim_lf_free(dev->mbox);
+	req = mbox_alloc_msg_tim_lf_free(mbox_get(dev->mbox));
 	if (req == NULL)
-		return rc;
+		goto fail;
 	req->ring = ring_id;
 
 	rc = mbox_process(dev->mbox);
 	if (rc < 0) {
 		tim_err_desc(rc);
-		return rc;
+		rc = -EIO;
+		goto fail;
 	}
+	rc = 0;
+
+fail:
+	mbox_put(dev->mbox);
+	return rc;
+}
+
+int
+tim_free_lf_count_get(struct dev *dev, uint16_t *nb_lfs)
+{
+	struct mbox *mbox = mbox_get(dev->mbox);
+	struct free_rsrcs_rsp *rsrc_cnt;
+	int rc;
+
+	mbox_alloc_msg_free_rsrc_cnt(mbox);
+	rc = mbox_process_msg(mbox, (void **)&rsrc_cnt);
+	if (rc) {
+		plt_err("Failed to get free resource count\n");
+		mbox_put(mbox);
+		return -EIO;
+	}
+
+	*nb_lfs = rsrc_cnt->tim;
+	mbox_put(mbox);
 
 	return 0;
 }
@@ -275,70 +333,88 @@ roc_tim_init(struct roc_tim *roc_tim)
 {
 	struct rsrc_attach_req *attach_req;
 	struct rsrc_detach_req *detach_req;
-	struct free_rsrcs_rsp *free_rsrc;
+	uint16_t nb_lfs, nb_free_lfs;
+	struct sso *sso;
 	struct dev *dev;
-	uint16_t nb_lfs;
 	int rc;
 
 	if (roc_tim == NULL || roc_tim->roc_sso == NULL)
 		return TIM_ERR_PARAM;
 
+	sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
+	dev = &sso->dev;
+	dev->roc_tim = roc_tim;
 	PLT_STATIC_ASSERT(sizeof(struct tim) <= TIM_MEM_SZ);
-	dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
 	nb_lfs = roc_tim->nb_lfs;
-	mbox_alloc_msg_free_rsrc_cnt(dev->mbox);
-	rc = mbox_process_msg(dev->mbox, (void *)&free_rsrc);
-	if (rc < 0) {
-		plt_err("Unable to get free rsrc count.");
-		return 0;
+
+	rc = tim_free_lf_count_get(dev, &nb_free_lfs);
+	if (rc) {
+		plt_tim_dbg("Failed to get TIM resource count");
+		nb_lfs = 0;
+		return nb_lfs;
 	}
 
-	if (nb_lfs && (free_rsrc->tim < nb_lfs)) {
-		plt_tim_dbg("Requested LFs : %d Available LFs : %d", nb_lfs,
-			    free_rsrc->tim);
-		return 0;
+	if (nb_lfs && (nb_free_lfs < nb_lfs)) {
+		plt_tim_dbg("Requested LFs : %d Available LFs : %d", nb_lfs, nb_free_lfs);
+		nb_lfs = 0;
+		return nb_lfs;
 	}
 
+	mbox_get(dev->mbox);
 	attach_req = mbox_alloc_msg_attach_resources(dev->mbox);
-	if (attach_req == NULL)
-		return -ENOSPC;
+	if (attach_req == NULL) {
+		nb_lfs = 0;
+		goto fail;
+	}
 	attach_req->modify = true;
-	attach_req->timlfs = nb_lfs ? nb_lfs : free_rsrc->tim;
+	attach_req->timlfs = nb_lfs ? nb_lfs : nb_free_lfs;
 	nb_lfs = attach_req->timlfs;
 
 	rc = mbox_process(dev->mbox);
-	if (rc < 0) {
+	if (rc) {
 		plt_err("Unable to attach TIM LFs.");
-		return 0;
+		nb_lfs = 0;
+		goto fail;
 	}
 
+	mbox_put(dev->mbox);
 	rc = tim_fill_msix(roc_tim, nb_lfs);
 	if (rc < 0) {
 		plt_err("Unable to get TIM MSIX vectors");
 
-		detach_req = mbox_alloc_msg_detach_resources(dev->mbox);
-		if (detach_req == NULL)
-			return -ENOSPC;
+		detach_req = mbox_alloc_msg_detach_resources(mbox_get(dev->mbox));
+		if (detach_req == NULL) {
+			nb_lfs = 0;
+			goto fail;
+		}
 		detach_req->partial = true;
 		detach_req->timlfs = true;
 		mbox_process(dev->mbox);
-
-		return 0;
+		nb_lfs = 0;
+	} else {
+		goto done;
 	}
 
+fail:
+	mbox_put(dev->mbox);
+done:
+	roc_tim->nb_lfs = nb_lfs;
 	return nb_lfs;
 }
 
 void
 roc_tim_fini(struct roc_tim *roc_tim)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_tim->roc_sso)->dev;
+	struct sso *sso = roc_sso_to_sso_priv(roc_tim->roc_sso);
 	struct rsrc_detach_req *detach_req;
+	struct dev *dev = &sso->dev;
+	struct mbox *mbox = mbox_get(dev->mbox);
 
-	detach_req = mbox_alloc_msg_detach_resources(dev->mbox);
+	detach_req = mbox_alloc_msg_detach_resources(mbox);
 	PLT_ASSERT(detach_req);
 	detach_req->partial = true;
 	detach_req->timlfs = true;
 
-	mbox_process(dev->mbox);
+	mbox_process(mbox);
+	mbox_put(mbox);
 }

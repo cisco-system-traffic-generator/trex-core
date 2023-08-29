@@ -10,10 +10,11 @@
 
 #include <rte_cycles.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_log.h>
 #include <rte_io.h>
 
+#define WARNINGOUT(S, args...)  RTE_LOG(WARNING, PMD, S, ##args)
 #define DEBUGOUT(S, args...)    RTE_LOG(DEBUG, PMD, S, ##args)
 #define STATIC                  static
 

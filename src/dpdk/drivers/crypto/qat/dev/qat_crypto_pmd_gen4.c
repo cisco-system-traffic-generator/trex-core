@@ -91,16 +91,57 @@ static struct rte_cryptodev_capabilities qat_sym_crypto_caps_gen4[] = {
 		CAP_RNG(key_size, 32, 32, 0),
 		CAP_RNG(digest_size, 16, 16, 0),
 		CAP_RNG(aad_size, 0, 240, 1), CAP_RNG(iv_size, 12, 12, 0)),
+	QAT_SYM_CIPHER_CAP(SM4_ECB,
+		CAP_SET(block_size, 16),
+		CAP_RNG(key_size, 16, 16, 0), CAP_RNG(iv_size, 0, 0, 0)),
+	QAT_SYM_CIPHER_CAP(SM4_CBC,
+		CAP_SET(block_size, 16),
+		CAP_RNG(key_size, 16, 16, 0), CAP_RNG(iv_size, 16, 16, 0)),
+	QAT_SYM_CIPHER_CAP(SM4_CTR,
+		CAP_SET(block_size, 16),
+		CAP_RNG(key_size, 16, 16, 0), CAP_RNG(iv_size, 16, 16, 0)),
+	QAT_SYM_PLAIN_AUTH_CAP(SM3,
+		CAP_SET(block_size, 64),
+		CAP_RNG(digest_size, 32, 32, 0)),
 	RTE_CRYPTODEV_END_OF_CAPABILITIES_LIST()
 };
 
-static struct qat_capabilities_info
-qat_sym_crypto_cap_get_gen4(struct qat_pci_device *qat_dev __rte_unused)
+static int
+qat_sym_crypto_cap_get_gen4(struct qat_cryptodev_private *internals,
+			const char *capa_memz_name,
+			const uint16_t __rte_unused slice_map)
 {
-	struct qat_capabilities_info capa_info;
-	capa_info.data = qat_sym_crypto_caps_gen4;
-	capa_info.size = sizeof(qat_sym_crypto_caps_gen4);
-	return capa_info;
+	const uint32_t size = sizeof(qat_sym_crypto_caps_gen4);
+	uint32_t i;
+
+	internals->capa_mz = rte_memzone_lookup(capa_memz_name);
+	if (internals->capa_mz == NULL) {
+		internals->capa_mz = rte_memzone_reserve(capa_memz_name,
+				size, rte_socket_id(), 0);
+		if (internals->capa_mz == NULL) {
+			QAT_LOG(DEBUG,
+				"Error allocating memzone for capabilities");
+			return -1;
+		}
+	}
+
+	struct rte_cryptodev_capabilities *addr =
+			(struct rte_cryptodev_capabilities *)
+				internals->capa_mz->addr;
+	const struct rte_cryptodev_capabilities *capabilities =
+		qat_sym_crypto_caps_gen4;
+	const uint32_t capa_num =
+		size / sizeof(struct rte_cryptodev_capabilities);
+	uint32_t curr_capa = 0;
+
+	for (i = 0; i < capa_num; i++) {
+		memcpy(addr + curr_capa, capabilities + i,
+			sizeof(struct rte_cryptodev_capabilities));
+		curr_capa++;
+	}
+	internals->qat_dev_capabilities = internals->capa_mz->addr;
+
+	return 0;
 }
 
 static __rte_always_inline void
@@ -375,8 +416,12 @@ RTE_INIT(qat_sym_crypto_gen4_init)
 
 RTE_INIT(qat_asym_crypto_gen4_init)
 {
-	qat_asym_gen_dev_ops[QAT_GEN4].cryptodev_ops = NULL;
-	qat_asym_gen_dev_ops[QAT_GEN4].get_capabilities = NULL;
-	qat_asym_gen_dev_ops[QAT_GEN4].get_feature_flags = NULL;
-	qat_asym_gen_dev_ops[QAT_GEN4].set_session = NULL;
+	qat_asym_gen_dev_ops[QAT_GEN4].cryptodev_ops =
+			&qat_asym_crypto_ops_gen1;
+	qat_asym_gen_dev_ops[QAT_GEN4].get_capabilities =
+			qat_asym_crypto_cap_get_gen1;
+	qat_asym_gen_dev_ops[QAT_GEN4].get_feature_flags =
+			qat_asym_crypto_feature_flags_get_gen1;
+	qat_asym_gen_dev_ops[QAT_GEN4].set_session =
+			qat_asym_crypto_set_session_gen1;
 }

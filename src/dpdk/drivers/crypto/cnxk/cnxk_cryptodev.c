@@ -2,9 +2,11 @@
  * Copyright(C) 2021 Marvell.
  */
 
+#include <cryptodev_pmd.h>
 #include <rte_cryptodev.h>
 
 #include "roc_cpt.h"
+#include "roc_model.h"
 
 #include "cnxk_cryptodev.h"
 
@@ -15,6 +17,7 @@ cnxk_cpt_default_ff_get(void)
 		      RTE_CRYPTODEV_FF_ASYMMETRIC_CRYPTO |
 		      RTE_CRYPTODEV_FF_HW_ACCELERATED |
 		      RTE_CRYPTODEV_FF_RSA_PRIV_OP_KEY_QT |
+		      RTE_CRYPTODEV_FF_RSA_PRIV_OP_KEY_EXP |
 		      RTE_CRYPTODEV_FF_SYM_OPERATION_CHAINING |
 		      RTE_CRYPTODEV_FF_IN_PLACE_SGL |
 		      RTE_CRYPTODEV_FF_OOP_LB_IN_LB_OUT |
@@ -54,4 +57,15 @@ cnxk_cpt_eng_grp_add(struct roc_cpt *roc_cpt)
 	}
 
 	return 0;
+}
+
+void
+cnxk_cpt_int_misc_cb(struct roc_cpt_lf *lf, __rte_unused void *args)
+{
+	struct roc_cpt *roc_cpt = lf->roc_cpt;
+
+	if (roc_cpt == NULL)
+		return;
+
+	rte_cryptodev_pmd_callback_process(roc_cpt->opaque, RTE_CRYPTODEV_EVENT_ERROR);
 }

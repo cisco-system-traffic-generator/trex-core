@@ -939,6 +939,11 @@ static int __bnxt_hwrm_func_qcaps(struct bnxt *bp)
 		bp->fw_cap |= BNXT_FW_CAP_VLAN_TX_INSERT;
 		PMD_DRV_LOG(DEBUG, "VLAN acceleration for TX is enabled\n");
 	}
+
+	bp->tunnel_disable_flag = rte_le_to_cpu_16(resp->tunnel_disable_flag);
+	if (bp->tunnel_disable_flag)
+		PMD_DRV_LOG(DEBUG, "Tunnel parsing capability is disabled, flags : %#x\n",
+			    bp->tunnel_disable_flag);
 unlock:
 	HWRM_UNLOCK();
 
@@ -1244,11 +1249,6 @@ int bnxt_hwrm_ver_get(struct bnxt *bp, uint32_t timeout)
 	else
 		HWRM_CHECK_RESULT();
 
-	if (resp->flags & HWRM_VER_GET_OUTPUT_FLAGS_DEV_NOT_RDY) {
-		rc = -EAGAIN;
-		goto error;
-	}
-
 	PMD_DRV_LOG(INFO, "%d.%d.%d:%d.%d.%d.%d\n",
 		resp->hwrm_intf_maj_8b, resp->hwrm_intf_min_8b,
 		resp->hwrm_intf_upd_8b, resp->hwrm_fw_maj_8b,
@@ -1424,17 +1424,17 @@ static int bnxt_hwrm_port_phy_cfg(struct bnxt *bp, struct bnxt_link_info *conf)
 			}
 		}
 		/* AutoNeg - Advertise speeds specified. */
-		if (conf->auto_link_speed_mask &&
+		if ((conf->auto_link_speed_mask || conf->auto_pam4_link_speed_mask) &&
 		    !(conf->phy_flags & HWRM_PORT_PHY_CFG_INPUT_FLAGS_FORCE)) {
 			req.auto_mode =
 				HWRM_PORT_PHY_CFG_INPUT_AUTO_MODE_SPEED_MASK;
-			if (conf->auto_pam4_link_speed_mask &&
-			    bp->link_info->link_signal_mode) {
+			if (conf->auto_pam4_link_speed_mask) {
 				enables |=
 				HWRM_PORT_PHY_CFG_IN_EN_AUTO_PAM4_LINK_SPD_MASK;
 				req.auto_link_pam4_speed_mask =
 				rte_cpu_to_le_16(conf->auto_pam4_link_speed_mask);
-			} else {
+			}
+			if (conf->auto_link_speed_mask) {
 				enables |=
 				HWRM_PORT_PHY_CFG_IN_EN_AUTO_LINK_SPEED_MASK;
 				req.auto_link_speed_mask =
@@ -1506,7 +1506,7 @@ static int bnxt_hwrm_port_phy_qcfg(struct bnxt *bp,
 	link_info->phy_ver[1] = resp->phy_min;
 	link_info->phy_ver[2] = resp->phy_bld;
 	link_info->link_signal_mode =
-		rte_le_to_cpu_16(resp->active_fec_signal_mode);
+		resp->active_fec_signal_mode & HWRM_PORT_PHY_QCFG_OUTPUT_SIGNAL_MODE_MASK;
 	link_info->force_pam4_link_speed =
 			rte_le_to_cpu_16(resp->force_pam4_link_speed);
 	link_info->support_pam4_speeds =
@@ -2970,7 +2970,7 @@ static uint16_t bnxt_check_eth_link_autoneg(uint32_t conf_link)
 }
 
 static uint16_t bnxt_parse_eth_link_speed(uint32_t conf_link_speed,
-					  uint16_t pam4_link)
+					  struct bnxt_link_info *link_info)
 {
 	uint16_t eth_link_speed = 0;
 
@@ -3009,18 +3009,29 @@ static uint16_t bnxt_parse_eth_link_speed(uint32_t conf_link_speed,
 			HWRM_PORT_PHY_CFG_INPUT_FORCE_LINK_SPEED_40GB;
 		break;
 	case RTE_ETH_LINK_SPEED_50G:
-		eth_link_speed = pam4_link ?
-			HWRM_PORT_PHY_CFG_INPUT_FORCE_PAM4_LINK_SPEED_50GB :
-			HWRM_PORT_PHY_CFG_INPUT_FORCE_LINK_SPEED_50GB;
+		if (link_info->support_pam4_speeds &
+		    HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_50G) {
+			eth_link_speed = HWRM_PORT_PHY_CFG_INPUT_FORCE_PAM4_LINK_SPEED_50GB;
+			link_info->link_signal_mode = BNXT_SIG_MODE_PAM4;
+		} else {
+			eth_link_speed = HWRM_PORT_PHY_CFG_INPUT_FORCE_LINK_SPEED_50GB;
+			link_info->link_signal_mode = BNXT_SIG_MODE_NRZ;
+		}
 		break;
 	case RTE_ETH_LINK_SPEED_100G:
-		eth_link_speed = pam4_link ?
-			HWRM_PORT_PHY_CFG_INPUT_FORCE_PAM4_LINK_SPEED_100GB :
-			HWRM_PORT_PHY_CFG_INPUT_FORCE_LINK_SPEED_100GB;
+		if (link_info->support_pam4_speeds &
+		    HWRM_PORT_PHY_QCFG_OUTPUT_SUPPORT_PAM4_SPEEDS_100G) {
+			eth_link_speed = HWRM_PORT_PHY_CFG_INPUT_FORCE_PAM4_LINK_SPEED_100GB;
+			link_info->link_signal_mode = BNXT_SIG_MODE_PAM4;
+		} else {
+			eth_link_speed = HWRM_PORT_PHY_CFG_INPUT_FORCE_LINK_SPEED_100GB;
+			link_info->link_signal_mode = BNXT_SIG_MODE_NRZ;
+		}
 		break;
 	case RTE_ETH_LINK_SPEED_200G:
 		eth_link_speed =
 			HWRM_PORT_PHY_CFG_INPUT_FORCE_PAM4_LINK_SPEED_200GB;
+		link_info->link_signal_mode = BNXT_SIG_MODE_PAM4;
 		break;
 	default:
 		PMD_DRV_LOG(ERR,
@@ -3224,9 +3235,11 @@ int bnxt_set_hwrm_link_config(struct bnxt *bp, bool link_up)
 	if (!link_up)
 		goto port_phy_cfg;
 
+	/* Get user requested autoneg setting */
 	autoneg = bnxt_check_eth_link_autoneg(dev_conf->link_speeds);
+
 	if (BNXT_CHIP_P5(bp) &&
-	    dev_conf->link_speeds == RTE_ETH_LINK_SPEED_40G) {
+	    dev_conf->link_speeds & RTE_ETH_LINK_SPEED_40G) {
 		/* 40G is not supported as part of media auto detect.
 		 * The speed should be forced and autoneg disabled
 		 * to configure 40G speed.
@@ -3235,14 +3248,16 @@ int bnxt_set_hwrm_link_config(struct bnxt *bp, bool link_up)
 		autoneg = 0;
 	}
 
-	/* No auto speeds and no auto_pam4_link. Disable autoneg */
-	if (bp->link_info->auto_link_speed == 0 &&
-	    bp->link_info->link_signal_mode &&
-	    bp->link_info->auto_pam4_link_speed_mask == 0)
+	/* Override based on current Autoneg setting in PHY for 200G */
+	if (autoneg == 1 && BNXT_CHIP_P5(bp) && bp->link_info->auto_mode == 0 &&
+	    bp->link_info->force_pam4_link_speed ==
+	    HWRM_PORT_PHY_CFG_INPUT_FORCE_PAM4_LINK_SPEED_200GB) {
 		autoneg = 0;
+		PMD_DRV_LOG(DEBUG, "Disabling autoneg for 200G\n");
+	}
 
 	speed = bnxt_parse_eth_link_speed(dev_conf->link_speeds,
-					  bp->link_info->link_signal_mode);
+					  bp->link_info);
 	link_req.phy_flags = HWRM_PORT_PHY_CFG_INPUT_FLAGS_RESET_PHY;
 	/* Autoneg can be done only when the FW allows. */
 	if (autoneg == 1 &&
@@ -3272,14 +3287,14 @@ int bnxt_set_hwrm_link_config(struct bnxt *bp, bool link_up)
 		else if (bp->link_info->force_pam4_link_speed)
 			link_req.link_speed =
 				bp->link_info->force_pam4_link_speed;
+		else if (bp->link_info->force_link_speed)
+			link_req.link_speed = bp->link_info->force_link_speed;
 		else if (bp->link_info->auto_pam4_link_speed_mask)
 			link_req.link_speed =
 				bp->link_info->auto_pam4_link_speed_mask;
 		else if (bp->link_info->support_pam4_speeds)
 			link_req.link_speed =
 				bp->link_info->support_pam4_speeds;
-		else if (bp->link_info->force_link_speed)
-			link_req.link_speed = bp->link_info->force_link_speed;
 		else
 			link_req.link_speed = bp->link_info->auto_link_speed;
 		/* Auto PAM4 link speed is zero, but auto_link_speed is not
@@ -4520,7 +4535,7 @@ int bnxt_hwrm_port_led_cfg(struct bnxt *bp, bool led_on)
 	uint16_t duration = 0;
 	int rc, i;
 
-	if (!bp->leds->num_leds || BNXT_VF(bp))
+	if (BNXT_VF(bp) || !bp->leds || !bp->leds->num_leds)
 		return -EOPNOTSUPP;
 
 	HWRM_PREP(&req, HWRM_PORT_LED_CFG, BNXT_USE_CHIMP_MB);
@@ -6149,10 +6164,6 @@ int bnxt_hwrm_poll_ver_get(struct bnxt *bp)
 	rc = bnxt_hwrm_send_message(bp, &req, sizeof(req), BNXT_USE_CHIMP_MB);
 
 	HWRM_CHECK_RESULT_SILENT();
-
-	if (resp->flags & HWRM_VER_GET_OUTPUT_FLAGS_DEV_NOT_RDY)
-		rc = -EAGAIN;
-
 	HWRM_UNLOCK();
 
 	return rc;

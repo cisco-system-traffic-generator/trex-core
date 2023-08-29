@@ -21,6 +21,7 @@
 /* PMD socket service for tools. */
 
 #define MLX5_SOCKET_PATH "/var/tmp/dpdk_net_mlx5_%d"
+#define MLX5_ALL_PORT_IDS 0xffff
 
 int server_socket = -1; /* Unix socket for primary process. */
 struct rte_intr_handle *server_intr_handle; /* Interrupt handler. */
@@ -35,7 +36,7 @@ mlx5_pmd_socket_handle(void *cb __rte_unused)
 	int ret;
 	struct cmsghdr *cmsg = NULL;
 	uint32_t data[MLX5_SENDMSG_MAX / sizeof(uint32_t)];
-	uint64_t flow_ptr = 0;
+	struct rte_flow *flow_ptr = NULL;
 	uint8_t  buf[CMSG_SPACE(sizeof(int))] = { 0 };
 	struct iovec io = {
 		.iov_base = data,
@@ -92,24 +93,36 @@ mlx5_pmd_socket_handle(void *cb __rte_unused)
 	dump_req = (struct mlx5_flow_dump_req *)msg.msg_iov->iov_base;
 	if (dump_req) {
 		port_id = dump_req->port_id;
-		flow_ptr = dump_req->flow_id;
+		flow_ptr = (struct rte_flow *)((uintptr_t)dump_req->flow_id);
 	} else {
 		DRV_LOG(WARNING, "Invalid message");
 		goto error;
 	}
 
-	if (!rte_eth_dev_is_valid_port(port_id)) {
-		DRV_LOG(WARNING, "Invalid port %u", port_id);
-		goto error;
-	}
+	if (port_id == MLX5_ALL_PORT_IDS) {
+		/* Dump all port ids */
+		if (flow_ptr) {
+			DRV_LOG(WARNING, "Flow ptr unsupported with given port id");
+			goto error;
+		}
 
-	/* Dump flow. */
-	dev = &rte_eth_devices[port_id];
-	if (flow_ptr == 0)
-		ret = mlx5_flow_dev_dump(dev, NULL, file, NULL);
-	else
-		ret = mlx5_flow_dev_dump(dev,
-			(struct rte_flow *)((uintptr_t)flow_ptr), file, &err);
+		MLX5_ETH_FOREACH_DEV(port_id, NULL) {
+			dev = &rte_eth_devices[port_id];
+			ret = mlx5_flow_dev_dump(dev, NULL, file, &err);
+			if (ret)
+				break;
+		}
+	} else {
+		/* Dump single port id */
+		if (!rte_eth_dev_is_valid_port(port_id)) {
+			DRV_LOG(WARNING, "Invalid port %u", port_id);
+			goto error;
+		}
+
+		/* Dump flow */
+		dev = &rte_eth_devices[port_id];
+		ret = mlx5_flow_dev_dump(dev, flow_ptr, file, &err);
+	}
 
 	/* Set-up the ancillary data and reply. */
 	msg.msg_controllen = 0;
@@ -131,51 +144,6 @@ error:
 		close(conn_sock);
 	if (file)
 		fclose(file);
-}
-
-/**
- * Install interrupt handler.
- *
- * @param dev
- *   Pointer to Ethernet device.
- * @return
- *   0 on success, a negative errno value otherwise.
- */
-static int
-mlx5_pmd_interrupt_handler_install(void)
-{
-	MLX5_ASSERT(server_socket != -1);
-
-	server_intr_handle =
-		rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_PRIVATE);
-	if (server_intr_handle == NULL) {
-		DRV_LOG(ERR, "Fail to allocate intr_handle");
-		return -ENOMEM;
-	}
-	if (rte_intr_fd_set(server_intr_handle, server_socket))
-		return -rte_errno;
-
-	if (rte_intr_type_set(server_intr_handle, RTE_INTR_HANDLE_EXT))
-		return -rte_errno;
-
-	return rte_intr_callback_register(server_intr_handle,
-					  mlx5_pmd_socket_handle, NULL);
-}
-
-/**
- * Uninstall interrupt handler.
- */
-static void
-mlx5_pmd_interrupt_handler_uninstall(void)
-{
-	if (server_socket != -1) {
-		mlx5_intr_callback_unregister(server_intr_handle,
-					      mlx5_pmd_socket_handle,
-					      NULL);
-	}
-	rte_intr_fd_set(server_intr_handle, 0);
-	rte_intr_type_set(server_intr_handle, RTE_INTR_HANDLE_UNKNOWN);
-	rte_intr_instance_free(server_intr_handle);
 }
 
 /**
@@ -224,7 +192,10 @@ mlx5_pmd_socket_init(void)
 			strerror(errno));
 		goto remove;
 	}
-	if (mlx5_pmd_interrupt_handler_install()) {
+	server_intr_handle = mlx5_os_interrupt_handler_create
+		(RTE_INTR_INSTANCE_F_PRIVATE, false,
+		 server_socket, mlx5_pmd_socket_handle, NULL);
+	if (server_intr_handle == NULL) {
 		DRV_LOG(WARNING, "cannot register interrupt handler for mlx5 socket: %s",
 			strerror(errno));
 		goto remove;
@@ -248,7 +219,8 @@ mlx5_pmd_socket_uninit(void)
 {
 	if (server_socket == -1)
 		return;
-	mlx5_pmd_interrupt_handler_uninstall();
+	mlx5_os_interrupt_handler_destroy(server_intr_handle,
+					  mlx5_pmd_socket_handle, NULL);
 	claim_zero(close(server_socket));
 	server_socket = -1;
 	MKSTR(path, MLX5_SOCKET_PATH, getpid());

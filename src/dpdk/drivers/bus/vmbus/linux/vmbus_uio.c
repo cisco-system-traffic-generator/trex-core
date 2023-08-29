@@ -13,14 +13,13 @@
 
 #include <rte_eal.h>
 #include <rte_log.h>
-#include <rte_bus.h>
 #include <rte_memory.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
 #include <rte_bus_vmbus.h>
 #include <rte_string_fns.h>
 
-#include "vmprivate.h"
+#include "../private.h"
 
 /** Pathname of VMBUS devices directory. */
 #define SYSFS_VMBUS_DEVICES "/sys/bus/vmbus/devices"

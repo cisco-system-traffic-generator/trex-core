@@ -72,8 +72,8 @@ nix_tm_lvl2nix(struct nix *nix, uint32_t lvl)
 		return nix_tm_lvl2nix_tl2_root(lvl);
 }
 
-static uint8_t
-nix_tm_relchan_get(struct nix *nix)
+uint8_t
+nix_tm_lbk_relchan_get(struct nix *nix)
 {
 	return nix->tx_chan_base & 0xff;
 }
@@ -478,7 +478,7 @@ nix_tm_child_res_valid(struct nix_tm_node_list *list,
 }
 
 uint8_t
-nix_tm_tl1_default_prep(uint32_t schq, volatile uint64_t *reg,
+nix_tm_tl1_default_prep(struct nix *nix, uint32_t schq, volatile uint64_t *reg,
 			volatile uint64_t *regval)
 {
 	uint8_t k = 0;
@@ -496,7 +496,7 @@ nix_tm_tl1_default_prep(uint32_t schq, volatile uint64_t *reg,
 	k++;
 
 	reg[k] = NIX_AF_TL1X_TOPOLOGY(schq);
-	regval[k] = (NIX_TM_TL1_DFLT_RR_PRIO << 1);
+	regval[k] = (nix->tm_aggr_lvl_rr_prio << 1);
 	k++;
 
 	reg[k] = NIX_AF_TL1X_CIR(schq);
@@ -531,7 +531,7 @@ nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 		parent = node->parent->hw_id;
 
 	link = nix->tx_link;
-	relchan = nix_tm_relchan_get(nix);
+	relchan = roc_nix_is_lbk(roc_nix) ? nix_tm_lbk_relchan_get(nix) : 0;
 
 	if (hw_lvl != NIX_TXSCH_LVL_SMQ)
 		child = nix_tm_find_prio_anchor(nix, node->id, tree);
@@ -540,7 +540,7 @@ nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 	 * Static Priority is disabled
 	 */
 	if (hw_lvl == NIX_TXSCH_LVL_TL1 && nix->tm_flags & NIX_TM_TL1_NO_SP) {
-		rr_prio = NIX_TM_TL1_DFLT_RR_PRIO;
+		rr_prio = nix->tm_aggr_lvl_rr_prio;
 		child = 0;
 	}
 
@@ -582,8 +582,12 @@ nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 
 		/* Configure TL4 to send to SDP channel instead of CGX/LBK */
 		if (nix->sdp_link) {
+			plt_tm_dbg("relchan=%u schq=%u tx_chan_cnt=%u\n", relchan, schq,
+				   nix->tx_chan_cnt);
 			reg[k] = NIX_AF_TL4X_SDP_LINK_CFG(schq);
 			regval[k] = BIT_ULL(12);
+			regval[k] |= BIT_ULL(13);
+			regval[k] |= relchan;
 			k++;
 		}
 		break;
@@ -602,10 +606,6 @@ nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 		    nix->tm_link_cfg_lvl == NIX_TXSCH_LVL_TL3) {
 			reg[k] = NIX_AF_TL3_TL2X_LINKX_CFG(schq, link);
 			regval[k] = BIT_ULL(12) | relchan;
-			/* Enable BP if node is BP capable and rx_pause is set
-			 */
-			if (nix->rx_pause && node->bp_capa)
-				regval[k] |= BIT_ULL(13);
 			k++;
 		}
 
@@ -625,10 +625,6 @@ nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 		    nix->tm_link_cfg_lvl == NIX_TXSCH_LVL_TL2) {
 			reg[k] = NIX_AF_TL3_TL2X_LINKX_CFG(schq, link);
 			regval[k] = BIT_ULL(12) | relchan;
-			/* Enable BP if node is BP capable and rx_pause is set
-			 */
-			if (nix->rx_pause && node->bp_capa)
-				regval[k] |= BIT_ULL(13);
 			k++;
 		}
 
@@ -644,9 +640,25 @@ nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 	return k;
 }
 
+static inline int
+nix_tm_default_rr_weight(struct nix *nix)
+{
+	struct roc_nix *roc_nix = nix_priv_to_roc_nix(nix);
+	uint32_t max_pktlen = roc_nix_max_pkt_len(roc_nix);
+	uint32_t weight;
+
+	/* Reduce TX VTAG Insertions */
+	max_pktlen -= 8;
+	weight = max_pktlen / roc_nix->dwrr_mtu;
+	if (max_pktlen % roc_nix->dwrr_mtu)
+		weight += 1;
+
+	return weight;
+}
+
 uint8_t
-nix_tm_sched_reg_prep(struct nix *nix, struct nix_tm_node *node,
-		      volatile uint64_t *reg, volatile uint64_t *regval)
+nix_tm_sched_reg_prep(struct nix *nix, struct nix_tm_node *node, volatile uint64_t *reg,
+		      volatile uint64_t *regval)
 {
 	uint64_t strict_prio = node->priority;
 	uint32_t hw_lvl = node->hw_lvl;
@@ -654,20 +666,26 @@ nix_tm_sched_reg_prep(struct nix *nix, struct nix_tm_node *node,
 	uint64_t rr_quantum;
 	uint8_t k = 0;
 
-	/* For CN9K, weight needs to be converted to quantum */
-	rr_quantum = nix_tm_weight_to_rr_quantum(node->weight);
+	/* If minimum weight not provided, then by default RR_QUANTUM
+	 * should be in sync with kernel, i.e., single MTU value
+	 */
+	if (!node->weight)
+		rr_quantum = nix_tm_default_rr_weight(nix);
+	else
+		/* For CN9K, weight needs to be converted to quantum */
+		rr_quantum = nix_tm_weight_to_rr_quantum(node->weight);
 
 	/* For children to root, strict prio is default if either
 	 * device root is TL2 or TL1 Static Priority is disabled.
 	 */
 	if (hw_lvl == NIX_TXSCH_LVL_TL2 &&
 	    (!nix_tm_have_tl1_access(nix) || nix->tm_flags & NIX_TM_TL1_NO_SP))
-		strict_prio = NIX_TM_TL1_DFLT_RR_PRIO;
+		strict_prio = nix->tm_aggr_lvl_rr_prio;
 
 	plt_tm_dbg("Schedule config node %s(%u) lvl %u id %u, "
 		   "prio 0x%" PRIx64 ", rr_quantum/rr_wt 0x%" PRIx64 " (%p)",
-		   nix_tm_hwlvl2str(node->hw_lvl), schq, node->lvl, node->id,
-		   strict_prio, rr_quantum, node);
+		   nix_tm_hwlvl2str(node->hw_lvl), schq, node->lvl, node->id, strict_prio,
+		   rr_quantum, node);
 
 	switch (hw_lvl) {
 	case NIX_TXSCH_LVL_SMQ:
@@ -1144,7 +1162,7 @@ roc_nix_tm_node_stats_get(struct roc_nix *roc_nix, uint32_t node_id, bool clear,
 
 	memset(n_stats, 0, sizeof(struct roc_nix_tm_node_stats));
 
-	req = mbox_alloc_msg_nix_txschq_cfg(mbox);
+	req = mbox_alloc_msg_nix_txschq_cfg(mbox_get(mbox));
 	req->read = 1;
 	req->lvl = NIX_TXSCH_LVL_TL1;
 
@@ -1160,8 +1178,10 @@ roc_nix_tm_node_stats_get(struct roc_nix *roc_nix, uint32_t node_id, bool clear,
 	req->num_regs = i;
 
 	rc = mbox_process_msg(mbox, (void **)&rsp);
-	if (rc)
+	if (rc) {
+		mbox_put(mbox);
 		return rc;
+	}
 
 	/* Return stats */
 	n_stats->stats[ROC_NIX_TM_NODE_PKTS_DROPPED] = rsp->regval[0];
@@ -1172,13 +1192,14 @@ roc_nix_tm_node_stats_get(struct roc_nix *roc_nix, uint32_t node_id, bool clear,
 	n_stats->stats[ROC_NIX_TM_NODE_YELLOW_BYTES] = rsp->regval[5];
 	n_stats->stats[ROC_NIX_TM_NODE_RED_PKTS] = rsp->regval[6];
 	n_stats->stats[ROC_NIX_TM_NODE_RED_BYTES] = rsp->regval[7];
+	mbox_put(mbox);
 
 clear_stats:
 	if (!clear)
 		return 0;
 
 	/* Clear all the stats */
-	req = mbox_alloc_msg_nix_txschq_cfg(mbox);
+	req = mbox_alloc_msg_nix_txschq_cfg(mbox_get(mbox));
 	req->lvl = NIX_TXSCH_LVL_TL1;
 	i = 0;
 	req->reg[i++] = NIX_AF_TL1X_DROPPED_PACKETS(schq);
@@ -1191,7 +1212,9 @@ clear_stats:
 	req->reg[i++] = NIX_AF_TL1X_RED_BYTES(schq);
 	req->num_regs = i;
 
-	return mbox_process_msg(mbox, (void **)&rsp);
+	rc = mbox_process_msg(mbox, (void **)&rsp);
+	mbox_put(mbox);
+	return rc;
 }
 
 bool
@@ -1236,11 +1259,14 @@ roc_nix_tm_shaper_default_red_algo(struct roc_nix_tm_node *node,
 	struct nix_tm_shaper_profile *profile;
 	struct nix_tm_shaper_data cir, pir;
 
+	if (!roc_prof)
+		return;
+
 	profile = (struct nix_tm_shaper_profile *)roc_prof->reserved;
-	tm_node->red_algo = NIX_REDALG_STD;
+	tm_node->red_algo = roc_prof->red_algo;
 
 	/* C0 doesn't support STALL when both PIR & CIR are enabled */
-	if (profile && roc_model_is_cn96_cx()) {
+	if (roc_model_is_cn96_cx()) {
 		nix_tm_shaper_conf_get(profile, &cir, &pir);
 
 		if (pir.rate && cir.rate)

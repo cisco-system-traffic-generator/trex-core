@@ -36,14 +36,28 @@
 		RTE_ETH_TX_OFFLOAD_UDP_CKSUM |		 \
 		RTE_ETH_TX_OFFLOAD_TCP_CKSUM)
 
+#define IAVF_TX_VECTOR_OFFLOAD_CTX (			\
+		RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |	\
+		RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM)
+
 #define IAVF_RX_VECTOR_OFFLOAD (				 \
 		RTE_ETH_RX_OFFLOAD_CHECKSUM |		 \
 		RTE_ETH_RX_OFFLOAD_SCTP_CKSUM |		 \
 		RTE_ETH_RX_OFFLOAD_VLAN |		 \
 		RTE_ETH_RX_OFFLOAD_RSS_HASH)
 
+/**
+ * According to the vlan capabilities returned by the driver and FW, the vlan tci
+ * needs to be inserted to the L2TAG1 or L2TAG2 fields.
+ * If L2TAG1, it should be inserted to the L2TAG1 field in data desc.
+ * If L2TAG2, it should be inserted to the L2TAG2 field in ctx desc.
+ * Besides, tunneling parameters and other fields need be configured in ctx desc
+ * if the outer checksum offload is enabled.
+ */
+
 #define IAVF_VECTOR_PATH 0
 #define IAVF_VECTOR_OFFLOAD_PATH 1
+#define IAVF_VECTOR_CTX_OFFLOAD_PATH 2
 
 #define DEFAULT_TX_RS_THRESH     32
 #define DEFAULT_TX_FREE_THRESH   32
@@ -53,10 +67,14 @@
 #define IAVF_TSO_MAX_SEG          UINT8_MAX
 #define IAVF_TX_MAX_MTU_SEG       8
 
+#define IAVF_TX_MIN_PKT_LEN 17
+
 #define IAVF_TX_CKSUM_OFFLOAD_MASK (		 \
 		RTE_MBUF_F_TX_IP_CKSUM |		 \
 		RTE_MBUF_F_TX_L4_MASK |		 \
-		RTE_MBUF_F_TX_TCP_SEG)
+		RTE_MBUF_F_TX_TCP_SEG |          \
+		RTE_MBUF_F_TX_OUTER_IP_CKSUM |   \
+		RTE_MBUF_F_TX_OUTER_UDP_CKSUM)
 
 #define IAVF_TX_OFFLOAD_MASK (  \
 		RTE_MBUF_F_TX_OUTER_IPV6 |		 \
@@ -67,10 +85,20 @@
 		RTE_MBUF_F_TX_IP_CKSUM |		 \
 		RTE_MBUF_F_TX_L4_MASK |		 \
 		RTE_MBUF_F_TX_TCP_SEG |		 \
+		RTE_MBUF_F_TX_TUNNEL_MASK |	\
+		RTE_MBUF_F_TX_OUTER_IP_CKSUM |  \
+		RTE_MBUF_F_TX_OUTER_UDP_CKSUM | \
 		RTE_ETH_TX_OFFLOAD_SECURITY)
 
 #define IAVF_TX_OFFLOAD_NOTSUP_MASK \
 		(RTE_MBUF_F_TX_OFFLOAD_MASK ^ IAVF_TX_OFFLOAD_MASK)
+
+/* HW requires that TX buffer size ranges from 1B up to (16K-1)B. */
+#define IAVF_MAX_DATA_PER_TXD \
+	(IAVF_TXD_QW1_TX_BUF_SZ_MASK >> IAVF_TXD_QW1_TX_BUF_SZ_SHIFT)
+
+extern uint64_t iavf_timestamp_dynflag;
+extern int iavf_timestamp_dynfield_offset;
 
 /**
  * Rx Flex Descriptors
@@ -187,6 +215,7 @@ struct iavf_rx_queue {
 	struct rte_mbuf *pkt_last_seg;  /* last segment of current packet */
 	struct rte_mbuf fake_mbuf;      /* dummy mbuf */
 	uint8_t rxdid;
+	uint8_t rel_mbufs_type;
 
 	/* used for VPMD */
 	uint16_t rxrearm_nb;       /* number of remaining to be re-armed */
@@ -219,6 +248,8 @@ struct iavf_rx_queue {
 		/* flexible descriptor metadata extraction offload flag */
 	struct iavf_rx_queue_stats stats;
 	uint64_t offloads;
+	uint64_t phc_time;
+	uint64_t hw_time_update;
 };
 
 struct iavf_tx_entry {
@@ -246,6 +277,7 @@ struct iavf_tx_queue {
 	uint16_t last_desc_cleaned;    /* last desc have been cleaned*/
 	uint16_t free_thresh;
 	uint16_t rs_thresh;
+	uint8_t rel_mbufs_type;
 
 	uint16_t port_id;
 	uint16_t queue_id;
@@ -261,6 +293,7 @@ struct iavf_tx_queue {
 #define IAVF_TX_FLAGS_VLAN_TAG_LOC_L2TAG2	BIT(1)
 	uint8_t vlan_flag;
 	uint8_t tc;
+	uint8_t use_ctx:1;            /* if use the ctx desc, a packet needs two descriptors */
 };
 
 /* Offload features */
@@ -387,6 +420,12 @@ struct iavf_32b_rx_flex_desc_comms_ipsec {
 	/* Qword 3 */
 	__le32 flow_id;
 	__le32 ipsec_said;
+};
+
+enum iavf_rxtx_rel_mbufs_type {
+	IAVF_REL_MBUFS_DEFAULT		= 0,
+	IAVF_REL_MBUFS_SSE_VEC		= 1,
+	IAVF_REL_MBUFS_AVX512_VEC	= 2,
 };
 
 /* Receive Flex Descriptor profile IDs: There are a total
@@ -687,11 +726,16 @@ uint16_t iavf_xmit_pkts_vec_avx512(void *tx_queue, struct rte_mbuf **tx_pkts,
 uint16_t iavf_xmit_pkts_vec_avx512_offload(void *tx_queue,
 					   struct rte_mbuf **tx_pkts,
 					   uint16_t nb_pkts);
+uint16_t iavf_xmit_pkts_vec_avx512_ctx_offload(void *tx_queue, struct rte_mbuf **tx_pkts,
+				  uint16_t nb_pkts);
 int iavf_txq_vec_setup_avx512(struct iavf_tx_queue *txq);
 
 uint8_t iavf_proto_xtr_type_to_rxdid(uint8_t xtr_type);
 
 void iavf_set_default_ptype_table(struct rte_eth_dev *dev);
+void iavf_tx_queue_release_mbufs_avx512(struct iavf_tx_queue *txq);
+void iavf_rx_queue_release_mbufs_sse(struct iavf_rx_queue *rxq);
+void iavf_tx_queue_release_mbufs_sse(struct iavf_tx_queue *txq);
 
 static inline
 void iavf_dump_rx_descriptor(struct iavf_rx_queue *rxq,
@@ -776,6 +820,24 @@ void iavf_fdir_rx_proc_enable(struct iavf_adapter *ad, bool on)
 				FDIR_PROC_ENABLE_PER_QUEUE(ad, on);
 		}
 	}
+}
+
+static inline
+uint64_t iavf_tstamp_convert_32b_64b(uint64_t time, uint32_t in_timestamp)
+{
+	const uint64_t mask = 0xFFFFFFFF;
+	uint32_t delta;
+	uint64_t ns;
+
+	delta = (in_timestamp - (uint32_t)(time & mask));
+	if (delta > (mask / 2)) {
+		delta = ((uint32_t)(time & mask) - in_timestamp);
+		ns = time - delta;
+	} else {
+		ns = time + delta;
+	}
+
+	return ns;
 }
 
 #ifdef RTE_LIBRTE_IAVF_DEBUG_DUMP_DESC

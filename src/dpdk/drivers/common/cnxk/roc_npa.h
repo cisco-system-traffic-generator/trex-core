@@ -5,7 +5,19 @@
 #ifndef _ROC_NPA_H_
 #define _ROC_NPA_H_
 
-#define ROC_AURA_ID_MASK       (BIT_ULL(16) - 1)
+#include <stdint.h>
+
+#include "hw/npa.h"
+
+#include "roc_bits.h"
+#include "roc_constants.h"
+#if defined(__aarch64__)
+#include "roc_io.h"
+#else
+#include "roc_io_generic.h"
+#endif
+#include "roc_npa_dp.h"
+
 #define ROC_AURA_OP_LIMIT_MASK (BIT_ULL(36) - 1)
 
 #define ROC_NPA_MAX_BLOCK_SZ		   (128 * 1024)
@@ -40,18 +52,6 @@ roc_npa_aura_handle_gen(uint32_t aura_id, uintptr_t addr)
 }
 
 static inline uint64_t
-roc_npa_aura_handle_to_aura(uint64_t aura_handle)
-{
-	return aura_handle & ROC_AURA_ID_MASK;
-}
-
-static inline uintptr_t
-roc_npa_aura_handle_to_base(uint64_t aura_handle)
-{
-	return (uintptr_t)(aura_handle & ~ROC_AURA_ID_MASK);
-}
-
-static inline uint64_t
 roc_npa_aura_op_alloc(uint64_t aura_handle, const int drop)
 {
 	uint64_t wdata = roc_npa_aura_handle_to_aura(aura_handle);
@@ -63,18 +63,6 @@ roc_npa_aura_op_alloc(uint64_t aura_handle, const int drop)
 	addr = (int64_t *)(roc_npa_aura_handle_to_base(aura_handle) +
 			   NPA_LF_AURA_OP_ALLOCX(0));
 	return roc_atomic64_add_nosync(wdata, addr);
-}
-
-static inline void
-roc_npa_aura_op_free(uint64_t aura_handle, const int fabs, uint64_t iova)
-{
-	uint64_t reg = roc_npa_aura_handle_to_aura(aura_handle);
-	const uint64_t addr =
-		roc_npa_aura_handle_to_base(aura_handle) + NPA_LF_AURA_OP_FREE0;
-	if (fabs)
-		reg |= BIT_ULL(63); /* FABS */
-
-	roc_store_pair(iova, reg, addr);
 }
 
 static inline uint64_t
@@ -264,7 +252,8 @@ roc_npa_batch_alloc_wait(uint64_t *cache_line)
 }
 
 static inline unsigned int
-roc_npa_aura_batch_alloc_count(uint64_t *aligned_buf, unsigned int num)
+roc_npa_aura_batch_alloc_count(uint64_t *aligned_buf, unsigned int num,
+			       unsigned int do_wait)
 {
 	unsigned int count, i;
 
@@ -278,7 +267,9 @@ roc_npa_aura_batch_alloc_count(uint64_t *aligned_buf, unsigned int num)
 
 		status = (struct npa_batch_alloc_status_s *)&aligned_buf[i];
 
-		roc_npa_batch_alloc_wait(&aligned_buf[i]);
+		if (do_wait)
+			roc_npa_batch_alloc_wait(&aligned_buf[i]);
+
 		count += status->count;
 	}
 
@@ -708,10 +699,32 @@ struct roc_npa {
 int __roc_api roc_npa_dev_init(struct roc_npa *roc_npa);
 int __roc_api roc_npa_dev_fini(struct roc_npa *roc_npa);
 
+/* Flags to pool create */
+#define ROC_NPA_ZERO_AURA_F BIT(0)
+
+/* Enumerations */
+enum roc_npa_buf_type {
+	/* Aura used for normal pkts */
+	ROC_NPA_BUF_TYPE_PACKET = 0,
+	/* Aura used for ipsec pkts */
+	ROC_NPA_BUF_TYPE_PACKET_IPSEC,
+	/* Aura used as vwqe for normal pkts */
+	ROC_NPA_BUF_TYPE_VWQE,
+	/* Aura used as vwqe for ipsec pkts */
+	ROC_NPA_BUF_TYPE_VWQE_IPSEC,
+	/* Aura used as SQB for SQ */
+	ROC_NPA_BUF_TYPE_SQB,
+	/* Aura used for general buffer */
+	ROC_NPA_BUF_TYPE_BUF,
+	/* Aura used for timeout pool */
+	ROC_NPA_BUF_TYPE_TIMEOUT,
+	ROC_NPA_BUF_TYPE_END,
+};
+
 /* NPA pool */
 int __roc_api roc_npa_pool_create(uint64_t *aura_handle, uint32_t block_size,
 				  uint32_t block_count, struct npa_aura_s *aura,
-				  struct npa_pool_s *pool);
+				  struct npa_pool_s *pool, uint32_t flags);
 int __roc_api roc_npa_aura_limit_modify(uint64_t aura_handle,
 					uint16_t aura_limit);
 int __roc_api roc_npa_pool_destroy(uint64_t aura_handle);
@@ -719,6 +732,10 @@ int __roc_api roc_npa_pool_range_update_check(uint64_t aura_handle);
 void __roc_api roc_npa_aura_op_range_set(uint64_t aura_handle,
 					 uint64_t start_iova,
 					 uint64_t end_iova);
+uint64_t __roc_api roc_npa_zero_aura_handle(void);
+int __roc_api roc_npa_buf_type_update(uint64_t aura_handle, enum roc_npa_buf_type type, int cnt);
+uint64_t __roc_api roc_npa_buf_type_mask(uint64_t aura_handle);
+uint64_t __roc_api roc_npa_buf_type_limit_get(uint64_t type_mask);
 
 /* Init callbacks */
 typedef int (*roc_npa_lf_init_cb_t)(struct plt_pci_device *pci_dev);
@@ -733,5 +750,8 @@ int __roc_api roc_npa_pool_op_pc_reset(uint64_t aura_handle);
 
 int __roc_api roc_npa_aura_drop_set(uint64_t aura_handle, uint64_t limit,
 				    bool ena);
+
+void __roc_api roc_npa_dev_lock(void);
+void __roc_api roc_npa_dev_unlock(void);
 
 #endif /* _ROC_NPA_H_ */

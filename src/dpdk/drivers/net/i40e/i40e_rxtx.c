@@ -1523,6 +1523,7 @@ i40e_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	while (nb_pkts) {
 		uint16_t ret, num;
 
+		/* cross rs_thresh boundary is not allowed */
 		num = (uint16_t)RTE_MIN(nb_pkts, txq->tx_rs_thresh);
 		ret = i40e_xmit_fixed_burst_vec(tx_queue, &tx_pkts[nb_tx],
 						num);
@@ -1952,7 +1953,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 			const struct rte_eth_rxconf *rx_conf,
 			struct rte_mempool *mp)
 {
-    struct i40e_adapter *ad =
+	struct i40e_adapter *ad =
 		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	struct i40e_vsi *vsi;
 	struct i40e_pf *pf = NULL;
@@ -1963,35 +1964,9 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	uint16_t reg_idx, base, bsf, tc_mapping;
 	int q_offset, use_def_burst_func = 1;
 	uint64_t offloads;
-#ifdef TREX_PATCH_LOW_LATENCY
-    int is_vf = 0;
-#endif
+
 	offloads = rx_conf->offloads | dev->data->dev_conf.rxmode.offloads;
 
-#ifdef TREX_PATCH
-//support for i40evf
-    struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-    struct i40e_vf *vf = NULL;
-	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
-		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
-		vsi = &vf->vsi;
-#ifdef TREX_PATCH_LOW_LATENCY
-        is_vf = 1;
-#endif
-		if (!vsi)
-			return -EINVAL;
-		reg_idx = queue_idx;
-	} else {
-		pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
-		if (!vsi)
-			return -EINVAL;
-		q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
-		if (q_offset < 0)
-			return -EINVAL;
-		reg_idx = vsi->base_queue + q_offset;
-	}
-#else
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
 	if (!vsi)
@@ -2000,7 +1975,7 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	if (q_offset < 0)
 		return -EINVAL;
 	reg_idx = vsi->base_queue + q_offset;
-#endif
+
 	if (nb_desc % I40E_ALIGN_RING_DESC != 0 ||
 	    (nb_desc > I40E_MAX_RING_DESC) ||
 	    (nb_desc < I40E_MIN_RING_DESC)) {
@@ -2084,10 +2059,8 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 	i40e_reset_rx_queue(rxq);
 	rxq->q_set = TRUE;
 #ifdef TREX_PATCH_LOW_LATENCY
-    if ( !is_vf ) {
         rxq->dcb_tc =0;
-    } else {
-#endif
+#else
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -2100,8 +2073,6 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			rxq->dcb_tc = i;
 	}
-#ifdef TREX_PATCH_LOW_LATENCY
-    }
 #endif
 
 	if (dev->data->dev_started) {
@@ -2314,37 +2285,10 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	uint64_t offloads;
 #ifdef TREX_PATCH_LOW_LATENCY
     u8 low_latency = 0;
-    int is_vf = 1;
 #endif
+
 	offloads = tx_conf->offloads | dev->data->dev_conf.txmode.offloads;
 
-#ifdef TREX_PATCH
-//support for i40evf
-	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	struct i40e_vf *vf = NULL;
-	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
-		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
-		vsi = &vf->vsi;
-		if (!vsi)
-			return -EINVAL;
-		reg_idx = queue_idx;
-	} else {
-		pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
-		if (!vsi)
-			return -EINVAL;
-#ifdef TREX_PATCH_LOW_LATENCY
-        if (queue_idx == pf->dev_data->nb_tx_queues-1) {
-            low_latency = 1;
-        }
-        is_vf = 0;
-#endif
-		q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
-		if (q_offset < 0)
-			return -EINVAL;
-		reg_idx = vsi->base_queue + q_offset;
-	}
-#else
 	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
 	if (!vsi)
@@ -2353,13 +2297,11 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
         if (queue_idx == pf->dev_data->nb_tx_queues-1) {
             low_latency = 1;
         }
-        is_vf = 0;
 #endif
 	q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
 	if (q_offset < 0)
 		return -EINVAL;
 	reg_idx = vsi->base_queue + q_offset;
-#endif
 
 	if (nb_desc % I40E_ALIGN_RING_DESC != 0 ||
 	    (nb_desc > I40E_MAX_RING_DESC) ||
@@ -2515,14 +2457,12 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 	i40e_reset_tx_queue(txq);
 	txq->q_set = TRUE;
 #ifdef TREX_PATCH_LOW_LATENCY
-    if ( !is_vf ) {
-        if (low_latency) {
-            txq->dcb_tc=1;
-        }else{
-            txq->dcb_tc=0;
-        }
-    } else {
-#endif
+    if (low_latency) {
+        txq->dcb_tc=1;
+    }else{
+        txq->dcb_tc=0;
+    }
+#else
 	for (i = 0; i < I40E_MAX_TRAFFIC_CLASS; i++) {
 		if (!(vsi->enabled_tc & (1 << i)))
 			continue;
@@ -2535,8 +2475,6 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 		if (queue_idx >= base && queue_idx < (base + BIT(bsf)))
 			txq->dcb_tc = i;
 	}
-#ifdef TREX_PATCH_LOW_LATENCY
-    }
 #endif
 	if (dev->data->dev_started) {
 		if (i40e_dev_tx_queue_setup_runtime(dev, txq)) {

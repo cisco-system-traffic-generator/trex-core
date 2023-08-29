@@ -40,6 +40,7 @@ idev_set_defaults(struct idev_cfg *idev)
 	idev->cpt = NULL;
 	idev->nix_inl_dev = NULL;
 	plt_spinlock_init(&idev->nix_inl_dev_lock);
+	plt_spinlock_init(&idev->npa_dev_lock);
 	__atomic_store_n(&idev->npa_refcnt, 0, __ATOMIC_RELEASE);
 }
 
@@ -240,4 +241,14 @@ idev_sso_set(struct roc_sso *sso)
 
 	if (idev != NULL)
 		__atomic_store_n(&idev->sso, sso, __ATOMIC_RELEASE);
+}
+
+uint64_t
+roc_idev_nix_inl_meta_aura_get(void)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+
+	if (idev != NULL)
+		return idev->inl_cfg.meta_aura;
+	return 0;
 }

@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <rte_common.h>
@@ -299,16 +300,16 @@ rte_node_edge_shrink(rte_node_t id, rte_edge_t size)
 		if (node->id == id) {
 			if (node->nb_edges < size) {
 				rte_errno = E2BIG;
-				goto fail;
+			} else {
+				node->nb_edges = size;
+				rc = size;
 			}
-			node->nb_edges = size;
-			rc = size;
 			break;
 		}
 	}
 
-fail:
 	graph_spinlock_unlock();
+fail:
 	return rc;
 }
 

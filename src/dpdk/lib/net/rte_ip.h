@@ -28,6 +28,7 @@
 #include <netinet/ip6.h>
 #endif
 
+#include <rte_compat.h>
 #include <rte_byteorder.h>
 #include <rte_mbuf.h>
 
@@ -96,6 +97,12 @@ struct rte_ipv4_hdr {
 #define	RTE_IPV4_HDR_OFFSET_MASK	((1 << RTE_IPV4_HDR_MF_SHIFT) - 1)
 
 #define	RTE_IPV4_HDR_OFFSET_UNITS	8
+
+/* IPv4 options */
+#define RTE_IPV4_HDR_OPT_EOL       0
+#define RTE_IPV4_HDR_OPT_NOP       1
+#define RTE_IPV4_HDR_OPT_COPIED(v) ((v) & 0x80)
+#define RTE_IPV4_HDR_OPT_MAX_LEN   40
 
 /*
  * IPv4 address types
@@ -540,6 +547,26 @@ struct rte_ipv6_hdr {
 	uint8_t  hop_limits;	/**< Hop limits. */
 	uint8_t  src_addr[16];	/**< IP address of source host. */
 	uint8_t  dst_addr[16];	/**< IP address of destination host(s). */
+} __rte_packed;
+
+/**
+ * IPv6 Routing Extension Header
+ */
+struct rte_ipv6_routing_ext {
+	uint8_t next_hdr;			/**< Protocol, next header. */
+	uint8_t hdr_len;			/**< Header length. */
+	uint8_t type;				/**< Extension header type. */
+	uint8_t segments_left;			/**< Valid segments number. */
+	__extension__
+	union {
+		rte_be32_t flags;		/**< Packet control data per type. */
+		struct {
+			uint8_t last_entry;	/**< The last_entry field of SRH */
+			uint8_t flag;		/**< Packet flag. */
+			rte_be16_t tag;		/**< Packet tag. */
+		};
+	};
+	/* Next are 128-bit IPv6 address fields to describe segments. */
 } __rte_packed;
 
 /* IPv6 vtc_flow: IPv / TC / flow_label */

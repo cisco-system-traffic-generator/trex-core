@@ -1019,16 +1019,16 @@ main_src = SrcGroup(dir='src',
              'dpdk_drv_filter.cpp',
 
              'drivers/trex_driver_base.cpp',
-             'drivers/trex_driver_bnxt.cpp',
+            'drivers/trex_driver_bnxt.cpp',
              'drivers/trex_driver_i40e.cpp',
              'drivers/trex_driver_igb.cpp',
-             'drivers/trex_driver_ixgbe.cpp',
+            'drivers/trex_driver_ixgbe.cpp',
              'drivers/trex_driver_igc.cpp',
              'drivers/trex_driver_mlx5.cpp',
              'drivers/trex_driver_ice.cpp',
              'drivers/trex_driver_ntacc.cpp',
              'drivers/trex_driver_vic.cpp',
-             'drivers/trex_driver_virtual.cpp',
+            'drivers/trex_driver_virtual.cpp',
 
              'utils/utl_counter.cpp',
              'utils/utl_cpuu.cpp',
@@ -1282,6 +1282,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 'drivers/net/ice/base/ice_mk_grp.c',
                 'drivers/net/ice/base/ice_imem.c',
                 'drivers/net/ice/base/ice_metainit.c',
+                'drivers/net/ice/base/ice_ddp.c',
 
                 'drivers/net/ice/ice_dcf_vf_representor.c',
                 'drivers/net/ice/ice_acl_filter.c',
@@ -1298,6 +1299,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 #'drivers/net/ice/ice_rxtx_vec_avx512.c',
                 'drivers/net/ice/ice_generic_flow.c',
                 'drivers/net/ice/ice_dcf_sched.c',
+                'drivers/net/ice/ice_tm.c',
 
                  #ixgbe
                  'drivers/net/ixgbe/base/ixgbe_82598.c',
@@ -1396,7 +1398,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'lib/ip_frag/rte_ip_frag_common.c',
                  'lib/ip_frag/ip_frag_internal.c',
 
-                #  #bonding
+                 #bonding
                  'drivers/net/bonding/rte_eth_bond_api.c',
                  'drivers/net/bonding/rte_eth_bond_pmd.c',
                  'drivers/net/bonding/rte_eth_bond_flow.c',
@@ -1551,7 +1553,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_wh_plus_act.c',
                  'drivers/net/bnxt/tf_ulp/generic_templates/ulp_template_db_wh_plus_class.c',
 
-                 #e1000
+                #  #e1000
                  'drivers/net/e1000/base/e1000_base.c',
                  'drivers/net/e1000/base/e1000_80003es2lan.c',
                  'drivers/net/e1000/base/e1000_82540.c',
@@ -1578,19 +1580,20 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/e1000/igb_pf.c',
                  'drivers/net/e1000/igb_rxtx.c',
 
-                 #memif
+                #  #memif
                  'drivers/net/memif/memif_socket.c',
                  'drivers/net/memif/rte_eth_memif.c',
 
-                 #virtio
+                #  #virtio
                  'drivers/net/virtio/virtio.c',
                  'drivers/net/virtio/virtio_ethdev.c',
                  'drivers/net/virtio/virtio_pci.c',
                  'drivers/net/virtio/virtio_pci_ethdev.c',
                  'drivers/net/virtio/virtio_rxtx.c',
+                 'drivers/net/virtio/virtio_cvq.c',
 
                  
-                 #'drivers/net/virtio/virtio_rxtx_packed.c',
+                #'drivers/net/virtio/virtio_rxtx_packed.c',
 
                  'drivers/net/virtio/virtio_rxtx_simple.c',
                  'drivers/net/virtio/virtqueue.c',
@@ -1672,7 +1675,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/eal/linux/eal.c',
                  'lib/eal/linux/eal_alarm.c',
                  'lib/eal/linux/eal_cpuflags.c',
-                 'lib/eal/linux/eal_debug.c',
                  'lib/eal/linux/eal_hugepage_info.c',
                  'lib/eal/linux/eal_interrupts.c',
                  'lib/eal/linux/eal_lcore.c',
@@ -1685,6 +1687,9 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/eal/linux/eal_vfio.c',
                  'lib/eal/linux/eal_dev.c',
 
+                 'lib/eal/unix/eal_debug.c',
+                 'lib/eal/unix/eal_unix_thread.c',
+
                  'lib/ethdev/rte_ethdev.c',
                  'lib/ethdev/rte_flow.c',
 
@@ -1695,6 +1700,11 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/ethdev/rte_mtr.c',
                  'lib/ethdev/rte_tm.c',
                  'lib/ethdev/ethdev_driver.c',
+                 'lib/ethdev/sff_telemetry.c',
+                 'lib/ethdev/sff_common.c',
+                 'lib/ethdev/sff_8079.c',
+                 'lib/ethdev/sff_8472.c',
+                 'lib/ethdev/sff_8636.c',
                                   
                  'lib/telemetry/telemetry.c',
                  'lib/telemetry/telemetry_data.c',
@@ -1756,7 +1766,7 @@ i40e_dpdk_src = SrcGroup(
         'base/i40e_nvm.c',
         'i40e_hash.c',
         'i40e_ethdev.c',
-        'i40e_ethdev_vf.c',
+        #'i40e_ethdev_vf.c',
         'i40e_fdir.c',
         'i40e_flow.c',
         'i40e_pf.c',
@@ -1786,7 +1796,6 @@ mlx5_x86_64_dpdk_src = SrcGroup(
 
 
         'net/mlx5/mlx5_rxq.c',
-        'net/mlx5/mlx5_dr.c',
         'net/mlx5/mlx5_flow_hw.c',
         'net/mlx5/mlx5_flow_aso.c',
         'net/mlx5/mlx5_flow_flex.c',
@@ -1809,6 +1818,21 @@ mlx5_x86_64_dpdk_src = SrcGroup(
         'net/mlx5/mlx5_mac.c',
         'net/mlx5/mlx5_flow_meter.c',
         'net/mlx5/mlx5_rss.c',
+        'net/mlx5/mlx5_hws_cnt.c',
+
+        'net/mlx5/hws/mlx5dr_matcher.c',
+        'net/mlx5/hws/mlx5dr_pool.c',
+        'net/mlx5/hws/mlx5dr_cmd.c',
+        'net/mlx5/hws/mlx5dr_buddy.c',
+
+        'net/mlx5/hws/mlx5dr_action.c',
+        'net/mlx5/hws/mlx5dr_context.c',
+        'net/mlx5/hws/mlx5dr_debug.c',
+        'net/mlx5/hws/mlx5dr_definer.c',
+        'net/mlx5/hws/mlx5dr_pat_arg.c',
+        'net/mlx5/hws/mlx5dr_rule.c',
+        'net/mlx5/hws/mlx5dr_send.c',
+        'net/mlx5/hws/mlx5dr_table.c',
 
         'net/mlx5/linux/mlx5_verbs.c',
         'net/mlx5/linux/mlx5_os.c',
@@ -1958,6 +1982,7 @@ common_flags = ['-DWIN_UCODE_SIM',
                 '-DALLOW_INTERNAL_API',
                 '-DABI_VERSION="22.1"',
                 '-DALLOW_EXPERIMENTAL_API',
+                '-DRTE_USE_FUNCTION_VERSIONING',
                 #'-D_GLIBCXX_USE_CXX11_ABI=0', # see libstdc++ ABI changes for string and list
                 #'-DTREX_PERF', # used when using TRex and PERF for performance measurement
                 #'-D__DEBUG_FUNC_ENTRY__', # Added by Ido to debug Flow Stats
@@ -2065,7 +2090,7 @@ dpdk_includes_path_ppc64le ='''
 
 dpdk_includes_path =''' ../src/
                         ../src/pal/linux_dpdk/
-                        ../src/pal/linux_dpdk/dpdk_2203_'''+ march +'''/
+                        ../src/pal/linux_dpdk/dpdk_2303_'''+ march +'''/
                         ../src/dpdk/drivers/
                         ../src/dpdk/drivers/common/mlx5/
                         ../src/dpdk/drivers/common/mlx5/linux/
@@ -2186,11 +2211,11 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 
 
 if march == 'x86_64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2203_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="22.1"']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2303_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="22.1"']
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2203_x86_64_aarch64/rte_config.h']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2303_x86_64_aarch64/rte_config.h']
 elif march == 'ppc64le':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2203_x86_64_ppc64le/rte_config.h']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2303_x86_64_ppc64le/rte_config.h']
 
 client_external_libs = [
         'simple_enum',

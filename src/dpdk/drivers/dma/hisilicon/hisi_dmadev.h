@@ -7,6 +7,8 @@
 
 #include <rte_byteorder.h>
 #include <rte_common.h>
+#include <rte_memzone.h>
+#include <rte_dmadev_pmd.h>
 
 #define BIT(x)	(1ul << (x))
 #define BITS_PER_LONG	(__SIZEOF_LONG__ * 8)
@@ -132,11 +134,16 @@ enum {
 
 /**
  * In fact, there are multiple states, but it need to pay attention to
- * the following two states for the driver:
+ * the following three states for the driver:
  */
 enum {
 	HISI_DMA_STATE_IDLE = 0,
 	HISI_DMA_STATE_RUN,
+	/**
+	 * All of the submitted descriptor are finished, and the queue
+	 * is waiting for new descriptors.
+	 */
+	HISI_DMA_STATE_CPL,
 };
 
 /**

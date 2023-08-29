@@ -14,6 +14,9 @@ const struct cnxk_rte_flow_term_info term[] = {
 				     sizeof(struct rte_flow_item_ipv4)},
 	[RTE_FLOW_ITEM_TYPE_IPV6] = {ROC_NPC_ITEM_TYPE_IPV6,
 				     sizeof(struct rte_flow_item_ipv6)},
+	[RTE_FLOW_ITEM_TYPE_IPV6_FRAG_EXT] = {
+			ROC_NPC_ITEM_TYPE_IPV6_FRAG_EXT,
+			sizeof(struct rte_flow_item_ipv6_frag_ext)},
 	[RTE_FLOW_ITEM_TYPE_ARP_ETH_IPV4] = {
 			ROC_NPC_ITEM_TYPE_ARP_ETH_IPV4,
 			sizeof(struct rte_flow_item_arp_eth_ipv4)},
@@ -53,7 +56,9 @@ const struct cnxk_rte_flow_term_info term[] = {
 	[RTE_FLOW_ITEM_TYPE_HIGIG2] = {ROC_NPC_ITEM_TYPE_HIGIG2,
 				       sizeof(struct rte_flow_item_higig2_hdr)},
 	[RTE_FLOW_ITEM_TYPE_RAW] = {ROC_NPC_ITEM_TYPE_RAW,
-				    sizeof(struct rte_flow_item_raw)}};
+				    sizeof(struct rte_flow_item_raw)},
+	[RTE_FLOW_ITEM_TYPE_MARK] = {ROC_NPC_ITEM_TYPE_MARK,
+				     sizeof(struct rte_flow_item_mark)}};
 
 static int
 npc_rss_action_validate(struct rte_eth_dev *eth_dev,
@@ -110,6 +115,7 @@ cnxk_map_actions(struct rte_eth_dev *eth_dev, const struct rte_flow_attr *attr,
 		 struct roc_npc_action in_actions[], uint32_t *flowkey_cfg)
 {
 	struct cnxk_eth_dev *dev = cnxk_eth_pmd_priv(eth_dev);
+	const struct rte_flow_action_ethdev *act_ethdev;
 	const struct rte_flow_action_port_id *port_act;
 	const struct rte_flow_action_queue *act_q;
 	struct roc_npc *roc_npc_src = &dev->npc;
@@ -152,13 +158,17 @@ cnxk_map_actions(struct rte_eth_dev *eth_dev, const struct rte_flow_attr *attr,
 			in_actions[i].conf = actions->conf;
 			break;
 
+		case RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT:
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
 			in_actions[i].type = ROC_NPC_ACTION_TYPE_PORT_ID;
 			in_actions[i].conf = actions->conf;
+			act_ethdev = (const struct rte_flow_action_ethdev *)
+					   actions->conf;
 			port_act = (const struct rte_flow_action_port_id *)
 					   actions->conf;
-			if (rte_eth_dev_get_name_by_port(port_act->id,
-							 if_name)) {
+			if (rte_eth_dev_get_name_by_port(
+			    actions->type != RTE_FLOW_ACTION_TYPE_PORT_ID ?
+			    act_ethdev->port_id : port_act->id, if_name)) {
 				plt_err("Name not found for output port id");
 				goto err_exit;
 			}
@@ -205,6 +215,7 @@ cnxk_map_actions(struct rte_eth_dev *eth_dev, const struct rte_flow_attr *attr,
 
 		case RTE_FLOW_ACTION_TYPE_SECURITY:
 			in_actions[i].type = ROC_NPC_ACTION_TYPE_SEC;
+			in_actions[i].conf = actions->conf;
 			break;
 		case RTE_FLOW_ACTION_TYPE_OF_POP_VLAN:
 			in_actions[i].type = ROC_NPC_ACTION_TYPE_VLAN_STRIP;
@@ -288,16 +299,24 @@ cnxk_flow_validate(struct rte_eth_dev *eth_dev,
 	int rc;
 
 	memset(&flow, 0, sizeof(flow));
+	flow.is_validate = true;
 
-	rc = cnxk_map_flow_data(eth_dev, attr, pattern, actions, &in_attr,
-				in_pattern, in_actions, &flowkey_cfg);
+	rc = cnxk_map_flow_data(eth_dev, attr, pattern, actions, &in_attr, in_pattern, in_actions,
+				&flowkey_cfg);
 	if (rc) {
-		rte_flow_error_set(error, 0, RTE_FLOW_ERROR_TYPE_ACTION_NUM,
-				   NULL, "Failed to map flow data");
+		rte_flow_error_set(error, 0, RTE_FLOW_ERROR_TYPE_ACTION_NUM, NULL,
+				   "Failed to map flow data");
 		return rc;
 	}
 
-	return roc_npc_flow_parse(npc, &in_attr, in_pattern, in_actions, &flow);
+	rc = roc_npc_flow_parse(npc, &in_attr, in_pattern, in_actions, &flow);
+
+	if (rc) {
+		rte_flow_error_set(error, 0, rc, NULL,
+				   "Flow validation failed");
+		return rc;
+	}
+	return 0;
 }
 
 struct roc_npc_flow *
@@ -390,7 +409,10 @@ cnxk_flow_query(struct rte_eth_dev *eth_dev, struct rte_flow *flow,
 		goto err_exit;
 	}
 
-	rc = roc_npc_mcam_read_counter(npc, in_flow->ctr_id, &query->hits);
+	if (in_flow->use_pre_alloc)
+		rc = roc_npc_inl_mcam_read_counter(in_flow->ctr_id, &query->hits);
+	else
+		rc = roc_npc_mcam_read_counter(npc, in_flow->ctr_id, &query->hits);
 	if (rc != 0) {
 		errcode = EIO;
 		errmsg = "Error reading flow counter";
@@ -399,8 +421,12 @@ cnxk_flow_query(struct rte_eth_dev *eth_dev, struct rte_flow *flow,
 	query->hits_set = 1;
 	query->bytes_set = 0;
 
-	if (query->reset)
-		rc = roc_npc_mcam_clear_counter(npc, in_flow->ctr_id);
+	if (query->reset) {
+		if (in_flow->use_pre_alloc)
+			rc = roc_npc_inl_mcam_clear_counter(in_flow->ctr_id);
+		else
+			rc = roc_npc_mcam_clear_counter(npc, in_flow->ctr_id);
+	}
 	if (rc != 0) {
 		errcode = EIO;
 		errmsg = "Error clearing flow counter";

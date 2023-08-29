@@ -628,7 +628,7 @@ hns3_set_rss_size(struct hns3_hw *hw, uint16_t nb_rx_q)
 	struct hns3_rss_conf *rss_cfg = &hw->rss_info;
 	uint16_t rx_qnum_per_tc;
 	uint16_t used_rx_queues;
-	int i;
+	uint16_t i;
 
 	rx_qnum_per_tc = nb_rx_q / hw->num_tc;
 	if (rx_qnum_per_tc > hw->rss_size_max) {
@@ -876,9 +876,8 @@ hns3_dcb_pri_tc_base_dwrr_cfg(struct hns3_hw *hw)
 
 		ret = hns3_dcb_pri_weight_cfg(hw, i, dwrr);
 		if (ret) {
-			hns3_err(hw,
-			       "fail to send priority weight cmd: %d, ret = %d",
-			       i, ret);
+			hns3_err(hw, "fail to send priority weight cmd: %d, ret = %d",
+				 i, ret);
 			return ret;
 		}
 

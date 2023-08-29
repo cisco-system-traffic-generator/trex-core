@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
@@ -2301,7 +2302,7 @@ evaluate(struct bpf_verifier *bvf)
 }
 
 int
-bpf_validate(struct rte_bpf *bpf)
+__rte_bpf_validate(struct rte_bpf *bpf)
 {
 	int32_t rc;
 	struct bpf_verifier bvf;

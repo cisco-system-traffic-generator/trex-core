@@ -58,8 +58,8 @@ qat_pci_get_extra_size(enum qat_device_gen qat_dev_gen)
 {
 	struct qat_dev_hw_spec_funcs *ops_hw =
 		qat_dev_hw_spec[qat_dev_gen];
-	RTE_FUNC_PTR_OR_ERR_RET(ops_hw->qat_dev_get_extra_size,
-		-ENOTSUP);
+	if (ops_hw->qat_dev_get_extra_size == NULL)
+		return -ENOTSUP;
 	return ops_hw->qat_dev_get_extra_size();
 }
 
@@ -361,12 +361,15 @@ static int qat_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 {
 	int sym_ret = 0, asym_ret = 0, comp_ret = 0;
 	int num_pmds_created = 0;
+	uint16_t capa = 0;
 	struct qat_pci_device *qat_pci_dev;
 	struct qat_dev_hw_spec_funcs *ops_hw;
 	struct qat_dev_cmd_param qat_dev_cmd_param[] = {
+			{ QAT_IPSEC_MB_LIB, 0 },
 			{ SYM_ENQ_THRESHOLD_NAME, 0 },
 			{ ASYM_ENQ_THRESHOLD_NAME, 0 },
 			{ COMP_ENQ_THRESHOLD_NAME, 0 },
+			[QAT_CMD_SLICE_MAP_POS] = { QAT_CMD_SLICE_MAP, 0},
 			{ NULL, 0 },
 	};
 
@@ -380,8 +383,8 @@ static int qat_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		return -ENODEV;
 
 	ops_hw = qat_dev_hw_spec[qat_pci_dev->qat_dev_gen];
-	RTE_FUNC_PTR_OR_ERR_RET(ops_hw->qat_dev_reset_ring_pairs,
-		-ENOTSUP);
+	if (ops_hw->qat_dev_reset_ring_pairs == NULL)
+		return -ENOTSUP;
 	if (ops_hw->qat_dev_reset_ring_pairs(qat_pci_dev)) {
 		QAT_LOG(ERR,
 			"Cannot reset ring pairs, does pf driver supports pf2vf comms?"
@@ -389,10 +392,16 @@ static int qat_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		return -ENODEV;
 	}
 
+	if (ops_hw->qat_dev_get_slice_map(&capa, pci_dev) < 0) {
+		RTE_LOG(ERR, EAL,
+			"Cannot read slice configuration\n");
+		return -1;
+	}
+	qat_dev_cmd_param[QAT_CMD_SLICE_MAP_POS].val = capa;
+
 	sym_ret = qat_sym_dev_create(qat_pci_dev, qat_dev_cmd_param);
 	if (sym_ret == 0) {
 		num_pmds_created++;
-
 	}
 	else
 		QAT_LOG(WARNING,
@@ -452,7 +461,7 @@ qat_sym_dev_create(struct qat_pci_device *qat_pci_dev __rte_unused,
 
 __rte_weak int
 qat_asym_dev_create(struct qat_pci_device *qat_pci_dev __rte_unused,
-		struct qat_dev_cmd_param *qat_dev_cmd_param __rte_unused)
+		const struct qat_dev_cmd_param *qat_dev_cmd_param __rte_unused)
 {
 	return 0;
 }

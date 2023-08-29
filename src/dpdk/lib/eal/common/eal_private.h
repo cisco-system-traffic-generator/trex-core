@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <sys/queue.h>
 
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <rte_lcore.h>
 #include <rte_memory.h>
 
@@ -20,7 +20,7 @@
  * Structure storing internal configuration (per-lcore)
  */
 struct lcore_config {
-	pthread_t thread_id;       /**< pthread identifier */
+	rte_thread_t thread_id;    /**< thread identifier */
 	int pipe_main2worker[2];   /**< communication pipe with main */
 	int pipe_worker2main[2];   /**< communication pipe with main */
 
@@ -440,6 +440,16 @@ int rte_eal_memory_detach(void);
  *   NULL if no bus is able to parse this device.
  */
 struct rte_bus *rte_bus_find_by_device_name(const char *str);
+
+/**
+ * For each device on the buses, call the driver-specific function for
+ * device cleanup.
+ *
+ * @return
+ * 0 for successful cleanup
+ * !0 otherwise
+ */
+int eal_bus_cleanup(void);
 
 /**
  * Create the unix channel for primary/secondary communication.

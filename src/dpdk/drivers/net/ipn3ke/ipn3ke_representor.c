@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_ethdev.h>
 #include <rte_pci.h>
 #include <rte_malloc.h>
@@ -18,7 +18,7 @@
 #include <rte_io.h>
 #include <rte_rawdev.h>
 #include <rte_rawdev_pmd.h>
-#include <rte_bus_ifpga.h>
+#include <bus_ifpga_driver.h>
 #include <ifpga_logs.h>
 
 #include "ipn3ke_rawdev_api.h"
@@ -2218,9 +2218,6 @@ ipn3ke_rpst_xstats_get
 	struct ipn3ke_rpst_hw_port_stats hw_stats;
 	struct rte_eth_stats stats;
 
-	if (!xstats)
-		return 0;
-
 	if (!ethdev) {
 		IPN3KE_AFU_PMD_ERR("ethernet device to get statistics is NULL");
 		return -EINVAL;
@@ -2582,7 +2579,7 @@ ipn3ke_rpst_scan_handle_request(__rte_unused void *param)
 		}
 		rte_delay_us(50 * MS);
 
-		if (num == 0xffffff)
+		if (num == 0 || num == 0xffffff)
 			return NULL;
 	}
 

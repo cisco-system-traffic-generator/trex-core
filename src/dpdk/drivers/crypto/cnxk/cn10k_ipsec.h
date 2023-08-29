@@ -6,26 +6,16 @@
 #define __CN10K_IPSEC_H__
 
 #include <rte_security.h>
+#include <rte_security_driver.h>
 
-#include "roc_api.h"
+#include "roc_constants.h"
+#include "roc_ie_ot.h"
 
 #include "cnxk_ipsec.h"
 
 typedef void *CN10K_SA_CONTEXT_MARKER[0];
 
 struct cn10k_ipsec_sa {
-	/** Pre-populated CPT inst words */
-	struct cnxk_cpt_inst_tmpl inst;
-	uint16_t max_extended_len;
-	uint16_t iv_offset;
-	uint8_t iv_length;
-	bool is_outbound;
-
-	/**
-	 * End of SW mutable area
-	 */
-	CN10K_SA_CONTEXT_MARKER sw_area_end __rte_aligned(ROC_ALIGN);
-
 	union {
 		/** Inbound SA */
 		struct roc_ot_ipsec_inb_sa in_sa;
@@ -35,6 +25,23 @@ struct cn10k_ipsec_sa {
 } __rte_aligned(ROC_ALIGN);
 
 struct cn10k_sec_session {
+	struct rte_security_session rte_sess;
+
+	/** PMD private space */
+
+	/** Pre-populated CPT inst words */
+	struct cnxk_cpt_inst_tmpl inst;
+	uint16_t max_extended_len;
+	uint16_t iv_offset;
+	uint8_t iv_length;
+	uint8_t ip_csum;
+	bool is_outbound;
+	/** Queue pair */
+	struct cnxk_cpt_qp *qp;
+
+	/**
+	 * End of SW mutable area
+	 */
 	struct cn10k_ipsec_sa sa;
 } __rte_aligned(ROC_ALIGN);
 

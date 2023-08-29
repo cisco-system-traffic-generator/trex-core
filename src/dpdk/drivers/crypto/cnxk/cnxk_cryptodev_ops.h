@@ -5,13 +5,18 @@
 #ifndef _CNXK_CRYPTODEV_OPS_H_
 #define _CNXK_CRYPTODEV_OPS_H_
 
-#include <rte_cryptodev.h>
+#include <cryptodev_pmd.h>
 #include <rte_event_crypto_adapter.h>
 
-#include "roc_api.h"
+#include "hw/cpt.h"
 
-#define CNXK_CPT_MIN_HEADROOM_REQ 24
-#define CNXK_CPT_MIN_TAILROOM_REQ 102
+#include "roc_constants.h"
+#include "roc_cpt.h"
+#include "roc_cpt_sg.h"
+#include "roc_se.h"
+
+#define CNXK_CPT_MIN_HEADROOM_REQ	 32
+#define CNXK_CPT_MIN_TAILROOM_REQ	 102
 
 /* Default command timeout in seconds */
 #define DEFAULT_COMMAND_TIMEOUT 4
@@ -33,10 +38,14 @@ struct cpt_qp_meta_info {
 #define CPT_OP_FLAGS_METABUF	       (1 << 1)
 #define CPT_OP_FLAGS_AUTH_VERIFY       (1 << 0)
 #define CPT_OP_FLAGS_IPSEC_DIR_INBOUND (1 << 2)
+#define CPT_OP_FLAGS_IPSEC_INB_REPLAY  (1 << 3)
 
 struct cpt_inflight_req {
 	union cpt_res_s res;
-	struct rte_crypto_op *cop;
+	union {
+		struct rte_crypto_op *cop;
+		struct rte_event_vector *vec;
+	};
 	void *mdata;
 	uint8_t op_flags;
 	void *qp;
@@ -62,6 +71,10 @@ struct crypto_adpter_info {
 	/**< Set if queue pair is added to crypto adapter */
 	struct rte_mempool *req_mp;
 	/**< CPT inflight request mempool */
+	uint16_t vector_sz;
+	/** Maximum number of cops to combine into single vector */
+	struct rte_mempool *vector_mp;
+	/** Pool for allocating rte_event_vector */
 };
 
 struct cnxk_cpt_qp {
@@ -69,16 +82,14 @@ struct cnxk_cpt_qp {
 	/**< Crypto LF */
 	struct pending_queue pend_q;
 	/**< Pending queue */
-	struct rte_mempool *sess_mp;
-	/**< Session mempool */
-	struct rte_mempool *sess_mp_priv;
-	/**< Session private data mempool */
-	struct cpt_qp_meta_info meta_info;
-	/**< Metabuf info required to support operations on the queue pair */
 	struct roc_cpt_lmtline lmtline;
 	/**< Lmtline information */
+	struct cpt_qp_meta_info meta_info;
+	/**< Metabuf info required to support operations on the queue pair */
 	struct crypto_adpter_info ca;
 	/**< Crypto adapter related info */
+	struct rte_mempool *sess_mp;
+	/**< Session mempool */
 };
 
 int cnxk_cpt_dev_config(struct rte_cryptodev *dev,
@@ -101,20 +112,15 @@ int cnxk_cpt_queue_pair_release(struct rte_cryptodev *dev, uint16_t qp_id);
 
 unsigned int cnxk_cpt_sym_session_get_size(struct rte_cryptodev *dev);
 
-int cnxk_cpt_sym_session_configure(struct rte_cryptodev *dev,
-				   struct rte_crypto_sym_xform *xform,
-				   struct rte_cryptodev_sym_session *sess,
-				   struct rte_mempool *pool);
+int cnxk_cpt_sym_session_configure(struct rte_cryptodev *dev, struct rte_crypto_sym_xform *xform,
+				   struct rte_cryptodev_sym_session *sess);
 
-int sym_session_configure(struct roc_cpt *roc_cpt, int driver_id,
-			  struct rte_crypto_sym_xform *xform,
-			  struct rte_cryptodev_sym_session *sess,
-			  struct rte_mempool *pool);
+int sym_session_configure(struct roc_cpt *roc_cpt, struct rte_crypto_sym_xform *xform,
+			  struct rte_cryptodev_sym_session *sess, bool is_session_less);
 
-void cnxk_cpt_sym_session_clear(struct rte_cryptodev *dev,
-				struct rte_cryptodev_sym_session *sess);
+void cnxk_cpt_sym_session_clear(struct rte_cryptodev *dev, struct rte_cryptodev_sym_session *sess);
 
-void sym_session_clear(int driver_id, struct rte_cryptodev_sym_session *sess);
+void sym_session_clear(struct rte_cryptodev_sym_session *sess, bool is_session_less);
 
 unsigned int cnxk_ae_session_size_get(struct rte_cryptodev *dev __rte_unused);
 
@@ -124,24 +130,7 @@ int cnxk_ae_session_cfg(struct rte_cryptodev *dev,
 			struct rte_crypto_asym_xform *xform,
 			struct rte_cryptodev_asym_session *sess);
 void cnxk_cpt_dump_on_err(struct cnxk_cpt_qp *qp);
-
-static inline union rte_event_crypto_metadata *
-cnxk_event_crypto_mdata_get(struct rte_crypto_op *op)
-{
-	union rte_event_crypto_metadata *ec_mdata;
-
-	if (op->sess_type == RTE_CRYPTO_OP_WITH_SESSION)
-		ec_mdata = rte_cryptodev_sym_session_get_user_data(
-			op->sym->session);
-	else if (op->sess_type == RTE_CRYPTO_OP_SESSIONLESS &&
-		 op->private_data_offset)
-		ec_mdata = (union rte_event_crypto_metadata
-				    *)((uint8_t *)op + op->private_data_offset);
-	else
-		return NULL;
-
-	return ec_mdata;
-}
+int cnxk_cpt_queue_pair_event_error_query(struct rte_cryptodev *dev, uint16_t qp_id);
 
 static __rte_always_inline void
 pending_queue_advance(uint64_t *index, const uint64_t mask)
@@ -172,4 +161,23 @@ pending_queue_free_cnt(uint64_t head, uint64_t tail, const uint64_t mask)
 	return mask - pending_queue_infl_cnt(head, tail, mask);
 }
 
+static __rte_always_inline void *
+alloc_op_meta(struct roc_se_buf_ptr *buf, int32_t len, struct rte_mempool *cpt_meta_pool,
+	      struct cpt_inflight_req *infl_req)
+{
+	uint8_t *mdata;
+
+	if (unlikely(rte_mempool_get(cpt_meta_pool, (void **)&mdata) < 0))
+		return NULL;
+
+	if (likely(buf)) {
+		buf->vaddr = mdata;
+		buf->size = len;
+	}
+
+	infl_req->mdata = mdata;
+	infl_req->op_flags |= CPT_OP_FLAGS_METABUF;
+
+	return mdata;
+}
 #endif /* _CNXK_CRYPTODEV_OPS_H_ */

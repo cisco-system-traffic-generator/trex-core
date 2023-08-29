@@ -12,9 +12,9 @@
 #include <ethdev_pci.h>
 #include <rte_cycles.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_timer.h>
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <rte_net.h>
 
 #include "ena_com.h"
@@ -303,6 +303,7 @@ struct ena_adapter {
 
 	bool trigger_reset;
 
+	bool enable_llq;
 	bool use_large_llq_hdr;
 
 	uint32_t last_tx_comp_qid;

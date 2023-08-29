@@ -37,6 +37,8 @@
 /* L2TPv2 */
 #define IAVF_PHINT_L2TPV2			BIT_ULL(9)
 #define IAVF_PHINT_L2TPV2_LEN			BIT_ULL(10)
+/* Raw */
+#define IAVF_PHINT_RAW				BIT_ULL(11)
 
 #define IAVF_PHINT_GTPU_MSK	(IAVF_PHINT_GTPU	| \
 				 IAVF_PHINT_GTPU_EH	| \
@@ -58,6 +60,7 @@ struct iavf_hash_match_type {
 struct iavf_rss_meta {
 	struct virtchnl_proto_hdrs proto_hdrs;
 	enum virtchnl_rss_algorithm rss_algorithm;
+	bool raw_ena;
 };
 
 struct iavf_hash_flow_cfg {
@@ -83,6 +86,7 @@ iavf_hash_parse_pattern_action(struct iavf_adapter *ad,
 			       uint32_t array_len,
 			       const struct rte_flow_item pattern[],
 			       const struct rte_flow_action actions[],
+			       uint32_t priority,
 			       void **meta,
 			       struct rte_flow_error *error);
 
@@ -181,252 +185,256 @@ iavf_hash_parse_pattern_action(struct iavf_adapter *ad,
 /* proto_hdrs template */
 struct virtchnl_proto_hdrs outer_ipv4_tmplt = {
 	TUNNEL_LEVEL_OUTER, 4,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv4}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv4}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv4_udp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
-	 proto_hdr_ipv4_with_prot,
-	 proto_hdr_udp}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
+	  proto_hdr_ipv4_with_prot,
+	  proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv4_tcp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
-	 proto_hdr_ipv4_with_prot,
-	 proto_hdr_tcp}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
+	  proto_hdr_ipv4_with_prot,
+	  proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv4_sctp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv4,
-	 proto_hdr_sctp}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv4,
+	  proto_hdr_sctp}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv6_tmplt = {
 	TUNNEL_LEVEL_OUTER, 4,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv6}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv6}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv6_frag_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
-	 proto_hdr_ipv6, proto_hdr_ipv6_frag}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
+	  proto_hdr_ipv6, proto_hdr_ipv6_frag}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv6_udp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
-	 proto_hdr_ipv6_with_prot,
-	 proto_hdr_udp}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
+	  proto_hdr_ipv6_with_prot,
+	  proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv6_tcp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
-	 proto_hdr_ipv6_with_prot,
-	 proto_hdr_tcp}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan,
+	  proto_hdr_ipv6_with_prot,
+	  proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs outer_ipv6_sctp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv6,
-	 proto_hdr_sctp}
+	{{proto_hdr_eth, proto_hdr_svlan, proto_hdr_cvlan, proto_hdr_ipv6,
+	  proto_hdr_sctp}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv4_tmplt = {
-	TUNNEL_LEVEL_INNER, 1, {proto_hdr_ipv4}
+	TUNNEL_LEVEL_INNER, 1, {{proto_hdr_ipv4}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv4_udp_tmplt = {
-	TUNNEL_LEVEL_INNER, 2, {proto_hdr_ipv4_with_prot, proto_hdr_udp}
+	TUNNEL_LEVEL_INNER, 2, {{proto_hdr_ipv4_with_prot, proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv4_tcp_tmplt = {
-	TUNNEL_LEVEL_INNER, 2, {proto_hdr_ipv4_with_prot, proto_hdr_tcp}
+	TUNNEL_LEVEL_INNER, 2, {{proto_hdr_ipv4_with_prot, proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs second_inner_ipv4_tmplt = {
-	2, 1, {proto_hdr_ipv4}
+	2, 1, {{proto_hdr_ipv4}}
 };
 
 struct virtchnl_proto_hdrs second_inner_ipv4_udp_tmplt = {
-	2, 2, {proto_hdr_ipv4_with_prot, proto_hdr_udp}
+	2, 2, {{proto_hdr_ipv4_with_prot, proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs second_inner_ipv4_tcp_tmplt = {
-	2, 2, {proto_hdr_ipv4_with_prot, proto_hdr_tcp}
+	2, 2, {{proto_hdr_ipv4_with_prot, proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs second_inner_ipv6_tmplt = {
-	2, 1, {proto_hdr_ipv6}
+	2, 1, {{proto_hdr_ipv6}}
 };
 
 struct virtchnl_proto_hdrs second_inner_ipv6_udp_tmplt = {
-	2, 2, {proto_hdr_ipv6_with_prot, proto_hdr_udp}
+	2, 2, {{proto_hdr_ipv6_with_prot, proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs second_inner_ipv6_tcp_tmplt = {
-	2, 2, {proto_hdr_ipv6_with_prot, proto_hdr_tcp}
+	2, 2, {{proto_hdr_ipv6_with_prot, proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv4_sctp_tmplt = {
-	TUNNEL_LEVEL_INNER, 2, {proto_hdr_ipv4, proto_hdr_sctp}
+	TUNNEL_LEVEL_INNER, 2, {{proto_hdr_ipv4, proto_hdr_sctp}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv6_tmplt = {
-	TUNNEL_LEVEL_INNER, 1, {proto_hdr_ipv6}
+	TUNNEL_LEVEL_INNER, 1, {{proto_hdr_ipv6}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv6_udp_tmplt = {
-	TUNNEL_LEVEL_INNER, 2, {proto_hdr_ipv6_with_prot, proto_hdr_udp}
+	TUNNEL_LEVEL_INNER, 2, {{proto_hdr_ipv6_with_prot, proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv6_tcp_tmplt = {
-	TUNNEL_LEVEL_INNER, 2, {proto_hdr_ipv6_with_prot, proto_hdr_tcp}
+	TUNNEL_LEVEL_INNER, 2, {{proto_hdr_ipv6_with_prot, proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs inner_ipv6_sctp_tmplt = {
-	TUNNEL_LEVEL_INNER, 2, {proto_hdr_ipv6, proto_hdr_sctp}
+	TUNNEL_LEVEL_INNER, 2, {{proto_hdr_ipv6, proto_hdr_sctp}}
 };
 
 struct virtchnl_proto_hdrs ipv4_esp_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv4, proto_hdr_esp}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv4, proto_hdr_esp}}
 };
 
 struct virtchnl_proto_hdrs ipv4_udp_esp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 3,
-	{proto_hdr_ipv4, proto_hdr_udp, proto_hdr_esp}
+	{{proto_hdr_ipv4, proto_hdr_udp, proto_hdr_esp}}
 };
 
 struct virtchnl_proto_hdrs ipv4_ah_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv4, proto_hdr_ah}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv4, proto_hdr_ah}}
 };
 
 struct virtchnl_proto_hdrs ipv6_esp_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv6, proto_hdr_esp}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv6, proto_hdr_esp}}
 };
 
 struct virtchnl_proto_hdrs ipv6_udp_esp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 3,
-	{proto_hdr_ipv6, proto_hdr_udp, proto_hdr_esp}
+	{{proto_hdr_ipv6, proto_hdr_udp, proto_hdr_esp}}
 };
 
 struct virtchnl_proto_hdrs ipv6_ah_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv6, proto_hdr_ah}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv6, proto_hdr_ah}}
 };
 
 struct virtchnl_proto_hdrs ipv4_l2tpv3_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv4, proto_hdr_l2tpv3}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv4, proto_hdr_l2tpv3}}
 };
 
 struct virtchnl_proto_hdrs ipv6_l2tpv3_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv6, proto_hdr_l2tpv3}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv6, proto_hdr_l2tpv3}}
 };
 
 struct virtchnl_proto_hdrs ipv4_pfcp_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv4, proto_hdr_pfcp}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv4, proto_hdr_pfcp}}
 };
 
 struct virtchnl_proto_hdrs ipv6_pfcp_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_ipv6, proto_hdr_pfcp}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_ipv6, proto_hdr_pfcp}}
 };
 
 struct virtchnl_proto_hdrs ipv4_udp_gtpc_tmplt = {
-	TUNNEL_LEVEL_OUTER, 3, {proto_hdr_ipv4, proto_hdr_udp, proto_hdr_gtpc}
+	TUNNEL_LEVEL_OUTER, 3,
+	{{proto_hdr_ipv4, proto_hdr_udp, proto_hdr_gtpc}}
 };
 
 struct virtchnl_proto_hdrs ipv6_udp_gtpc_tmplt = {
-	TUNNEL_LEVEL_OUTER, 3, {proto_hdr_ipv6, proto_hdr_udp, proto_hdr_gtpc}
+	TUNNEL_LEVEL_OUTER, 3,
+	{{proto_hdr_ipv6, proto_hdr_udp, proto_hdr_gtpc}}
 };
 
 struct virtchnl_proto_hdrs eth_ecpri_tmplt = {
-	TUNNEL_LEVEL_OUTER, 2, {proto_hdr_eth, proto_hdr_ecpri}
+	TUNNEL_LEVEL_OUTER, 2, {{proto_hdr_eth, proto_hdr_ecpri}}
 };
 
 struct virtchnl_proto_hdrs ipv4_ecpri_tmplt = {
-	TUNNEL_LEVEL_OUTER, 3, {proto_hdr_ipv4, proto_hdr_udp, proto_hdr_ecpri}
+	TUNNEL_LEVEL_OUTER, 3,
+	{{proto_hdr_ipv4, proto_hdr_udp, proto_hdr_ecpri}}
 };
 
 struct virtchnl_proto_hdrs udp_l2tpv2_ppp_ipv4_tmplt = {
 	TUNNEL_LEVEL_INNER, 3,
-	{proto_hdr_l2tpv2,
-	 proto_hdr_ppp,
-	 proto_hdr_ipv4}
+	{{proto_hdr_l2tpv2,
+	  proto_hdr_ppp,
+	  proto_hdr_ipv4}}
 };
 
 struct virtchnl_proto_hdrs udp_l2tpv2_ppp_ipv6_tmplt = {
 	TUNNEL_LEVEL_INNER, 3,
-	{proto_hdr_l2tpv2,
-	 proto_hdr_ppp,
-	 proto_hdr_ipv6}
+	{{proto_hdr_l2tpv2,
+	  proto_hdr_ppp,
+	  proto_hdr_ipv6}}
 };
 
 struct virtchnl_proto_hdrs udp_l2tpv2_ppp_ipv4_udp_tmplt = {
 	TUNNEL_LEVEL_INNER, 4,
-	{proto_hdr_l2tpv2,
-	 proto_hdr_ppp,
-	 proto_hdr_ipv4_with_prot,
-	 proto_hdr_udp}
+	{{proto_hdr_l2tpv2,
+	  proto_hdr_ppp,
+	  proto_hdr_ipv4_with_prot,
+	  proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs udp_l2tpv2_ppp_ipv4_tcp_tmplt = {
 	TUNNEL_LEVEL_INNER, 4,
-	{proto_hdr_l2tpv2,
-	 proto_hdr_ppp,
-	 proto_hdr_ipv4_with_prot,
-	 proto_hdr_tcp}
+	{{proto_hdr_l2tpv2,
+	  proto_hdr_ppp,
+	  proto_hdr_ipv4_with_prot,
+	  proto_hdr_tcp}}
 };
 
 struct virtchnl_proto_hdrs udp_l2tpv2_ppp_ipv6_udp_tmplt = {
 	TUNNEL_LEVEL_INNER, 4,
-	{proto_hdr_l2tpv2,
-	 proto_hdr_ppp,
-	 proto_hdr_ipv6_with_prot,
-	 proto_hdr_udp}
+	{{proto_hdr_l2tpv2,
+	  proto_hdr_ppp,
+	  proto_hdr_ipv6_with_prot,
+	  proto_hdr_udp}}
 };
 
 struct virtchnl_proto_hdrs udp_l2tpv2_ppp_ipv6_tcp_tmplt = {
 	TUNNEL_LEVEL_INNER, 4,
-	{proto_hdr_l2tpv2,
-	 proto_hdr_ppp,
-	 proto_hdr_ipv6_with_prot,
-	 proto_hdr_tcp}
+	{{proto_hdr_l2tpv2,
+	  proto_hdr_ppp,
+	  proto_hdr_ipv6_with_prot,
+	  proto_hdr_tcp}}
+
 };
 
 struct virtchnl_proto_hdrs ipv4_l2tpv2_tmplt = {
 	TUNNEL_LEVEL_OUTER, 4,
-	{proto_hdr_eth,
-	 proto_hdr_ipv4,
-	 proto_hdr_udp,
-	 proto_hdr_l2tpv2}
+	{{proto_hdr_eth,
+	  proto_hdr_ipv4,
+	  proto_hdr_udp,
+	  proto_hdr_l2tpv2}}
 };
 
 struct virtchnl_proto_hdrs ipv6_l2tpv2_tmplt = {
 	TUNNEL_LEVEL_OUTER, 4,
-	{proto_hdr_eth,
-	 proto_hdr_ipv6,
-	 proto_hdr_udp,
-	 proto_hdr_l2tpv2}
+	{{proto_hdr_eth,
+	  proto_hdr_ipv6,
+	  proto_hdr_udp,
+	  proto_hdr_l2tpv2}}
 };
 
 struct virtchnl_proto_hdrs ipv4_l2tpv2_ppp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth,
-	 proto_hdr_ipv4,
-	 proto_hdr_udp,
-	 proto_hdr_l2tpv2,
-	 proto_hdr_ppp}
+	{{proto_hdr_eth,
+	  proto_hdr_ipv4,
+	  proto_hdr_udp,
+	  proto_hdr_l2tpv2,
+	  proto_hdr_ppp}}
 };
 
 struct virtchnl_proto_hdrs ipv6_l2tpv2_ppp_tmplt = {
 	TUNNEL_LEVEL_OUTER, 5,
-	{proto_hdr_eth,
-	 proto_hdr_ipv6,
-	 proto_hdr_udp,
-	 proto_hdr_l2tpv2,
-	 proto_hdr_ppp}
+	{{proto_hdr_eth,
+	  proto_hdr_ipv6,
+	  proto_hdr_udp,
+	  proto_hdr_l2tpv2,
+	  proto_hdr_ppp}}
 };
 
 /* rss type super set */
@@ -528,6 +536,7 @@ struct virtchnl_proto_hdrs ipv6_l2tpv2_ppp_tmplt = {
  */
 static struct iavf_pattern_match_item iavf_hash_pattern_list[] = {
 	/* IPv4 */
+	{iavf_pattern_raw,				IAVF_INSET_NONE,		NULL},
 	{iavf_pattern_eth_ipv4,				IAVF_RSS_TYPE_OUTER_IPV4,	&outer_ipv4_tmplt},
 	{iavf_pattern_eth_ipv4_udp,			IAVF_RSS_TYPE_OUTER_IPV4_UDP,	&outer_ipv4_udp_tmplt},
 	{iavf_pattern_eth_ipv4_tcp,			IAVF_RSS_TYPE_OUTER_IPV4_TCP,	&outer_ipv4_tcp_tmplt},
@@ -800,6 +809,9 @@ iavf_hash_parse_pattern(const struct rte_flow_item pattern[], uint64_t *phint,
 		}
 
 		switch (item->type) {
+		case RTE_FLOW_ITEM_TYPE_RAW:
+			*phint |= IAVF_PHINT_RAW;
+			break;
 		case RTE_FLOW_ITEM_TYPE_IPV4:
 			if (!(*phint & IAVF_PHINT_GTPU_MSK) &&
 			    !(*phint & IAVF_PHINT_GRE) &&
@@ -865,6 +877,80 @@ iavf_hash_parse_pattern(const struct rte_flow_item pattern[], uint64_t *phint,
 			break;
 		}
 	}
+
+	return 0;
+}
+
+static int
+iavf_hash_parse_raw_pattern(const struct rte_flow_item *item,
+			struct iavf_rss_meta *meta)
+{
+	const struct rte_flow_item_raw *raw_spec, *raw_mask;
+	uint8_t *pkt_buf, *msk_buf;
+	uint8_t spec_len, pkt_len;
+	uint8_t tmp_val = 0;
+	uint8_t tmp_c = 0;
+	int i, j;
+
+	raw_spec = item->spec;
+	raw_mask = item->mask;
+
+	spec_len = strlen((char *)(uintptr_t)raw_spec->pattern);
+	if (strlen((char *)(uintptr_t)raw_mask->pattern) !=
+		spec_len)
+		return -rte_errno;
+
+	pkt_len = spec_len / 2;
+
+	pkt_buf = rte_zmalloc(NULL, pkt_len, 0);
+	if (!pkt_buf)
+		return -ENOMEM;
+
+	msk_buf = rte_zmalloc(NULL, pkt_len, 0);
+	if (!msk_buf)
+		return -ENOMEM;
+
+	/* convert string to int array */
+	for (i = 0, j = 0; i < spec_len; i += 2, j++) {
+		tmp_c = raw_spec->pattern[i];
+		if (tmp_c >= 'a' && tmp_c <= 'f')
+			tmp_val = tmp_c - 'a' + 10;
+		if (tmp_c >= 'A' && tmp_c <= 'F')
+			tmp_val = tmp_c - 'A' + 10;
+		if (tmp_c >= '0' && tmp_c <= '9')
+			tmp_val = tmp_c - '0';
+
+		tmp_c = raw_spec->pattern[i + 1];
+		if (tmp_c >= 'a' && tmp_c <= 'f')
+			pkt_buf[j] = tmp_val * 16 + tmp_c - 'a' + 10;
+		if (tmp_c >= 'A' && tmp_c <= 'F')
+			pkt_buf[j] = tmp_val * 16 + tmp_c - 'A' + 10;
+		if (tmp_c >= '0' && tmp_c <= '9')
+			pkt_buf[j] = tmp_val * 16 + tmp_c - '0';
+
+		tmp_c = raw_mask->pattern[i];
+		if (tmp_c >= 'a' && tmp_c <= 'f')
+			tmp_val = tmp_c - 0x57;
+		if (tmp_c >= 'A' && tmp_c <= 'F')
+			tmp_val = tmp_c - 0x37;
+		if (tmp_c >= '0' && tmp_c <= '9')
+			tmp_val = tmp_c - '0';
+
+		tmp_c = raw_mask->pattern[i + 1];
+		if (tmp_c >= 'a' && tmp_c <= 'f')
+			msk_buf[j] = tmp_val * 16 + tmp_c - 'a' + 10;
+		if (tmp_c >= 'A' && tmp_c <= 'F')
+			msk_buf[j] = tmp_val * 16 + tmp_c - 'A' + 10;
+		if (tmp_c >= '0' && tmp_c <= '9')
+			msk_buf[j] = tmp_val * 16 + tmp_c - '0';
+	}
+
+	rte_memcpy(meta->proto_hdrs.raw.spec, pkt_buf, pkt_len);
+	rte_memcpy(meta->proto_hdrs.raw.mask, msk_buf, pkt_len);
+	meta->proto_hdrs.raw.pkt_len = pkt_len;
+
+	rte_free(pkt_buf);
+	rte_free(msk_buf);
 
 	return 0;
 }
@@ -1199,7 +1285,7 @@ iavf_refine_proto_hdrs_l2tpv2(struct virtchnl_proto_hdrs *proto_hdrs,
 
 	if (proto_hdrs->tunnel_level == TUNNEL_LEVEL_INNER) {
 		/* shift headers layer */
-		for (i = proto_hdrs->count - 1 + 1; i > 0; i--)
+		for (i = proto_hdrs->count; i > 0; i--)
 			proto_hdrs->proto_hdr[i] = proto_hdrs->proto_hdr[i - 1];
 
 		/* adding outer ip header at layer 0 */
@@ -1223,7 +1309,6 @@ iavf_refine_proto_hdrs_l2tpv2(struct virtchnl_proto_hdrs *proto_hdrs,
 			}
 		}
 	}
-
 }
 
 static void iavf_refine_proto_hdrs(struct virtchnl_proto_hdrs *proto_hdrs,
@@ -1337,7 +1422,6 @@ iavf_hash_parse_action(struct iavf_pattern_match_item *match_item,
 		       uint64_t pattern_hint, struct iavf_rss_meta *rss_meta,
 		       struct rte_flow_error *error)
 {
-	struct virtchnl_proto_hdrs *proto_hdrs;
 	enum rte_flow_action_type action_type;
 	const struct rte_flow_action_rss *rss;
 	const struct rte_flow_action *action;
@@ -1383,6 +1467,10 @@ iavf_hash_parse_action(struct iavf_pattern_match_item *match_item,
 					RTE_FLOW_ERROR_TYPE_ACTION, action,
 					"a non-NULL RSS queue is not supported");
 
+			/* If pattern type is raw, no need to refine rss type */
+			if (pattern_hint == IAVF_PHINT_RAW)
+				break;
+
 			/**
 			 * Check simultaneous use of SRC_ONLY and DST_ONLY
 			 * of the same level.
@@ -1394,8 +1482,10 @@ iavf_hash_parse_action(struct iavf_pattern_match_item *match_item,
 				return rte_flow_error_set(error, ENOTSUP,
 						RTE_FLOW_ERROR_TYPE_ACTION,
 						action, "RSS type not supported");
-			proto_hdrs = match_item->meta;
-			rss_meta->proto_hdrs = *proto_hdrs;
+
+			memcpy(&rss_meta->proto_hdrs, match_item->meta,
+			       sizeof(struct virtchnl_proto_hdrs));
+
 			iavf_refine_proto_hdrs(&rss_meta->proto_hdrs,
 					       rss_type, pattern_hint);
 			break;
@@ -1420,6 +1510,7 @@ iavf_hash_parse_pattern_action(__rte_unused struct iavf_adapter *ad,
 			       uint32_t array_len,
 			       const struct rte_flow_item pattern[],
 			       const struct rte_flow_action actions[],
+			       uint32_t priority,
 			       void **meta,
 			       struct rte_flow_error *error)
 {
@@ -1427,6 +1518,9 @@ iavf_hash_parse_pattern_action(__rte_unused struct iavf_adapter *ad,
 	struct iavf_rss_meta *rss_meta_ptr;
 	uint64_t phint = IAVF_PHINT_NONE;
 	int ret = 0;
+
+	if (priority >= 1)
+		return -rte_errno;
 
 	rss_meta_ptr = rte_zmalloc(NULL, sizeof(*rss_meta_ptr), 0);
 	if (!rss_meta_ptr) {
@@ -1448,6 +1542,17 @@ iavf_hash_parse_pattern_action(__rte_unused struct iavf_adapter *ad,
 	ret = iavf_hash_parse_pattern(pattern, &phint, error);
 	if (ret)
 		goto error;
+
+	if (phint == IAVF_PHINT_RAW) {
+		rss_meta_ptr->raw_ena = true;
+		ret = iavf_hash_parse_raw_pattern(pattern, rss_meta_ptr);
+		if (ret) {
+			rte_flow_error_set(error, EINVAL,
+					   RTE_FLOW_ERROR_TYPE_ITEM, NULL,
+					   "Parse raw pattern failed");
+			goto error;
+		}
+	}
 
 	ret = iavf_hash_parse_action(pattern_match_item, actions, phint,
 				     rss_meta_ptr, error);

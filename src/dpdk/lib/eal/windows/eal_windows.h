@@ -36,16 +36,6 @@
 int eal_create_cpu_map(void);
 
 /**
- * Create a thread.
- *
- * @param thread
- *   The location to store the thread id if successful.
- * @return
- *   0 for success, -1 if the thread is not created.
- */
-int eal_thread_create(pthread_t *thread);
-
-/**
  * Get system NUMA node number for a socket ID.
  *
  * @param socket_id
@@ -54,6 +44,16 @@ int eal_thread_create(pthread_t *thread);
  *  NUMA node number to use with Win32 API.
  */
 unsigned int eal_socket_numa_node(unsigned int socket_id);
+
+/**
+ * Get pointer to the group affinity for the cpu.
+ *
+ * @param cpu_index
+ *  Index of the cpu, as it comes from rte_cpuset_t.
+ * @return
+ *  Pointer to the group affinity for the cpu.
+ */
+PGROUP_AFFINITY eal_get_cpu_affinity(size_t cpu_index);
 
 /**
  * Schedule code for execution in the interrupt thread.

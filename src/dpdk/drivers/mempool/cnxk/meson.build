@@ -17,3 +17,4 @@ sources = files(
 )
 
 deps += ['eal', 'mbuf', 'kvargs', 'bus_pci', 'common_cnxk', 'mempool']
+require_iova_in_mbuf = false

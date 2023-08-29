@@ -16,6 +16,7 @@
  * process, enqueue and move streams of objects to the next nodes.
  */
 
+#include <rte_compat.h>
 #include <rte_common.h>
 #include <rte_cycles.h>
 #include <rte_prefetch.h>
@@ -43,6 +44,12 @@ struct rte_graph {
 	rte_graph_t id;	/**< Graph identifier. */
 	int socket;	/**< Socket ID where memory is allocated. */
 	char name[RTE_GRAPH_NAMESIZE];	/**< Name of the graph. */
+	bool pcap_enable;	        /**< Pcap trace enabled. */
+	/** Number of packets captured per core. */
+	uint64_t nb_pkt_captured;
+	/** Number of packets to capture per core. */
+	uint64_t nb_pkt_to_capture;
+	char pcap_filename[RTE_GRAPH_PCAP_FILE_SZ];  /**< Pcap filename. */
 	uint64_t fence;			/**< Fence. */
 } __rte_cache_aligned;
 
@@ -62,6 +69,9 @@ struct rte_node {
 
 	char parent[RTE_NODE_NAMESIZE];	/**< Parent node name. */
 	char name[RTE_NODE_NAMESIZE];	/**< Name of the node. */
+
+	/** Original process function when pcap is enabled. */
+	rte_node_process_t original_process;
 
 	/* Fast path area  */
 #define RTE_NODE_CTX_SZ 16
@@ -224,7 +234,7 @@ __rte_node_enqueue_prologue(struct rte_graph *graph, struct rte_node *node,
 		__rte_node_enqueue_tail_update(graph, node);
 
 	if (unlikely(node->size < (idx + space)))
-		__rte_node_stream_alloc(graph, node);
+		__rte_node_stream_alloc_size(graph, node, node->size + space);
 }
 
 /**
@@ -432,7 +442,7 @@ rte_node_next_stream_get(struct rte_graph *graph, struct rte_node *node,
 	uint16_t free_space = node->size - idx;
 
 	if (unlikely(free_space < nb_objs))
-		__rte_node_stream_alloc_size(graph, node, nb_objs);
+		__rte_node_stream_alloc_size(graph, node, node->size + nb_objs);
 
 	return &node->objs[idx];
 }

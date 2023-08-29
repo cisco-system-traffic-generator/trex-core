@@ -1670,6 +1670,9 @@ trex_i40e_add_del_fdir_filter(struct rte_eth_dev *dev,
 {
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_pf *pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+    if (!pf->fdir.prg_pkt_fdir) {
+        trex_i40e_fdir_setup(pf, dev);
+    }
 	unsigned char *pkt = (unsigned char *)pf->fdir.prg_pkt_fdir;
 	enum i40e_filter_pctype pctype;
 	int ret = 0;

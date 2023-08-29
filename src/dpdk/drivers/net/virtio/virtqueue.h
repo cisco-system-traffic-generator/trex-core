@@ -16,6 +16,7 @@
 #include "virtio_ring.h"
 #include "virtio_logs.h"
 #include "virtio_rxtx.h"
+#include "virtio_cvq.h"
 
 struct rte_mbuf;
 
@@ -145,112 +146,8 @@ enum { VTNET_RQ = 0, VTNET_TQ = 1, VTNET_CQ = 2 };
  */
 #define VQ_RING_DESC_CHAIN_END 32768
 
-/**
- * Control the RX mode, ie. promiscuous, allmulti, etc...
- * All commands require an "out" sg entry containing a 1 byte
- * state value, zero = disable, non-zero = enable.  Commands
- * 0 and 1 are supported with the VIRTIO_NET_F_CTRL_RX feature.
- * Commands 2-5 are added with VIRTIO_NET_F_CTRL_RX_EXTRA.
- */
-#define VIRTIO_NET_CTRL_RX              0
-#define VIRTIO_NET_CTRL_RX_PROMISC      0
-#define VIRTIO_NET_CTRL_RX_ALLMULTI     1
-#define VIRTIO_NET_CTRL_RX_ALLUNI       2
-#define VIRTIO_NET_CTRL_RX_NOMULTI      3
-#define VIRTIO_NET_CTRL_RX_NOUNI        4
-#define VIRTIO_NET_CTRL_RX_NOBCAST      5
-
-/**
- * Control the MAC
- *
- * The MAC filter table is managed by the hypervisor, the guest should
- * assume the size is infinite.  Filtering should be considered
- * non-perfect, ie. based on hypervisor resources, the guest may
- * received packets from sources not specified in the filter list.
- *
- * In addition to the class/cmd header, the TABLE_SET command requires
- * two out scatterlists.  Each contains a 4 byte count of entries followed
- * by a concatenated byte stream of the ETH_ALEN MAC addresses.  The
- * first sg list contains unicast addresses, the second is for multicast.
- * This functionality is present if the VIRTIO_NET_F_CTRL_RX feature
- * is available.
- *
- * The ADDR_SET command requests one out scatterlist, it contains a
- * 6 bytes MAC address. This functionality is present if the
- * VIRTIO_NET_F_CTRL_MAC_ADDR feature is available.
- */
-struct virtio_net_ctrl_mac {
-	uint32_t entries;
-	uint8_t macs[][RTE_ETHER_ADDR_LEN];
-} __rte_packed;
-
-#define VIRTIO_NET_CTRL_MAC    1
-#define VIRTIO_NET_CTRL_MAC_TABLE_SET        0
-#define VIRTIO_NET_CTRL_MAC_ADDR_SET         1
-
-/**
- * Control VLAN filtering
- *
- * The VLAN filter table is controlled via a simple ADD/DEL interface.
- * VLAN IDs not added may be filtered by the hypervisor.  Del is the
- * opposite of add.  Both commands expect an out entry containing a 2
- * byte VLAN ID.  VLAN filtering is available with the
- * VIRTIO_NET_F_CTRL_VLAN feature bit.
- */
-#define VIRTIO_NET_CTRL_VLAN     2
-#define VIRTIO_NET_CTRL_VLAN_ADD 0
-#define VIRTIO_NET_CTRL_VLAN_DEL 1
-
-/**
- * RSS control
- *
- * The RSS feature configuration message is sent by the driver when
- * VIRTIO_NET_F_RSS has been negotiated. It provides the device with
- * hash types to use, hash key and indirection table. In this
- * implementation, the driver only supports fixed key length (40B)
- * and indirection table size (128 entries).
- */
-#define VIRTIO_NET_RSS_RETA_SIZE 128
-#define VIRTIO_NET_RSS_KEY_SIZE 40
-
-struct virtio_net_ctrl_rss {
-	uint32_t hash_types;
-	uint16_t indirection_table_mask;
-	uint16_t unclassified_queue;
-	uint16_t indirection_table[VIRTIO_NET_RSS_RETA_SIZE];
-	uint16_t max_tx_vq;
-	uint8_t hash_key_length;
-	uint8_t hash_key_data[VIRTIO_NET_RSS_KEY_SIZE];
-};
-
-/*
- * Control link announce acknowledgement
- *
- * The command VIRTIO_NET_CTRL_ANNOUNCE_ACK is used to indicate that
- * driver has received the notification; device would clear the
- * VIRTIO_NET_S_ANNOUNCE bit in the status field after it receives
- * this command.
- */
-#define VIRTIO_NET_CTRL_ANNOUNCE     3
-#define VIRTIO_NET_CTRL_ANNOUNCE_ACK 0
-
-struct virtio_net_ctrl_hdr {
-	uint8_t class;
-	uint8_t cmd;
-} __rte_packed;
-
-typedef uint8_t virtio_net_ctrl_ack;
-
 #define VIRTIO_NET_OK     0
 #define VIRTIO_NET_ERR    1
-
-#define VIRTIO_MAX_CTRL_DATA 2048
-
-struct virtio_pmd_ctrl {
-	struct virtio_net_ctrl_hdr hdr;
-	virtio_net_ctrl_ack status;
-	uint8_t data[VIRTIO_MAX_CTRL_DATA];
-};
 
 struct vq_desc_extra {
 	void *cookie;
@@ -304,12 +201,12 @@ struct virtqueue {
 		struct virtnet_ctl cq;
 	};
 
+	const struct rte_memzone *mz; /**< mem zone to populate ring. */
 	rte_iova_t vq_ring_mem; /**< physical address of vring,
 	                         * or virtual address for virtio_user. */
 
 	uint16_t  *notify_addr;
-	struct rte_mbuf **sw_ring;  /**< RX software ring. */
-	struct vq_desc_extra vq_descx[0];
+	struct vq_desc_extra vq_descx[];
 };
 
 /* If multiqueue is provided by host, then we support it. */
@@ -475,10 +372,6 @@ virtqueue_enable_intr(struct virtqueue *vq)
 }
 
 /**
- *  Dump virtqueue internal structures, for debug purpose only.
- */
-void virtqueue_dump(struct virtqueue *vq);
-/**
  *  Get all mbufs to be freed.
  */
 struct rte_mbuf *virtqueue_detach_unused(struct virtqueue *vq);
@@ -489,6 +382,13 @@ void virtqueue_rxvq_flush(struct virtqueue *vq);
 int virtqueue_rxvq_reset_packed(struct virtqueue *vq);
 
 int virtqueue_txvq_reset_packed(struct virtqueue *vq);
+
+void virtqueue_txq_indirect_headers_init(struct virtqueue *vq);
+
+struct virtqueue *virtqueue_alloc(struct virtio_hw *hw, uint16_t index,
+		uint16_t num, int type, int node, const char *name);
+
+void virtqueue_free(struct virtqueue *vq);
 
 static inline int
 virtqueue_full(const struct virtqueue *vq)
@@ -711,7 +611,7 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 			      uint16_t needed, int use_indirect, int can_push,
 			      int in_order)
 {
-	struct virtio_tx_region *txr = txvq->virtio_net_hdr_mz->addr;
+	struct virtio_tx_region *txr = txvq->hdr_mz->addr;
 	struct vq_desc_extra *dxp;
 	struct virtqueue *vq = virtnet_txq_to_vq(txvq);
 	struct vring_packed_desc *start_dp, *head_dp;
@@ -753,10 +653,8 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 		 * the first slot in indirect ring is already preset
 		 * to point to the header in reserved region
 		 */
-		start_dp[idx].addr  = txvq->virtio_net_hdr_mem +
-			RTE_PTR_DIFF(&txr[idx].tx_packed_indir, txr);
-		start_dp[idx].len   = (seg_num + 1) *
-			sizeof(struct vring_packed_desc);
+		start_dp[idx].addr = txvq->hdr_mem + RTE_PTR_DIFF(&txr[idx].tx_packed_indir, txr);
+		start_dp[idx].len = (seg_num + 1) * sizeof(struct vring_packed_desc);
 		/* Packed descriptor id needs to be restored when inorder. */
 		if (in_order)
 			start_dp[idx].id = idx;
@@ -772,9 +670,8 @@ virtqueue_enqueue_xmit_packed(struct virtnet_tx *txvq, struct rte_mbuf *cookie,
 		/* setup first tx ring slot to point to header
 		 * stored in reserved region.
 		 */
-		start_dp[idx].addr  = txvq->virtio_net_hdr_mem +
-			RTE_PTR_DIFF(&txr[idx].tx_hdr, txr);
-		start_dp[idx].len   = vq->hw->vtnet_hdr_size;
+		start_dp[idx].addr = txvq->hdr_mem + RTE_PTR_DIFF(&txr[idx].tx_hdr, txr);
+		start_dp[idx].len = vq->hw->vtnet_hdr_size;
 		hdr = (struct virtio_net_hdr *)&txr[idx].tx_hdr;
 		idx++;
 		if (idx >= vq->vq_nentries) {

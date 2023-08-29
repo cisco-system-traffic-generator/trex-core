@@ -83,7 +83,6 @@ void check_offloads(const struct rte_eth_dev_info *dev_info, const struct rte_et
         {"QINQ_STRIP",       RTE_ETH_RX_OFFLOAD_QINQ_STRIP},
         {"OUTER_IPV4_CKSUM", RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM},
         {"MACSEC_STRIP",     RTE_ETH_RX_OFFLOAD_MACSEC_STRIP},
-        {"HEADER_SPLIT",     RTE_ETH_RX_OFFLOAD_HEADER_SPLIT},
         {"VLAN_FILTER",      RTE_ETH_RX_OFFLOAD_VLAN_FILTER},
         {"VLAN_EXTEND",      RTE_ETH_RX_OFFLOAD_VLAN_EXTEND},
         //{"JUMBO_FRAME",      DEV_RX_OFFLOAD_JUMBO_FRAME},

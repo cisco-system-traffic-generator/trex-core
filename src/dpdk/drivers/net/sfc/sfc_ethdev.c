@@ -7,11 +7,11 @@
  * for Solarflare) and Solarflare Communications, Inc.
  */
 
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <ethdev_driver.h>
 #include <ethdev_pci.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_errno.h>
 #include <rte_string_fns.h>
 #include <rte_ether.h>
@@ -2322,7 +2322,7 @@ sfc_rx_metadata_negotiate(struct rte_eth_dev *dev, uint64_t *features)
 	if ((sa->priv.dp_rx->features & SFC_DP_RX_FEAT_FLOW_MARK) != 0)
 		supported |= RTE_ETH_RX_METADATA_USER_MARK;
 
-	if (sfc_flow_tunnel_is_supported(sa))
+	if (sfc_ft_is_supported(sa))
 		supported |= RTE_ETH_RX_METADATA_TUNNEL_ID;
 
 	sa->negotiated_rx_metadata = supported & *features;
@@ -3231,5 +3231,5 @@ RTE_INIT(sfc_driver_register_logtype)
 
 	ret = rte_log_register_type_and_pick_level(SFC_LOGTYPE_PREFIX "driver",
 						   RTE_LOG_NOTICE);
-	sfc_logtype_driver = (ret < 0) ? RTE_LOGTYPE_PMD : ret;
+	sfc_logtype_driver = (ret < 0) ? RTE_LOGTYPE_EAL : ret;
 }

@@ -2,6 +2,8 @@
  * Copyright (c) 2021 NVIDIA Corporation & Affiliates
  */
 
+#include <stdlib.h>
+
 #include <rte_eal.h>
 #include <rte_tailq.h>
 #include <rte_string_fns.h>
@@ -9,7 +11,6 @@
 #include <rte_malloc.h>
 #include <rte_errno.h>
 #include <rte_log.h>
-#include <rte_eal_paging.h>
 
 #include "rte_gpudev.h"
 #include "gpudev_driver.h"
@@ -407,6 +408,7 @@ rte_gpu_callback_register(int16_t dev_id, enum rte_gpu_event event,
 					callback->function == function &&
 					callback->user_data == user_data) {
 				GPU_LOG(INFO, "callback already registered");
+				rte_rwlock_write_unlock(&gpu_callback_lock);
 				return 0;
 			}
 		}
@@ -414,7 +416,9 @@ rte_gpu_callback_register(int16_t dev_id, enum rte_gpu_event event,
 		callback = malloc(sizeof(*callback));
 		if (callback == NULL) {
 			GPU_LOG(ERR, "cannot allocate callback");
-			return -ENOMEM;
+			rte_rwlock_write_unlock(&gpu_callback_lock);
+			rte_errno = ENOMEM;
+			return -rte_errno;
 		}
 		callback->function = function;
 		callback->user_data = user_data;

@@ -35,3 +35,5 @@ foreach arg:args
     config.set(arg[0], cc.has_header_symbol(arg[1], arg[2]))
 endforeach
 configure_file(output : 'tap_autoconf.h', configuration : config)
+
+require_iova_in_mbuf = false

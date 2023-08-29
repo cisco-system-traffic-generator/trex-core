@@ -2,12 +2,12 @@
  * Copyright(C) 2021 Marvell.
  */
 
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_common.h>
 #include <rte_crypto.h>
 #include <rte_cryptodev.h>
 #include <cryptodev_pmd.h>
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <rte_pci.h>
 
 #include "cn9k_cryptodev.h"
@@ -138,6 +138,7 @@ cn9k_cpt_pci_remove(struct rte_pci_device *pci_dev)
 	cnxk_crypto_sec_ctx_destroy(dev);
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
+		dev->dev_ops = NULL;
 		vf = dev->data->dev_private;
 		ret = roc_cpt_dev_fini(&vf->cpt);
 		if (ret)

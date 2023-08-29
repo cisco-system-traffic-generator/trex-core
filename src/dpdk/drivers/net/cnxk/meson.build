@@ -10,6 +10,7 @@ endif
 
 sources = files(
         'cnxk_ethdev.c',
+        'cnxk_ethdev_cman.c',
         'cnxk_ethdev_devargs.c',
         'cnxk_ethdev_mtr.c',
         'cnxk_ethdev_ops.c',
@@ -192,3 +193,7 @@ foreach flag: extra_flags
         cflags += flag
     endif
 endforeach
+
+headers = files('rte_pmd_cnxk.h')
+
+require_iova_in_mbuf = false

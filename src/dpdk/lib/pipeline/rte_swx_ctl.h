@@ -35,11 +35,20 @@ struct rte_swx_pipeline;
 
 /** Pipeline info. */
 struct rte_swx_ctl_pipeline_info {
+	/** Pipeline name. */
+	char name[RTE_SWX_CTL_NAME_SIZE];
+
 	/** Number of input ports. */
 	uint32_t n_ports_in;
 
 	/** Number of input ports. */
 	uint32_t n_ports_out;
+
+	/** Number of packet mirroring slots. */
+	uint32_t n_mirroring_slots;
+
+	/** Number of packet mirroring sessions. */
+	uint32_t n_mirroring_sessions;
 
 	/** Number of actions. */
 	uint32_t n_actions;
@@ -58,6 +67,9 @@ struct rte_swx_ctl_pipeline_info {
 
 	/** Number of meter arrays. */
 	uint32_t n_metarrays;
+
+	/** Number of RSS objects. */
+	uint32_t n_rss;
 };
 
 /**
@@ -226,6 +238,9 @@ struct rte_swx_ctl_table_info {
 	 * therefore it can be changed.
 	 */
 	int default_action_is_const;
+
+	/**  Hash function. */
+	rte_swx_hash_func_t hash_func;
 
 	/** Table size parameter. */
 	uint32_t size;
@@ -542,6 +557,9 @@ struct rte_swx_ctl_learner_info {
 
 	/** Learner table size parameter. */
 	uint32_t size;
+
+	/** Number of possible key timeout values. */
+	uint32_t n_key_timeouts;
 };
 
 /**
@@ -609,6 +627,50 @@ rte_swx_ctl_learner_action_info_get(struct rte_swx_pipeline *p,
 				    uint32_t learner_action_id,
 				    struct rte_swx_ctl_table_action_info *learner_action);
 
+/**
+ * Learner table timeout get
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] learner_id
+ *   Learner table ID (0 .. *n_learners* - 1).
+ * @param[in] timeout_id
+ *   Timeout ID.
+ * @param[out] timeout
+ *   Timeout value measured in seconds. Must be non-NULL.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_learner_timeout_get(struct rte_swx_pipeline *p,
+					 uint32_t learner_id,
+					 uint32_t timeout_id,
+					 uint32_t *timeout);
+
+/**
+ * Learner table timeout set
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] learner_id
+ *   Learner table ID (0 .. *n_learners* - 1).
+ * @param[in] timeout_id
+ *   Timeout ID.
+ * @param[in] timeout
+ *   Timeout value measured in seconds.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_learner_timeout_set(struct rte_swx_pipeline *p,
+					 uint32_t learner_id,
+					 uint32_t timeout_id,
+					 uint32_t timeout);
+
 /** Learner table statistics. */
 struct rte_swx_learner_stats {
 	/** Number of packets with lookup hit. */
@@ -622,6 +684,9 @@ struct rte_swx_learner_stats {
 
 	/** Number of packets with learning error. */
 	uint64_t n_pkts_learn_err;
+
+	/** Number of packets with rearm event. */
+	uint64_t n_pkts_rearm;
 
 	/** Number of packets with forget event. */
 	uint64_t n_pkts_forget;
@@ -654,6 +719,42 @@ int
 rte_swx_ctl_pipeline_learner_stats_read(struct rte_swx_pipeline *p,
 				      const char *learner_name,
 				      struct rte_swx_learner_stats *stats);
+
+/*
+ * Packet mirroring API.
+ */
+
+/** Packet mirroring session parameters. */
+struct rte_swx_pipeline_mirroring_session_params {
+	/** Output port ID. */
+	uint32_t port_id;
+
+	/** Fast clone flag. */
+	int fast_clone;
+
+	/** Truncation packet length (in bytes). Zero means no truncation. */
+	uint32_t truncation_length;
+};
+
+/**
+ * Packet mirroring session set
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] session_id
+ *   Packet mirroring session ID.
+ * @param[in] params
+ *   Packet mirroring session parameters.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument;
+ *   -EEXIST: Pipeline was already built successfully.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_mirroring_session_set(struct rte_swx_pipeline *p,
+	uint32_t session_id,
+	struct rte_swx_pipeline_mirroring_session_params *params);
 
 /*
  * Table Update API.
@@ -719,6 +820,18 @@ rte_swx_pipeline_table_state_set(struct rte_swx_pipeline *p,
 
 /** Pipeline control opaque data structure. */
 struct rte_swx_ctl_pipeline;
+
+/**
+ * Pipeline control find
+ *
+ * @param[in] name
+ *   Pipeline name.
+ * @return
+ *   Valid pipeline control handle if found or NULL otherwise.
+ */
+__rte_experimental
+struct rte_swx_ctl_pipeline *
+rte_swx_ctl_pipeline_find(const char *name);
 
 /**
  * Pipeline control create
@@ -1127,6 +1240,58 @@ rte_swx_ctl_pipeline_regarray_write(struct rte_swx_pipeline *p,
 				   uint32_t regarray_index,
 				   uint64_t value);
 
+/**
+ * Register read with table key lookup
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] regarray_name
+ *   Register array name.
+ * @param[in] table_name
+ *   Regular or learner table name.
+ * @param[in] table_key
+ *   Table key.
+ * @param[out] value
+ *   Current register value.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument;
+ *   -ENOMEM: Not enough memory.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_regarray_read_with_key(struct rte_swx_pipeline *p,
+					    const char *regarray_name,
+					    const char *table_name,
+					    uint8_t *table_key,
+					    uint64_t *value);
+
+/**
+ * Register write with table key lookup
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] regarray_name
+ *   Register array name.
+ * @param[in] table_name
+ *   Regular or learner table name.
+ * @param[in] table_key
+ *   Table key.
+ * @param[in] value
+ *   Value to be written to the register.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument;
+ *   -ENOMEM: Not enough memory.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_regarray_write_with_key(struct rte_swx_pipeline *p,
+					     const char *regarray_name,
+					     const char *table_name,
+					     uint8_t *table_key,
+					     uint64_t value);
+
 /*
  * Meter Array Query and Configuration API.
  */
@@ -1279,10 +1444,181 @@ rte_swx_ctl_meter_stats_read(struct rte_swx_pipeline *p,
 			     struct rte_swx_ctl_meter_stats *stats);
 
 /**
+ * Meter reset with table key lookup
+ *
+ * Reset a meter within a given meter array to use the default profile that
+ * causes all the input packets to be colored as green. It is the responsibility
+ * of the control plane to make sure this meter is not used by the data plane
+ * pipeline before calling this function.
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] metarray_name
+ *   Meter array name.
+ * @param[in] table_name
+ *   Regular or learner table name.
+ * @param[in] table_key
+ *   Table key.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_meter_reset_with_key(struct rte_swx_pipeline *p,
+				 const char *metarray_name,
+				 const char *table_name,
+				 uint8_t *table_key);
+
+/**
+ * Meter set with table key lookup
+ *
+ * Set a meter within a given meter array to use a specific profile. It is the
+ * responsibility of the control plane to make sure this meter is not used by
+ * the data plane pipeline before calling this function.
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] metarray_name
+ *   Meter array name.
+ * @param[in] table_name
+ *   Regular or learner table name.
+ * @param[in] table_key
+ *   Table key.
+ * @param[in] profile_name
+ *   Existing meter profile name.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_meter_set_with_key(struct rte_swx_pipeline *p,
+			       const char *metarray_name,
+			       const char *table_name,
+			       uint8_t *table_key,
+			       const char *profile_name);
+
+/**
+ * Meter statistics counters read with table key lookup
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] metarray_name
+ *   Meter array name.
+ * @param[in] table_name
+ *   Regular or learner table name.
+ * @param[in] table_key
+ *   Table key.
+ * @param[out] stats
+ *   Meter statistics counters.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_meter_stats_read_with_key(struct rte_swx_pipeline *p,
+				      const char *metarray_name,
+				      const char *table_name,
+				      uint8_t *table_key,
+				      struct rte_swx_ctl_meter_stats *stats);
+
+/*
+ * RSS Query and Configuration API.
+ */
+
+/** RSS object info. */
+struct rte_swx_ctl_rss_info {
+	/** RSS object name. */
+	char name[RTE_SWX_CTL_NAME_SIZE];
+};
+
+/**
+ * RSS object info get
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] rss_obj_id
+ *   RSS object ID (0 .. *n_rss* - 1).
+ * @param[out] rss
+ *   RSS object info.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_rss_info_get(struct rte_swx_pipeline *p,
+			 uint32_t rss_obj_id,
+			 struct rte_swx_ctl_rss_info *rss);
+
+/**
+ * RSS object key size read
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] rss_obj_name
+ *   RSS object name.
+ * @param[out] key_size
+ *   RSS key size in bytes.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_rss_key_size_read(struct rte_swx_pipeline *p,
+				       const char *rss_obj_name,
+				       uint32_t *key_size);
+
+/**
+ * RSS object key read
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] rss_obj_name
+ *   RSS object name.
+ * @param[out] key
+ *   RSS key. Must be pre-allocated by the caller to store *key_size* bytes.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_rss_key_read(struct rte_swx_pipeline *p,
+				  const char *rss_obj_name,
+				  uint8_t *key);
+
+/**
+ * RSS object key write
+ *
+ * @param[in] p
+ *   Pipeline handle.
+ * @param[in] rss_obj_name
+ *   RSS object name.
+ * @param[in] key_size
+ *   RSS key size in bytes. Must be at least 4 and a power of 2.
+ * @param[in] key
+ *   RSS key.
+ * @return
+ *   0 on success or the following error codes otherwise:
+ *   -EINVAL: Invalid argument.
+ */
+__rte_experimental
+int
+rte_swx_ctl_pipeline_rss_key_write(struct rte_swx_pipeline *p,
+				   const char *rss_obj_name,
+				   uint32_t key_size,
+				   uint8_t *key);
+
+/**
  * Pipeline control free
  *
  * @param[in] ctl
  *   Pipeline control handle.
+ *   If ctl is NULL, no operation is performed.
  */
 __rte_experimental
 void

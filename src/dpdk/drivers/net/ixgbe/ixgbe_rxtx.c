@@ -34,8 +34,7 @@
 #include <rte_mbuf.h>
 #include <rte_ether.h>
 #include <ethdev_driver.h>
-#include <ethdev_driver.h>
-#ifdef RTE_LIB_SECURITY 
+#ifdef RTE_LIB_SECURITY
 #include <rte_security_driver.h>
 #endif
 #include <rte_prefetch.h>
@@ -859,6 +858,7 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 					rte_pktmbuf_free_seg(txe->mbuf);
 					txe->mbuf = NULL;
 				}
+
 #ifdef RTE_LIB_SECURITY 
 				ixgbe_set_xmit_ctx(txq, ctx_txd, tx_ol_req,
 					tx_offload,
@@ -868,6 +868,7 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 					tx_offload,
 					(uint64_t *)0);
 #endif	
+
 				txe->last_id = tx_last;
 				tx_id = txe->next_id;
 				txe = txn;
@@ -5964,8 +5965,11 @@ ixgbe_config_rss_filter(struct rte_eth_dev *dev,
 	return 0;
 }
 
-/* Stubs needed for linkage when RTE_ARCH_PPC_64 is set */
-#if defined(RTE_ARCH_PPC_64)
+/* Stubs needed for linkage when RTE_ARCH_PPC_64, RTE_ARCH_RISCV or
+ * RTE_ARCH_LOONGARCH is set.
+ */
+#if defined(RTE_ARCH_PPC_64) || defined(RTE_ARCH_RISCV) || \
+	defined(RTE_ARCH_LOONGARCH)
 int
 ixgbe_rx_vec_dev_conf_condition_check(struct rte_eth_dev __rte_unused *dev)
 {

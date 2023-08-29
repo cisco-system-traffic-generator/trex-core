@@ -10,7 +10,7 @@
 #include <fcntl.h>
 
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_memzone.h>
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
@@ -161,7 +161,6 @@ int enic_dev_stats_get(struct enic *enic, struct rte_eth_stats *r_stats)
 #ifdef TREX_PATCH
     r_stats->ibytes = stats->rx.rx_unicast_bytes_ok + stats->rx.rx_multicast_bytes_ok + stats->rx.rx_broadcast_bytes_ok;
 #else
-
 	r_stats->ibytes = stats->rx.rx_bytes_ok;
 #endif
 	r_stats->obytes = stats->tx.tx_bytes_ok;

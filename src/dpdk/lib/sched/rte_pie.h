@@ -16,6 +16,7 @@ extern "C" {
 
 #include <stdint.h>
 
+#include <rte_compat.h>
 #include <rte_random.h>
 #include <rte_debug.h>
 #include <rte_cycles.h>
@@ -217,8 +218,7 @@ __rte_experimental
 _rte_pie_drop(const struct rte_pie_config *pie_cfg,
 	struct rte_pie *pie)
 {
-	uint64_t rand_value;
-	double qdelay = pie_cfg->qdelay_ref * 0.5;
+	uint64_t qdelay = pie_cfg->qdelay_ref / 2;
 
 	/* PIE is active but the queue is not congested: return 0 */
 	if (((pie->qdelay_old < qdelay) && (pie->drop_prob < 0.2)) ||
@@ -240,9 +240,7 @@ _rte_pie_drop(const struct rte_pie_config *pie_cfg,
 	if (pie->accu_prob >= 8.5)
 		return 1;
 
-	rand_value = rte_rand()/RTE_RAND_MAX;
-
-	if ((double)rand_value < pie->drop_prob) {
+	if (rte_drand() < pie->drop_prob) {
 		pie->accu_prob = 0;
 		return 1;
 	}

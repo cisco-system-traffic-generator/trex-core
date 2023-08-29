@@ -4,3 +4,4 @@
 sources = files('rte_mempool_stack.c')
 
 deps += ['stack']
+require_iova_in_mbuf = false

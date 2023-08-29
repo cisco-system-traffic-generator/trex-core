@@ -8,13 +8,15 @@
 #include <stdio.h>
 #include <malloc.h>
 
+#include <rte_compat.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_debug.h>
 #include <rte_atomic.h>
 #include <rte_log.h>
 #include <rte_kvargs.h>
 #include <rte_devargs.h>
+#include <rte_interrupts.h>
 
 #include "mlx5_autoconf.h"
 #include "mlx5_glue.h"
@@ -298,5 +300,15 @@ mlx5_set_context_attr(struct rte_device *dev, struct ibv_context *ctx);
 __rte_internal
 int
 mlx5_get_device_guid(const struct rte_pci_addr *dev, uint8_t *guid, size_t len);
+
+__rte_internal
+struct rte_intr_handle *
+mlx5_os_interrupt_handler_create(int mode, bool set_fd_nonblock, int fd,
+				 rte_intr_callback_fn cb, void *cb_arg);
+
+__rte_internal
+void
+mlx5_os_interrupt_handler_destroy(struct rte_intr_handle *intr_handle,
+				  rte_intr_callback_fn cb, void *cb_arg);
 
 #endif /* RTE_PMD_MLX5_COMMON_OS_H_ */

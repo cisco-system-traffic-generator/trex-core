@@ -120,17 +120,14 @@ bool ngbe_validate_phy_addr(struct ngbe_hw *hw, u32 phy_addr)
 	u16 phy_id = 0;
 	bool valid = false;
 
-	if (hw->sub_device_id == NGBE_SUB_DEV_ID_EM_YT8521S_SFP)
-		return true;
-
 	hw->phy.addr = phy_addr;
-	hw->phy.read_reg(hw, NGBE_MD_PHY_ID_HIGH,
+	hw->phy.read_reg(hw, NGBE_MD_PHY_ID_LOW,
 			     NGBE_MD_DEV_PMA_PMD, &phy_id);
 
 	if (phy_id != 0xFFFF && phy_id != 0x0)
 		valid = true;
 
-	DEBUGOUT("PHY ID HIGH is 0x%04X", phy_id);
+	DEBUGOUT("PHY ID LOW is 0x%04X", phy_id);
 
 	return valid;
 }
@@ -183,7 +180,8 @@ s32 ngbe_get_phy_type_from_id(struct ngbe_hw *hw)
 		else
 			status = ngbe_check_phy_mode_mvl(hw);
 		break;
-	case NGBE_PHYID_YT:
+	case NGBE_PHYID_YT8521:
+	case NGBE_PHYID_YT8531:
 		if (hw->phy.media_type == ngbe_media_type_fiber)
 			hw->phy.type = ngbe_phy_yt8521s_sfi;
 		else
@@ -292,15 +290,9 @@ s32 ngbe_read_phy_reg(struct ngbe_hw *hw, u32 reg_addr,
 			       u32 device_type, u16 *phy_data)
 {
 	s32 err;
-	u32 gssr = hw->phy.phy_semaphore_mask;
-
-	if (hw->mac.acquire_swfw_sync(hw, gssr))
-		return NGBE_ERR_SWFW_SYNC;
 
 	err = hw->phy.read_reg_unlocked(hw, reg_addr, device_type,
 					phy_data);
-
-	hw->mac.release_swfw_sync(hw, gssr);
 
 	return err;
 }
@@ -352,15 +344,9 @@ s32 ngbe_write_phy_reg(struct ngbe_hw *hw, u32 reg_addr,
 				u32 device_type, u16 phy_data)
 {
 	s32 err;
-	u32 gssr = hw->phy.phy_semaphore_mask;
-
-	if (hw->mac.acquire_swfw_sync(hw, gssr))
-		err = NGBE_ERR_SWFW_SYNC;
 
 	err = hw->phy.write_reg_unlocked(hw, reg_addr, device_type,
 					 phy_data);
-
-	hw->mac.release_swfw_sync(hw, gssr);
 
 	return err;
 }
@@ -414,6 +400,7 @@ s32 ngbe_init_phy(struct ngbe_hw *hw)
 		hw->phy.init_hw = ngbe_init_phy_rtl;
 		hw->phy.check_link = ngbe_check_phy_link_rtl;
 		hw->phy.setup_link = ngbe_setup_phy_link_rtl;
+		hw->phy.set_phy_power = ngbe_set_phy_power_rtl;
 		hw->phy.get_adv_pause = ngbe_get_phy_advertised_pause_rtl;
 		hw->phy.get_lp_adv_pause = ngbe_get_phy_lp_advertised_pause_rtl;
 		hw->phy.set_pause_adv = ngbe_set_phy_pause_adv_rtl;
@@ -423,6 +410,7 @@ s32 ngbe_init_phy(struct ngbe_hw *hw)
 		hw->phy.init_hw = ngbe_init_phy_mvl;
 		hw->phy.check_link = ngbe_check_phy_link_mvl;
 		hw->phy.setup_link = ngbe_setup_phy_link_mvl;
+		hw->phy.set_phy_power = ngbe_set_phy_power_mvl;
 		hw->phy.get_adv_pause = ngbe_get_phy_advertised_pause_mvl;
 		hw->phy.get_lp_adv_pause = ngbe_get_phy_lp_advertised_pause_mvl;
 		hw->phy.set_pause_adv = ngbe_set_phy_pause_adv_mvl;
@@ -432,6 +420,7 @@ s32 ngbe_init_phy(struct ngbe_hw *hw)
 		hw->phy.init_hw = ngbe_init_phy_yt;
 		hw->phy.check_link = ngbe_check_phy_link_yt;
 		hw->phy.setup_link = ngbe_setup_phy_link_yt;
+		hw->phy.set_phy_power = ngbe_set_phy_power_yt;
 		hw->phy.get_adv_pause = ngbe_get_phy_advertised_pause_yt;
 		hw->phy.get_lp_adv_pause = ngbe_get_phy_lp_advertised_pause_yt;
 		hw->phy.set_pause_adv = ngbe_set_phy_pause_adv_yt;

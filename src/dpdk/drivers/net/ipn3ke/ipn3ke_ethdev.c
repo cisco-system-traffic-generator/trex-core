@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_ethdev.h>
 #include <rte_pci.h>
 #include <rte_malloc.h>
@@ -16,7 +16,7 @@
 #include <rte_io.h>
 #include <rte_rawdev.h>
 #include <rte_rawdev_pmd.h>
-#include <rte_bus_ifpga.h>
+#include <bus_ifpga_driver.h>
 #include <ifpga_common.h>
 #include <ifpga_logs.h>
 #include <ifpga_rawdev.h>
@@ -558,7 +558,7 @@ static int ipn3ke_vswitch_remove(struct rte_afu_device *afu_dev)
 		snprintf(name, sizeof(name), "net_%s_representor_%d",
 			afu_dev->device.name, i);
 
-		ethdev = rte_eth_dev_allocated(afu_dev->device.name);
+		ethdev = rte_eth_dev_allocated(name);
 		if (ethdev != NULL)
 			rte_eth_dev_destroy(ethdev, ipn3ke_rpst_uninit);
 	}

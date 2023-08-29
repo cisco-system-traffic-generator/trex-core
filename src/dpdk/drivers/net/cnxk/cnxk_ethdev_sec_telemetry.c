@@ -2,6 +2,8 @@
  * Copyright(C) 2022 Marvell.
  */
 
+#include <ctype.h>
+
 #include <rte_telemetry.h>
 
 #include <roc_api.h>
@@ -14,32 +16,20 @@
 static int
 copy_outb_sa_9k(struct rte_tel_data *d, uint32_t i, void *sa)
 {
-	struct roc_onf_ipsec_outb_sa *out_sa;
 	union {
-		struct roc_ie_onf_sa_ctl ctl;
+		struct roc_ie_on_sa_ctl ctl;
 		uint64_t u64;
 	} w0;
+	struct roc_ie_on_outb_sa *out_sa;
 	char strw0[W0_MAXLEN];
 	char str[STR_MAXLEN];
 
-	out_sa = (struct roc_onf_ipsec_outb_sa *)sa;
-	w0.ctl = out_sa->ctl;
+	out_sa = (struct roc_ie_on_outb_sa *)sa;
+	w0.ctl = out_sa->common_sa.ctl;
 
 	snprintf(str, sizeof(str), "outsa_w0_%u", i);
 	snprintf(strw0, sizeof(strw0), "%" PRIu64, w0.u64);
 	rte_tel_data_add_dict_string(d, str, strw0);
-
-	snprintf(str, sizeof(str), "outsa_src_%u", i);
-	rte_tel_data_add_dict_u64(d, str, out_sa->udp_src);
-
-	snprintf(str, sizeof(str), "outsa_dst_%u", i);
-	rte_tel_data_add_dict_u64(d, str, out_sa->udp_dst);
-
-	snprintf(str, sizeof(str), "outsa_isrc_%u", i);
-	rte_tel_data_add_dict_u64(d, str, out_sa->ip_src);
-
-	snprintf(str, sizeof(str), "outsa_idst_%u", i);
-	rte_tel_data_add_dict_u64(d, str, out_sa->ip_dst);
 
 	return 0;
 }
@@ -47,26 +37,26 @@ copy_outb_sa_9k(struct rte_tel_data *d, uint32_t i, void *sa)
 static int
 copy_inb_sa_9k(struct rte_tel_data *d, uint32_t i, void *sa)
 {
-	struct roc_onf_ipsec_inb_sa *in_sa;
 	union {
-		struct roc_ie_onf_sa_ctl ctl;
+		struct roc_ie_on_sa_ctl ctl;
 		uint64_t u64;
 	} w0;
+	struct roc_ie_on_inb_sa *in_sa;
 	char strw0[W0_MAXLEN];
 	char str[STR_MAXLEN];
 
-	in_sa = (struct roc_onf_ipsec_inb_sa *)sa;
-	w0.ctl = in_sa->ctl;
+	in_sa = (struct roc_ie_on_inb_sa *)sa;
+	w0.ctl = in_sa->common_sa.ctl;
 
 	snprintf(str, sizeof(str), "insa_w0_%u", i);
 	snprintf(strw0, sizeof(strw0), "%" PRIu64, w0.u64);
 	rte_tel_data_add_dict_string(d, str, strw0);
 
 	snprintf(str, sizeof(str), "insa_esnh_%u", i);
-	rte_tel_data_add_dict_u64(d, str, in_sa->esn_hi);
+	rte_tel_data_add_dict_uint(d, str, in_sa->common_sa.seq_t.th);
 
 	snprintf(str, sizeof(str), "insa_esnl_%u", i);
-	rte_tel_data_add_dict_u64(d, str, in_sa->esn_low);
+	rte_tel_data_add_dict_uint(d, str, in_sa->common_sa.seq_t.tl);
 
 	return 0;
 }
@@ -104,15 +94,15 @@ copy_outb_sa_10k(struct rte_tel_data *d, uint32_t i, void *sa)
 		return -ENOMEM;
 	}
 
-	rte_tel_data_start_array(outer_hdr, RTE_TEL_U64_VAL);
+	rte_tel_data_start_array(outer_hdr, RTE_TEL_UINT_VAL);
 
 	for (j = 0; j < RTE_DIM(out_sa->outer_hdr.ipv6.src_addr); j++)
-		rte_tel_data_add_array_u64(outer_hdr,
-					   out_sa->outer_hdr.ipv6.src_addr[j]);
+		rte_tel_data_add_array_uint(outer_hdr,
+					    out_sa->outer_hdr.ipv6.src_addr[j]);
 
 	for (j = 0; j < RTE_DIM(out_sa->outer_hdr.ipv6.dst_addr); j++)
-		rte_tel_data_add_array_u64(outer_hdr,
-					   out_sa->outer_hdr.ipv6.dst_addr[j]);
+		rte_tel_data_add_array_uint(outer_hdr,
+					    out_sa->outer_hdr.ipv6.dst_addr[j]);
 
 	snprintf(str, sizeof(str), "outsa_outer_hdr_%u", i);
 	rte_tel_data_add_dict_container(d, str, outer_hdr, 0);
@@ -177,15 +167,15 @@ copy_inb_sa_10k(struct rte_tel_data *d, uint32_t i, void *sa)
 		return -ENOMEM;
 	}
 
-	rte_tel_data_start_array(outer_hdr, RTE_TEL_U64_VAL);
+	rte_tel_data_start_array(outer_hdr, RTE_TEL_UINT_VAL);
 
 	for (j = 0; j < RTE_DIM(in_sa->outer_hdr.ipv6.src_addr); j++)
-		rte_tel_data_add_array_u64(outer_hdr,
-					   in_sa->outer_hdr.ipv6.src_addr[j]);
+		rte_tel_data_add_array_uint(outer_hdr,
+					    in_sa->outer_hdr.ipv6.src_addr[j]);
 
 	for (j = 0; j < RTE_DIM(in_sa->outer_hdr.ipv6.dst_addr); j++)
-		rte_tel_data_add_array_u64(outer_hdr,
-					   in_sa->outer_hdr.ipv6.dst_addr[j]);
+		rte_tel_data_add_array_uint(outer_hdr,
+					    in_sa->outer_hdr.ipv6.dst_addr[j]);
 
 	snprintf(str, sizeof(str), "insa_outer_hdr_%u", i);
 	rte_tel_data_add_dict_container(d, str, outer_hdr, 0);
@@ -228,6 +218,9 @@ ethdev_sec_tel_handle_info(const char *cmd __rte_unused, const char *params,
 	char *end_p;
 	uint32_t i;
 	int ret;
+
+	if (params == NULL || strlen(params) == 0 || !isdigit(*params))
+		return -EINVAL;
 
 	port_id = strtoul(params, &end_p, 0);
 	if (errno != 0)

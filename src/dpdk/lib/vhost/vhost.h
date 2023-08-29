@@ -7,13 +7,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <sys/types.h>
+#include <stdlib.h>
 #include <sys/queue.h>
 #include <unistd.h>
-#include <linux/vhost.h>
 #include <linux/virtio_net.h>
 #include <sys/socket.h>
 #include <linux/if.h>
+#include <sys/mman.h>
 
 #include <rte_log.h>
 #include <rte_ether.h>
@@ -37,6 +37,10 @@
 #define VIRTIO_DEV_FEATURES_FAILED ((uint32_t)1 << 4)
 /* Used to indicate that the virtio_net tx code should fill TX ol_flags */
 #define VIRTIO_DEV_LEGACY_OL_FLAGS ((uint32_t)1 << 5)
+/*  Used to indicate the application has requested statistics collection */
+#define VIRTIO_DEV_STATS_ENABLED ((uint32_t)1 << 6)
+/*  Used to indicate the application has requested iommu support */
+#define VIRTIO_DEV_SUPPORT_IOMMU ((uint32_t)1 << 7)
 
 /* Backend value set by guest. */
 #define VIRTIO_DEV_STOPPED -1
@@ -122,6 +126,23 @@ struct vring_used_elem_packed {
 };
 
 /**
+ * Virtqueue statistics
+ */
+struct virtqueue_stats {
+	uint64_t packets;
+	uint64_t bytes;
+	uint64_t multicast;
+	uint64_t broadcast;
+	/* Size bins in array as RFC 2819, undersized [0], 64 [1], etc */
+	uint64_t size_bins[8];
+	uint64_t guest_notifications;
+	uint64_t iotlb_hits;
+	uint64_t iotlb_misses;
+	uint64_t inflight_submitted;
+	uint64_t inflight_completed;
+};
+
+/**
  * iovec
  */
 struct vhost_iovec {
@@ -180,6 +201,7 @@ struct async_inflight_info {
 	struct rte_mbuf *mbuf;
 	uint16_t descs; /* num of descs inflight */
 	uint16_t nr_buffers; /* num of buffers inflight for packed ring */
+	struct virtio_net_hdr nethdr;
 };
 
 struct vhost_async {
@@ -281,15 +303,20 @@ struct vhost_virtqueue {
 
 	rte_rwlock_t	iotlb_lock;
 	rte_rwlock_t	iotlb_pending_lock;
-	struct rte_mempool *iotlb_pool;
+	struct vhost_iotlb_entry *iotlb_pool;
 	TAILQ_HEAD(, vhost_iotlb_entry) iotlb_list;
 	TAILQ_HEAD(, vhost_iotlb_entry) iotlb_pending_list;
 	int				iotlb_cache_nr;
+	rte_spinlock_t	iotlb_free_lock;
+	SLIST_HEAD(, vhost_iotlb_entry) iotlb_free_list;
 
 	/* Used to notify the guest (trigger interrupt) */
 	int			callfd;
 	/* Currently unused as polling mode is enabled */
 	int			kickfd;
+
+	/* Index of this vq in dev->virtqueue[] */
+	uint32_t		index;
 
 	/* inflight share memory info */
 	union {
@@ -299,12 +326,13 @@ struct vhost_virtqueue {
 	struct rte_vhost_resubmit_info *resubmit_inflight;
 	uint64_t		global_counter;
 
-	struct vhost_async	*async;
+	struct vhost_async	*async __rte_guarded_var;
 
 	int			notif_enable;
 #define VIRTIO_UNINITIALIZED_NOTIF	(-1)
 
 	struct vhost_vring_addr ring_addrs;
+	struct virtqueue_stats	stats;
 } __rte_cache_aligned;
 
 /* Virtio device status as per Virtio specification */
@@ -471,8 +499,8 @@ struct virtio_net {
 	uint32_t		max_guest_pages;
 	struct guest_page       *guest_pages;
 
-	int			slave_req_fd;
-	rte_spinlock_t		slave_req_lock;
+	int			backend_req_fd;
+	rte_spinlock_t		backend_req_lock;
 
 	int			postcopy_ufd;
 	int			postcopy_listening;
@@ -484,6 +512,16 @@ struct virtio_net {
 	/* pre and post vhost user message handlers for the device */
 	struct rte_vhost_user_extern_ops extern_ops;
 } __rte_cache_aligned;
+
+static inline void
+vq_assert_lock__(struct virtio_net *dev, struct vhost_virtqueue *vq, const char *func)
+	__rte_assert_exclusive_lock(&vq->access_lock)
+{
+	if (unlikely(!rte_spinlock_is_locked(&vq->access_lock)))
+		rte_panic("VHOST_CONFIG: (%s) %s() called without access lock taken.\n",
+			dev->ifname, func);
+}
+#define vq_assert_lock(dev, vq) vq_assert_lock__(dev, vq, __func__)
 
 static __rte_always_inline bool
 vq_is_packed(struct virtio_net *dev)
@@ -525,12 +563,15 @@ void __vhost_log_cache_write(struct virtio_net *dev,
 		uint64_t addr, uint64_t len);
 void __vhost_log_cache_write_iova(struct virtio_net *dev,
 		struct vhost_virtqueue *vq,
-		uint64_t iova, uint64_t len);
+		uint64_t iova, uint64_t len)
+	__rte_shared_locks_required(&vq->iotlb_lock);
 void __vhost_log_cache_sync(struct virtio_net *dev,
 		struct vhost_virtqueue *vq);
+
 void __vhost_log_write(struct virtio_net *dev, uint64_t addr, uint64_t len);
 void __vhost_log_write_iova(struct virtio_net *dev, struct vhost_virtqueue *vq,
-			    uint64_t iova, uint64_t len);
+			    uint64_t iova, uint64_t len)
+	__rte_shared_locks_required(&vq->iotlb_lock);
 
 static __rte_always_inline void
 vhost_log_write(struct virtio_net *dev, uint64_t addr, uint64_t len)
@@ -580,6 +621,7 @@ vhost_log_used_vring(struct virtio_net *dev, struct vhost_virtqueue *vq,
 static __rte_always_inline void
 vhost_log_cache_write_iova(struct virtio_net *dev, struct vhost_virtqueue *vq,
 			   uint64_t iova, uint64_t len)
+	__rte_shared_locks_required(&vq->iotlb_lock)
 {
 	if (likely(!(dev->features & (1ULL << VHOST_F_LOG_ALL))))
 		return;
@@ -593,6 +635,7 @@ vhost_log_cache_write_iova(struct virtio_net *dev, struct vhost_virtqueue *vq,
 static __rte_always_inline void
 vhost_log_write_iova(struct virtio_net *dev, struct vhost_virtqueue *vq,
 			   uint64_t iova, uint64_t len)
+	__rte_shared_locks_required(&vq->iotlb_lock)
 {
 	if (likely(!(dev->features & (1ULL << VHOST_F_LOG_ALL))))
 		return;
@@ -606,14 +649,14 @@ vhost_log_write_iova(struct virtio_net *dev, struct vhost_virtqueue *vq,
 extern int vhost_config_log_level;
 extern int vhost_data_log_level;
 
-#define VHOST_LOG_CONFIG(level, fmt, args...)			\
+#define VHOST_LOG_CONFIG(prefix, level, fmt, args...)		\
 	rte_log(RTE_LOG_ ## level, vhost_config_log_level,	\
-		"VHOST_CONFIG: " fmt, ##args)
+		"VHOST_CONFIG: (%s) " fmt, prefix, ##args)
 
-#define VHOST_LOG_DATA(level, fmt, args...) \
+#define VHOST_LOG_DATA(prefix, level, fmt, args...)		\
 	(void)((RTE_LOG_ ## level <= RTE_LOG_DP_LEVEL) ?	\
 	 rte_log(RTE_LOG_ ## level,  vhost_data_log_level,	\
-		"VHOST_DATA : " fmt, ##args) :			\
+		"VHOST_DATA: (%s) " fmt, prefix, ##args) :	\
 	 0)
 
 #ifdef RTE_LIBRTE_VHOST_DEBUG
@@ -633,7 +676,7 @@ extern int vhost_data_log_level;
 	} \
 	snprintf(packet + strnlen(packet, VHOST_MAX_PRINT_BUFF), VHOST_MAX_PRINT_BUFF - strnlen(packet, VHOST_MAX_PRINT_BUFF), "\n"); \
 	\
-	VHOST_LOG_DATA(DEBUG, "%s", packet); \
+	VHOST_LOG_DATA(device->ifname, DEBUG, "%s", packet); \
 } while (0)
 #else
 #define PRINT_PACKET(device, addr, size, header) do {} while (0)
@@ -755,11 +798,13 @@ hva_to_gpa(struct virtio_net *dev, uint64_t vva, uint64_t len)
 static __rte_always_inline struct virtio_net *
 get_device(int vid)
 {
-	struct virtio_net *dev = vhost_devices[vid];
+	struct virtio_net *dev = NULL;
+
+	if (likely(vid >= 0 && vid < RTE_MAX_VHOST_DEVICE))
+		dev = vhost_devices[vid];
 
 	if (unlikely(!dev)) {
-		VHOST_LOG_CONFIG(ERR,
-			"(%d) device not found.\n", vid);
+		VHOST_LOG_CONFIG("device", ERR, "(%d) device not found.\n", vid);
 	}
 
 	return dev;
@@ -780,7 +825,8 @@ int alloc_vring_queue(struct virtio_net *dev, uint32_t vring_idx);
 void vhost_attach_vdpa_device(int vid, struct rte_vdpa_device *dev);
 
 void vhost_set_ifname(int, const char *if_name, unsigned int if_len);
-void vhost_setup_virtio_net(int vid, bool enable, bool legacy_ol_flags);
+void vhost_setup_virtio_net(int vid, bool enable, bool legacy_ol_flags, bool stats_enabled,
+	bool support_iommu);
 void vhost_enable_extbuf(int vid);
 void vhost_enable_linearbuf(int vid);
 int vhost_enable_guest_notification(struct virtio_net *dev,
@@ -796,18 +842,23 @@ struct rte_vhost_device_ops const *vhost_driver_callback_get(const char *path);
 void vhost_backend_cleanup(struct virtio_net *dev);
 
 uint64_t __vhost_iova_to_vva(struct virtio_net *dev, struct vhost_virtqueue *vq,
-			uint64_t iova, uint64_t *len, uint8_t perm);
+			uint64_t iova, uint64_t *len, uint8_t perm)
+	__rte_shared_locks_required(&vq->iotlb_lock);
 void *vhost_alloc_copy_ind_table(struct virtio_net *dev,
 			struct vhost_virtqueue *vq,
-			uint64_t desc_addr, uint64_t desc_len);
-int vring_translate(struct virtio_net *dev, struct vhost_virtqueue *vq);
+			uint64_t desc_addr, uint64_t desc_len)
+	__rte_shared_locks_required(&vq->iotlb_lock);
+int vring_translate(struct virtio_net *dev, struct vhost_virtqueue *vq)
+	__rte_shared_locks_required(&vq->iotlb_lock);
 uint64_t translate_log_addr(struct virtio_net *dev, struct vhost_virtqueue *vq,
-		uint64_t log_addr);
+		uint64_t log_addr)
+	__rte_shared_locks_required(&vq->iotlb_lock);
 void vring_invalidate(struct virtio_net *dev, struct vhost_virtqueue *vq);
 
 static __rte_always_inline uint64_t
 vhost_iova_to_vva(struct virtio_net *dev, struct vhost_virtqueue *vq,
 			uint64_t iova, uint64_t *len, uint8_t perm)
+	__rte_shared_locks_required(&vq->iotlb_lock)
 {
 	if (!(dev->features & (1ULL << VIRTIO_F_IOMMU_PLATFORM)))
 		return rte_vhost_va_from_guest_pa(dev->mem, iova, len);
@@ -847,15 +898,16 @@ vhost_vring_call_split(struct virtio_net *dev, struct vhost_virtqueue *vq)
 		vq->signalled_used = new;
 		vq->signalled_used_valid = true;
 
-		VHOST_LOG_DATA(DEBUG, "%s: used_event_idx=%d, old=%d, new=%d\n",
-			__func__,
-			vhost_used_event(vq),
-			old, new);
+		VHOST_LOG_DATA(dev->ifname, DEBUG,
+			"%s: used_event_idx=%d, old=%d, new=%d\n",
+			__func__, vhost_used_event(vq), old, new);
 
 		if ((vhost_need_event(vhost_used_event(vq), new, old) &&
 					(vq->callfd >= 0)) ||
 				unlikely(!signalled_used_valid)) {
 			eventfd_write(vq->callfd, (eventfd_t) 1);
+			if (dev->flags & VIRTIO_DEV_STATS_ENABLED)
+				vq->stats.guest_notifications++;
 			if (dev->notify_ops->guest_notified)
 				dev->notify_ops->guest_notified(dev->vid);
 		}
@@ -864,6 +916,8 @@ vhost_vring_call_split(struct virtio_net *dev, struct vhost_virtqueue *vq)
 		if (!(vq->avail->flags & VRING_AVAIL_F_NO_INTERRUPT)
 				&& (vq->callfd >= 0)) {
 			eventfd_write(vq->callfd, (eventfd_t)1);
+			if (dev->flags & VIRTIO_DEV_STATS_ENABLED)
+				vq->stats.guest_notifications++;
 			if (dev->notify_ops->guest_notified)
 				dev->notify_ops->guest_notified(dev->vid);
 		}
@@ -941,7 +995,7 @@ restore_mbuf(struct rte_mbuf *m)
 		/* start of buffer is after mbuf structure and priv data */
 
 		m->buf_addr = (char *)m + mbuf_size;
-		m->buf_iova = rte_mempool_virt2iova(m) + mbuf_size;
+		rte_mbuf_iova_set(m, rte_mempool_virt2iova(m) + mbuf_size);
 		m = m->next;
 	}
 }
@@ -958,4 +1012,6 @@ mbuf_is_consumed(struct rte_mbuf *m)
 	return true;
 }
 
+uint64_t hua_to_alignment(struct rte_vhost_memory *mem, void *ptr);
+void mem_set_dump(void *ptr, size_t size, bool enable, uint64_t alignment);
 #endif /* _VHOST_NET_CDEV_H_ */

@@ -20,7 +20,7 @@
 #include <rte_ethdev_core.h>
 #include <rte_hash.h>
 #include <rte_hash_crc.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_tm_driver.h>
 
 /* need update link, bit flag */
@@ -30,6 +30,7 @@
 #define TXGBE_FLAG_MACSEC           (uint32_t)(1 << 3)
 #define TXGBE_FLAG_NEED_LINK_CONFIG (uint32_t)(1 << 4)
 #define TXGBE_FLAG_NEED_AN_CONFIG   (uint32_t)(1 << 5)
+#define TXGBE_FLAG_OVERHEAT         (uint32_t)(1 << 6)
 
 /*
  * Defines that were not part of txgbe_type.h as they are not used by the
@@ -346,6 +347,7 @@ struct txgbe_tm_conf {
 struct txgbe_adapter {
 	struct txgbe_hw             hw;
 	struct txgbe_hw_stats       stats;
+	struct rte_eth_fdir_conf    fdir_conf;
 	struct txgbe_hw_fdir_info   fdir;
 	struct txgbe_interrupt      intr;
 	struct txgbe_stat_mappings  stat_mappings;
@@ -372,6 +374,8 @@ struct txgbe_adapter {
 
 #define TXGBE_DEV_ADAPTER(dev) \
 	((struct txgbe_adapter *)(dev)->data->dev_private)
+
+#define TXGBE_DEV_FDIR_CONF(dev)	(&TXGBE_DEV_ADAPTER(dev)->fdir_conf)
 
 #define TXGBE_DEV_HW(dev) \
 	(&((struct txgbe_adapter *)(dev)->data->dev_private)->hw)
@@ -583,7 +587,7 @@ int txgbe_tm_ops_get(struct rte_eth_dev *dev, void *ops);
 void txgbe_tm_conf_init(struct rte_eth_dev *dev);
 void txgbe_tm_conf_uninit(struct rte_eth_dev *dev);
 int txgbe_set_queue_rate_limit(struct rte_eth_dev *dev, uint16_t queue_idx,
-			       uint16_t tx_rate);
+			       uint32_t tx_rate);
 int txgbe_rss_conf_init(struct txgbe_rte_flow_rss_conf *out,
 			const struct rte_flow_action_rss *in);
 int txgbe_action_rss_same(const struct rte_flow_action_rss *comp,

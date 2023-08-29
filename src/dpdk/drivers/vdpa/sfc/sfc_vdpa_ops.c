@@ -21,17 +21,19 @@
 /* These protocol features are needed to enable notifier ctrl */
 #define SFC_VDPA_PROTOCOL_FEATURES \
 		((1ULL << VHOST_USER_PROTOCOL_F_REPLY_ACK) | \
-		 (1ULL << VHOST_USER_PROTOCOL_F_SLAVE_REQ) | \
-		 (1ULL << VHOST_USER_PROTOCOL_F_SLAVE_SEND_FD) | \
+		 (1ULL << VHOST_USER_PROTOCOL_F_BACKEND_REQ) | \
+		 (1ULL << VHOST_USER_PROTOCOL_F_BACKEND_SEND_FD) | \
 		 (1ULL << VHOST_USER_PROTOCOL_F_HOST_NOTIFIER) | \
-		 (1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD))
+		 (1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD) | \
+		 (1ULL << VHOST_USER_PROTOCOL_F_MQ))
 
 /*
  * Set of features which are enabled by default.
  * Protocol feature bit is needed to enable notification notifier ctrl.
  */
 #define SFC_VDPA_DEFAULT_FEATURES \
-		(1ULL << VHOST_USER_F_PROTOCOL_FEATURES)
+		((1ULL << VHOST_USER_F_PROTOCOL_FEATURES) | \
+		 (1ULL << VIRTIO_NET_F_MQ))
 
 #define SFC_VDPA_MSIX_IRQ_SET_BUF_LEN \
 		(sizeof(struct vfio_irq_set) + \
@@ -222,6 +224,7 @@ static int
 sfc_vdpa_virtq_start(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 {
 	int rc;
+	uint32_t doorbell;
 	efx_virtio_vq_t *vq;
 	struct sfc_vdpa_vring_info vring;
 	efx_virtio_vq_cfg_t vq_cfg;
@@ -257,8 +260,8 @@ sfc_vdpa_virtq_start(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 	vq_cfg.evvc_used_ring_addr  = vring.used;
 	vq_cfg.evvc_vq_size = vring.size;
 
-	vq_dyncfg.evvd_vq_pidx = vring.last_used_idx;
-	vq_dyncfg.evvd_vq_cidx = vring.last_avail_idx;
+	vq_dyncfg.evvd_vq_used_idx  = vring.last_used_idx;
+	vq_dyncfg.evvd_vq_avail_idx = vring.last_avail_idx;
 
 	/* MSI-X vector is function-relative */
 	vq_cfg.evvc_msix_vector = RTE_INTR_VEC_RXTX_OFFSET + vq_num;
@@ -270,22 +273,35 @@ sfc_vdpa_virtq_start(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 	/* Start virtqueue */
 	rc = efx_virtio_qstart(vq, &vq_cfg, &vq_dyncfg);
 	if (rc != 0) {
-		/* destroy virtqueue */
 		sfc_vdpa_err(ops_data->dev_handle,
 			     "virtqueue start failed: %s",
 			     rte_strerror(rc));
-		efx_virtio_qdestroy(vq);
 		goto fail_virtio_qstart;
 	}
 
 	sfc_vdpa_info(ops_data->dev_handle,
 		      "virtqueue started successfully for vq_num %d", vq_num);
 
+	rc = efx_virtio_get_doorbell_offset(vq,	&doorbell);
+	if (rc != 0) {
+		sfc_vdpa_err(ops_data->dev_handle,
+			     "failed to get doorbell offset: %s",
+			     rte_strerror(rc));
+		goto fail_doorbell;
+	}
+
+	/*
+	 * Cache the bar_offset here for each VQ here, it will come
+	 * in handy when sfc_vdpa_get_notify_area() is invoked.
+	 */
+	ops_data->vq_cxt[vq_num].doorbell = (void *)(uintptr_t)doorbell;
 	ops_data->vq_cxt[vq_num].enable = B_TRUE;
 
 	return rc;
 
+fail_doorbell:
 fail_virtio_qstart:
+	efx_virtio_qdestroy(vq);
 fail_vring_info:
 	return rc;
 }
@@ -307,8 +323,8 @@ sfc_vdpa_virtq_stop(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 	/* stop the vq */
 	rc = efx_virtio_qstop(vq, &vq_idx);
 	if (rc == 0) {
-		ops_data->vq_cxt[vq_num].cidx = vq_idx.evvd_vq_cidx;
-		ops_data->vq_cxt[vq_num].pidx = vq_idx.evvd_vq_pidx;
+		ops_data->vq_cxt[vq_num].cidx = vq_idx.evvd_vq_used_idx;
+		ops_data->vq_cxt[vq_num].pidx = vq_idx.evvd_vq_avail_idx;
 	}
 	ops_data->vq_cxt[vq_num].enable = B_FALSE;
 
@@ -792,8 +808,8 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 	int ret;
 	efx_nic_t *nic;
 	int vfio_dev_fd;
-	efx_rc_t rc;
-	unsigned int bar_offset;
+	volatile void *doorbell;
+	struct rte_pci_device *pci_dev;
 	struct rte_vdpa_device *vdpa_dev;
 	struct sfc_vdpa_ops_data *ops_data;
 	struct vfio_region_info reg = { .argsz = sizeof(reg) };
@@ -822,19 +838,6 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 		return -1;
 	}
 
-	if (ops_data->vq_cxt[qid].enable != B_TRUE) {
-		sfc_vdpa_err(dev, "vq is not enabled");
-		return -1;
-	}
-
-	rc = efx_virtio_get_doorbell_offset(ops_data->vq_cxt[qid].vq,
-					    &bar_offset);
-	if (rc != 0) {
-		sfc_vdpa_err(dev, "failed to get doorbell offset: %s",
-			     rte_strerror(rc));
-		return rc;
-	}
-
 	reg.index = sfc_vdpa_adapter_by_dev_handle(dev)->mem_bar.esb_rid;
 	ret = ioctl(vfio_dev_fd, VFIO_DEVICE_GET_REGION_INFO, &reg);
 	if (ret != 0) {
@@ -843,7 +846,8 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 		return ret;
 	}
 
-	*offset = reg.offset + bar_offset;
+	/* Use bar_offset that was cached during sfc_vdpa_virtq_start() */
+	*offset = reg.offset + (uint64_t)ops_data->vq_cxt[qid].doorbell;
 
 	len = (1U << encp->enc_vi_window_shift) / 2;
 	if (len >= sysconf(_SC_PAGESIZE)) {
@@ -855,6 +859,18 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 
 	sfc_vdpa_info(dev, "vDPA ops get_notify_area :: offset : 0x%" PRIx64,
 		      *offset);
+
+	pci_dev = sfc_vdpa_adapter_by_dev_handle(dev)->pdev;
+	doorbell = (uint8_t *)pci_dev->mem_resource[reg.index].addr + *offset;
+
+	/*
+	 * virtio-net driver in VM sends queue notifications before
+	 * vDPA has a chance to setup the queues and notification area,
+	 * and hence the HW misses these doorbell notifications.
+	 * Since, it is safe to send duplicate doorbell, send another
+	 * doorbell from vDPA driver as workaround for this timing issue.
+	 */
+	rte_write16(qid, doorbell);
 
 	return 0;
 }

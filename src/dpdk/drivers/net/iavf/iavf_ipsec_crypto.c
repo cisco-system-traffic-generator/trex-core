@@ -98,13 +98,13 @@ iavf_ipsec_crypto_session_size_get(void *device __rte_unused)
 }
 
 static const struct rte_cryptodev_symmetric_capability *
-get_capability(struct iavf_security_ctx *iavf_sctx,
+get_capability(struct iavf_security_ctx *iavf_sctx __rte_unused,
 	uint32_t algo, uint32_t type)
 {
 	const struct rte_cryptodev_capabilities *capability;
 	int i = 0;
 
-	capability = &iavf_sctx->crypto_capabilities[i];
+	capability = &iavf_crypto_capabilities[i];
 
 	while (capability->op != RTE_CRYPTO_OP_TYPE_UNDEFINED) {
 		if (capability->op == RTE_CRYPTO_OP_TYPE_SYMMETRIC &&
@@ -640,14 +640,13 @@ set_session_parameter(struct iavf_security_ctx *iavf_sctx,
 static int
 iavf_ipsec_crypto_session_create(void *device,
 				 struct rte_security_session_conf *conf,
-				 struct rte_security_session *session,
-				 struct rte_mempool *mempool)
+				 struct rte_security_session *session)
 {
 	struct rte_eth_dev *ethdev = device;
 	struct iavf_adapter *adapter =
 		IAVF_DEV_PRIVATE_TO_ADAPTER(ethdev->data->dev_private);
 	struct iavf_security_ctx *iavf_sctx = adapter->security_ctx;
-	struct iavf_security_session *iavf_session = NULL;
+	struct iavf_security_session *iavf_session = SECURITY_GET_SESS_PRIV(session);
 	int sa_idx;
 	int ret = 0;
 
@@ -655,12 +654,6 @@ iavf_ipsec_crypto_session_create(void *device,
 	ret = iavf_ipsec_crypto_session_validate_conf(iavf_sctx, conf);
 	if (ret)
 		return ret;
-
-	/* allocate session context */
-	if (rte_mempool_get(mempool, (void **)&iavf_session)) {
-		PMD_DRV_LOG(ERR, "Cannot get object from sess mempool");
-		return -ENOMEM;
-	}
 
 	/* add SA to hardware database */
 	sa_idx = iavf_ipsec_crypto_security_association_add(adapter, conf);
@@ -675,15 +668,11 @@ iavf_ipsec_crypto_session_create(void *device,
 				RTE_SECURITY_IPSEC_SA_DIR_INGRESS ?
 				"inbound" : "outbound");
 
-		rte_mempool_put(mempool, iavf_session);
 		return -EFAULT;
 	}
 
 	/* save data plane required session parameters */
 	set_session_parameter(iavf_sctx, iavf_session, conf, sa_idx);
-
-	/* save to security session private data */
-	set_sec_session_private_data(session, iavf_session);
 
 	return 0;
 }
@@ -702,25 +691,17 @@ iavf_ipsec_crypto_action_valid(struct rte_eth_dev *ethdev,
 {
 	struct iavf_adapter *adapter =
 		IAVF_DEV_PRIVATE_TO_ADAPTER(ethdev->data->dev_private);
-	struct iavf_security_session *sess = session->sess_private_data;
+	const struct iavf_security_session *sess = (const void *)session->driver_priv_data;
 
 	/* verify we have a valid session and that it belong to this adapter */
 	if (unlikely(sess == NULL || sess->adapter != adapter))
 		return false;
 
-	/* SPI value must be non-zero */
-	if (spi == 0)
+	/* SPI value must be non-zero and must match flow SPI*/
+	if (spi == 0 || (htonl(sess->sa.spi) != spi))
 		return false;
-	/* Session SPI must patch flow SPI*/
-	else if (sess->sa.spi == spi) {
-		return true;
-		/**
-		 * TODO: We should add a way of tracking valid hw SA indices to
-		 * make validation less brittle
-		 */
-	}
 
-		return true;
+	return true;
 }
 
 /**
@@ -880,7 +861,7 @@ iavf_ipsec_crypto_session_update(void *device,
 	int rc = 0;
 
 	adapter = IAVF_DEV_PRIVATE_TO_ADAPTER(eth_dev->data->dev_private);
-	iavf_sess = (struct iavf_security_session *)session->sess_private_data;
+	iavf_sess = SECURITY_GET_SESS_PRIV(session);
 
 	/* verify we have a valid session and that it belong to this adapter */
 	if (unlikely(iavf_sess == NULL || iavf_sess->adapter != adapter))
@@ -893,11 +874,12 @@ iavf_ipsec_crypto_session_update(void *device,
 		 * iavf_security_session for outbound SA for use
 		 * in *iavf_ipsec_crypto_pkt_metadata_set* function.
 		 */
+		iavf_sess->esn.hi = conf->ipsec.esn.hi;
+		iavf_sess->esn.low = conf->ipsec.esn.low;
 		if (iavf_sess->direction == RTE_SECURITY_IPSEC_SA_DIR_INGRESS)
 			rc = iavf_ipsec_crypto_sa_update_esn(adapter,
 					iavf_sess);
-		else
-			iavf_sess->esn.hi = conf->ipsec.esn.hi;
+
 	}
 
 	return rc;
@@ -1045,14 +1027,14 @@ iavf_ipsec_crypto_session_destroy(void *device,
 	int ret;
 
 	adapter = IAVF_DEV_PRIVATE_TO_ADAPTER(eth_dev->data->dev_private);
-	iavf_sess = (struct iavf_security_session *)session->sess_private_data;
+	iavf_sess = SECURITY_GET_SESS_PRIV(session);
 
 	/* verify we have a valid session and that it belong to this adapter */
 	if (unlikely(iavf_sess == NULL || iavf_sess->adapter != adapter))
 		return -EINVAL;
 
 	ret = iavf_ipsec_crypto_sa_del(adapter, iavf_sess);
-	rte_mempool_put(rte_mempool_from_obj(iavf_sess), (void *)iavf_sess);
+	memset(iavf_sess, 0, sizeof(struct iavf_security_session));
 	return ret;
 }
 
@@ -1118,11 +1100,14 @@ iavf_ipsec_crypto_compute_l4_payload_length(struct rte_mbuf *m,
 		 * ipv4/6 hdr + ext hdrs
 		 */
 
-	if (s->udp_encap.enabled)
+	if (s->udp_encap.enabled) {
 		ol4_len = sizeof(struct rte_udp_hdr);
-
-	l3_len = m->l3_len;
-	l4_len = m->l4_len;
+		l3_len = m->l3_len - ol4_len;
+		l4_len = l3_len;
+	} else {
+		l3_len = m->l3_len;
+		l4_len = m->l4_len;
+	}
 
 	return rte_pktmbuf_pkt_len(m) - (ol2_len + ol3_len + ol4_len +
 			esp_hlen + l3_len + l4_len + esp_tlen);
@@ -1137,7 +1122,7 @@ iavf_ipsec_crypto_pkt_metadata_set(void *device,
 	struct iavf_adapter *adapter =
 			IAVF_DEV_PRIVATE_TO_ADAPTER(ethdev->data->dev_private);
 	struct iavf_security_ctx *iavf_sctx = adapter->security_ctx;
-	struct iavf_security_session *iavf_sess = session->sess_private_data;
+	struct iavf_security_session *iavf_sess = SECURITY_GET_SESS_PRIV(session);
 	struct iavf_ipsec_crypto_pkt_metadata *md;
 	struct rte_esp_tail *esp_tail;
 	uint64_t *sqn = params;
@@ -1244,7 +1229,8 @@ enum rte_crypto_auth_algorithm auth_maptbl[] = {
 
 static void
 update_auth_capabilities(struct rte_cryptodev_capabilities *scap,
-		struct virtchnl_algo_cap *acap)
+		struct virtchnl_algo_cap *acap,
+		const struct rte_cryptodev_symmetric_capability *symcap)
 {
 	struct rte_cryptodev_symmetric_capability *capability = &scap->sym;
 
@@ -1262,6 +1248,17 @@ update_auth_capabilities(struct rte_cryptodev_capabilities *scap,
 	capability->auth.digest_size.min = acap->min_digest_size;
 	capability->auth.digest_size.max = acap->max_digest_size;
 	capability->auth.digest_size.increment = acap->inc_digest_size;
+
+	if (symcap) {
+		capability->auth.iv_size.min = symcap->auth.iv_size.min;
+		capability->auth.iv_size.max = symcap->auth.iv_size.max;
+		capability->auth.iv_size.increment =
+				symcap->auth.iv_size.increment;
+	} else {
+		capability->auth.iv_size.min = 0;
+		capability->auth.iv_size.max = 65535;
+		capability->auth.iv_size.increment = 1;
+	}
 }
 
 enum rte_crypto_cipher_algorithm cipher_maptbl[] = {
@@ -1274,7 +1271,8 @@ enum rte_crypto_cipher_algorithm cipher_maptbl[] = {
 
 static void
 update_cipher_capabilities(struct rte_cryptodev_capabilities *scap,
-	struct virtchnl_algo_cap *acap)
+	struct virtchnl_algo_cap *acap,
+	const struct rte_cryptodev_symmetric_capability *symcap)
 {
 	struct rte_cryptodev_symmetric_capability *capability = &scap->sym;
 
@@ -1290,9 +1288,17 @@ update_cipher_capabilities(struct rte_cryptodev_capabilities *scap,
 	capability->cipher.key_size.max = acap->max_key_size;
 	capability->cipher.key_size.increment = acap->inc_key_size;
 
-	capability->cipher.iv_size.min = acap->min_iv_size;
-	capability->cipher.iv_size.max = acap->max_iv_size;
-	capability->cipher.iv_size.increment = acap->inc_iv_size;
+	if (symcap) {
+		capability->cipher.iv_size.min = symcap->cipher.iv_size.min;
+		capability->cipher.iv_size.max = symcap->cipher.iv_size.max;
+		capability->cipher.iv_size.increment =
+				symcap->cipher.iv_size.increment;
+
+	} else {
+		capability->cipher.iv_size.min = 0;
+		capability->cipher.iv_size.max = 65535;
+		capability->cipher.iv_size.increment = 1;
+	}
 }
 
 enum rte_crypto_aead_algorithm aead_maptbl[] = {
@@ -1304,7 +1310,8 @@ enum rte_crypto_aead_algorithm aead_maptbl[] = {
 
 static void
 update_aead_capabilities(struct rte_cryptodev_capabilities *scap,
-	struct virtchnl_algo_cap *acap)
+	struct virtchnl_algo_cap *acap,
+	const struct rte_cryptodev_symmetric_capability *symcap __rte_unused)
 {
 	struct rte_cryptodev_symmetric_capability *capability = &scap->sym;
 
@@ -1320,13 +1327,14 @@ update_aead_capabilities(struct rte_cryptodev_capabilities *scap,
 	capability->aead.key_size.max = acap->max_key_size;
 	capability->aead.key_size.increment = acap->inc_key_size;
 
-	capability->aead.aad_size.min = acap->min_aad_size;
-	capability->aead.aad_size.max = acap->max_aad_size;
-	capability->aead.aad_size.increment = acap->inc_aad_size;
+	/* remove constrains for aead and iv length */
+	capability->aead.aad_size.min = 0;
+	capability->aead.aad_size.max = 65535;
+	capability->aead.aad_size.increment = 1;
 
-	capability->aead.iv_size.min = acap->min_iv_size;
-	capability->aead.iv_size.max = acap->max_iv_size;
-	capability->aead.iv_size.increment = acap->inc_iv_size;
+	capability->aead.iv_size.min = 0;
+	capability->aead.iv_size.max = 65535;
+	capability->aead.iv_size.increment = 1;
 
 	capability->aead.digest_size.min = acap->min_digest_size;
 	capability->aead.digest_size.max = acap->max_digest_size;
@@ -1342,6 +1350,7 @@ iavf_ipsec_crypto_set_security_capabililites(struct iavf_security_ctx
 		*iavf_sctx, struct virtchnl_ipsec_cap *vch_cap)
 {
 	struct rte_cryptodev_capabilities *capabilities;
+	const struct rte_cryptodev_symmetric_capability *symcap;
 	int i, j, number_of_capabilities = 0, ci = 0;
 
 	/* Count the total number of crypto algorithms supported */
@@ -1368,16 +1377,25 @@ iavf_ipsec_crypto_set_security_capabililites(struct iavf_security_ctx
 		for (j = 0; j < vch_cap->cap[i].algo_cap_num; j++, ci++) {
 			switch (vch_cap->cap[i].crypto_type) {
 			case VIRTCHNL_AUTH:
+				symcap = get_auth_capability(iavf_sctx,
+					capabilities[ci].sym.auth.algo);
 				update_auth_capabilities(&capabilities[ci],
-					&vch_cap->cap[i].algo_cap_list[j]);
+					&vch_cap->cap[i].algo_cap_list[j],
+					symcap);
 				break;
 			case VIRTCHNL_CIPHER:
+				symcap = get_cipher_capability(iavf_sctx,
+					capabilities[ci].sym.cipher.algo);
 				update_cipher_capabilities(&capabilities[ci],
-					&vch_cap->cap[i].algo_cap_list[j]);
+					&vch_cap->cap[i].algo_cap_list[j],
+					symcap);
 				break;
 			case VIRTCHNL_AEAD:
+				symcap = get_aead_capability(iavf_sctx,
+					capabilities[ci].sym.aead.algo);
 				update_aead_capabilities(&capabilities[ci],
-					&vch_cap->cap[i].algo_cap_list[j]);
+					&vch_cap->cap[i].algo_cap_list[j],
+					symcap);
 				break;
 			default:
 				capabilities[ci].op =
@@ -1478,7 +1496,6 @@ static struct rte_security_ops iavf_ipsec_crypto_ops = {
 	.session_stats_get		= iavf_ipsec_crypto_session_stats_get,
 	.session_destroy		= iavf_ipsec_crypto_session_destroy,
 	.set_pkt_metadata		= iavf_ipsec_crypto_pkt_metadata_set,
-	.get_userdata			= NULL,
 	.capabilities_get		= iavf_ipsec_crypto_capabilities_get,
 };
 
@@ -1551,8 +1568,6 @@ iavf_security_ctx_destroy(struct iavf_adapter *adapter)
 	if (iavf_sctx == NULL)
 		return -ENODEV;
 
-	/* TODO: Add resources cleanup */
-
 	/* free and reset security data structures */
 	rte_free(iavf_sctx);
 	rte_free(sctx);
@@ -1563,17 +1578,80 @@ iavf_security_ctx_destroy(struct iavf_adapter *adapter)
 	return 0;
 }
 
+static int
+iavf_ipsec_crypto_status_get(struct iavf_adapter *adapter,
+		struct virtchnl_ipsec_status *status)
+{
+	/* Perform pf-vf comms */
+	struct inline_ipsec_msg *request = NULL, *response = NULL;
+	size_t request_len, response_len;
+	int rc;
+
+	request_len = sizeof(struct inline_ipsec_msg);
+
+	request = rte_malloc("iavf-device-status-request", request_len, 0);
+	if (request == NULL) {
+		rc = -ENOMEM;
+		goto update_cleanup;
+	}
+
+	response_len = sizeof(struct inline_ipsec_msg) +
+			sizeof(struct virtchnl_ipsec_cap);
+	response = rte_malloc("iavf-device-status-response",
+			response_len, 0);
+	if (response == NULL) {
+		rc = -ENOMEM;
+		goto update_cleanup;
+	}
+
+	/* set msg header params */
+	request->ipsec_opcode = INLINE_IPSEC_OP_GET_STATUS;
+	request->req_id = (uint16_t)0xDEADBEEF;
+
+	/* send virtual channel request to add SA to hardware database */
+	rc = iavf_ipsec_crypto_request(adapter,
+			(uint8_t *)request, request_len,
+			(uint8_t *)response, response_len);
+	if (rc)
+		goto update_cleanup;
+
+	/* verify response id */
+	if (response->ipsec_opcode != request->ipsec_opcode ||
+		response->req_id != request->req_id){
+		rc = -EFAULT;
+		goto update_cleanup;
+	}
+	memcpy(status, response->ipsec_data.ipsec_status, sizeof(*status));
+
+update_cleanup:
+	rte_free(response);
+	rte_free(request);
+
+	return rc;
+}
+
+
 int
 iavf_ipsec_crypto_supported(struct iavf_adapter *adapter)
 {
 	struct virtchnl_vf_resource *resources = adapter->vf.vf_res;
+	int crypto_supported = false;
 
 	/** Capability check for IPsec Crypto */
 	if (resources && (resources->vf_cap_flags &
-		VIRTCHNL_VF_OFFLOAD_INLINE_IPSEC_CRYPTO))
-		return true;
+		VIRTCHNL_VF_OFFLOAD_INLINE_IPSEC_CRYPTO)) {
+		struct virtchnl_ipsec_status status;
+		int rc = iavf_ipsec_crypto_status_get(adapter, &status);
+		if (rc == 0 && status.status == INLINE_IPSEC_STATUS_AVAILABLE)
+			crypto_supported = true;
+	}
 
-	return false;
+	/* Clear the VF flag to return faster next call */
+	if (resources && !crypto_supported)
+		resources->vf_cap_flags &=
+				~(VIRTCHNL_VF_OFFLOAD_INLINE_IPSEC_CRYPTO);
+
+	return crypto_supported;
 }
 
 #define IAVF_IPSEC_INSET_ESP (\
@@ -1637,9 +1715,9 @@ parse_eth_item(const struct rte_flow_item_eth *item,
 		struct rte_ether_hdr *eth)
 {
 	memcpy(eth->src_addr.addr_bytes,
-			item->src.addr_bytes, sizeof(eth->src_addr));
+			item->hdr.src_addr.addr_bytes, sizeof(eth->src_addr));
 	memcpy(eth->dst_addr.addr_bytes,
-			item->dst.addr_bytes, sizeof(eth->dst_addr));
+			item->hdr.dst_addr.addr_bytes, sizeof(eth->dst_addr));
 }
 
 static void
@@ -1798,6 +1876,7 @@ iavf_ipsec_flow_create(struct iavf_adapter *ad,
 		struct rte_flow_error *error)
 {
 	struct iavf_ipsec_flow_item *ipsec_flow = meta;
+	int flow_id = -1;
 	if (!ipsec_flow) {
 		rte_flow_error_set(error, EINVAL,
 				RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
@@ -1806,8 +1885,7 @@ iavf_ipsec_flow_create(struct iavf_adapter *ad,
 	}
 
 	if (ipsec_flow->is_ipv4) {
-		ipsec_flow->id =
-			iavf_ipsec_crypto_inbound_security_policy_add(ad,
+		flow_id = iavf_ipsec_crypto_inbound_security_policy_add(ad,
 			ipsec_flow->spi,
 			1,
 			ipsec_flow->ipv4_hdr.dst_addr,
@@ -1816,8 +1894,7 @@ iavf_ipsec_flow_create(struct iavf_adapter *ad,
 			ipsec_flow->is_udp,
 			ipsec_flow->udp_hdr.dst_port);
 	} else {
-		ipsec_flow->id =
-			iavf_ipsec_crypto_inbound_security_policy_add(ad,
+		flow_id = iavf_ipsec_crypto_inbound_security_policy_add(ad,
 			ipsec_flow->spi,
 			0,
 			0,
@@ -1827,13 +1904,14 @@ iavf_ipsec_flow_create(struct iavf_adapter *ad,
 			ipsec_flow->udp_hdr.dst_port);
 	}
 
-	if (ipsec_flow->id < 1) {
+	if (flow_id < 1) {
 		rte_flow_error_set(error, EINVAL,
 				RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
 				"Failed to add SA.");
 		return -rte_errno;
 	}
 
+	ipsec_flow->id = flow_id;
 	flow->rule = ipsec_flow;
 
 	return 0;
@@ -1868,15 +1946,19 @@ static struct iavf_flow_engine iavf_ipsec_flow_engine = {
 
 static int
 iavf_ipsec_flow_parse(struct iavf_adapter *ad,
-		       struct iavf_pattern_match_item *array,
-		       uint32_t array_len,
-		       const struct rte_flow_item pattern[],
-		       const struct rte_flow_action actions[],
-		       void **meta,
-		       struct rte_flow_error *error)
+		      struct iavf_pattern_match_item *array,
+		      uint32_t array_len,
+		      const struct rte_flow_item pattern[],
+		      const struct rte_flow_action actions[],
+		      uint32_t priority,
+		      void **meta,
+		      struct rte_flow_error *error)
 {
 	struct iavf_pattern_match_item *item = NULL;
 	int ret = -1;
+
+	if (priority >= 1)
+		return -rte_errno;
 
 	item = iavf_search_pattern_match_item(pattern, array, array_len, error);
 	if (item && item->meta) {

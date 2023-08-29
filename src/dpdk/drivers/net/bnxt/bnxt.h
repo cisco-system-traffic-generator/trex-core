@@ -11,7 +11,7 @@
 #include <sys/queue.h>
 
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <ethdev_driver.h>
 #include <rte_memory.h>
 #include <rte_lcore.h>
@@ -72,8 +72,7 @@
 #define BROADCOM_DEV_ID_58818_VF	0xd82e
 
 #define BROADCOM_DEV_957508_N2100	0x5208
-#define IS_BNXT_DEV_957508_N2100(bp)	\
-	((bp)->pdev->id.subsystem_device_id == BROADCOM_DEV_957508_N2100)
+#define BROADCOM_DEV_957414_N225	0x4145
 
 #define BNXT_MAX_MTU		9574
 #define BNXT_NUM_VLANS		2
@@ -580,30 +579,6 @@ struct bnxt_rep_info {
 	RTE_ETH_RSS_NONFRAG_IPV6_UDP |	\
 	RTE_ETH_RSS_LEVEL_MASK)
 
-#define BNXT_DEV_TX_OFFLOAD_SUPPORT (RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | \
-				     RTE_ETH_TX_OFFLOAD_TCP_CKSUM | \
-				     RTE_ETH_TX_OFFLOAD_UDP_CKSUM | \
-				     RTE_ETH_TX_OFFLOAD_TCP_TSO | \
-				     RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM | \
-				     RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO | \
-				     RTE_ETH_TX_OFFLOAD_GRE_TNL_TSO | \
-				     RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO | \
-				     RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO | \
-				     RTE_ETH_TX_OFFLOAD_QINQ_INSERT | \
-				     RTE_ETH_TX_OFFLOAD_MULTI_SEGS)
-
-#define BNXT_DEV_RX_OFFLOAD_SUPPORT (RTE_ETH_RX_OFFLOAD_VLAN_FILTER | \
-				     RTE_ETH_RX_OFFLOAD_IPV4_CKSUM | \
-				     RTE_ETH_RX_OFFLOAD_UDP_CKSUM | \
-				     RTE_ETH_RX_OFFLOAD_TCP_CKSUM | \
-				     RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM | \
-				     RTE_ETH_RX_OFFLOAD_OUTER_UDP_CKSUM | \
-				     RTE_ETH_RX_OFFLOAD_KEEP_CRC | \
-				     RTE_ETH_RX_OFFLOAD_VLAN_EXTEND | \
-				     RTE_ETH_RX_OFFLOAD_TCP_LRO | \
-				     RTE_ETH_RX_OFFLOAD_SCATTER | \
-				     RTE_ETH_RX_OFFLOAD_RSS_HASH)
-
 #define BNXT_HWRM_SHORT_REQ_LEN		sizeof(struct hwrm_short_input)
 
 struct bnxt_flow_stat_info {
@@ -672,7 +647,6 @@ struct bnxt {
 #define BNXT_FLAG_PORT_STATS		BIT(2)
 #define BNXT_FLAG_JUMBO			BIT(3)
 #define BNXT_FLAG_SHORT_CMD		BIT(4)
-#define BNXT_FLAG_UPDATE_HASH		BIT(5)
 #define BNXT_FLAG_PTP_SUPPORTED		BIT(6)
 #define BNXT_FLAG_MULTI_HOST    	BIT(7)
 #define BNXT_FLAG_EXT_RX_PORT_STATS	BIT(8)
@@ -858,6 +832,7 @@ struct bnxt {
 	uint32_t		hwrm_spec_code;
 
 	struct bnxt_led_info	*leds;
+	uint8_t			ieee_1588;
 	struct bnxt_ptp_cfg     *ptp_cfg;
 	uint16_t		vf_resv_strategy;
 	struct bnxt_ctx_mem_info        *ctx;
@@ -896,6 +871,7 @@ struct bnxt {
 	uint32_t		max_mcast_addr; /* maximum number of mcast filters supported */
 
 	struct rte_eth_rss_conf	rss_conf; /* RSS configuration. */
+	uint16_t		tunnel_disable_flag; /* tunnel stateless offloads status */
 };
 
 static

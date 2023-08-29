@@ -6,3 +6,4 @@ if not is_linux
     reason = 'only supported on Linux'
 endif
 sources = files('rte_eth_af_packet.c')
+require_iova_in_mbuf = false

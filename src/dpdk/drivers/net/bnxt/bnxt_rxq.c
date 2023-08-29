@@ -20,6 +20,32 @@
  * RX Queues
  */
 
+uint64_t bnxt_get_rx_port_offloads(struct bnxt *bp)
+{
+	uint64_t rx_offload_capa;
+
+	rx_offload_capa = RTE_ETH_RX_OFFLOAD_IPV4_CKSUM  |
+			  RTE_ETH_RX_OFFLOAD_UDP_CKSUM   |
+			  RTE_ETH_RX_OFFLOAD_TCP_CKSUM   |
+			  RTE_ETH_RX_OFFLOAD_KEEP_CRC    |
+			  RTE_ETH_RX_OFFLOAD_VLAN_FILTER |
+			  RTE_ETH_RX_OFFLOAD_VLAN_EXTEND |
+			  RTE_ETH_RX_OFFLOAD_TCP_LRO |
+			  RTE_ETH_RX_OFFLOAD_SCATTER |
+			  RTE_ETH_RX_OFFLOAD_RSS_HASH;
+
+	if (bp->flags & BNXT_FLAG_PTP_SUPPORTED)
+		rx_offload_capa |= RTE_ETH_RX_OFFLOAD_TIMESTAMP;
+	if (bp->vnic_cap_flags & BNXT_VNIC_CAP_VLAN_RX_STRIP)
+		rx_offload_capa |= RTE_ETH_RX_OFFLOAD_VLAN_STRIP;
+
+	if (BNXT_TUNNELED_OFFLOADS_CAP_ALL_EN(bp))
+		rx_offload_capa |= RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM |
+					RTE_ETH_RX_OFFLOAD_OUTER_UDP_CKSUM;
+
+	return rx_offload_capa;
+}
+
 /* Determine whether the current configuration needs aggregation ring in HW. */
 int bnxt_need_agg_ring(struct rte_eth_dev *eth_dev)
 {
@@ -40,6 +66,7 @@ void bnxt_free_rxq_stats(struct bnxt_rx_queue *rxq)
 int bnxt_mq_rx_configure(struct bnxt *bp)
 {
 	struct rte_eth_conf *dev_conf = &bp->eth_dev->data->dev_conf;
+	struct rte_eth_rss_conf *rss = &bp->rss_conf;
 	const struct rte_eth_vmdq_rx_conf *conf =
 		    &dev_conf->rx_adv_conf.vmdq_rx_conf;
 	unsigned int i, j, nb_q_per_grp = 1, ring_idx = 0;
@@ -147,32 +174,19 @@ skip_filter_allocation:
 
 	bp->rx_num_qs_per_vnic = nb_q_per_grp;
 
-	if (dev_conf->rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG) {
-		struct rte_eth_rss_conf *rss = &bp->rss_conf;
+	for (i = 0; i < bp->nr_vnics; i++) {
+		uint32_t lvl = RTE_ETH_RSS_LEVEL(rss->rss_hf);
 
-		if (bp->flags & BNXT_FLAG_UPDATE_HASH)
-			bp->flags &= ~BNXT_FLAG_UPDATE_HASH;
+		vnic = &bp->vnic_info[i];
+		vnic->hash_type = bnxt_rte_to_hwrm_hash_types(rss->rss_hf);
+		vnic->hash_mode = bnxt_rte_to_hwrm_hash_level(bp, rss->rss_hf, lvl);
 
-		for (i = 0; i < bp->nr_vnics; i++) {
-			uint32_t lvl = RTE_ETH_RSS_LEVEL(rss->rss_hf);
-
-			vnic = &bp->vnic_info[i];
-			vnic->hash_type =
-				bnxt_rte_to_hwrm_hash_types(rss->rss_hf);
-			vnic->hash_mode =
-				bnxt_rte_to_hwrm_hash_level(bp,
-							    rss->rss_hf,
-							    lvl);
-
-			/*
-			 * Use the supplied key if the key length is
-			 * acceptable and the rss_key is not NULL
-			 */
-			if (rss->rss_key &&
-			    rss->rss_key_len <= HW_HASH_KEY_SIZE)
-				memcpy(vnic->rss_hash_key,
-				       rss->rss_key, rss->rss_key_len);
-		}
+		/*
+		 * Use the supplied key if the key length is
+		 * acceptable and the rss_key is not NULL
+		 */
+		if (rss->rss_key && rss->rss_key_len <= HW_HASH_KEY_SIZE)
+			memcpy(vnic->rss_hash_key, rss->rss_key, rss->rss_key_len);
 	}
 
 	return rc;
@@ -346,9 +360,8 @@ int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 	rxq->rx_free_thresh =
 		RTE_MIN(rte_align32pow2(nb_desc) / 4, RTE_BNXT_MAX_RX_BURST);
 
-	if (rx_conf->rx_drop_en != BNXT_DEFAULT_RX_DROP_EN)
-		PMD_DRV_LOG(NOTICE,
-			    "Per-queue config of drop-en is not supported.\n");
+	PMD_DRV_LOG(DEBUG,
+		    "App supplied RXQ drop_en status : %d\n", rx_conf->rx_drop_en);
 	rxq->drop_en = BNXT_DEFAULT_RX_DROP_EN;
 
 	PMD_DRV_LOG(DEBUG, "RX Buf MTU %d\n", eth_dev->data->mtu);
@@ -378,7 +391,7 @@ int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 			    "ring_dma_zone_reserve for rx_ring failed!\n");
 		goto err;
 	}
-	rte_atomic64_init(&rxq->rx_mbuf_alloc_fail);
+	rxq->rx_mbuf_alloc_fail = 0;
 
 	/* rxq 0 must not be stopped when used as async CPR */
 	if (!BNXT_NUM_ASYNC_CPR(bp) && queue_idx == 0)
@@ -388,10 +401,6 @@ int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 
 	rxq->rx_started = rxq->rx_deferred_start ? false : true;
 	rxq->vnic = BNXT_GET_DEFAULT_VNIC(bp);
-
-	/* Configure mtu if it is different from what was configured before */
-	if (!queue_idx)
-		bnxt_mtu_set_op(eth_dev, eth_dev->data->mtu);
 
 	return 0;
 err:
@@ -462,6 +471,12 @@ int bnxt_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		return -EINVAL;
 	}
 
+	/* reset the previous stats for the rx_queue since the counters
+	 * will be cleared when the queue is started.
+	 */
+	memset(&bp->prev_rx_ring_stats[rx_queue_id], 0,
+	       sizeof(struct bnxt_ring_stats));
+
 	/* Set the queue state to started here.
 	 * We check the status of the queue while posting buffer.
 	 * If queue is it started, we do not post buffers for Rx.
@@ -474,10 +489,11 @@ int bnxt_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	if (rc)
 		return rc;
 
-	if (BNXT_CHIP_P5(bp)) {
-		/* Reconfigure default receive ring and MRU. */
-		bnxt_hwrm_vnic_cfg(bp, rxq->vnic);
-	}
+	if (BNXT_HAS_RING_GRPS(bp))
+		rxq->vnic->dflt_ring_grp = bp->grp_info[rx_queue_id].fw_grp_id;
+	/* Reconfigure default receive ring and MRU. */
+	bnxt_hwrm_vnic_cfg(bp, rxq->vnic);
+
 	PMD_DRV_LOG(INFO, "Rx queue started %d\n", rx_queue_id);
 
 	if (dev_conf->rxmode.mq_mode & RTE_ETH_MQ_RX_RSS_FLAG) {

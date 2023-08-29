@@ -30,6 +30,9 @@ typedef void (*link_info_t)(void *roc_nix,
 /* PTP info callback */
 typedef int (*ptp_info_t)(void *roc_nix, bool enable);
 
+/* Queue Error get callback */
+typedef void (*q_err_cb_t)(void *roc_nix, void *data);
+
 /* Link status get callback */
 typedef void (*link_status_get_t)(void *roc_nix,
 				  struct cgx_link_user_info *link);
@@ -38,6 +41,7 @@ struct dev_ops {
 	link_info_t link_status_update;
 	ptp_info_t ptp_info_update;
 	link_status_get_t link_status_get;
+	q_err_cb_t q_err_cb;
 };
 
 #define dev_is_vf(dev) ((dev)->hwcap & DEV_HWCAP_F_VF)
@@ -89,6 +93,8 @@ struct dev {
 	struct dev_ops *ops;
 	void *roc_nix;
 	void *roc_cpt;
+	void *roc_tim;
+	void *roc_ml;
 	bool disable_shared_lmt; /* false(default): shared lmt mode enabled */
 	const struct plt_memzone *lmt_mz;
 } __plt_cache_aligned;
@@ -110,5 +116,9 @@ int dev_irq_register(struct plt_intr_handle *intr_handle,
 void dev_irq_unregister(struct plt_intr_handle *intr_handle,
 			plt_intr_callback_fn cb, void *data, unsigned int vec);
 int dev_irqs_disable(struct plt_intr_handle *intr_handle);
+int dev_irq_reconfigure(struct plt_intr_handle *intr_handle, uint16_t max_intr);
+
+int dev_mbox_register_irq(struct plt_pci_device *pci_dev, struct dev *dev);
+int dev_vf_flr_register_irqs(struct plt_pci_device *pci_dev, struct dev *dev);
 
 #endif /* _ROC_DEV_PRIV_H */

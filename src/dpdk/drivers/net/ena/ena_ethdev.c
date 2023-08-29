@@ -21,7 +21,7 @@
 #include <ena_eth_io_defs.h>
 
 #define DRV_MODULE_VER_MAJOR	2
-#define DRV_MODULE_VER_MINOR	6
+#define DRV_MODULE_VER_MINOR	7
 #define DRV_MODULE_VER_SUBMINOR	0
 
 #define __MERGE_64B_H_L(h, l) (((uint64_t)h << 32) | l)
@@ -35,6 +35,12 @@
 #define ARRAY_SIZE(x) RTE_DIM(x)
 
 #define ENA_MIN_RING_DESC	128
+
+/*
+ * We should try to keep ENA_CLEANUP_BUF_SIZE lower than
+ * RTE_MEMPOOL_CACHE_MAX_SIZE, so we can fit this in mempool local cache.
+ */
+#define ENA_CLEANUP_BUF_SIZE	256
 
 #define ENA_PTYPE_HAS_HASH	(RTE_PTYPE_L4_TCP | RTE_PTYPE_L4_UDP)
 
@@ -66,6 +72,12 @@ struct ena_stats {
  * considered as a missing.
  */
 #define ENA_DEVARG_MISS_TXC_TO "miss_txc_to"
+/*
+ * Controls whether LLQ should be used (if available). Enabled by default.
+ * NOTE: It's highly not recommended to disable the LLQ, as it may lead to a
+ * huge performance degradation on 6th generation AWS instances.
+ */
+#define ENA_DEVARG_ENABLE_LLQ "enable_llq"
 
 /*
  * Each rte_memzone should have unique name.
@@ -981,20 +993,6 @@ err:
 	return rc;
 }
 
-static int ena_check_valid_conf(struct ena_adapter *adapter)
-{
-	uint32_t mtu = adapter->edev_data->mtu;
-
-	if (mtu > adapter->max_mtu || mtu < ENA_MIN_MTU) {
-		PMD_INIT_LOG(ERR,
-			"Unsupported MTU of %d. Max MTU: %d, min MTU: %d\n",
-			mtu, adapter->max_mtu, ENA_MIN_MTU);
-		return ENA_COM_UNSUPPORTED;
-	}
-
-	return 0;
-}
-
 static int
 ena_calc_io_queue_size(struct ena_calc_queue_size_ctx *ctx,
 		       bool use_large_llq_hdr)
@@ -1159,13 +1157,6 @@ static int ena_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 	ena_dev = &adapter->ena_dev;
 	ena_assert_msg(ena_dev != NULL, "Uninitialized device\n");
 
-	if (mtu > adapter->max_mtu || mtu < ENA_MIN_MTU) {
-		PMD_DRV_LOG(ERR,
-			"Invalid MTU setting. New MTU: %d, max MTU: %d, min MTU: %d\n",
-			mtu, adapter->max_mtu, ENA_MIN_MTU);
-		return -EINVAL;
-	}
-
 	rc = ENA_PROXY(adapter, ena_com_set_dev_mtu, ena_dev, mtu);
 	if (rc)
 		PMD_DRV_LOG(ERR, "Could not set MTU: %d\n", mtu);
@@ -1186,10 +1177,6 @@ static int ena_start(struct rte_eth_dev *dev)
 		PMD_DRV_LOG(WARNING, "dev_start not supported in secondary.\n");
 		return -EPERM;
 	}
-
-	rc = ena_check_valid_conf(adapter);
-	if (rc)
-		return rc;
 
 	rc = ena_setup_rx_intr(dev);
 	if (rc)
@@ -1951,6 +1938,14 @@ ena_set_queues_placement_policy(struct ena_adapter *adapter,
 	int rc;
 	u32 llq_feature_mask;
 
+	if (!adapter->enable_llq) {
+		PMD_DRV_LOG(WARNING,
+			"NOTE: LLQ has been disabled as per user's request. "
+			"This may lead to a huge performance degradation!\n");
+		ena_dev->tx_mem_queue_type = ENA_ADMIN_PLACEMENT_POLICY_HOST;
+		return 0;
+	}
+
 	llq_feature_mask = 1 << ENA_ADMIN_LLQ;
 	if (!(ena_dev->supported_features & llq_feature_mask)) {
 		PMD_DRV_LOG(INFO,
@@ -2146,7 +2141,10 @@ static int eth_ena_dev_init(struct rte_eth_dev *eth_dev)
 	snprintf(adapter->name, ENA_NAME_MAX_LEN, "ena_%d",
 		 adapter->id_number);
 
+	/* Assign default devargs values */
 	adapter->missing_tx_completion_to = ENA_TX_TIMEOUT;
+	adapter->enable_llq = true;
+	adapter->use_large_llq_hdr = false;
 
 	rc = ena_parse_devargs(adapter, pci_dev->device.devargs);
 	if (rc != 0) {
@@ -2402,6 +2400,8 @@ static uint64_t ena_get_tx_port_offloads(struct ena_adapter *adapter)
 
 	port_offloads |= RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
 
+	port_offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
+
 	return port_offloads;
 }
 
@@ -2414,9 +2414,12 @@ static uint64_t ena_get_rx_queue_offloads(struct ena_adapter *adapter)
 
 static uint64_t ena_get_tx_queue_offloads(struct ena_adapter *adapter)
 {
+	uint64_t queue_offloads = 0;
 	RTE_SET_USED(adapter);
 
-	return 0;
+	queue_offloads |= RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
+
+	return queue_offloads;
 }
 
 static int ena_infos_get(struct rte_eth_dev *dev,
@@ -2478,6 +2481,8 @@ static int ena_infos_get(struct rte_eth_dev *dev,
 
 	dev_info->default_rxportconf.ring_size = ENA_DEFAULT_RING_SIZE;
 	dev_info->default_txportconf.ring_size = ENA_DEFAULT_RING_SIZE;
+
+	dev_info->err_handle_mode = RTE_ETH_ERROR_HANDLE_MODE_PASSIVE;
 
 	return 0;
 }
@@ -3001,13 +3006,38 @@ static int ena_xmit_mbuf(struct ena_ring *tx_ring, struct rte_mbuf *mbuf)
 	return 0;
 }
 
+static __rte_always_inline size_t
+ena_tx_cleanup_mbuf_fast(struct rte_mbuf **mbufs_to_clean,
+			 struct rte_mbuf *mbuf,
+			 size_t mbuf_cnt,
+			 size_t buf_size)
+{
+	struct rte_mbuf *m_next;
+
+	while (mbuf != NULL) {
+		m_next = mbuf->next;
+		mbufs_to_clean[mbuf_cnt++] = mbuf;
+		if (mbuf_cnt == buf_size) {
+			rte_mempool_put_bulk(mbufs_to_clean[0]->pool, (void **)mbufs_to_clean,
+				(unsigned int)mbuf_cnt);
+			mbuf_cnt = 0;
+		}
+		mbuf = m_next;
+	}
+
+	return mbuf_cnt;
+}
+
 static int ena_tx_cleanup(void *txp, uint32_t free_pkt_cnt)
 {
+	struct rte_mbuf *mbufs_to_clean[ENA_CLEANUP_BUF_SIZE];
 	struct ena_ring *tx_ring = (struct ena_ring *)txp;
+	size_t mbuf_cnt = 0;
 	unsigned int total_tx_descs = 0;
 	unsigned int total_tx_pkts = 0;
 	uint16_t cleanup_budget;
 	uint16_t next_to_clean = tx_ring->next_to_clean;
+	bool fast_free = tx_ring->offloads & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
 
 	/*
 	 * If free_pkt_cnt is equal to 0, it means that the user requested
@@ -3032,7 +3062,12 @@ static int ena_tx_cleanup(void *txp, uint32_t free_pkt_cnt)
 		tx_info->timestamp = 0;
 
 		mbuf = tx_info->mbuf;
-		rte_pktmbuf_free(mbuf);
+		if (fast_free) {
+			mbuf_cnt = ena_tx_cleanup_mbuf_fast(mbufs_to_clean, mbuf, mbuf_cnt,
+				ENA_CLEANUP_BUF_SIZE);
+		} else {
+			rte_pktmbuf_free(mbuf);
+		}
 
 		tx_info->mbuf = NULL;
 		tx_ring->empty_tx_reqs[next_to_clean] = req_id;
@@ -3051,6 +3086,10 @@ static int ena_tx_cleanup(void *txp, uint32_t free_pkt_cnt)
 		ena_com_comp_ack(tx_ring->ena_com_io_sq, total_tx_descs);
 		ena_com_update_dev_comp_head(tx_ring->ena_com_io_cq);
 	}
+
+	if (mbuf_cnt != 0)
+		rte_mempool_put_bulk(mbufs_to_clean[0]->pool,
+			(void **)mbufs_to_clean, mbuf_cnt);
 
 	/* Notify completion handler that full cleanup was performed */
 	if (free_pkt_cnt == 0 || total_tx_pkts < cleanup_budget)
@@ -3458,6 +3497,8 @@ static int ena_process_bool_devarg(const char *key,
 	/* Now, assign it to the proper adapter field. */
 	if (strcmp(key, ENA_DEVARG_LARGE_LLQ_HDR) == 0)
 		adapter->use_large_llq_hdr = bool_value;
+	else if (strcmp(key, ENA_DEVARG_ENABLE_LLQ) == 0)
+		adapter->enable_llq = bool_value;
 
 	return 0;
 }
@@ -3468,6 +3509,7 @@ static int ena_parse_devargs(struct ena_adapter *adapter,
 	static const char * const allowed_args[] = {
 		ENA_DEVARG_LARGE_LLQ_HDR,
 		ENA_DEVARG_MISS_TXC_TO,
+		ENA_DEVARG_ENABLE_LLQ,
 		NULL,
 	};
 	struct rte_kvargs *kvlist;
@@ -3489,6 +3531,10 @@ static int ena_parse_devargs(struct ena_adapter *adapter,
 		goto exit;
 	rc = rte_kvargs_process(kvlist, ENA_DEVARG_MISS_TXC_TO,
 		ena_process_uint_devarg, adapter);
+	if (rc != 0)
+		goto exit;
+	rc = rte_kvargs_process(kvlist, ENA_DEVARG_ENABLE_LLQ,
+		ena_process_bool_devarg, adapter);
 
 exit:
 	rte_kvargs_free(kvlist);
@@ -3707,7 +3753,10 @@ static struct rte_pci_driver rte_ena_pmd = {
 RTE_PMD_REGISTER_PCI(net_ena, rte_ena_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_ena, pci_id_ena_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_ena, "* igb_uio | uio_pci_generic | vfio-pci");
-RTE_PMD_REGISTER_PARAM_STRING(net_ena, ENA_DEVARG_LARGE_LLQ_HDR "=<0|1>");
+RTE_PMD_REGISTER_PARAM_STRING(net_ena,
+	ENA_DEVARG_LARGE_LLQ_HDR "=<0|1> "
+	ENA_DEVARG_ENABLE_LLQ "=<0|1> "
+	ENA_DEVARG_MISS_TXC_TO "=<uint>");
 RTE_LOG_REGISTER_SUFFIX(ena_logtype_init, init, NOTICE);
 RTE_LOG_REGISTER_SUFFIX(ena_logtype_driver, driver, NOTICE);
 #ifdef RTE_ETHDEV_DEBUG_RX

@@ -35,6 +35,25 @@ if qat_crypto and not libcrypto.found()
             'missing dependency, libcrypto')
 endif
 
+IMB_required_ver = '1.2.0'
+IMB_header = '#include<intel-ipsec-mb.h>'
+if arch_subdir == 'arm'
+    IMB_header = '#include<ipsec-mb.h>'
+endif
+libipsecmb = cc.find_library('IPSec_MB', required: false)
+libcrypto_3 = dependency('libcrypto', required: false,
+    method: 'pkg-config', version : '>=3.0.0')
+if libipsecmb.found() and libcrypto_3.found()
+    # version comes with quotes, so we split based on " and take the middle
+    imb_ver = cc.get_define('IMB_VERSION_STR',
+        prefix : IMB_header).split('"')[1]
+
+    if (imb_ver.version_compare('>=' + IMB_required_ver))
+        ext_deps += libipsecmb
+        dpdk_conf.set('RTE_QAT_LIBIPSECMB', true)
+    endif
+endif
+
 # The driver should not build if both compression and crypto are disabled
 #FIXME common code depends on compression files so check only compress!
 if not qat_compress # and not qat_crypto

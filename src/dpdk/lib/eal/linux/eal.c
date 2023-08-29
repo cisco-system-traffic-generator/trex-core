@@ -3,6 +3,7 @@
  * Copyright(c) 2012-2014 6WIND S.A.
  */
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -451,6 +452,10 @@ eal_usage(const char *prgname)
 	       "  --"OPT_LEGACY_MEM"        Legacy memory mode (no dynamic allocation, contiguous segments)\n"
 	       "  --"OPT_SINGLE_FILE_SEGMENTS" Put all hugepage memory in single files\n"
 	       "  --"OPT_MATCH_ALLOCATIONS" Free hugepages exactly as allocated\n"
+	       "  --"OPT_HUGE_WORKER_STACK"[=size]\n"
+	       "                      Allocate worker thread stacks from hugepage memory.\n"
+	       "                      Size is in units of kbytes and defaults to system\n"
+	       "                      thread stack size if not specified.\n"
 	       "\n");
 	/* Allow the application to print its usage message too if hook is set */
 	if (hook) {
@@ -577,6 +582,43 @@ eal_log_level_parse(int argc, char **argv)
 	optind = old_optind;
 	optopt = old_optopt;
 	optarg = old_optarg;
+}
+
+static int
+eal_parse_huge_worker_stack(const char *arg)
+{
+	struct internal_config *cfg = eal_get_internal_configuration();
+
+	if (arg == NULL || arg[0] == '\0') {
+		pthread_attr_t attr;
+		int ret;
+
+		if (pthread_attr_init(&attr) != 0) {
+			RTE_LOG(ERR, EAL, "Could not retrieve default stack size\n");
+			return -1;
+		}
+		ret = pthread_attr_getstacksize(&attr, &cfg->huge_worker_stack_size);
+		pthread_attr_destroy(&attr);
+		if (ret != 0) {
+			RTE_LOG(ERR, EAL, "Could not retrieve default stack size\n");
+			return -1;
+		}
+	} else {
+		unsigned long stack_size;
+		char *end;
+
+		errno = 0;
+		stack_size = strtoul(arg, &end, 10);
+		if (errno || end == NULL || stack_size == 0 ||
+				stack_size >= (size_t)-1 / 1024)
+			return -1;
+
+		cfg->huge_worker_stack_size = stack_size * 1024;
+	}
+
+	RTE_LOG(DEBUG, EAL, "Each worker thread will use %zu kB of DPDK memory as stack\n",
+		cfg->huge_worker_stack_size / 1024);
+	return 0;
 }
 
 /* Parse the argument given in the command line of the application */
@@ -714,6 +756,16 @@ eal_parse_args(int argc, char **argv)
 		}
 		case OPT_MATCH_ALLOCATIONS_NUM:
 			internal_conf->match_allocations = 1;
+			break;
+
+		case OPT_HUGE_WORKER_STACK_NUM:
+			if (eal_parse_huge_worker_stack(optarg) < 0) {
+				RTE_LOG(ERR, EAL, "invalid parameter for --"
+					OPT_HUGE_WORKER_STACK"\n");
+				eal_usage(prgname);
+				ret = -1;
+				goto out;
+			}
 			break;
 
 		default:
@@ -857,16 +909,65 @@ is_iommu_enabled(void)
 	return n > 2;
 }
 
+static __rte_noreturn void *
+eal_worker_thread_loop(void *arg)
+{
+	eal_thread_loop(arg);
+}
+
+static int
+eal_worker_thread_create(unsigned int lcore_id)
+{
+	pthread_attr_t *attrp = NULL;
+	void *stack_ptr = NULL;
+	pthread_attr_t attr;
+	size_t stack_size;
+	int ret = -1;
+
+	stack_size = eal_get_internal_configuration()->huge_worker_stack_size;
+	if (stack_size != 0) {
+		/* Allocate NUMA aware stack memory and set pthread attributes */
+		stack_ptr = rte_zmalloc_socket("lcore_stack", stack_size,
+			RTE_CACHE_LINE_SIZE, rte_lcore_to_socket_id(lcore_id));
+		if (stack_ptr == NULL) {
+			rte_eal_init_alert("Cannot allocate worker lcore stack memory");
+			rte_errno = ENOMEM;
+			goto out;
+		}
+
+		if (pthread_attr_init(&attr) != 0) {
+			rte_eal_init_alert("Cannot init pthread attributes");
+			rte_errno = EFAULT;
+			goto out;
+		}
+		attrp = &attr;
+
+		if (pthread_attr_setstack(attrp, stack_ptr, stack_size) != 0) {
+			rte_eal_init_alert("Cannot set pthread stack attributes");
+			rte_errno = EFAULT;
+			goto out;
+		}
+	}
+
+	if (pthread_create((pthread_t *)&lcore_config[lcore_id].thread_id.opaque_id,
+			attrp, eal_worker_thread_loop, (void *)(uintptr_t)lcore_id) == 0)
+		ret = 0;
+
+out:
+	if (ret != 0)
+		rte_free(stack_ptr);
+	if (attrp != NULL)
+		pthread_attr_destroy(attrp);
+	return ret;
+}
+
 /* Launch threads, called at application init(). */
 int
 rte_eal_init(int argc, char **argv)
 {
 	int i, fctret, ret;
-	pthread_t thread_id;
 	static uint32_t run_once;
 	uint32_t has_run = 0;
-	const char *p;
-	static char logid[PATH_MAX];
 	char cpuset[RTE_CPU_AFFINITY_STR_LEN];
 	char thread_name[RTE_MAX_THREAD_NAME_LEN];
 	bool phys_addrs;
@@ -887,10 +988,6 @@ rte_eal_init(int argc, char **argv)
 		rte_errno = EALREADY;
 		return -1;
 	}
-
-	p = strrchr(argv[0], '/');
-	strlcpy(logid, p ? p + 1 : argv[0], sizeof(logid));
-	thread_id = pthread_self();
 
 	eal_reset_internal_config(internal_conf);
 
@@ -1032,6 +1129,12 @@ rte_eal_init(int argc, char **argv)
 		return -1;
 	}
 
+	if (rte_eal_iova_mode() == RTE_IOVA_PA && !RTE_IOVA_IN_MBUF) {
+		rte_eal_init_alert("Cannot use IOVA as 'PA' as it is disabled during build");
+		rte_errno = EINVAL;
+		return -1;
+	}
+
 	RTE_LOG(INFO, EAL, "Selected IOVA mode '%s'\n",
 		rte_eal_iova_mode() == RTE_IOVA_PA ? "PA" : "VA");
 
@@ -1064,7 +1167,8 @@ rte_eal_init(int argc, char **argv)
 #endif
 	}
 
-	if (eal_log_init(logid, internal_conf->syslog_facility) < 0) {
+	if (eal_log_init(program_invocation_short_name,
+			 internal_conf->syslog_facility) < 0) {
 		rte_eal_init_alert("Cannot init logging.");
 		rte_errno = ENOMEM;
 		__atomic_store_n(&run_once, 0, __ATOMIC_RELAXED);
@@ -1118,7 +1222,7 @@ rte_eal_init(int argc, char **argv)
 
 	eal_check_mem_on_local_socket();
 
-	if (pthread_setaffinity_np(pthread_self(), sizeof(rte_cpuset_t),
+	if (rte_thread_set_affinity_by_id(rte_thread_self(),
 			&lcore_config[config->main_lcore].cpuset) != 0) {
 		rte_eal_init_alert("Cannot set affinity");
 		rte_errno = EINVAL;
@@ -1129,7 +1233,7 @@ rte_eal_init(int argc, char **argv)
 
 	ret = eal_thread_dump_current_affinity(cpuset, sizeof(cpuset));
 	RTE_LOG(DEBUG, EAL, "Main lcore %u is ready (tid=%zx;cpuset=[%s%s])\n",
-		config->main_lcore, (uintptr_t)thread_id, cpuset,
+		config->main_lcore, (uintptr_t)pthread_self(), cpuset,
 		ret == 0 ? "" : "...");
 
 	RTE_LCORE_FOREACH_WORKER(i) {
@@ -1146,22 +1250,17 @@ rte_eal_init(int argc, char **argv)
 		lcore_config[i].state = WAIT;
 
 		/* create a thread for each lcore */
-		ret = pthread_create(&lcore_config[i].thread_id, NULL,
-				     eal_thread_loop, NULL);
+		ret = eal_worker_thread_create(i);
 		if (ret != 0)
 			rte_panic("Cannot create thread\n");
 
 		/* Set thread_name for aid in debugging. */
 		snprintf(thread_name, sizeof(thread_name),
-			"lcore-worker-%d", i);
-		ret = rte_thread_setname(lcore_config[i].thread_id,
-						thread_name);
-		if (ret != 0)
-			RTE_LOG(DEBUG, EAL,
-				"Cannot set name for lcore thread\n");
+			"rte-worker-%d", i);
+		rte_thread_set_name(lcore_config[i].thread_id, thread_name);
 
-		ret = pthread_setaffinity_np(lcore_config[i].thread_id,
-			sizeof(rte_cpuset_t), &lcore_config[i].cpuset);
+		ret = rte_thread_set_affinity_by_id(lcore_config[i].thread_id,
+			&lcore_config[i].cpuset);
 		if (ret != 0)
 			rte_panic("Cannot set affinity\n");
 	}
@@ -1268,13 +1367,14 @@ rte_eal_cleanup(void)
 	vfio_mp_sync_cleanup();
 #endif
 	rte_mp_channel_cleanup();
-	/* after this point, any DPDK pointers will become dangling */
-	rte_eal_memory_detach();
-	eal_mp_dev_hotplug_cleanup();
-	rte_eal_malloc_heap_cleanup();
-	rte_eal_alarm_cleanup();
+	eal_bus_cleanup();
 	rte_trace_save();
 	eal_trace_fini();
+	eal_mp_dev_hotplug_cleanup();
+	rte_eal_alarm_cleanup();
+	/* after this point, any DPDK pointers will become dangling */
+	rte_eal_memory_detach();
+	rte_eal_malloc_heap_cleanup();
 	eal_cleanup_config(internal_conf);
 	rte_eal_log_cleanup();
 	return 0;

@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <sys/eventfd.h>
 
+#include <rte_compat.h>
 #include <rte_memory.h>
 #include <rte_mempool.h>
 
@@ -39,6 +40,7 @@ extern "C" {
 #define RTE_VHOST_USER_LINEARBUF_SUPPORT	(1ULL << 6)
 #define RTE_VHOST_USER_ASYNC_COPY	(1ULL << 7)
 #define RTE_VHOST_USER_NET_COMPLIANT_OL_FLAGS	(1ULL << 8)
+#define RTE_VHOST_USER_NET_STATS_ENABLE	(1ULL << 9)
 
 /* Features. */
 #ifndef VIRTIO_NET_F_GUEST_ANNOUNCE
@@ -78,8 +80,8 @@ extern "C" {
 #define VHOST_USER_PROTOCOL_F_NET_MTU	4
 #endif
 
-#ifndef VHOST_USER_PROTOCOL_F_SLAVE_REQ
-#define VHOST_USER_PROTOCOL_F_SLAVE_REQ	5
+#ifndef VHOST_USER_PROTOCOL_F_BACKEND_REQ
+#define VHOST_USER_PROTOCOL_F_BACKEND_REQ	5
 #endif
 
 #ifndef VHOST_USER_PROTOCOL_F_CRYPTO_SESSION
@@ -94,8 +96,8 @@ extern "C" {
 #define VHOST_USER_PROTOCOL_F_CONFIG 9
 #endif
 
-#ifndef VHOST_USER_PROTOCOL_F_SLAVE_SEND_FD
-#define VHOST_USER_PROTOCOL_F_SLAVE_SEND_FD 10
+#ifndef VHOST_USER_PROTOCOL_F_BACKEND_SEND_FD
+#define VHOST_USER_PROTOCOL_F_BACKEND_SEND_FD 10
 #endif
 
 #ifndef VHOST_USER_PROTOCOL_F_HOST_NOTIFIER
@@ -116,6 +118,9 @@ extern "C" {
 #endif
 
 #define RTE_MAX_VHOST_DEVICE	1024
+
+#define RTE_VHOST_VDPA_DEVICE_TYPE_NET 0
+#define RTE_VHOST_VDPA_DEVICE_TYPE_BLK 1
 
 struct rte_vdpa_device;
 
@@ -154,7 +159,7 @@ struct rte_vhost_inflight_info_split {
 	uint16_t desc_num;
 	uint16_t last_inflight_io;
 	uint16_t used_idx;
-	struct rte_vhost_inflight_desc_split desc[0];
+	struct rte_vhost_inflight_desc_split desc[];
 };
 
 struct rte_vhost_inflight_desc_packed {
@@ -181,7 +186,7 @@ struct rte_vhost_inflight_info_packed {
 	uint8_t used_wrap_counter;
 	uint8_t old_used_wrap_counter;
 	uint8_t padding[7];
-	struct rte_vhost_inflight_desc_packed desc[0];
+	struct rte_vhost_inflight_desc_packed desc[];
 };
 
 struct rte_vhost_resubmit_desc {
@@ -259,9 +264,9 @@ typedef enum rte_vhost_msg_result (*rte_vhost_msg_handle)(int vid, void *msg);
  * Optional vhost user message handlers.
  */
 struct rte_vhost_user_extern_ops {
-	/* Called prior to the master message handling. */
+	/* Called prior to the frontend message handling. */
 	rte_vhost_msg_handle pre_msg_handle;
-	/* Called after the master message handling. */
+	/* Called after the frontend message handling. */
 	rte_vhost_msg_handle post_msg_handle;
 };
 
@@ -321,46 +326,34 @@ struct rte_vhost_power_monitor_cond {
 	uint8_t match;
 };
 
+/** Maximum name length for the statistics counters */
+#define RTE_VHOST_STATS_NAME_SIZE 64
+
+/**
+ * Vhost virtqueue statistics structure
+ *
+ * This structure is used by rte_vhost_vring_stats_get() to provide
+ * virtqueue statistics to the calling application.
+ * It maps a name ID, corresponding to an index in the array returned
+ * by rte_vhost_vring_stats_get_names(), to a statistic value.
+ */
+struct rte_vhost_stat {
+	uint64_t id;    /**< The index in xstats name array. */
+	uint64_t value; /**< The statistic counter value. */
+};
+
+/**
+ * Vhost virtqueue statistic name element
+ *
+ * This structure is used by rte_vhost_vring_stats_get_names() to
+ * provide virtqueue statistics names to the calling application.
+ */
+struct rte_vhost_stat_name {
+	char name[RTE_VHOST_STATS_NAME_SIZE]; /**< The statistic name. */
+};
+
 /**
  * Convert guest physical address to host virtual address
- *
- * This function is deprecated because unsafe.
- * New rte_vhost_va_from_guest_pa() should be used instead to ensure
- * guest physical ranges are fully and contiguously mapped into
- * process virtual address space.
- *
- * @param mem
- *  the guest memory regions
- * @param gpa
- *  the guest physical address for querying
- * @return
- *  the host virtual address on success, 0 on failure
- */
-__rte_deprecated
-static __rte_always_inline uint64_t
-rte_vhost_gpa_to_vva(struct rte_vhost_memory *mem, uint64_t gpa)
-{
-	struct rte_vhost_mem_region *reg;
-	uint32_t i;
-
-	for (i = 0; i < mem->nregions; i++) {
-		reg = &mem->regions[i];
-		if (gpa >= reg->guest_phys_addr &&
-		    gpa <  reg->guest_phys_addr + reg->size) {
-			return gpa - reg->guest_phys_addr +
-			       reg->host_user_addr;
-		}
-	}
-
-	return 0;
-}
-
-/**
- * Convert guest physical address to host virtual address safely
- *
- * This variant of rte_vhost_gpa_to_vva() takes care all the
- * requested length is mapped and contiguous in process address
- * space.
  *
  * @param mem
  *  the guest memory regions
@@ -484,6 +477,20 @@ rte_vhost_driver_detach_vdpa_device(const char *path);
  */
 struct rte_vdpa_device *
 rte_vhost_driver_get_vdpa_device(const char *path);
+
+/**
+ * Get the device type of the vdpa device.
+ *
+ * @param path
+ *  The vhost-user socket file path
+ * @param type
+ *  the device type of the vdpa device
+ * @return
+ *  0 on success, -1 on failure
+ */
+__rte_experimental
+int
+rte_vhost_driver_get_vdpa_dev_type(const char *path, uint32_t *type);
 
 /**
  * Set the feature bits the vhost-user driver supports.
@@ -651,23 +658,6 @@ int rte_vhost_get_mtu(int vid, uint16_t *mtu);
  *  The numa node, -1 on failure
  */
 int rte_vhost_get_numa_node(int vid);
-
-/**
- * @deprecated
- * Get the number of queues the device supports.
- *
- * Note this function is deprecated, as it returns a queue pair number,
- * which is vhost specific. Instead, rte_vhost_get_vring_num should
- * be used.
- *
- * @param vid
- *  vhost device ID
- *
- * @return
- *  The number of queues, 0 on failure
- */
-__rte_deprecated
-uint32_t rte_vhost_get_queue_num(int vid);
 
 /**
  * Get the number of vrings the device supports.
@@ -921,6 +911,21 @@ rte_vhost_clr_inflight_desc_packed(int vid, uint16_t vring_idx,
 int rte_vhost_vring_call(int vid, uint16_t vring_idx);
 
 /**
+ * Notify the guest that used descriptors have been added to the vring.  This
+ * function acts as a memory barrier.  This function will return -EAGAIN when
+ * vq's access lock is held by other thread, user should try again later.
+ *
+ * @param vid
+ *  vhost device ID
+ * @param vring_idx
+ *  vring index
+ * @return
+ *  0 on success, -1 on failure, -EAGAIN for another retry
+ */
+__rte_experimental
+int rte_vhost_vring_call_nonblock(int vid, uint16_t vring_idx);
+
+/**
  * Get vhost RX queue avail count.
  *
  * @param vid
@@ -1055,13 +1060,82 @@ rte_vhost_get_vdpa_device(int vid);
  * @param vid
  *  vhost device ID
  * @param need_reply
- *  wait for the master response the status of this operation
+ *  wait for the frontend response the status of this operation
  * @return
  *  0 on success, < 0 on failure
  */
 __rte_experimental
 int
-rte_vhost_slave_config_change(int vid, bool need_reply);
+rte_vhost_backend_config_change(int vid, bool need_reply);
+
+/**
+ * Retrieve names of statistics of a Vhost virtqueue.
+ *
+ * There is an assumption that 'stat_names' and 'stats' arrays are matched
+ * by array index: stats_names[i].name => stats[i].value
+ *
+ * @param vid
+ *   vhost device ID
+ * @param queue_id
+ *   vhost queue index
+ * @param name
+ *   array of at least size elements to be filled.
+ *   If set to NULL, the function returns the required number of elements.
+ * @param size
+ *   The number of elements in stats_names array.
+ * @return
+ *  - Success if greater than 0 and lower or equal to *size*. The return value
+ *    indicates the number of elements filled in the *names* array.
+ *  - Failure if greater than *size*. The return value indicates the number of
+ *    elements the *names* array that should be given to succeed.
+ *  - Failure if lower than 0. The device ID or queue ID is invalid or
+ +    statistics collection is not enabled.
+ */
+int
+rte_vhost_vring_stats_get_names(int vid, uint16_t queue_id,
+		struct rte_vhost_stat_name *name, unsigned int size);
+
+/**
+ * Retrieve statistics of a Vhost virtqueue.
+ *
+ * There is an assumption that 'stat_names' and 'stats' arrays are matched
+ * by array index: stats_names[i].name => stats[i].value
+ *
+ * @param vid
+ *   vhost device ID
+ * @param queue_id
+ *   vhost queue index
+ * @param stats
+ *   A pointer to a table of structure of type rte_vhost_stat to be filled with
+ *   virtqueue statistics ids and values.
+ * @param n
+ *   The number of elements in stats array.
+ * @return
+ *  - Success if greater than 0 and lower or equal to *n*. The return value
+ *    indicates the number of elements filled in the *stats* array.
+ *  - Failure if greater than *n*. The return value indicates the number of
+ *    elements the *stats* array that should be given to succeed.
+ *  - Failure if lower than 0. The device ID or queue ID is invalid, or
+ *    statistics collection is not enabled.
+ */
+int
+rte_vhost_vring_stats_get(int vid, uint16_t queue_id,
+		struct rte_vhost_stat *stats, unsigned int n);
+
+/**
+ * Reset statistics of a Vhost virtqueue.
+ *
+ * @param vid
+ *   vhost device ID
+ * @param queue_id
+ *   vhost queue index
+ * @return
+ *  - Success if 0. Statistics have been reset.
+ *  - Failure if lower than 0. The device ID or queue ID is invalid, or
+ *    statistics collection is not enabled.
+ */
+int
+rte_vhost_vring_stats_reset(int vid, uint16_t queue_id);
 
 #ifdef __cplusplus
 }

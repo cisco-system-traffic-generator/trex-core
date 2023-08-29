@@ -50,13 +50,13 @@ get_modexp_function2(uint32_t bytesize)
 }
 
 static struct qat_asym_function
-get_modexp_function(struct rte_crypto_asym_xform *xform)
+get_modexp_function(const struct rte_crypto_asym_xform *xform)
 {
 	return get_modexp_function2(xform->modex.modulus.length);
 }
 
 static struct qat_asym_function
-get_modinv_function(struct rte_crypto_asym_xform *xform)
+get_modinv_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function = { };
 
@@ -137,7 +137,7 @@ get_modinv_function(struct rte_crypto_asym_xform *xform)
 }
 
 static struct qat_asym_function
-get_rsa_enc_function(struct rte_crypto_asym_xform *xform)
+get_rsa_enc_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function = { };
 
@@ -164,7 +164,7 @@ get_rsa_enc_function(struct rte_crypto_asym_xform *xform)
 }
 
 static struct qat_asym_function
-get_rsa_dec_function(struct rte_crypto_asym_xform *xform)
+get_rsa_dec_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function = { };
 
@@ -191,7 +191,7 @@ get_rsa_dec_function(struct rte_crypto_asym_xform *xform)
 }
 
 static struct qat_asym_function
-get_rsa_crt_function(struct rte_crypto_asym_xform *xform)
+get_rsa_crt_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function = { };
 	int nlen = xform->rsa.qt.p.length * 2;
@@ -219,7 +219,7 @@ get_rsa_crt_function(struct rte_crypto_asym_xform *xform)
 }
 
 static struct qat_asym_function
-get_ecdsa_verify_function(struct rte_crypto_asym_xform *xform)
+get_ecdsa_verify_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function;
 
@@ -227,6 +227,10 @@ get_ecdsa_verify_function(struct rte_crypto_asym_xform *xform)
 	case RTE_CRYPTO_EC_GROUP_SECP256R1:
 		qat_function.func_id = PKE_ECDSA_VERIFY_GFP_L256;
 		qat_function.bytesize = 32;
+		break;
+	case RTE_CRYPTO_EC_GROUP_SECP384R1:
+		qat_function.func_id = PKE_ECDSA_VERIFY_GFP_L512;
+		qat_function.bytesize = 64;
 		break;
 	case RTE_CRYPTO_EC_GROUP_SECP521R1:
 		qat_function.func_id = PKE_ECDSA_VERIFY_GFP_521;
@@ -239,7 +243,7 @@ get_ecdsa_verify_function(struct rte_crypto_asym_xform *xform)
 }
 
 static struct qat_asym_function
-get_ecdsa_function(struct rte_crypto_asym_xform *xform)
+get_ecdsa_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function;
 
@@ -247,6 +251,10 @@ get_ecdsa_function(struct rte_crypto_asym_xform *xform)
 	case RTE_CRYPTO_EC_GROUP_SECP256R1:
 		qat_function.func_id = PKE_ECDSA_SIGN_RS_GFP_L256;
 		qat_function.bytesize = 32;
+		break;
+	case RTE_CRYPTO_EC_GROUP_SECP384R1:
+		qat_function.func_id = PKE_ECDSA_SIGN_RS_GFP_L512;
+		qat_function.bytesize = 64;
 		break;
 	case RTE_CRYPTO_EC_GROUP_SECP521R1:
 		qat_function.func_id = PKE_ECDSA_SIGN_RS_GFP_521;
@@ -259,7 +267,7 @@ get_ecdsa_function(struct rte_crypto_asym_xform *xform)
 }
 
 static struct qat_asym_function
-get_ecpm_function(struct rte_crypto_asym_xform *xform)
+get_ecpm_function(const struct rte_crypto_asym_xform *xform)
 {
 	struct qat_asym_function qat_function;
 
@@ -268,8 +276,36 @@ get_ecpm_function(struct rte_crypto_asym_xform *xform)
 		qat_function.func_id = MATHS_POINT_MULTIPLICATION_GFP_L256;
 		qat_function.bytesize = 32;
 		break;
+	case RTE_CRYPTO_EC_GROUP_SECP384R1:
+		qat_function.func_id = MATHS_POINT_MULTIPLICATION_GFP_L512;
+		qat_function.bytesize = 64;
+		break;
 	case RTE_CRYPTO_EC_GROUP_SECP521R1:
 		qat_function.func_id = MATHS_POINT_MULTIPLICATION_GFP_521;
+		qat_function.bytesize = 66;
+		break;
+	default:
+		qat_function.func_id = 0;
+	}
+	return qat_function;
+}
+
+static struct qat_asym_function
+get_ec_verify_function(const struct rte_crypto_asym_xform *xform)
+{
+	struct qat_asym_function qat_function;
+
+	switch (xform->ec.curve_id) {
+	case RTE_CRYPTO_EC_GROUP_SECP256R1:
+		qat_function.func_id = MATHS_POINT_VERIFY_GFP_L256;
+		qat_function.bytesize = 32;
+		break;
+	case RTE_CRYPTO_EC_GROUP_SECP384R1:
+		qat_function.func_id = MATHS_POINT_VERIFY_GFP_L512;
+		qat_function.bytesize = 64;
+		break;
+	case RTE_CRYPTO_EC_GROUP_SECP521R1:
+		qat_function.func_id = MATHS_POINT_VERIFY_GFP_521;
 		qat_function.bytesize = 66;
 		break;
 	default:

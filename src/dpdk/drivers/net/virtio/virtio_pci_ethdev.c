@@ -11,12 +11,12 @@
 #include <ethdev_driver.h>
 #include <ethdev_pci.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_errno.h>
 
 #include <rte_memory.h>
 #include <rte_eal.h>
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <rte_kvargs.h>
 
 #include "virtio.h"
@@ -122,10 +122,20 @@ static int
 eth_virtio_pci_uninit(struct rte_eth_dev *eth_dev)
 {
 	int ret;
+	struct virtio_pci_dev *dev;
+	struct virtio_hw *hw;
 	PMD_INIT_FUNC_TRACE();
 
-	if (rte_eal_process_type() == RTE_PROC_SECONDARY)
+	if (rte_eal_process_type() == RTE_PROC_SECONDARY) {
+		dev = eth_dev->data->dev_private;
+		hw = &dev->hw;
+
+		if (dev->modern)
+			rte_pci_unmap_device(RTE_ETH_DEV_TO_PCI(eth_dev));
+		else
+			vtpci_legacy_ioport_unmap(hw);
 		return 0;
+	}
 
 	ret = virtio_dev_stop(eth_dev);
 	virtio_dev_close(eth_dev);
@@ -138,6 +148,9 @@ eth_virtio_pci_uninit(struct rte_eth_dev *eth_dev)
 static int vdpa_check_handler(__rte_unused const char *key,
 		const char *value, void *ret_val)
 {
+	if (value == NULL || ret_val == NULL)
+		return -EINVAL;
+
 	if (strcmp(value, "1") == 0)
 		*(int *)ret_val = 1;
 	else

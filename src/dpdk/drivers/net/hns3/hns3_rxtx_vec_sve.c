@@ -261,10 +261,10 @@ hns3_rxq_rearm_mbuf_sve(struct hns3_rx_queue *rxq)
 	for (i = 0; i < HNS3_DEFAULT_RXQ_REARM_THRESH; i += REARM_LOOP_STEP_NUM,
 		rxep += REARM_LOOP_STEP_NUM, rxdp += REARM_LOOP_STEP_NUM) {
 		uint64_t iova[REARM_LOOP_STEP_NUM];
-		iova[0] = rxep[0].mbuf->buf_iova;
-		iova[1] = rxep[1].mbuf->buf_iova;
-		iova[2] = rxep[2].mbuf->buf_iova;
-		iova[3] = rxep[3].mbuf->buf_iova;
+		iova[0] = rte_mbuf_iova_get(rxep[0].mbuf);
+		iova[1] = rte_mbuf_iova_get(rxep[1].mbuf);
+		iova[2] = rte_mbuf_iova_get(rxep[2].mbuf);
+		iova[3] = rte_mbuf_iova_get(rxep[3].mbuf);
 		svuint64_t siova = svld1_u64(PG64_256BIT, iova);
 		siova = svadd_n_u64_z(PG64_256BIT, siova, RTE_PKTMBUF_HEADROOM);
 		svuint64_t ol_base = svdup_n_u64(0);
@@ -389,14 +389,21 @@ hns3_tx_fill_hw_ring_sve(struct hns3_tx_queue *txq,
 				   HNS3_UINT32_BIT;
 	svuint64_t base_addr, buf_iova, data_off, data_len, addr;
 	svuint64_t offsets = svindex_u64(0, BD_SIZE);
-	uint32_t i = 0;
-	svbool_t pg = svwhilelt_b64_u32(i, nb_pkts);
+	uint32_t cnt = svcntd();
+	svbool_t pg;
+	uint32_t i;
 
-	do {
+	for (i = 0; i < nb_pkts; /* i is updated in the inner loop */) {
+		pg = svwhilelt_b64_u32(i, nb_pkts);
 		base_addr = svld1_u64(pg, (uint64_t *)pkts);
 		/* calc mbuf's field buf_iova address */
+#if RTE_IOVA_IN_MBUF
 		buf_iova = svadd_n_u64_z(pg, base_addr,
 					 offsetof(struct rte_mbuf, buf_iova));
+#else
+		buf_iova = svadd_n_u64_z(pg, base_addr,
+					 offsetof(struct rte_mbuf, buf_addr));
+#endif
 		/* calc mbuf's field data_off address */
 		data_off = svadd_n_u64_z(pg, base_addr,
 					 offsetof(struct rte_mbuf, data_off));
@@ -435,17 +442,15 @@ hns3_tx_fill_hw_ring_sve(struct hns3_tx_queue *txq,
 				offsets, svdup_n_u64(valid_bit));
 
 		/* Increment bytes counter */
-		uint32_t idx;
-		for (idx = 0; idx < svcntd(); idx++)
-			txq->basic_stats.bytes += pkts[idx]->pkt_len;
+		txq->basic_stats.bytes +=
+			(svaddv_u64(pg, data_len) >> HNS3_UINT16_BIT);
 
 		/* update index for next loop */
-		i += svcntd();
-		pkts += svcntd();
-		txdp += svcntd();
-		tx_entry += svcntd();
-		pg = svwhilelt_b64_u32(i, nb_pkts);
-	} while (svptest_any(svptrue_b64(), pg));
+		i += cnt;
+		pkts += cnt;
+		txdp += cnt;
+		tx_entry += cnt;
+	}
 }
 
 static uint16_t
@@ -465,14 +470,16 @@ hns3_xmit_fixed_burst_vec_sve(void *__restrict tx_queue,
 		return 0;
 	}
 
-	if (txq->next_to_use + nb_pkts > txq->nb_tx_desc) {
+	if (txq->next_to_use + nb_pkts >= txq->nb_tx_desc) {
 		nb_tx = txq->nb_tx_desc - txq->next_to_use;
 		hns3_tx_fill_hw_ring_sve(txq, tx_pkts, nb_tx);
 		txq->next_to_use = 0;
 	}
 
-	hns3_tx_fill_hw_ring_sve(txq, tx_pkts + nb_tx, nb_pkts - nb_tx);
-	txq->next_to_use += nb_pkts - nb_tx;
+	if (nb_pkts > nb_tx) {
+		hns3_tx_fill_hw_ring_sve(txq, tx_pkts + nb_tx, nb_pkts - nb_tx);
+		txq->next_to_use += nb_pkts - nb_tx;
+	}
 
 	txq->tx_bd_ready -= nb_pkts;
 	hns3_write_txq_tail_reg(txq, nb_pkts);

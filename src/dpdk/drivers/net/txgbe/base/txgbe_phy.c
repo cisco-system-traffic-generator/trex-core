@@ -1363,13 +1363,43 @@ static void txgbe_i2c_stop(struct txgbe_hw *hw)
 	wr32(hw, TXGBE_I2CENA, 0);
 }
 
+/**
+ *  txgbe_check_overtemp - Checks if an overtemp occurred.
+ *  @hw: pointer to hardware structure
+ *
+ *  Checks if the temp alarm status was triggered due to overtemp
+ **/
+s32 txgbe_check_overtemp(struct txgbe_hw *hw)
+{
+	s32 status = 0;
+	u32 ts_state;
+
+	/* Check that the temp alarm status was triggered */
+	ts_state = rd32(hw, TXGBE_TS_ALARM_ST);
+
+	if (ts_state & TXGBE_TS_ALARM_ST_DALARM)
+		status = TXGBE_ERR_UNDERTEMP;
+	else if (ts_state & TXGBE_TS_ALARM_ST_ALARM)
+		status = TXGBE_ERR_OVERTEMP;
+
+	return status;
+}
+
 static void
 txgbe_set_sgmii_an37_ability(struct txgbe_hw *hw)
 {
 	u32 value;
+	u8 device_type = hw->subsystem_device_id & 0xF0;
 
 	wr32_epcs(hw, VR_XS_OR_PCS_MMD_DIGI_CTL1, 0x3002);
-	wr32_epcs(hw, SR_MII_MMD_AN_CTL, 0x0105);
+	/* for sgmii + external phy, set to 0x0105 (phy sgmii mode) */
+	/* for sgmii direct link, set to 0x010c (mac sgmii mode) */
+	if (device_type == TXGBE_DEV_ID_MAC_SGMII ||
+			hw->phy.media_type == txgbe_media_type_fiber)
+		wr32_epcs(hw, SR_MII_MMD_AN_CTL, 0x010C);
+	else if (device_type == TXGBE_DEV_ID_SGMII ||
+			device_type == TXGBE_DEV_ID_XAUI)
+		wr32_epcs(hw, SR_MII_MMD_AN_CTL, 0x0105);
 	wr32_epcs(hw, SR_MII_MMD_DIGI_CTL, 0x0200);
 	value = rd32_epcs(hw, SR_MII_MMD_CTL);
 	value = (value & ~0x1200) | (0x1 << 12) | (0x1 << 9);
@@ -1685,9 +1715,10 @@ txgbe_set_link_to_kx4(struct txgbe_hw *hw, bool autoneg)
 		wr32_epcs(hw, TXGBE_PHY_TX_EQ_CTL1, value);
 	} else if (hw->fw_version <= TXGBE_FW_N_TXEQ) {
 		value = (0x1804 & ~0x3F3F);
+		value |= 40 << 8;
 		wr32_epcs(hw, TXGBE_PHY_TX_EQ_CTL0, value);
 
-		value = (0x50 & ~0x7F) | 40 | (1 << 6);
+		value = (0x50 & ~0x7F) | (1 << 6);
 		wr32_epcs(hw, TXGBE_PHY_TX_EQ_CTL1, value);
 	}
 out:
@@ -1899,10 +1930,10 @@ txgbe_set_link_to_kx(struct txgbe_hw *hw,
 		value |= hw->phy.ffe_post | (1 << 6);
 		wr32_epcs(hw, TXGBE_PHY_TX_EQ_CTL1, value);
 	} else if (hw->fw_version <= TXGBE_FW_N_TXEQ) {
-		value = (0x1804 & ~0x3F3F) | (24 << 8) | 4;
+		value = (0x1804 & ~0x3F3F) | (40 << 8);
 		wr32_epcs(hw, TXGBE_PHY_TX_EQ_CTL0, value);
 
-		value = (0x50 & ~0x7F) | 16 | (1 << 6);
+		value = (0x50 & ~0x7F) | (1 << 6);
 		wr32_epcs(hw, TXGBE_PHY_TX_EQ_CTL1, value);
 	}
 out:
@@ -2280,6 +2311,8 @@ void txgbe_autoc_write(struct txgbe_hw *hw, u64 autoc)
 		}
 	} else if (hw->phy.media_type == txgbe_media_type_fiber) {
 		txgbe_set_link_to_sfi(hw, speed);
+		if (speed == TXGBE_LINK_SPEED_1GB_FULL)
+			txgbe_set_sgmii_an37_ability(hw);
 	}
 
 	if (speed == TXGBE_LINK_SPEED_10GB_FULL)

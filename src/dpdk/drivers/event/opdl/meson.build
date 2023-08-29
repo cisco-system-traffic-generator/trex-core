@@ -9,3 +9,4 @@ sources = files(
         'opdl_test.c',
 )
 deps += ['bus_vdev']
+require_iova_in_mbuf = false

@@ -65,6 +65,12 @@ struct axgbe_rx_queue {
 	uint16_t crc_len;
 	/* address of  s/w rx buffers */
 	struct rte_mbuf **sw_ring;
+
+	/* For segemented packets - save the current state
+	 * of packet, if next descriptor is not ready yet
+	 */
+	struct rte_mbuf *saved_mbuf;
+
 	/* Port private data */
 	struct axgbe_port *pdata;
 	/* Number of Rx descriptors in queue */
@@ -94,7 +100,7 @@ struct axgbe_rx_queue {
 	uint64_t rx_mbuf_alloc_failed;
 	/* Number of mbufs allocated from pool*/
 	uint64_t mbuf_alloc;
-
+	uint64_t offloads; /**< Rx offloads with RTE_ETH_RX_OFFLOAD_**/
 } __rte_cache_aligned;
 
 /*Tx descriptor format */
@@ -143,7 +149,7 @@ struct axgbe_tx_queue {
 	uint64_t pkts;
 	uint64_t bytes;
 	uint64_t errors;
-
+	uint64_t offloads; /**< Tx offload flags of RTE_ETH_TX_OFFLOAD_* */
 } __rte_cache_aligned;
 
 /*Queue related APIs */
@@ -152,6 +158,11 @@ struct axgbe_tx_queue {
  * RX/TX function prototypes
  */
 
+/* Used in dev_start by primary process and then
+ * in dev_init by secondary process when attaching to an existing ethdev.
+ */
+void axgbe_set_tx_function(struct rte_eth_dev *dev);
+void axgbe_set_rx_function(struct rte_eth_dev *dev);
 
 void axgbe_dev_tx_queue_release(struct rte_eth_dev *dev, uint16_t queue_idx);
 int  axgbe_dev_tx_queue_setup(struct rte_eth_dev *dev, uint16_t tx_queue_id,
@@ -167,6 +178,10 @@ int axgbe_dev_fw_version_get(struct rte_eth_dev *eth_dev,
 
 uint16_t axgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			 uint16_t nb_pkts);
+
+uint16_t axgbe_xmit_pkts_seg(void *tx_queue, struct rte_mbuf **tx_pkts,
+		uint16_t nb_pkts);
+
 uint16_t axgbe_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 			 uint16_t nb_pkts);
 

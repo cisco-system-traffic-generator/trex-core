@@ -16,9 +16,6 @@
 
 #include <assert.h>
 #include <stdio.h>
-#if defined(RTE_BACKTRACE)
-#include <execinfo.h>
-#endif
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -34,11 +31,12 @@
 #include <sys/stat.h>
 
 #include <ethdev_pci.h>
-#include <rte_string_fns.h>
 
 #include "nfp_cpp.h"
+#include "nfp_logs.h"
 #include "nfp_target.h"
 #include "nfp6000/nfp6000.h"
+#include "../nfp_logs.h"
 
 #define NFP_PCIE_BAR(_pf)	(0x30000 + ((_pf) & 7) * 0xc0)
 
@@ -94,7 +92,10 @@ struct nfp6000_area_priv;
  * @refcnt:	number of current users
  * @iomem:	mapped IO memory
  */
+#define NFP_BAR_MIN 1
+#define NFP_BAR_MID 5
 #define NFP_BAR_MAX 7
+
 struct nfp_bar {
 	struct nfp_pcie_user *nfp;
 	uint32_t barcfg;
@@ -173,23 +174,17 @@ nfp_compute_bar(const struct nfp_bar *bar, uint32_t *bar_config,
 		newcfg |= NFP_PCIE_BAR_PCIE2CPP_TOKEN_BASEADDRESS(tok);
 
 		if ((offset & mask) != ((offset + size - 1) & mask)) {
-			printf("BAR%d: Won't use for Fixed mapping\n",
-				bar->index);
-			printf("\t<%#llx,%#llx>, action=%d\n",
-				(unsigned long long)offset,
-				(unsigned long long)(offset + size), act);
-			printf("\tBAR too small (0x%llx).\n",
-				(unsigned long long)mask);
+			PMD_DRV_LOG(ERR, "BAR%d: Won't use for Fixed mapping <%#llx,%#llx>, action=%d BAR too small (0x%llx)",
+				    bar->index, (unsigned long long)offset,
+				    (unsigned long long)(offset + size), act,
+				    (unsigned long long)mask);
 			return -EINVAL;
 		}
 		offset &= mask;
 
-#ifdef DEBUG
-		printf("BAR%d: Created Fixed mapping\n", bar->index);
-		printf("\t%d:%d:%d:0x%#llx-0x%#llx>\n", tgt, act, tok,
-			(unsigned long long)offset,
-			(unsigned long long)(offset + mask));
-#endif
+		PMD_DRV_LOG(DEBUG, "BAR%d: Created Fixed mapping %d:%d:%d:0x%#llx-0x%#llx>",
+			    bar->index, tgt, act, tok, (unsigned long long)offset,
+			    (unsigned long long)(offset + mask));
 
 		bitsize = 40 - 16;
 	} else {
@@ -204,33 +199,27 @@ nfp_compute_bar(const struct nfp_bar *bar, uint32_t *bar_config,
 		newcfg |= NFP_PCIE_BAR_PCIE2CPP_TOKEN_BASEADDRESS(tok);
 
 		if ((offset & mask) != ((offset + size - 1) & mask)) {
-			printf("BAR%d: Won't use for bulk mapping\n",
-				bar->index);
-			printf("\t<%#llx,%#llx>\n", (unsigned long long)offset,
-				(unsigned long long)(offset + size));
-			printf("\ttarget=%d, token=%d\n", tgt, tok);
-			printf("\tBAR too small (%#llx) - (%#llx != %#llx).\n",
-				(unsigned long long)mask,
-				(unsigned long long)(offset & mask),
-				(unsigned long long)(offset + size - 1) & mask);
-
+			PMD_DRV_LOG(ERR, "BAR%d: Won't use for bulk mapping <%#llx,%#llx> target=%d, token=%d BAR too small (%#llx) - (%#llx != %#llx).",
+				    bar->index, (unsigned long long)offset,
+				    (unsigned long long)(offset + size),
+				    tgt, tok, (unsigned long long)mask,
+				    (unsigned long long)(offset & mask),
+				    (unsigned long long)(offset + size - 1) & mask);
 			return -EINVAL;
 		}
 
 		offset &= mask;
 
-#ifdef DEBUG
-		printf("BAR%d: Created bulk mapping %d:x:%d:%#llx-%#llx\n",
-			bar->index, tgt, tok, (unsigned long long)offset,
-			(unsigned long long)(offset + ~mask));
-#endif
+		PMD_DRV_LOG(DEBUG, "BAR%d: Created bulk mapping %d:x:%d:%#llx-%#llx",
+			    bar->index, tgt, tok, (unsigned long long)offset,
+			    (unsigned long long)(offset + ~mask));
 
 		bitsize = 40 - 21;
 	}
 
 	if (bar->bitsize < bitsize) {
-		printf("BAR%d: Too small for %d:%d:%d\n", bar->index, tgt, tok,
-			act);
+		PMD_DRV_LOG(ERR, "BAR%d: Too small for %d:%d:%d", bar->index,
+			    tgt, tok, act);
 		return -EINVAL;
 	}
 
@@ -254,7 +243,7 @@ nfp_bar_write(struct nfp_pcie_user *nfp, struct nfp_bar *bar,
 	base = bar->index >> 3;
 	slot = bar->index & 7;
 
-	if (!nfp->cfg)
+	if (nfp->cfg == NULL)
 		return (-ENOMEM);
 
 	bar->csr = nfp->cfg +
@@ -263,9 +252,7 @@ nfp_bar_write(struct nfp_pcie_user *nfp, struct nfp_bar *bar,
 	*(uint32_t *)(bar->csr) = newcfg;
 
 	bar->barcfg = newcfg;
-#ifdef DEBUG
-	printf("BAR%d: updated to 0x%08x\n", bar->index, newcfg);
-#endif
+	PMD_DRV_LOG(DEBUG, "BAR%d: updated to 0x%08x", bar->index, newcfg);
 
 	return 0;
 }
@@ -295,6 +282,7 @@ nfp_reconfigure_bar(struct nfp_pcie_user *nfp, struct nfp_bar *bar, int tgt,
  * BAR0.0: Reserved for General Mapping (for MSI-X access to PCIe SRAM)
  *
  *         Halving PCItoCPPBars for primary and secondary processes.
+ *         For CoreNIC firmware:
  *         NFP PMD just requires two fixed slots, one for configuration BAR,
  *         and another for accessing the hw queues. Another slot is needed
  *         for setting the link up or down. Secondary processes do not need
@@ -304,6 +292,9 @@ nfp_reconfigure_bar(struct nfp_pcie_user *nfp, struct nfp_bar *bar, int tgt,
  *         supported. Due to this requirement and future extensions requiring
  *         new slots per process, only one secondary process is supported by
  *         now.
+ *         For Flower firmware:
+ *         NFP PMD need another fixed slots, used as the configureation BAR
+ *         for ctrl vNIC.
  */
 static int
 nfp_enable_bars(struct nfp_pcie_user *nfp)
@@ -312,11 +303,11 @@ nfp_enable_bars(struct nfp_pcie_user *nfp)
 	int x, start, end;
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
-		start = 4;
-		end = 1;
+		start = NFP_BAR_MID;
+		end = NFP_BAR_MIN;
 	} else {
-		start = 7;
-		end = 4;
+		start = NFP_BAR_MAX;
+		end = NFP_BAR_MID;
 	}
 	for (x = start; x > end; x--) {
 		bar = &nfp->bar[x - 1];
@@ -344,15 +335,15 @@ nfp_alloc_bar(struct nfp_pcie_user *nfp)
 	int x, start, end;
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
-		start = 4;
-		end = 1;
+		start = NFP_BAR_MID;
+		end = NFP_BAR_MIN;
 	} else {
-		start = 7;
-		end = 4;
+		start = NFP_BAR_MAX;
+		end = NFP_BAR_MID;
 	}
 	for (x = start; x > end; x--) {
 		bar = &nfp->bar[x - 1];
-		if (!bar->lock) {
+		if (bar->lock == 0) {
 			bar->lock = 1;
 			return bar;
 		}
@@ -367,11 +358,11 @@ nfp_disable_bars(struct nfp_pcie_user *nfp)
 	int x, start, end;
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
-		start = 4;
-		end = 1;
+		start = NFP_BAR_MID;
+		end = NFP_BAR_MIN;
 	} else {
-		start = 7;
-		end = 4;
+		start = NFP_BAR_MAX;
+		end = NFP_BAR_MID;
 	}
 
 	for (x = start; x > end; x--) {
@@ -469,7 +460,7 @@ nfp6000_area_acquire(struct nfp_cpp_area *area)
 	}
 
 	/* Must have been too big. Sub-allocate. */
-	if (!priv->bar->iomem)
+	if (priv->bar->iomem == NULL)
 		return (-ENOMEM);
 
 	priv->iomem = priv->bar->iomem + priv->bar_offset;
@@ -482,7 +473,7 @@ nfp6000_area_mapped(struct nfp_cpp_area *area)
 {
 	struct nfp6000_area_priv *area_priv = nfp_cpp_area_priv(area);
 
-	if (!area_priv->iomem)
+	if (area_priv->iomem == NULL)
 		return NULL;
 
 	return area_priv->iomem;
@@ -531,7 +522,7 @@ nfp6000_area_read(struct nfp_cpp_area *area, void *kernel_vaddr,
 
 	/* Unaligned? Translate to an explicit access */
 	if ((priv->offset + offset) & (width - 1)) {
-		printf("aread_read unaligned!!!\n");
+		PMD_DRV_LOG(ERR, "aread_read unaligned!!!");
 		return -EINVAL;
 	}
 
@@ -553,7 +544,7 @@ nfp6000_area_read(struct nfp_cpp_area *area, void *kernel_vaddr,
 			return -EINVAL;
 	}
 
-	if (!priv->bar)
+	if (priv->bar == NULL)
 		return -EFAULT;
 
 	if (is_64)
@@ -618,7 +609,7 @@ nfp6000_area_write(struct nfp_cpp_area *area, const void *kernel_vaddr,
 			return -EINVAL;
 	}
 
-	if (!priv->bar)
+	if (priv->bar == NULL)
 		return -EFAULT;
 
 	if (is_64)
@@ -690,7 +681,7 @@ nfp_acquire_secondary_process_lock(struct nfp_pcie_user *desc)
 	lockfile = calloc(strlen(home_path) + strlen(lockname) + 1,
 			  sizeof(char));
 
-	if (!lockfile)
+	if (lockfile == NULL)
 		return -ENOMEM;
 
 	strcat(lockfile, home_path);
@@ -698,7 +689,7 @@ nfp_acquire_secondary_process_lock(struct nfp_pcie_user *desc)
 	desc->secondary_lock = open(lockfile, O_RDWR | O_CREAT | O_NONBLOCK,
 				    0666);
 	if (desc->secondary_lock < 0) {
-		RTE_LOG(ERR, PMD, "NFP lock for secondary process failed\n");
+		PMD_DRV_LOG(ERR, "NFP lock for secondary process failed");
 		free(lockfile);
 		return desc->secondary_lock;
 	}
@@ -707,7 +698,7 @@ nfp_acquire_secondary_process_lock(struct nfp_pcie_user *desc)
 	lock.l_whence = SEEK_SET;
 	rc = fcntl(desc->secondary_lock, F_SETLK, &lock);
 	if (rc < 0) {
-		RTE_LOG(ERR, PMD, "NFP lock for secondary process failed\n");
+		PMD_DRV_LOG(ERR, "NFP lock for secondary process failed");
 		close(desc->secondary_lock);
 	}
 
@@ -721,7 +712,7 @@ nfp6000_set_model(struct rte_pci_device *dev, struct nfp_cpp *cpp)
 	uint32_t model;
 
 	if (rte_pci_read_config(dev, &model, 4, 0x2e) < 0) {
-		printf("nfp set model failed\n");
+		PMD_DRV_LOG(ERR, "nfp set model failed");
 		return -1;
 	}
 
@@ -737,7 +728,7 @@ nfp6000_set_interface(struct rte_pci_device *dev, struct nfp_cpp *cpp)
 	uint16_t interface;
 
 	if (rte_pci_read_config(dev, &interface, 2, 0x154) < 0) {
-		printf("nfp set interface failed\n");
+		PMD_DRV_LOG(ERR, "nfp set interface failed");
 		return -1;
 	}
 
@@ -756,14 +747,14 @@ nfp6000_set_serial(struct rte_pci_device *dev, struct nfp_cpp *cpp)
 
 	pos = rte_pci_find_ext_capability(dev, RTE_PCI_EXT_CAP_ID_DSN);
 	if (pos <= 0) {
-		printf("PCI_EXT_CAP_ID_DSN not found. nfp set serial failed\n");
+		PMD_DRV_LOG(ERR, "PCI_EXT_CAP_ID_DSN not found. nfp set serial failed");
 		return -1;
 	} else {
 		pos += 6;
 	}
 
 	if (rte_pci_read_config(dev, &tmp, 2, pos) < 0) {
-		printf("nfp set serial failed\n");
+		PMD_DRV_LOG(ERR, "nfp set serial failed");
 		return -1;
 	}
 
@@ -772,7 +763,7 @@ nfp6000_set_serial(struct rte_pci_device *dev, struct nfp_cpp *cpp)
 
 	pos += 2;
 	if (rte_pci_read_config(dev, &tmp, 2, pos) < 0) {
-		printf("nfp set serial failed\n");
+		PMD_DRV_LOG(ERR, "nfp set serial failed");
 		return -1;
 	}
 
@@ -781,7 +772,7 @@ nfp6000_set_serial(struct rte_pci_device *dev, struct nfp_cpp *cpp)
 
 	pos += 2;
 	if (rte_pci_read_config(dev, &tmp, 2, pos) < 0) {
-		printf("nfp set serial failed\n");
+		PMD_DRV_LOG(ERR, "nfp set serial failed");
 		return -1;
 	}
 
@@ -815,7 +806,7 @@ nfp6000_init(struct nfp_cpp *cpp, struct rte_pci_device *dev)
 	struct nfp_pcie_user *desc;
 
 	desc = malloc(sizeof(*desc));
-	if (!desc)
+	if (desc == NULL)
 		return -1;
 
 

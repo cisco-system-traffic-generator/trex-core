@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <rte_memory.h>
@@ -70,7 +71,7 @@ struct vhost_iotlb_msg {
 struct vhost_vdpa_config {
 	uint32_t off;
 	uint32_t len;
-	uint8_t buf[0];
+	uint8_t buf[];
 };
 
 struct vhost_msg {
@@ -134,8 +135,8 @@ vhost_vdpa_get_features(struct virtio_user_dev *dev, uint64_t *features)
 		return -1;
 	}
 
-	/* Multiqueue not supported for now */
-	*features &= ~(1ULL << VIRTIO_NET_F_MQ);
+	if (*features & 1ULL << VIRTIO_NET_F_CTRL_VQ)
+		dev->hw_cvq = true;
 
 	/* Negotiated vDPA backend features */
 	ret = vhost_vdpa_get_protocol_features(dev, &data->protocol_features);
@@ -564,6 +565,17 @@ vhost_vdpa_destroy(struct virtio_user_dev *dev)
 }
 
 static int
+vhost_vdpa_cvq_enable(struct virtio_user_dev *dev, int enable)
+{
+	struct vhost_vring_state state = {
+		.index = dev->max_queue_pairs * 2,
+		.num   = enable,
+	};
+
+	return vhost_vdpa_set_vring_enable(dev, &state);
+}
+
+static int
 vhost_vdpa_enable_queue_pair(struct virtio_user_dev *dev,
 			       uint16_t pair_idx,
 			       int enable)
@@ -628,6 +640,7 @@ struct virtio_user_backend_ops virtio_ops_vdpa = {
 	.set_status = vhost_vdpa_set_status,
 	.get_config = vhost_vdpa_get_config,
 	.set_config = vhost_vdpa_set_config,
+	.cvq_enable = vhost_vdpa_cvq_enable,
 	.enable_qp = vhost_vdpa_enable_queue_pair,
 	.dma_map = vhost_vdpa_dma_map_batch,
 	.dma_unmap = vhost_vdpa_dma_unmap_batch,

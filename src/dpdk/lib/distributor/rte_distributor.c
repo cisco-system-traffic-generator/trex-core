@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/queue.h>
 #include <string.h>
 #include <rte_mbuf.h>
@@ -575,7 +576,7 @@ rte_distributor_process(struct rte_distributor *d,
 					}
 				}
 
-				/* Add to current worker worker */
+				/* Add to current worker */
 				unsigned int idx = bl->count++;
 
 				bl->tags[idx] = new_tag;

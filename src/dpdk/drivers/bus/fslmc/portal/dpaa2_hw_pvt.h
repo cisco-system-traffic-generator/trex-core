@@ -8,6 +8,7 @@
 #ifndef _DPAA2_HW_PVT_H_
 #define _DPAA2_HW_PVT_H_
 
+#include <rte_compat.h>
 #include <rte_eventdev.h>
 #include <dpaax_iova_table.h>
 
@@ -147,7 +148,8 @@ typedef void (dpaa2_queue_cb_dqrr_t)(struct qbman_swp *swp,
 		struct dpaa2_queue *rxq,
 		struct rte_event *ev);
 
-typedef void (dpaa2_queue_cb_eqresp_free_t)(uint16_t eqresp_ci);
+typedef void (dpaa2_queue_cb_eqresp_free_t)(uint16_t eqresp_ci,
+					struct dpaa2_queue *dpaa2_q);
 
 struct dpaa2_queue {
 	struct rte_mempool *mb_pool; /**< mbuf pool to populate RX ring. */

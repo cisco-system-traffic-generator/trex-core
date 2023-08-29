@@ -27,3 +27,5 @@ sources = files(
         'failsafe_ops.c',
         'failsafe_rxtx.c',
 )
+
+require_iova_in_mbuf = false

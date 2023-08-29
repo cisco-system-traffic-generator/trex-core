@@ -2,6 +2,9 @@
  * Copyright(c) 2020 Intel Corporation
  */
 
+#include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
 #ifndef RTE_EXEC_ENV_WINDOWS
 #include <unistd.h>
 #include <pthread.h>
@@ -70,11 +73,18 @@ int
 rte_telemetry_register_cmd(const char *cmd, telemetry_cb fn, const char *help)
 {
 	struct cmd_callback *new_callbacks;
+	const char *cmdp = cmd;
 	int i = 0;
 
 	if (strlen(cmd) >= MAX_CMD_LEN || fn == NULL || cmd[0] != '/'
 			|| strlen(help) >= RTE_TEL_MAX_STRING_LEN)
 		return -EINVAL;
+
+	while (*cmdp != '\0') {
+		if (!isalnum(*cmdp) && *cmdp != '_' && *cmdp != '/')
+			return -EINVAL;
+		cmdp++;
+	}
 
 	rte_spinlock_lock(&callback_sl);
 	new_callbacks = realloc(callbacks, sizeof(callbacks[0]) * (num_callbacks + 1));
@@ -132,15 +142,17 @@ command_help(const char *cmd __rte_unused, const char *params,
 		struct rte_tel_data *d)
 {
 	int i;
+	/* if no parameters return our own help text */
+	const char *to_lookup = (params == NULL ? cmd : params);
 
-	if (!params)
-		return -1;
 	rte_tel_data_start_dict(d);
 	rte_spinlock_lock(&callback_sl);
 	for (i = 0; i < num_callbacks; i++)
-		if (strcmp(params, callbacks[i].cmd) == 0) {
-			rte_tel_data_add_dict_string(d, params,
-					callbacks[i].help);
+		if (strcmp(to_lookup, callbacks[i].cmd) == 0) {
+			if (params == NULL)
+				rte_tel_data_string(d, callbacks[i].help);
+			else
+				rte_tel_data_add_dict_string(d, params,	callbacks[i].help);
 			break;
 		}
 	rte_spinlock_unlock(&callback_sl);
@@ -155,27 +167,27 @@ container_to_json(const struct rte_tel_data *d, char *out_buf, size_t buf_len)
 	size_t used = 0;
 	unsigned int i;
 
-	if (d->type != RTE_TEL_DICT && d->type != RTE_TEL_ARRAY_U64 &&
-		d->type != RTE_TEL_ARRAY_INT && d->type != RTE_TEL_ARRAY_STRING)
+	if (d->type != TEL_DICT && d->type != TEL_ARRAY_UINT &&
+		d->type != TEL_ARRAY_INT && d->type != TEL_ARRAY_STRING)
 		return snprintf(out_buf, buf_len, "null");
 
 	used = rte_tel_json_empty_array(out_buf, buf_len, 0);
-	if (d->type == RTE_TEL_ARRAY_U64)
+	if (d->type == TEL_ARRAY_UINT)
 		for (i = 0; i < d->data_len; i++)
-			used = rte_tel_json_add_array_u64(out_buf,
+			used = rte_tel_json_add_array_uint(out_buf,
 				buf_len, used,
-				d->data.array[i].u64val);
-	if (d->type == RTE_TEL_ARRAY_INT)
+				d->data.array[i].uval);
+	if (d->type == TEL_ARRAY_INT)
 		for (i = 0; i < d->data_len; i++)
 			used = rte_tel_json_add_array_int(out_buf,
 				buf_len, used,
 				d->data.array[i].ival);
-	if (d->type == RTE_TEL_ARRAY_STRING)
+	if (d->type == TEL_ARRAY_STRING)
 		for (i = 0; i < d->data_len; i++)
 			used = rte_tel_json_add_array_string(out_buf,
 				buf_len, used,
 				d->data.array[i].sval);
-	if (d->type == RTE_TEL_DICT)
+	if (d->type == TEL_DICT)
 		for (i = 0; i < d->data_len; i++) {
 			const struct tel_dict_entry *v = &d->data.dict[i];
 			switch (v->type) {
@@ -189,10 +201,10 @@ container_to_json(const struct rte_tel_data *d, char *out_buf, size_t buf_len)
 						buf_len, used,
 						v->name, v->value.ival);
 				break;
-			case RTE_TEL_U64_VAL:
-				used = rte_tel_json_add_obj_u64(out_buf,
+			case RTE_TEL_UINT_VAL:
+				used = rte_tel_json_add_obj_uint(out_buf,
 						buf_len, used,
-						v->name, v->value.u64val);
+						v->name, v->value.uval);
 				break;
 			case RTE_TEL_CONTAINER:
 			{
@@ -226,22 +238,22 @@ output_json(const char *cmd, const struct rte_tel_data *d, int s)
 
 	RTE_BUILD_BUG_ON(sizeof(out_buf) < MAX_CMD_LEN +
 			RTE_TEL_MAX_SINGLE_STRING_LEN + 10);
-	switch (d->type) {
-	case RTE_TEL_NULL:
-		used = snprintf(out_buf, sizeof(out_buf), "{\"%.*s\":null}",
-				MAX_CMD_LEN, cmd ? cmd : "none");
-		break;
-	case RTE_TEL_STRING:
-		used = snprintf(out_buf, sizeof(out_buf), "{\"%.*s\":\"%.*s\"}",
-				MAX_CMD_LEN, cmd,
-				RTE_TEL_MAX_SINGLE_STRING_LEN, d->data.str);
-		break;
-	case RTE_TEL_DICT:
-		prefix_used = snprintf(out_buf, sizeof(out_buf), "{\"%.*s\":",
-				MAX_CMD_LEN, cmd);
-		cb_data_buf = &out_buf[prefix_used];
-		buf_len = sizeof(out_buf) - prefix_used - 1; /* space for '}' */
 
+	prefix_used = snprintf(out_buf, sizeof(out_buf), "{\"%.*s\":",
+			MAX_CMD_LEN, cmd);
+	cb_data_buf = &out_buf[prefix_used];
+	buf_len = sizeof(out_buf) - prefix_used - 1; /* space for '}' */
+
+	switch (d->type) {
+	case TEL_NULL:
+		used = strlcpy(cb_data_buf, "null", buf_len);
+		break;
+
+	case TEL_STRING:
+		used = rte_tel_json_str(cb_data_buf, buf_len, 0, d->data.str);
+		break;
+
+	case TEL_DICT:
 		used = rte_tel_json_empty_obj(cb_data_buf, buf_len, 0);
 		for (i = 0; i < d->data_len; i++) {
 			const struct tel_dict_entry *v = &d->data.dict[i];
@@ -256,10 +268,10 @@ output_json(const char *cmd, const struct rte_tel_data *d, int s)
 						buf_len, used,
 						v->name, v->value.ival);
 				break;
-			case RTE_TEL_U64_VAL:
-				used = rte_tel_json_add_obj_u64(cb_data_buf,
+			case RTE_TEL_UINT_VAL:
+				used = rte_tel_json_add_obj_uint(cb_data_buf,
 						buf_len, used,
-						v->name, v->value.u64val);
+						v->name, v->value.uval);
 				break;
 			case RTE_TEL_CONTAINER:
 			{
@@ -277,34 +289,28 @@ output_json(const char *cmd, const struct rte_tel_data *d, int s)
 			}
 			}
 		}
-		used += prefix_used;
-		used += strlcat(out_buf + used, "}", sizeof(out_buf) - used);
 		break;
-	case RTE_TEL_ARRAY_STRING:
-	case RTE_TEL_ARRAY_INT:
-	case RTE_TEL_ARRAY_U64:
-	case RTE_TEL_ARRAY_CONTAINER:
-		prefix_used = snprintf(out_buf, sizeof(out_buf), "{\"%.*s\":",
-				MAX_CMD_LEN, cmd);
-		cb_data_buf = &out_buf[prefix_used];
-		buf_len = sizeof(out_buf) - prefix_used - 1; /* space for '}' */
 
+	case TEL_ARRAY_STRING:
+	case TEL_ARRAY_INT:
+	case TEL_ARRAY_UINT:
+	case TEL_ARRAY_CONTAINER:
 		used = rte_tel_json_empty_array(cb_data_buf, buf_len, 0);
 		for (i = 0; i < d->data_len; i++)
-			if (d->type == RTE_TEL_ARRAY_STRING)
+			if (d->type == TEL_ARRAY_STRING)
 				used = rte_tel_json_add_array_string(
 						cb_data_buf,
 						buf_len, used,
 						d->data.array[i].sval);
-			else if (d->type == RTE_TEL_ARRAY_INT)
+			else if (d->type == TEL_ARRAY_INT)
 				used = rte_tel_json_add_array_int(cb_data_buf,
 						buf_len, used,
 						d->data.array[i].ival);
-			else if (d->type == RTE_TEL_ARRAY_U64)
-				used = rte_tel_json_add_array_u64(cb_data_buf,
+			else if (d->type == TEL_ARRAY_UINT)
+				used = rte_tel_json_add_array_uint(cb_data_buf,
 						buf_len, used,
-						d->data.array[i].u64val);
-			else if (d->type == RTE_TEL_ARRAY_CONTAINER) {
+						d->data.array[i].uval);
+			else if (d->type == TEL_ARRAY_CONTAINER) {
 				char temp[buf_len];
 				const struct container *rec_data =
 						&d->data.array[i].container;
@@ -316,10 +322,10 @@ output_json(const char *cmd, const struct rte_tel_data *d, int s)
 				if (!rec_data->keep)
 					rte_tel_data_free(rec_data->data);
 			}
-		used += prefix_used;
-		used += strlcat(out_buf + used, "}", sizeof(out_buf) - used);
 		break;
 	}
+	used += prefix_used;
+	used += strlcat(out_buf + used, "}", sizeof(out_buf) - used);
 	if (write(s, out_buf, used) < 0)
 		perror("Error writing to socket");
 }
@@ -327,7 +333,7 @@ output_json(const char *cmd, const struct rte_tel_data *d, int s)
 static void
 perform_command(telemetry_cb fn, const char *cmd, const char *param, int s)
 {
-	struct rte_tel_data data;
+	struct rte_tel_data data = {0};
 
 	int ret = fn(cmd, param, &data);
 	if (ret < 0) {
@@ -345,7 +351,7 @@ static int
 unknown_command(const char *cmd __rte_unused, const char *params __rte_unused,
 		struct rte_tel_data *d)
 {
-	return d->type = RTE_TEL_NULL;
+	return d->type = TEL_NULL;
 }
 
 static void *

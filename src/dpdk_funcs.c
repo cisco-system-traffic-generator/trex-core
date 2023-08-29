@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <rte_byteorder.h>
+#include <bus_pci_driver.h>
 #include <rte_ethdev.h>
 #include "dpdk/drivers/net/i40e/base/i40e_register.h"
 #include "dpdk/drivers/net/i40e/base/i40e_status.h"

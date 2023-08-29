@@ -13,10 +13,12 @@
 #define NIX_DEF_SQB	     ((uint16_t)16)
 #define NIX_MIN_SQB	     ((uint16_t)8)
 #define NIX_SQB_LIST_SPACE   ((uint16_t)2)
-#define NIX_SQB_LOWER_THRESH ((uint16_t)70)
 
 /* Apply BP/DROP when CQ is 95% full */
 #define NIX_CQ_THRESH_LEVEL	(5 * 256 / 100)
+#define NIX_CQ_SEC_THRESH_LEVEL (25 * 256 / 100)
+/* Apply LBP at 75% of actual BP */
+#define NIX_CQ_LPB_THRESH_FRAC	(75 * 16 / 100)
 #define NIX_CQ_FULL_ERRATA_SKID (1024ull * 256)
 #define NIX_RQ_AURA_THRESH(x)	(((x)*95) / 100)
 
@@ -128,6 +130,7 @@ struct nix {
 	struct nix_qint *cints_mem;
 	uint8_t configured_qints;
 	uint8_t configured_cints;
+	struct roc_nix_rq **rqs;
 	struct roc_nix_sq **sqs;
 	uint16_t vwqe_interval;
 	uint16_t tx_chan_base;
@@ -155,6 +158,8 @@ struct nix {
 	uint16_t msixoff;
 	uint8_t rx_pause;
 	uint8_t tx_pause;
+	uint8_t pfc_rx_pause;
+	uint8_t pfc_tx_pause;
 	uint16_t cev;
 	uint64_t rx_cfg;
 	struct dev dev;
@@ -181,6 +186,7 @@ struct nix {
 	uint16_t tm_root_lvl;
 	uint16_t tm_flags;
 	uint16_t tm_link_cfg_lvl;
+	uint8_t tm_aggr_lvl_rr_prio;
 	uint16_t contig_rsvd[NIX_TXSCH_LVL_CNT];
 	uint16_t discontig_rsvd[NIX_TXSCH_LVL_CNT];
 	uint64_t tm_markfmt_en;
@@ -201,6 +207,8 @@ struct nix {
 	uint16_t nb_cpt_lf;
 	uint16_t outb_se_ring_cnt;
 	uint16_t outb_se_ring_base;
+	uint16_t cpt_lbpid;
+	bool need_meta_aura;
 	/* Mode provided by driver */
 	bool inb_inl_dev;
 
@@ -284,7 +292,6 @@ void nix_unregister_irqs(struct nix *nix);
 
 /* Default TL1 priority and Quantum from AF */
 #define NIX_TM_TL1_DFLT_RR_QTM	((1 << 24) - 1)
-#define NIX_TM_TL1_DFLT_RR_PRIO 1
 
 struct nix_tm_shaper_data {
 	uint64_t burst_exponent;
@@ -357,6 +364,8 @@ nix_tm_tree2str(enum roc_nix_tm_tree tree)
 		return "Default Tree";
 	else if (tree == ROC_NIX_TM_RLIMIT)
 		return "Rate Limit Tree";
+	else if (tree == ROC_NIX_TM_PFC)
+		return "PFC Tree";
 	else if (tree == ROC_NIX_TM_USER)
 		return "User Tree";
 	return "???";
@@ -403,6 +412,8 @@ int nix_tm_bp_config_set(struct roc_nix *roc_nix, uint16_t sq, uint16_t tc,
 			 bool enable);
 void nix_rq_vwqe_flush(struct roc_nix_rq *rq, uint16_t vwqe_interval);
 int nix_tm_mark_init(struct nix *nix);
+void nix_tm_sq_free_sqe_buffer(uint64_t *sqe, int head_off, int end_off, int instr_sz);
+int roc_nix_tm_sq_free_pending_sqe(struct nix *nix, int q);
 
 /*
  * TM priv utils.
@@ -432,7 +443,8 @@ bool nix_tm_child_res_valid(struct nix_tm_node_list *list,
 			    struct nix_tm_node *parent);
 uint16_t nix_tm_resource_estimate(struct nix *nix, uint16_t *schq_contig,
 				  uint16_t *schq, enum roc_nix_tm_tree tree);
-uint8_t nix_tm_tl1_default_prep(uint32_t schq, volatile uint64_t *reg,
+uint8_t nix_tm_tl1_default_prep(struct nix *nix, uint32_t schq,
+				volatile uint64_t *reg,
 				volatile uint64_t *regval);
 uint8_t nix_tm_topology_reg_prep(struct nix *nix, struct nix_tm_node *node,
 				 volatile uint64_t *reg,
@@ -451,7 +463,7 @@ struct nix_tm_shaper_profile *nix_tm_shaper_profile_alloc(void);
 void nix_tm_shaper_profile_free(struct nix_tm_shaper_profile *profile);
 
 uint64_t nix_get_blkaddr(struct dev *dev);
-void nix_lf_rq_dump(__io struct nix_cn10k_rq_ctx_s *ctx);
+void nix_lf_rq_dump(__io struct nix_cn10k_rq_ctx_s *ctx, FILE *file);
 int nix_lf_gen_reg_dump(uintptr_t nix_lf_base, uint64_t *data);
 int nix_lf_stat_reg_dump(uintptr_t nix_lf_base, uint64_t *data,
 			 uint8_t lf_tx_stats, uint8_t lf_rx_stats);
@@ -459,6 +471,7 @@ int nix_lf_int_reg_dump(uintptr_t nix_lf_base, uint64_t *data, uint16_t qints,
 			uint16_t cints);
 int nix_q_ctx_get(struct dev *dev, uint8_t ctype, uint16_t qid,
 		  __io void **ctx_p);
+uint8_t nix_tm_lbk_relchan_get(struct nix *nix);
 
 /*
  * Telemetry

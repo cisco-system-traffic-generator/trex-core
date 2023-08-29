@@ -117,11 +117,13 @@ cn9k_sso_hws_release(void *arg, void *hws)
 	}
 }
 
-static void
+static int
 cn9k_sso_hws_flush_events(void *hws, uint8_t queue_id, uintptr_t base,
 			  cnxk_handle_event_t fn, void *arg)
 {
 	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(arg);
+	uint64_t retry = CNXK_SSO_FLUSH_RETRY_MAX;
+	struct cnxk_timesync_info **tstamp;
 	struct cn9k_sso_hws_dual *dws;
 	struct cn9k_sso_hws *ws;
 	uint64_t cq_ds_cnt = 1;
@@ -130,6 +132,7 @@ cn9k_sso_hws_flush_events(void *hws, uint8_t queue_id, uintptr_t base,
 	struct rte_event ev;
 	uintptr_t ws_base;
 	uint64_t val, req;
+	void *lookup_mem;
 
 	plt_write64(0, base + SSO_LF_GGRP_QCTL);
 
@@ -145,20 +148,25 @@ cn9k_sso_hws_flush_events(void *hws, uint8_t queue_id, uintptr_t base,
 	if (dev->dual_ws) {
 		dws = hws;
 		ws_base = dws->base[0];
+		lookup_mem = dws->lookup_mem;
+		tstamp = dws->tstamp;
 	} else {
 		ws = hws;
 		ws_base = ws->base;
+		lookup_mem = ws->lookup_mem;
+		tstamp = ws->tstamp;
 	}
 
 	while (aq_cnt || cq_ds_cnt || ds_cnt) {
 		plt_write64(req, ws_base + SSOW_LF_GWS_OP_GET_WORK0);
-		cn9k_sso_hws_get_work_empty(ws_base, &ev);
+		cn9k_sso_hws_get_work_empty(ws_base, &ev, dev->rx_offloads,
+					    lookup_mem, tstamp);
 		if (fn != NULL && ev.u64 != 0)
 			fn(arg, ev);
 		if (ev.sched_type != SSO_TT_EMPTY)
-			cnxk_sso_hws_swtag_flush(
-				ws_base + SSOW_LF_GWS_TAG,
-				ws_base + SSOW_LF_GWS_OP_SWTAG_FLUSH);
+			cnxk_sso_hws_swtag_flush(ws_base);
+		else if (retry-- == 0)
+			break;
 		do {
 			val = plt_read64(ws_base + SSOW_LF_GWS_PENDSTATE);
 		} while (val & BIT_ULL(56));
@@ -169,7 +177,12 @@ cn9k_sso_hws_flush_events(void *hws, uint8_t queue_id, uintptr_t base,
 		cq_ds_cnt &= 0x3FFF3FFF0000;
 	}
 
+	if (aq_cnt || cq_ds_cnt || ds_cnt)
+		return -EAGAIN;
+
 	plt_write64(0, ws_base + SSOW_LF_GWS_OP_GWC_INVAL);
+
+	return 0;
 }
 
 static void
@@ -181,6 +194,7 @@ cn9k_sso_hws_reset(void *arg, void *hws)
 	uint64_t pend_state;
 	uint8_t pend_tt;
 	uintptr_t base;
+	bool is_pend;
 	uint64_t tag;
 	uint8_t i;
 
@@ -188,6 +202,13 @@ cn9k_sso_hws_reset(void *arg, void *hws)
 	ws = hws;
 	for (i = 0; i < (dev->dual_ws ? CN9K_DUAL_WS_NB_WS : 1); i++) {
 		base = dev->dual_ws ? dws->base[i] : ws->base;
+		is_pend = false;
+		/* Work in WQE0 is always consumed, unless its a SWTAG. */
+		pend_state = plt_read64(base + SSOW_LF_GWS_PENDSTATE);
+		if (pend_state & (BIT_ULL(63) | BIT_ULL(62) | BIT_ULL(54)) ||
+		    (dev->dual_ws ? (dws->swtag_req && i == !dws->vws) :
+					  ws->swtag_req))
+			is_pend = true;
 		/* Wait till getwork/swtp/waitw/desched completes. */
 		do {
 			pend_state = plt_read64(base + SSOW_LF_GWS_PENDSTATE);
@@ -196,7 +217,7 @@ cn9k_sso_hws_reset(void *arg, void *hws)
 
 		tag = plt_read64(base + SSOW_LF_GWS_TAG);
 		pend_tt = (tag >> 32) & 0x3;
-		if (pend_tt != SSO_TT_EMPTY) { /* Work was pending */
+		if (is_pend && pend_tt != SSO_TT_EMPTY) { /* Work was pending */
 			if (pend_tt == SSO_TT_ATOMIC ||
 			    pend_tt == SSO_TT_ORDERED)
 				cnxk_sso_hws_swtag_untag(
@@ -208,7 +229,14 @@ cn9k_sso_hws_reset(void *arg, void *hws)
 		do {
 			pend_state = plt_read64(base + SSOW_LF_GWS_PENDSTATE);
 		} while (pend_state & BIT_ULL(58));
+
+		plt_write64(0, base + SSOW_LF_GWS_OP_GWC_INVAL);
 	}
+
+	if (dev->dual_ws)
+		dws->swtag_req = 0;
+	else
+		ws->swtag_req = 0;
 }
 
 void
@@ -229,12 +257,15 @@ cn9k_sso_set_rsrc(void *arg)
 static int
 cn9k_sso_rsrc_init(void *arg, uint8_t hws, uint8_t hwgrp)
 {
+	struct cnxk_tim_evdev *tim_dev = cnxk_tim_priv_get();
 	struct cnxk_sso_evdev *dev = arg;
+	uint16_t nb_tim_lfs;
 
 	if (dev->dual_ws)
 		hws = hws * CN9K_DUAL_WS_NB_WS;
 
-	return roc_sso_rsrc_init(&dev->sso, hws, hwgrp);
+	nb_tim_lfs = tim_dev ? tim_dev->nb_rings : 0;
+	return roc_sso_rsrc_init(&dev->sso, hws, hwgrp, nb_tim_lfs);
 }
 
 static int
@@ -784,6 +815,48 @@ free:
 	rte_free(gws_cookie);
 }
 
+static void
+cn9k_sso_port_quiesce(struct rte_eventdev *event_dev, void *port,
+		      rte_eventdev_port_flush_t flush_cb, void *args)
+{
+	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
+	struct cn9k_sso_hws_dual *dws;
+	struct cn9k_sso_hws *ws;
+	struct rte_event ev;
+	uintptr_t base;
+	uint64_t ptag;
+	bool is_pend;
+	uint8_t i;
+
+	dws = port;
+	ws = port;
+	for (i = 0; i < (dev->dual_ws ? CN9K_DUAL_WS_NB_WS : 1); i++) {
+		base = dev->dual_ws ? dws->base[i] : ws->base;
+		is_pend = false;
+		/* Work in WQE0 is always consumed, unless its a SWTAG. */
+		ptag = plt_read64(base + SSOW_LF_GWS_PENDSTATE);
+		if (ptag & (BIT_ULL(63) | BIT_ULL(62) | BIT_ULL(54)) ||
+		    (dev->dual_ws ? (dws->swtag_req && i == !dws->vws) :
+					  ws->swtag_req))
+			is_pend = true;
+		/* Wait till getwork/swtp/waitw/desched completes. */
+		do {
+			ptag = plt_read64(base + SSOW_LF_GWS_PENDSTATE);
+		} while (ptag & (BIT_ULL(63) | BIT_ULL(62) | BIT_ULL(58) |
+				 BIT_ULL(56)));
+
+		cn9k_sso_hws_get_work_empty(
+			base, &ev, dev->rx_offloads,
+			dev->dual_ws ? dws->lookup_mem : ws->lookup_mem,
+			dev->dual_ws ? dws->tstamp : ws->tstamp);
+		if (is_pend && ev.u64) {
+			if (flush_cb)
+				flush_cb(event_dev->data->dev_id, ev, args);
+			cnxk_sso_hws_swtag_flush(ws->base);
+		}
+	}
+}
+
 static int
 cn9k_sso_port_link(struct rte_eventdev *event_dev, void *port,
 		   const uint8_t queues[], const uint8_t priorities[],
@@ -872,8 +945,7 @@ cn9k_sso_rx_adapter_caps_get(const struct rte_eventdev *event_dev,
 }
 
 static void
-cn9k_sso_set_priv_mem(const struct rte_eventdev *event_dev, void *lookup_mem,
-		      void *tstmp_info)
+cn9k_sso_set_priv_mem(const struct rte_eventdev *event_dev, void *lookup_mem)
 {
 	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
 	int i;
@@ -882,12 +954,18 @@ cn9k_sso_set_priv_mem(const struct rte_eventdev *event_dev, void *lookup_mem,
 		if (dev->dual_ws) {
 			struct cn9k_sso_hws_dual *dws =
 				event_dev->data->ports[i];
-			dws->lookup_mem = lookup_mem;
-			dws->tstamp = tstmp_info;
+			dws->xaq_lmt = dev->xaq_lmt;
+			dws->fc_mem = (uint64_t *)dev->fc_iova;
+			dws->tstamp = dev->tstamp;
+			if (lookup_mem)
+				dws->lookup_mem = lookup_mem;
 		} else {
 			struct cn9k_sso_hws *ws = event_dev->data->ports[i];
-			ws->lookup_mem = lookup_mem;
-			ws->tstamp = tstmp_info;
+			ws->xaq_lmt = dev->xaq_lmt;
+			ws->fc_mem = (uint64_t *)dev->fc_iova;
+			ws->tstamp = dev->tstamp;
+			if (lookup_mem)
+				ws->lookup_mem = lookup_mem;
 		}
 	}
 }
@@ -900,7 +978,6 @@ cn9k_sso_rx_adapter_queue_add(
 {
 	struct cn9k_eth_rxq *rxq;
 	void *lookup_mem;
-	void *tstmp_info;
 	int rc;
 
 	rc = strncmp(eth_dev->device->driver->name, "net_cn9k", 8);
@@ -914,8 +991,7 @@ cn9k_sso_rx_adapter_queue_add(
 
 	rxq = eth_dev->data->rx_queues[0];
 	lookup_mem = rxq->lookup_mem;
-	tstmp_info = rxq->tstamp;
-	cn9k_sso_set_priv_mem(event_dev, lookup_mem, tstmp_info);
+	cn9k_sso_set_priv_mem(event_dev, lookup_mem);
 	cn9k_sso_fp_fns_set((struct rte_eventdev *)(uintptr_t)event_dev);
 
 	return 0;
@@ -976,7 +1052,8 @@ cn9k_sso_txq_fc_update(const struct rte_eth_dev *eth_dev, int32_t tx_queue_id)
 			sq->nb_sqb_bufs_adj -= (cnxk_eth_dev->outb.nb_desc /
 						(sqes_per_sqb - 1));
 		txq->nb_sqb_bufs_adj = sq->nb_sqb_bufs_adj;
-		txq->nb_sqb_bufs_adj = (70 * txq->nb_sqb_bufs_adj) / 100;
+		txq->nb_sqb_bufs_adj =
+			(ROC_NIX_SQB_LOWER_THRESH * txq->nb_sqb_bufs_adj) / 100;
 	}
 }
 
@@ -1050,11 +1127,11 @@ cn9k_crypto_adapter_caps_get(const struct rte_eventdev *event_dev,
 static int
 cn9k_crypto_adapter_qp_add(const struct rte_eventdev *event_dev,
 			   const struct rte_cryptodev *cdev,
-			   int32_t queue_pair_id, const struct rte_event *event)
+			   int32_t queue_pair_id,
+			   const struct rte_event_crypto_adapter_queue_conf *conf)
 {
 	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
-
-	RTE_SET_USED(event);
+	int ret;
 
 	CNXK_VALID_DEV_OR_ERR_RET(event_dev->dev, "event_cn9k");
 	CNXK_VALID_DEV_OR_ERR_RET(cdev->device, "crypto_cn9k");
@@ -1062,12 +1139,14 @@ cn9k_crypto_adapter_qp_add(const struct rte_eventdev *event_dev,
 	dev->is_ca_internal_port = 1;
 	cn9k_sso_fp_fns_set((struct rte_eventdev *)(uintptr_t)event_dev);
 
-	return cnxk_crypto_adapter_qp_add(event_dev, cdev, queue_pair_id);
+	ret = cnxk_crypto_adapter_qp_add(event_dev, cdev, queue_pair_id, conf);
+	cn9k_sso_set_priv_mem(event_dev, NULL);
+
+	return ret;
 }
 
 static int
-cn9k_crypto_adapter_qp_del(const struct rte_eventdev *event_dev,
-			   const struct rte_cryptodev *cdev,
+cn9k_crypto_adapter_qp_del(const struct rte_eventdev *event_dev, const struct rte_cryptodev *cdev,
 			   int32_t queue_pair_id)
 {
 	CNXK_VALID_DEV_OR_ERR_RET(event_dev->dev, "event_cn9k");
@@ -1076,15 +1155,27 @@ cn9k_crypto_adapter_qp_del(const struct rte_eventdev *event_dev,
 	return cnxk_crypto_adapter_qp_del(cdev, queue_pair_id);
 }
 
+static int
+cn9k_tim_caps_get(const struct rte_eventdev *evdev, uint64_t flags,
+		  uint32_t *caps, const struct event_timer_adapter_ops **ops)
+{
+	return cnxk_tim_caps_get(evdev, flags, caps, ops,
+				 cn9k_sso_set_priv_mem);
+}
+
 static struct eventdev_ops cn9k_sso_dev_ops = {
 	.dev_infos_get = cn9k_sso_info_get,
 	.dev_configure = cn9k_sso_dev_configure,
+
 	.queue_def_conf = cnxk_sso_queue_def_conf,
 	.queue_setup = cnxk_sso_queue_setup,
 	.queue_release = cnxk_sso_queue_release,
+	.queue_attr_set = cnxk_sso_queue_attribute_set,
+
 	.port_def_conf = cnxk_sso_port_def_conf,
 	.port_setup = cn9k_sso_port_setup,
 	.port_release = cn9k_sso_port_release,
+	.port_quiesce = cn9k_sso_port_quiesce,
 	.port_link = cn9k_sso_port_link,
 	.port_unlink = cn9k_sso_port_unlink,
 	.timeout_ticks = cnxk_sso_timeout_ticks,
@@ -1098,12 +1189,19 @@ static struct eventdev_ops cn9k_sso_dev_ops = {
 	.eth_tx_adapter_caps_get = cn9k_sso_tx_adapter_caps_get,
 	.eth_tx_adapter_queue_add = cn9k_sso_tx_adapter_queue_add,
 	.eth_tx_adapter_queue_del = cn9k_sso_tx_adapter_queue_del,
+	.eth_tx_adapter_start = cnxk_sso_tx_adapter_start,
+	.eth_tx_adapter_stop = cnxk_sso_tx_adapter_stop,
+	.eth_tx_adapter_free = cnxk_sso_tx_adapter_free,
 
-	.timer_adapter_caps_get = cnxk_tim_caps_get,
+	.timer_adapter_caps_get = cn9k_tim_caps_get,
 
 	.crypto_adapter_caps_get = cn9k_crypto_adapter_caps_get,
 	.crypto_adapter_queue_pair_add = cn9k_crypto_adapter_qp_add,
 	.crypto_adapter_queue_pair_del = cn9k_crypto_adapter_qp_del,
+
+	.xstats_get = cnxk_sso_xstats_get,
+	.xstats_reset = cnxk_sso_xstats_reset,
+	.xstats_get_names = cnxk_sso_xstats_get_names,
 
 	.dump = cnxk_sso_dump,
 	.dev_start = cn9k_sso_start,
@@ -1117,11 +1215,6 @@ cn9k_sso_init(struct rte_eventdev *event_dev)
 {
 	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
 	int rc;
-
-	if (RTE_CACHE_LINE_SIZE != 128) {
-		plt_err("Driver not compiled for CN9K");
-		return -EFAULT;
-	}
 
 	rc = roc_plt_init();
 	if (rc < 0) {
@@ -1168,11 +1261,13 @@ static const struct rte_pci_id cn9k_pci_sso_map[] = {
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KC, PCI_DEVID_CNXK_RVU_SSO_TIM_PF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KD, PCI_DEVID_CNXK_RVU_SSO_TIM_PF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KE, PCI_DEVID_CNXK_RVU_SSO_TIM_PF),
+	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CNF9KA, PCI_DEVID_CNXK_RVU_SSO_TIM_PF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KA, PCI_DEVID_CNXK_RVU_SSO_TIM_VF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KB, PCI_DEVID_CNXK_RVU_SSO_TIM_VF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KC, PCI_DEVID_CNXK_RVU_SSO_TIM_VF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KD, PCI_DEVID_CNXK_RVU_SSO_TIM_VF),
 	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CN9KE, PCI_DEVID_CNXK_RVU_SSO_TIM_VF),
+	CNXK_PCI_ID(PCI_SUBSYSTEM_DEVID_CNF9KA, PCI_DEVID_CNXK_RVU_SSO_TIM_VF),
 	{
 		.vendor_id = 0,
 	},

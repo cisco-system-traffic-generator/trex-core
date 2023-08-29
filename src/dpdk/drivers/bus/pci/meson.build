@@ -3,6 +3,7 @@
 
 deps += ['pci']
 headers = files('rte_bus_pci.h')
+driver_sdk_headers = files('bus_pci_driver.h')
 sources = files('pci_common.c',
     'pci_params.c')
 if is_linux
@@ -28,5 +29,7 @@ if is_windows
     )
     includes += include_directories('windows')
 endif
+
+require_iova_in_mbuf = false
 
 deps += ['kvargs']

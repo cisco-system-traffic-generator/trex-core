@@ -11,7 +11,8 @@
 #include <ethdev_vdev.h>
 #include <rte_devargs.h>
 #include <rte_kvargs.h>
-#include <rte_bus_vdev.h>
+#include <bus_driver.h>
+#include <bus_vdev_driver.h>
 
 #include "failsafe_private.h"
 
@@ -308,8 +309,8 @@ fs_rte_eth_free(const char *name)
 	if (dev == NULL)
 		return 0; /* port already released */
 	ret = failsafe_eth_dev_close(dev);
-	rte_eth_dev_release_port(dev);
 	rte_intr_instance_free(PRIV(dev)->intr_handle);
+	rte_eth_dev_release_port(dev);
 	return ret;
 }
 

@@ -193,6 +193,8 @@ struct rte_event_timer_adapter_stats {
 	/**< Event timer retry count */
 	uint64_t adapter_tick_count;
 	/**< Tick count for the adapter, at its resolution */
+	uint64_t evtim_drop_count;
+	/**< event timer expiries dropped */
 };
 
 struct rte_event_timer_adapter;
@@ -209,6 +211,20 @@ typedef int (*rte_event_timer_adapter_port_conf_cb_t)(uint16_t id,
  * Create an event timer adapter.
  *
  * This function must be invoked first before any other function in the API.
+ *
+ * When this API is used for creating adapter instance,
+ * ``rte_event_dev_config::nb_event_ports`` is automatically incremented,
+ * and the event device is reconfigured with additional event port during
+ * service initialization. This event device reconfigure logic also increments
+ * the ``rte_event_dev_config::nb_single_link_event_port_queues``
+ * parameter if the adapter event port config is of type
+ * ``RTE_EVENT_PORT_CFG_SINGLE_LINK``.
+ *
+ * Application no longer needs to account for
+ * ``rte_event_dev_config::nb_event_ports`` and
+ * ``rte_event_dev_config::nb_single_link_event_port_queues``
+ * parameters required for Timer adapter in event device configuration
+ * when the adapter is created with this API.
  *
  * @param conf
  *   The event timer adapter configuration structure.
@@ -486,7 +502,7 @@ struct rte_event_timer {
 	 */
 	enum rte_event_timer_state state;
 	/**< State of the event timer. */
-	uint8_t user_meta[0];
+	uint8_t user_meta[];
 	/**< Memory to store user specific metadata.
 	 * The event timer adapter implementation should not modify this area.
 	 */
@@ -675,6 +691,33 @@ rte_event_timer_cancel_burst(const struct rte_event_timer_adapter *adapter,
 		nb_evtims);
 	return adapter->cancel_burst(adapter, evtims, nb_evtims);
 }
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Get the number of ticks remaining until event timer expiry.
+ *
+ * @param adapter
+ *   A pointer to an event timer adapter structure
+ * @param evtim
+ *   A pointer to an rte_event_timer structure
+ * @param[out] ticks_remaining
+ *   Pointer to variable into which to write the number of ticks remaining
+ *   until event timer expiry
+ *
+ * @return
+ *   - 0: Success
+ *   - -EINVAL Invalid timer adapter identifier or the event timer is not in
+ *   the armed state or ticks_remaining is NULL
+ *   - -ENOTSUP The timer adapter implementation does not support this API.
+ */
+__rte_experimental
+int
+rte_event_timer_remaining_ticks_get(
+			const struct rte_event_timer_adapter *adapter,
+			const struct rte_event_timer *evtim,
+			uint64_t *ticks_remaining);
 
 #ifdef __cplusplus
 }

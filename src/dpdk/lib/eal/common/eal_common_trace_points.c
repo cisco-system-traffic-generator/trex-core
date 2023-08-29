@@ -6,6 +6,8 @@
 
 #include <rte_eal_trace.h>
 
+#include <eal_trace_internal.h>
+
 RTE_TRACE_POINT_REGISTER(rte_eal_trace_generic_void,
 	lib.eal.generic.void)
 RTE_TRACE_POINT_REGISTER(rte_eal_trace_generic_u64,
@@ -40,6 +42,8 @@ RTE_TRACE_POINT_REGISTER(rte_eal_trace_generic_size_t,
 	lib.eal.generic.size_t)
 RTE_TRACE_POINT_REGISTER(rte_eal_trace_generic_func,
 	lib.eal.generic.func)
+RTE_TRACE_POINT_REGISTER(rte_eal_trace_generic_blob,
+	lib.eal.generic.blob)
 
 RTE_TRACE_POINT_REGISTER(rte_eal_trace_alarm_set,
 	lib.eal.alarm.set)

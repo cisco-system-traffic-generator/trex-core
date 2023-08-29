@@ -3,6 +3,7 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -14,7 +15,7 @@
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
 #include <ethdev_vdev.h>
-#include <rte_bus_vdev.h>
+#include <bus_vdev_driver.h>
 #include <rte_alarm.h>
 #include <rte_cycles.h>
 
@@ -89,10 +90,15 @@ virtio_user_set_status(struct virtio_hw *hw, uint8_t status)
 	if (status & VIRTIO_CONFIG_STATUS_FEATURES_OK &&
 			~old_status & VIRTIO_CONFIG_STATUS_FEATURES_OK)
 		virtio_user_dev_set_features(dev);
-	if (status & VIRTIO_CONFIG_STATUS_DRIVER_OK)
-		virtio_user_start_device(dev);
-	else if (status == VIRTIO_CONFIG_STATUS_RESET)
+
+	if (status & VIRTIO_CONFIG_STATUS_DRIVER_OK) {
+		if (virtio_user_start_device(dev)) {
+			virtio_user_dev_update_status(dev);
+			return;
+		}
+	} else if (status == VIRTIO_CONFIG_STATUS_RESET) {
 		virtio_user_reset(hw);
+	}
 
 	virtio_user_dev_set_status(dev, status);
 }
@@ -180,7 +186,7 @@ virtio_user_setup_queue_packed(struct virtqueue *vq,
 	uint64_t used_addr;
 	uint16_t i;
 
-	vring  = &dev->packed_vrings[queue_idx];
+	vring  = &dev->vrings.packed[queue_idx];
 	desc_addr = (uintptr_t)vq->vq_ring_virt_mem;
 	avail_addr = desc_addr + vq->vq_nentries *
 		sizeof(struct vring_packed_desc);
@@ -210,10 +216,10 @@ virtio_user_setup_queue_split(struct virtqueue *vq, struct virtio_user_dev *dev)
 							 ring[vq->vq_nentries]),
 				   VIRTIO_VRING_ALIGN);
 
-	dev->vrings[queue_idx].num = vq->vq_nentries;
-	dev->vrings[queue_idx].desc = (void *)(uintptr_t)desc_addr;
-	dev->vrings[queue_idx].avail = (void *)(uintptr_t)avail_addr;
-	dev->vrings[queue_idx].used = (void *)(uintptr_t)used_addr;
+	dev->vrings.split[queue_idx].num = vq->vq_nentries;
+	dev->vrings.split[queue_idx].desc = (void *)(uintptr_t)desc_addr;
+	dev->vrings.split[queue_idx].avail = (void *)(uintptr_t)avail_addr;
+	dev->vrings.split[queue_idx].used = (void *)(uintptr_t)used_addr;
 }
 
 static int
@@ -225,6 +231,9 @@ virtio_user_setup_queue(struct virtio_hw *hw, struct virtqueue *vq)
 		virtio_user_setup_queue_packed(vq, dev);
 	else
 		virtio_user_setup_queue_split(vq, dev);
+
+	if (dev->hw_cvq && hw->cvq && (virtnet_cq_to_vq(hw->cvq) == vq))
+		return virtio_user_dev_create_shadow_cvq(dev, vq);
 
 	return 0;
 }
@@ -245,6 +254,9 @@ virtio_user_del_queue(struct virtio_hw *hw, struct virtqueue *vq)
 
 	close(dev->callfds[vq->vq_queue_index]);
 	close(dev->kickfds[vq->vq_queue_index]);
+
+	if (hw->cvq && (virtnet_cq_to_vq(hw->cvq) == vq))
+		virtio_user_dev_destroy_shadow_cvq(dev);
 }
 
 static void
@@ -254,10 +266,8 @@ virtio_user_notify_queue(struct virtio_hw *hw, struct virtqueue *vq)
 	struct virtio_user_dev *dev = virtio_user_get_dev(hw);
 
 	if (hw->cvq && (virtnet_cq_to_vq(hw->cvq) == vq)) {
-		if (virtio_with_packed_queue(vq->hw))
-			virtio_user_handle_cq_packed(dev, vq->vq_queue_index);
-		else
-			virtio_user_handle_cq(dev, vq->vq_queue_index);
+		virtio_user_handle_cq(dev, vq->vq_queue_index);
+
 		return;
 	}
 
@@ -589,8 +599,6 @@ virtio_user_pmd_probe(struct rte_vdev_device *vdev)
 				     VIRTIO_USER_ARG_CQ_NUM);
 			goto end;
 		}
-	} else if (queues > 1) {
-		cq = 1;
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_PACKED_VQ) == 1) {
@@ -609,18 +617,6 @@ virtio_user_pmd_probe(struct rte_vdev_device *vdev)
 				     VIRTIO_USER_ARG_VECTORIZED);
 			goto end;
 		}
-	}
-
-	if (queues > 1 && cq == 0) {
-		PMD_INIT_LOG(ERR, "multi-q requires ctrl-q");
-		goto end;
-	}
-
-	if (queues > VIRTIO_MAX_VIRTQUEUE_PAIRS) {
-		PMD_INIT_LOG(ERR, "arg %s %" PRIu64 " exceeds the limit %u",
-			VIRTIO_USER_ARG_QUEUES_NUM, queues,
-			VIRTIO_MAX_VIRTQUEUE_PAIRS);
-		goto end;
 	}
 
 	if (rte_kvargs_count(kvlist, VIRTIO_USER_ARG_MRG_RXBUF) == 1) {
@@ -649,7 +645,7 @@ virtio_user_pmd_probe(struct rte_vdev_device *vdev)
 
 	dev = eth_dev->data->dev_private;
 	hw = &dev->hw;
-	if (virtio_user_dev_init(dev, path, queues, cq,
+	if (virtio_user_dev_init(dev, path, (uint16_t)queues, cq,
 			 queue_size, mac_addr, &ifname, server_mode,
 			 mrg_rxbuf, in_order, packed_vq, backend_type) < 0) {
 		PMD_INIT_LOG(ERR, "virtio_user_dev_init fails");

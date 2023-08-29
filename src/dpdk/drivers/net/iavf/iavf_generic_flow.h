@@ -180,6 +180,9 @@
 #define IAVF_INSET_L2TPV2 \
 	(IAVF_PROT_L2TPV2 | IAVF_L2TPV2_SESSION_ID)
 
+/* raw pattern */
+extern enum rte_flow_item_type iavf_pattern_raw[];
+
 /* empty pattern */
 extern enum rte_flow_item_type iavf_pattern_empty[];
 
@@ -468,6 +471,7 @@ typedef int (*parse_pattern_action_t)(struct iavf_adapter *ad,
 		uint32_t array_len,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],
+		uint32_t priority,
 		void **meta,
 		struct rte_flow_error *error);
 
@@ -477,6 +481,7 @@ enum iavf_flow_engine_type {
 	IAVF_FLOW_ENGINE_IPSEC_CRYPTO,
 	IAVF_FLOW_ENGINE_FDIR,
 	IAVF_FLOW_ENGINE_HASH,
+	IAVF_FLOW_ENGINE_FSUB,
 	IAVF_FLOW_ENGINE_MAX,
 };
 

@@ -34,6 +34,12 @@
  *  - rte_event_eth_tx_adapter_enqueue()
  *  - rte_event_eth_tx_adapter_event_port_get()
  *  - rte_event_eth_tx_adapter_service_id_get()
+ *  - rte_event_eth_tx_adapter_instance_get()
+ *  - rte_event_eth_tx_adapter_queue_start()
+ *  - rte_event_eth_tx_adapter_queue_stop()
+ *  - rte_event_eth_tx_adapter_runtime_params_get()
+ *  - rte_event_eth_tx_adapter_runtime_params_init()
+ *  - rte_event_eth_tx_adapter_runtime_params_set()
  *
  * The application creates the adapter using
  * rte_event_eth_tx_adapter_create() or rte_event_eth_tx_adapter_create_ext().
@@ -76,6 +82,7 @@ extern "C" {
 
 #include <stdint.h>
 
+#include <rte_compat.h>
 #include <rte_mbuf.h>
 
 #include "rte_eventdev.h"
@@ -97,6 +104,37 @@ struct rte_event_eth_tx_adapter_conf {
 	 * max_nb_tx mbufs. This isn't treated as a requirement; batching may
 	 * cause the adapter to process more than max_nb_tx mbufs.
 	 */
+};
+
+/**
+ * Adapter runtime configuration parameters
+ */
+struct rte_event_eth_tx_adapter_runtime_params {
+	uint32_t max_nb_tx;
+	/**< The adapter can return early if it has processed at least
+	 * max_nb_tx mbufs. This isn't treated as a requirement; batching may
+	 * cause the adapter to process more than max_nb_tx mbufs.
+	 *
+	 * rte_event_eth_tx_adapter_create() configures the
+	 * adapter with default value of max_nb_tx.
+	 * rte_event_eth_tx_adapter_create_ext() configures the adapter with
+	 * user provided value of max_nb_tx through
+	 * rte_event_eth_tx_adapter_conf::max_nb_tx parameter.
+	 * rte_event_eth_tx_adapter_runtime_params_set() allows to re-configure
+	 * max_nb_tx during runtime (after adding at least one queue)
+	 *
+	 * This is valid for the devices without
+	 * RTE_EVENT_ETH_TX_ADAPTER_CAP_INTERNAL_PORT capability.
+	 */
+	uint16_t flush_threshold;
+	/**< the number of service function iteration count to
+	 * flush buffered packets.
+	 *
+	 * This is valid for the devices without
+	 * RTE_EVENT_ETH_TX_ADAPTER_CAP_INTERNAL_PORT capability.
+	 */
+	uint16_t rsvd[29];
+	/**< Reserved fields for future expansion */
 };
 
 /**
@@ -137,6 +175,20 @@ struct rte_event_eth_tx_adapter_stats {
 
 /**
  * Create a new ethernet Tx adapter with the specified identifier.
+ *
+ * When this API is used for creating adapter instance,
+ * ``rte_event_dev_config::nb_event_ports`` is automatically incremented,
+ * and event device is reconfigured with additional event port during service
+ * initialization. This event device reconfigure logic also increments the
+ * ``rte_event_dev_config::nb_single_link_event_port_queues``
+ * parameter if the adapter event port config is of type
+ * ``RTE_EVENT_PORT_CFG_SINGLE_LINK``.
+ *
+ * Application no longer needs to account for the
+ * ``rte_event_dev_config::nb_event_ports`` and
+ * ``rte_event_dev_config::nb_single_link_event_port_queues``
+ * parameters required for eth Tx adapter in event device configure when
+ * the adapter is created with this API.
  *
  * @param id
  *  The identifier of the ethernet Tx adapter.
@@ -422,6 +474,136 @@ rte_event_eth_tx_adapter_stats_reset(uint8_t id);
  */
 int
 rte_event_eth_tx_adapter_service_id_get(uint8_t id, uint32_t *service_id);
+
+/**
+ * Get TX adapter instance id for TX queue
+ *
+ * @param eth_dev_id
+ *  Port identifier of Ethernet device
+ *
+ * @param tx_queue_id
+ *  Etherdev device TX queue index
+ *
+ * @param[out] txa_inst_id
+ *  Pointer to TX adapter instance identifier
+ *  Contains valid Tx adapter instance id when return value is 0
+ *
+ * @return
+ *  -  0: Success
+ *  - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_tx_adapter_instance_get(uint16_t eth_dev_id,
+				      uint16_t tx_queue_id,
+				      uint8_t *txa_inst_id);
+/**
+ * Enables the adapter to start enqueueing of packets to the
+ * Tx queue.
+ *
+ * This function is provided so that the application can
+ * resume enqueueing packets that reference packets for
+ * <eth_dev_id, tx_queue_id> after calling
+ * rte_event_eth_tx_adapter_queue_stop().
+ * @see rte_event_eth_tx_adapter_queue_stop
+ *
+ * Use case:
+ * --------
+ * The queue start/stop APIs help avoid some unexpected behavior with
+ * application stopping ethdev Tx queues and adapter being unaware of it.
+ * With these APIs, the application can call stop API to notify adapter
+ * that corresponding ethdev Tx queue is stopped and any in-flight
+ * packets are freed by adapter dataplane code. Adapter queue stop API
+ * is called before stopping the ethdev Tx queue. When ethdev Tx queue
+ * is enabled, application can notify adapter to resume processing of
+ * the packets for that queue by calling the start API. The ethdev Tx
+ * queue is started before calling adapter start API.
+ *
+ * @param eth_dev_id
+ *  Port identifier of Ethernet device.
+ * @param tx_queue_id
+ *  Ethernet device transmit queue index.
+ * @return
+ *   - 0: Success
+ *   - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_tx_adapter_queue_start(uint16_t eth_dev_id, uint16_t tx_queue_id);
+
+/**
+ * Stops the adapter runtime function from enqueueing any packets
+ * to the associated Tx queue. This API also frees any packets that may
+ * have been buffered for this queue. All inflight packets destined to the
+ * queue are freed by the adapter runtime until the queue is started again.
+ * @see rte_event_eth_tx_adapter_queue_start
+ *
+ * @param eth_dev_id
+ *  Port identifier of Ethernet device.
+ * @param tx_queue_id
+ *  Ethernet device transmit queue index.
+ * @return
+ *   - 0: Success
+ *   - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_tx_adapter_queue_stop(uint16_t eth_dev_id, uint16_t tx_queue_id);
+
+/**
+ * Initialize the adapter runtime configuration parameters with default values
+ *
+ * @param txa_params
+ *  A pointer to structure of type struct rte_event_eth_tx_adapter_runtime_params
+ *
+ * @return
+ *  -  0: Success
+ *  - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_tx_adapter_runtime_params_init(
+		struct rte_event_eth_tx_adapter_runtime_params *txa_params);
+
+/**
+ * Set the runtime configuration parameters for adapter.
+ *
+ * @param id
+ *  Adapter identifier
+ * @param params
+ *  A pointer to structure of type struct rte_event_eth_tx_adapter_runtime_params
+ *  with configuration parameter values. The reserved fields of this structure
+ *  must be initialized to zero and the valid fields need to be set appropriately.
+ *  This structure can be initialized using
+ *  rte_event_eth_tx_adapter_runtime_params_init() API to default values or
+ *  application may reset this structure and update required fields.
+ *
+ * @return
+ * -  0: Success
+ * - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_tx_adapter_runtime_params_set(uint8_t id,
+		struct rte_event_eth_tx_adapter_runtime_params *params);
+
+/**
+ * Get the runtime configuration parameters of adapter.
+ *
+ * @param id
+ *  Adapter identifier
+ * @param[out] params
+ *  A pointer to structure of type struct rte_event_eth_tx_adapter_runtime_params
+ *  containing valid Tx adapter parameters when return value is 0.
+ *
+ * @return
+ * -  0: Success
+ * - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_tx_adapter_runtime_params_get(uint8_t id,
+		struct rte_event_eth_tx_adapter_runtime_params *params);
 
 #ifdef __cplusplus
 }

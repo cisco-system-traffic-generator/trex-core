@@ -26,6 +26,7 @@ sources = files(
         'roc_irq.c',
         'roc_ie_ot.c',
         'roc_mbox.c',
+        'roc_ml.c',
         'roc_model.c',
         'roc_nix.c',
         'roc_nix_bpf.c',
@@ -51,6 +52,7 @@ sources = files(
         'roc_npa.c',
         'roc_npa_debug.c',
         'roc_npa_irq.c',
+        'roc_npa_type.c',
         'roc_npc.c',
         'roc_npc_mcam.c',
         'roc_npc_mcam_dump.c',
@@ -86,3 +88,4 @@ sources += files('cnxk_telemetry_bphy.c',
 )
 
 deps += ['bus_pci', 'net', 'telemetry']
+require_iova_in_mbuf = false

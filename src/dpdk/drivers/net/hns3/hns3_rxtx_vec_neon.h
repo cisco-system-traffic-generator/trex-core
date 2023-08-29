@@ -2,8 +2,8 @@
  * Copyright(c) 2020-2021 HiSilicon Limited.
  */
 
-#ifndef _HNS3_RXTX_VEC_NEON_H_
-#define _HNS3_RXTX_VEC_NEON_H_
+#ifndef HNS3_RXTX_VEC_NEON_H
+#define HNS3_RXTX_VEC_NEON_H
 
 #include <arm_neon.h>
 
@@ -13,7 +13,7 @@ static inline void
 hns3_vec_tx(volatile struct hns3_desc *desc, struct rte_mbuf *pkt)
 {
 	uint64x2_t val1 = {
-		pkt->buf_iova + pkt->data_off,
+		rte_pktmbuf_iova(pkt),
 		((uint64_t)pkt->data_len) << HNS3_TXD_SEND_SIZE_SHIFT
 	};
 	uint64x2_t val2 = {
@@ -299,4 +299,4 @@ hns3_recv_burst_vec(struct hns3_rx_queue *__restrict rxq,
 
 	return nb_rx;
 }
-#endif /* _HNS3_RXTX_VEC_NEON_H_ */
+#endif /* HNS3_RXTX_VEC_NEON_H */

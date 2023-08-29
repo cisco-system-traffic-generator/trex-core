@@ -157,6 +157,15 @@ cn9k_sso_hws_dual_forward_event(struct cn9k_sso_hws_dual *dws, uint64_t base,
 }
 
 static __rte_always_inline void
+cn9k_sso_tx_tag_flush(uint64_t base)
+{
+	if (unlikely(CNXK_TT_FROM_TAG(plt_read64(base + SSOW_LF_GWS_TAG)) ==
+		     SSO_TT_EMPTY))
+		return;
+	plt_write64(0, base + SSOW_LF_GWS_OP_SWTAG_FLUSH);
+}
+
+static __rte_always_inline void
 cn9k_wqe_to_mbuf(uint64_t wqe, const uint64_t mbuf, uint8_t port_id,
 		 const uint32_t tag, const uint32_t flags,
 		 const void *const lookup_mem)
@@ -169,6 +178,46 @@ cn9k_wqe_to_mbuf(uint64_t wqe, const uint64_t mbuf, uint8_t port_id,
 			     mbuf_init | ((uint64_t)port_id) << 48, flags);
 }
 
+static void
+cn9k_sso_process_tstamp(uint64_t u64, uint64_t mbuf,
+			struct cnxk_timesync_info *tstamp)
+{
+	uint64_t tstamp_ptr;
+	uint8_t laptr;
+
+	laptr = (uint8_t) *
+		(uint64_t *)(u64 + (CNXK_SSO_WQE_LAYR_PTR * sizeof(uint64_t)));
+	if (laptr == sizeof(uint64_t)) {
+		/* Extracting tstamp, if PTP enabled*/
+		tstamp_ptr = *(uint64_t *)(((struct nix_wqe_hdr_s *)u64) +
+					   CNXK_SSO_WQE_SG_PTR);
+		cn9k_nix_mbuf_to_tstamp((struct rte_mbuf *)mbuf, tstamp, true,
+					(uint64_t *)tstamp_ptr);
+	}
+}
+
+static __rte_always_inline void
+cn9k_sso_hws_post_process(uint64_t *u64, uint64_t mbuf, const uint32_t flags,
+			  const void *const lookup_mem,
+			  struct cnxk_timesync_info **tstamp)
+{
+	u64[0] = (u64[0] & (0x3ull << 32)) << 6 |
+		 (u64[0] & (0x3FFull << 36)) << 4 | (u64[0] & 0xffffffff);
+	if ((flags & CPT_RX_WQE_F) &&
+	    (CNXK_EVENT_TYPE_FROM_TAG(u64[0]) == RTE_EVENT_TYPE_CRYPTODEV)) {
+		u64[1] = cn9k_cpt_crypto_adapter_dequeue(u64[1]);
+	} else if (CNXK_EVENT_TYPE_FROM_TAG(u64[0]) == RTE_EVENT_TYPE_ETHDEV) {
+		uint8_t port = CNXK_SUB_EVENT_FROM_TAG(u64[0]);
+
+		u64[0] = CNXK_CLR_SUB_EVENT(u64[0]);
+		cn9k_wqe_to_mbuf(u64[1], mbuf, port, u64[0] & 0xFFFFF, flags,
+				 lookup_mem);
+		if (flags & NIX_RX_OFFLOAD_TSTAMP_F)
+			cn9k_sso_process_tstamp(u64[1], mbuf, tstamp[port]);
+		u64[1] = mbuf;
+	}
+}
+
 static __rte_always_inline uint16_t
 cn9k_sso_hws_dual_get_work(uint64_t base, uint64_t pair_base,
 			   struct rte_event *ev, const uint32_t flags,
@@ -178,7 +227,6 @@ cn9k_sso_hws_dual_get_work(uint64_t base, uint64_t pair_base,
 		__uint128_t get_work;
 		uint64_t u64[2];
 	} gw;
-	uint64_t tstamp_ptr;
 	uint64_t mbuf;
 
 	if (flags & NIX_RX_OFFLOAD_PTYPE_F)
@@ -207,34 +255,9 @@ cn9k_sso_hws_dual_get_work(uint64_t base, uint64_t pair_base,
 	mbuf = (uint64_t)((char *)gw.u64[1] - sizeof(struct rte_mbuf));
 #endif
 
-	gw.u64[0] = (gw.u64[0] & (0x3ull << 32)) << 6 |
-		    (gw.u64[0] & (0x3FFull << 36)) << 4 |
-		    (gw.u64[0] & 0xffffffff);
-
-	if (CNXK_TT_FROM_EVENT(gw.u64[0]) != SSO_TT_EMPTY) {
-		if ((flags & CPT_RX_WQE_F) &&
-		    (CNXK_EVENT_TYPE_FROM_TAG(gw.u64[0]) ==
-		     RTE_EVENT_TYPE_CRYPTODEV)) {
-			gw.u64[1] = cn9k_cpt_crypto_adapter_dequeue(gw.u64[1]);
-		} else if (CNXK_EVENT_TYPE_FROM_TAG(gw.u64[0]) ==
-			   RTE_EVENT_TYPE_ETHDEV) {
-			uint8_t port = CNXK_SUB_EVENT_FROM_TAG(gw.u64[0]);
-
-			gw.u64[0] = CNXK_CLR_SUB_EVENT(gw.u64[0]);
-			cn9k_wqe_to_mbuf(gw.u64[1], mbuf, port,
-					 gw.u64[0] & 0xFFFFF, flags,
-					 dws->lookup_mem);
-			/* Extracting tstamp, if PTP enabled*/
-			tstamp_ptr = *(uint64_t *)(((struct nix_wqe_hdr_s *)
-							    gw.u64[1]) +
-						   CNXK_SSO_WQE_SG_PTR);
-			cn9k_nix_mbuf_to_tstamp((struct rte_mbuf *)mbuf,
-						dws->tstamp,
-						flags & NIX_RX_OFFLOAD_TSTAMP_F,
-						(uint64_t *)tstamp_ptr);
-			gw.u64[1] = mbuf;
-		}
-	}
+	if (gw.u64[1])
+		cn9k_sso_hws_post_process(gw.u64, mbuf, flags, dws->lookup_mem,
+					  dws->tstamp);
 
 	ev->event = gw.u64[0];
 	ev->u64 = gw.u64[1];
@@ -250,7 +273,6 @@ cn9k_sso_hws_get_work(struct cn9k_sso_hws *ws, struct rte_event *ev,
 		__uint128_t get_work;
 		uint64_t u64[2];
 	} gw;
-	uint64_t tstamp_ptr;
 	uint64_t mbuf;
 
 	plt_write64(ws->gw_wdata, ws->base + SSOW_LF_GWS_OP_GET_WORK0);
@@ -283,34 +305,9 @@ cn9k_sso_hws_get_work(struct cn9k_sso_hws *ws, struct rte_event *ev,
 	mbuf = (uint64_t)((char *)gw.u64[1] - sizeof(struct rte_mbuf));
 #endif
 
-	gw.u64[0] = (gw.u64[0] & (0x3ull << 32)) << 6 |
-		    (gw.u64[0] & (0x3FFull << 36)) << 4 |
-		    (gw.u64[0] & 0xffffffff);
-
-	if (CNXK_TT_FROM_EVENT(gw.u64[0]) != SSO_TT_EMPTY) {
-		if ((flags & CPT_RX_WQE_F) &&
-		    (CNXK_EVENT_TYPE_FROM_TAG(gw.u64[0]) ==
-		     RTE_EVENT_TYPE_CRYPTODEV)) {
-			gw.u64[1] = cn9k_cpt_crypto_adapter_dequeue(gw.u64[1]);
-		} else if (CNXK_EVENT_TYPE_FROM_TAG(gw.u64[0]) ==
-			   RTE_EVENT_TYPE_ETHDEV) {
-			uint8_t port = CNXK_SUB_EVENT_FROM_TAG(gw.u64[0]);
-
-			gw.u64[0] = CNXK_CLR_SUB_EVENT(gw.u64[0]);
-			cn9k_wqe_to_mbuf(gw.u64[1], mbuf, port,
-					 gw.u64[0] & 0xFFFFF, flags,
-					 lookup_mem);
-			/* Extracting tstamp, if PTP enabled*/
-			tstamp_ptr = *(uint64_t *)(((struct nix_wqe_hdr_s *)
-							    gw.u64[1]) +
-						   CNXK_SSO_WQE_SG_PTR);
-			cn9k_nix_mbuf_to_tstamp((struct rte_mbuf *)mbuf,
-						ws->tstamp,
-						flags & NIX_RX_OFFLOAD_TSTAMP_F,
-						(uint64_t *)tstamp_ptr);
-			gw.u64[1] = mbuf;
-		}
-	}
+	if (gw.u64[1])
+		cn9k_sso_hws_post_process(gw.u64, mbuf, flags, lookup_mem,
+					  ws->tstamp);
 
 	ev->event = gw.u64[0];
 	ev->u64 = gw.u64[1];
@@ -320,7 +317,9 @@ cn9k_sso_hws_get_work(struct cn9k_sso_hws *ws, struct rte_event *ev,
 
 /* Used in cleaning up workslot. */
 static __rte_always_inline uint16_t
-cn9k_sso_hws_get_work_empty(uint64_t base, struct rte_event *ev)
+cn9k_sso_hws_get_work_empty(uint64_t base, struct rte_event *ev,
+			    const uint32_t flags, void *lookup_mem,
+			    struct cnxk_timesync_info **tstamp)
 {
 	union {
 		__uint128_t get_work;
@@ -353,21 +352,9 @@ cn9k_sso_hws_get_work_empty(uint64_t base, struct rte_event *ev)
 	mbuf = (uint64_t)((char *)gw.u64[1] - sizeof(struct rte_mbuf));
 #endif
 
-	gw.u64[0] = (gw.u64[0] & (0x3ull << 32)) << 6 |
-		    (gw.u64[0] & (0x3FFull << 36)) << 4 |
-		    (gw.u64[0] & 0xffffffff);
-
-	if (CNXK_TT_FROM_EVENT(gw.u64[0]) != SSO_TT_EMPTY) {
-		if (CNXK_EVENT_TYPE_FROM_TAG(gw.u64[0]) ==
-		    RTE_EVENT_TYPE_ETHDEV) {
-			uint8_t port = CNXK_SUB_EVENT_FROM_TAG(gw.u64[0]);
-
-			gw.u64[0] = CNXK_CLR_SUB_EVENT(gw.u64[0]);
-			cn9k_wqe_to_mbuf(gw.u64[1], mbuf, port,
-					 gw.u64[0] & 0xFFFFF, 0, NULL);
-			gw.u64[1] = mbuf;
-		}
-	}
+	if (gw.u64[1])
+		cn9k_sso_hws_post_process(gw.u64, mbuf, flags, lookup_mem,
+					  tstamp);
 
 	ev->event = gw.u64[0];
 	ev->u64 = gw.u64[1];
@@ -639,12 +626,14 @@ cn9k_sso_hws_xmit_sec_one(const struct cn9k_eth_txq *txq, uint64_t base,
 	struct nix_send_hdr_s *send_hdr;
 	uint64_t sa_base = txq->sa_base;
 	uint32_t pkt_len, dlen_adj, rlen;
+	struct roc_ie_on_outb_hdr *hdr;
 	uint64x2_t cmd01, cmd23;
 	uint64_t lmt_status, sa;
 	union nix_send_sg_s *sg;
+	uint32_t esn_lo, esn_hi;
 	uintptr_t dptr, nixtx;
 	uint64_t ucode_cmd[4];
-	uint64_t esn, *iv;
+	uint64_t esn;
 	uint8_t l2_len;
 
 	mdata.u64 = *rte_security_dynfield(m);
@@ -683,14 +672,19 @@ cn9k_sso_hws_xmit_sec_one(const struct cn9k_eth_txq *txq, uint64_t base,
 
 	/* Load opcode and cptr already prepared at pkt metadata set */
 	pkt_len -= l2_len;
-	pkt_len += sizeof(struct roc_onf_ipsec_outb_hdr) +
-		    ROC_ONF_IPSEC_OUTB_MAX_L2_INFO_SZ;
+	pkt_len += (sizeof(struct roc_ie_on_outb_hdr) - ROC_IE_ON_MAX_IV_LEN) +
+		   ROC_ONF_IPSEC_OUTB_MAX_L2_INFO_SZ;
 	sa_base &= ~(ROC_NIX_INL_SA_BASE_ALIGN - 1);
 
-	sa = (uintptr_t)roc_nix_inl_onf_ipsec_outb_sa(sa_base, mdata.sa_idx);
+	sa = (uintptr_t)roc_nix_inl_on_ipsec_outb_sa(sa_base, mdata.sa_idx);
 	ucode_cmd[3] = (ROC_CPT_DFLT_ENG_GRP_SE_IE << 61 | sa);
-	ucode_cmd[0] = (ROC_IE_ONF_MAJOR_OP_PROCESS_OUTBOUND_IPSEC << 48 |
-			0x40UL << 48 | pkt_len);
+	ucode_cmd[0] = (((ROC_IE_ON_OUTB_MAX_CTX_LEN << 8) |
+			 ROC_IE_ON_MAJOR_OP_PROCESS_OUTBOUND_IPSEC)
+				<< 48 |
+			(ROC_IE_ON_OUTB_IKEV2_SINGLE_SA_SUPPORT |
+			 (ROC_ONF_IPSEC_OUTB_MAX_L2_INFO_SZ >>
+			  3)) << 32 |
+			pkt_len);
 
 	/* CPT Word 0 and Word 1 */
 	cmd01 = vdupq_n_u64((nixtx + 16) | (cn9k_nix_tx_ext_subs(flags) + 1));
@@ -700,38 +694,43 @@ cn9k_sso_hws_xmit_sec_one(const struct cn9k_eth_txq *txq, uint64_t base,
 	/* CPT word 2 and 3 */
 	cmd23 = vdupq_n_u64(0);
 	cmd23 = vsetq_lane_u64((((uint64_t)RTE_EVENT_TYPE_CPU << 28) |
-				CNXK_ETHDEV_SEC_OUTB_EV_SUB << 20), cmd23, 0);
-	cmd23 = vsetq_lane_u64((uintptr_t)m | 1, cmd23, 1);
+				CNXK_ETHDEV_SEC_OUTB_EV_SUB << 20),
+			       cmd23, 0);
+	cmd23 = vsetq_lane_u64(((uintptr_t)m + sizeof(struct rte_mbuf)) | 1,
+			       cmd23, 1);
 
 	dptr += l2_len - ROC_ONF_IPSEC_OUTB_MAX_L2_INFO_SZ -
-		sizeof(struct roc_onf_ipsec_outb_hdr);
+		(sizeof(struct roc_ie_on_outb_hdr) - ROC_IE_ON_MAX_IV_LEN);
 	ucode_cmd[1] = dptr;
 	ucode_cmd[2] = dptr;
 
-	/* Update IV to zero and l2 sz */
-	*(uint16_t *)(dptr + sizeof(struct roc_onf_ipsec_outb_hdr)) =
+	/* Update l2 sz */
+	*(uint16_t *)(dptr + (sizeof(struct roc_ie_on_outb_hdr) -
+			      ROC_IE_ON_MAX_IV_LEN)) =
 		rte_cpu_to_be_16(ROC_ONF_IPSEC_OUTB_MAX_L2_INFO_SZ);
-	iv = (uint64_t *)(dptr + 8);
-	iv[0] = 0;
-	iv[1] = 0;
 
 	/* Head wait if needed */
 	if (base)
 		roc_sso_hws_head_wait(base);
 
 	/* ESN */
-	outb_priv = roc_nix_inl_onf_ipsec_outb_sa_sw_rsvd((void *)sa);
+	outb_priv = roc_nix_inl_on_ipsec_outb_sa_sw_rsvd((void *)sa);
 	esn = outb_priv->esn;
 	outb_priv->esn = esn + 1;
 
-	ucode_cmd[0] |= (esn >> 32) << 16;
-	esn = rte_cpu_to_be_32(esn & (BIT_ULL(32) - 1));
+	esn_lo = rte_cpu_to_be_32(esn & (BIT_ULL(32) - 1));
+	esn_hi = rte_cpu_to_be_32(esn >> 32);
 
-	/* Update ESN and IPID and IV */
-	*(uint64_t *)dptr = esn << 32 | esn;
+	/* Update ESN, IPID and IV */
+	hdr = (struct roc_ie_on_outb_hdr *)dptr;
+	hdr->ip_id = esn_lo;
+	hdr->seq = esn_lo;
+	hdr->esn = esn_hi;
+	hdr->df_tos = 0;
 
 	rte_io_wmb();
 	cn9k_sso_txq_fc_wait(txq);
+	cn9k_nix_sec_fc_wait_one(txq);
 
 	/* Write CPT instruction to lmt line */
 	vst1q_u64(lmt_addr, cmd01);
@@ -783,8 +782,16 @@ cn9k_sso_hws_event_tx(uint64_t base, struct rte_event *ev, uint64_t *cmd,
 	    !(flags & NIX_TX_OFFLOAD_SECURITY_F))
 		rte_io_wmb();
 	txq = cn9k_sso_hws_xtract_meta(m, txq_data);
+
+	if (flags & NIX_TX_OFFLOAD_MBUF_NOFF_F && txq->tx_compl.ena)
+		handle_tx_completion_pkts(txq, 1, 1);
+
+	if (((txq->nb_sqb_bufs_adj -
+	      __atomic_load_n((int16_t *)txq->fc_mem, __ATOMIC_RELAXED))
+	     << txq->sqes_per_sqb_log2) <= 0)
+		return 0;
 	cn9k_nix_tx_skeleton(txq, cmd, flags, 0);
-	cn9k_nix_xmit_prepare(m, cmd, flags, txq->lso_tun_fmt, txq->mark_flag,
+	cn9k_nix_xmit_prepare(txq, m, cmd, flags, txq->lso_tun_fmt, txq->mark_flag,
 			      txq->mark_fmt);
 
 	if (flags & NIX_TX_OFFLOAD_SECURITY_F) {
@@ -806,7 +813,7 @@ cn9k_sso_hws_event_tx(uint64_t base, struct rte_event *ev, uint64_t *cmd,
 	}
 
 	if (flags & NIX_TX_MULTI_SEG_F) {
-		const uint16_t segdw = cn9k_nix_prepare_mseg(m, cmd, flags);
+		const uint16_t segdw = cn9k_nix_prepare_mseg(txq, m, cmd, flags);
 		cn9k_nix_xmit_prepare_tstamp(txq, cmd, m->ol_flags, segdw,
 					     flags);
 		if (!CNXK_TT_FROM_EVENT(ev->event)) {
@@ -841,8 +848,7 @@ done:
 			return 1;
 	}
 
-	cnxk_sso_hws_swtag_flush(base + SSOW_LF_GWS_TAG,
-				 base + SSOW_LF_GWS_OP_SWTAG_FLUSH);
+	cn9k_sso_tx_tag_flush(base);
 
 	return 1;
 }

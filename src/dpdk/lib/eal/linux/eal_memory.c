@@ -77,7 +77,11 @@ uint64_t eal_get_baseaddr(void)
 	 * rte_mem_check_dma_mask for ensuring all memory is within supported
 	 * range.
 	 */
+#if defined(RTE_ARCH_LOONGARCH)
+	return 0x7000000000ULL;
+#else
 	return 0x100000000ULL;
+#endif
 }
 
 /*
@@ -1879,8 +1883,8 @@ memseg_secondary_init(void)
 
 		msl = &mcfg->memsegs[msl_idx];
 
-		/* skip empty memseg lists */
-		if (msl->memseg_arr.len == 0)
+		/* skip empty and external memseg lists */
+		if (msl->memseg_arr.len == 0 || msl->external)
 			continue;
 
 		if (rte_fbarray_attach(&msl->memseg_arr)) {

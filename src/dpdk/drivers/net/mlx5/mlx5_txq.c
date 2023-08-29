@@ -13,7 +13,7 @@
 #include <rte_mbuf.h>
 #include <rte_malloc.h>
 #include <ethdev_driver.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_common.h>
 #include <rte_eal_paging.h>
 
@@ -27,6 +27,8 @@
 #include "mlx5_tx.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_autoconf.h"
+#include "rte_pmd_mlx5.h"
+#include "mlx5_flow.h"
 
 /**
  * Allocate TX queue elements.
@@ -765,7 +767,7 @@ txq_set_params(struct mlx5_txq_ctrl *txq_ctrl)
 		txqs_inline =
 #if defined(RTE_ARCH_ARM64)
 		(priv->pci_dev && priv->pci_dev->id.device_id ==
-			PCI_DEVICE_ID_MELLANOX_CONNECTX5BF) ?
+			PCI_DEVICE_ID_MELLANOX_BLUEFIELD) ?
 			MLX5_INLINE_MAX_TXQS_BLUEFIELD :
 #endif
 			MLX5_INLINE_MAX_TXQS;
@@ -1274,6 +1276,51 @@ mlx5_txq_verify(struct rte_eth_dev *dev)
 	return ret;
 }
 
+int
+mlx5_txq_get_sqn(struct mlx5_txq_ctrl *txq)
+{
+	return txq->is_hairpin ? txq->obj->sq->id : txq->obj->sq_obj.sq->id;
+}
+
+int
+rte_pmd_mlx5_external_sq_enable(uint16_t port_id, uint32_t sq_num)
+{
+	struct rte_eth_dev *dev;
+	struct mlx5_priv *priv;
+	uint32_t flow;
+
+	if (rte_eth_dev_is_valid_port(port_id) < 0) {
+		DRV_LOG(ERR, "There is no Ethernet device for port %u.",
+			port_id);
+		rte_errno = ENODEV;
+		return -rte_errno;
+	}
+	dev = &rte_eth_devices[port_id];
+	priv = dev->data->dev_private;
+	if ((!priv->representor && !priv->master) ||
+	    !priv->sh->config.dv_esw_en) {
+		DRV_LOG(ERR, "Port %u must be represetnor or master port in E-Switch mode.",
+			port_id);
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	if (sq_num == 0) {
+		DRV_LOG(ERR, "Invalid SQ number.");
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+#ifdef HAVE_MLX5_HWS_SUPPORT
+	if (priv->sh->config.dv_flow_en == 2)
+		return mlx5_flow_hw_esw_create_sq_miss_flow(dev, sq_num);
+#endif
+	flow = mlx5_flow_create_devx_sq_miss_flow(dev, sq_num);
+	if (flow > 0)
+		return 0;
+	DRV_LOG(ERR, "Port %u failed to create default miss flow for SQ %u.",
+		port_id, sq_num);
+	return -rte_errno;
+}
+
 /**
  * Set the Tx queue dynamic timestamp (mask and offset)
  *
@@ -1317,4 +1364,42 @@ mlx5_txq_dynf_timestamp_set(struct rte_eth_dev *dev)
 				     RTE_ETH_TX_OFFLOAD_SEND_ON_TIMESTAMP) ?
 				     ts_mask : 0;
 	}
+}
+
+int mlx5_count_aggr_ports(struct rte_eth_dev *dev)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+
+	return priv->sh->bond.n_port;
+}
+
+int mlx5_map_aggr_tx_affinity(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+			      uint8_t affinity)
+{
+	struct mlx5_txq_ctrl *txq_ctrl;
+	struct mlx5_txq_data *txq;
+	struct mlx5_priv *priv;
+
+	priv = dev->data->dev_private;
+	txq = (*priv->txqs)[tx_queue_id];
+	if (!txq)
+		return -1;
+	txq_ctrl = container_of(txq, struct mlx5_txq_ctrl, txq);
+	if (tx_queue_id >= priv->txqs_n) {
+		DRV_LOG(ERR, "port %u Tx queue index out of range (%u >= %u)",
+			dev->data->port_id, tx_queue_id, priv->txqs_n);
+		rte_errno = EOVERFLOW;
+		return -rte_errno;
+	}
+	if (affinity > priv->num_lag_ports) {
+		DRV_LOG(ERR, "port %u unable to setup Tx queue index %u"
+			" affinity is %u exceeds the maximum %u", dev->data->port_id,
+			tx_queue_id, affinity, priv->num_lag_ports);
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	DRV_LOG(DEBUG, "port %u configuring queue %u for aggregated affinity %u",
+		dev->data->port_id, tx_queue_id, affinity);
+	txq_ctrl->txq.tx_aggr_affinity = affinity;
+	return 0;
 }

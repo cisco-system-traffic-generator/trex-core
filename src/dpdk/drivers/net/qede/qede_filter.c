@@ -144,31 +144,9 @@ int qede_check_fdir_support(struct rte_eth_dev *eth_dev)
 {
 	struct qede_dev *qdev = QEDE_INIT_QDEV(eth_dev);
 	struct ecore_dev *edev = QEDE_INIT_EDEV(qdev);
-	struct rte_eth_fdir_conf *fdir = &eth_dev->data->dev_conf.fdir_conf;
 
-	/* check FDIR modes */
-	switch (fdir->mode) {
-	case RTE_FDIR_MODE_NONE:
-		qdev->arfs_info.arfs.mode = ECORE_FILTER_CONFIG_MODE_DISABLE;
-		DP_INFO(edev, "flowdir is disabled\n");
-	break;
-	case RTE_FDIR_MODE_PERFECT:
-		if (ECORE_IS_CMT(edev)) {
-			DP_ERR(edev, "flowdir is not supported in 100G mode\n");
-			qdev->arfs_info.arfs.mode =
-				ECORE_FILTER_CONFIG_MODE_DISABLE;
-			return -ENOTSUP;
-		}
-		qdev->arfs_info.arfs.mode =
-				ECORE_FILTER_CONFIG_MODE_5_TUPLE;
-		DP_INFO(edev, "flowdir is enabled (5 Tuple mode)\n");
-	break;
-	case RTE_FDIR_MODE_PERFECT_TUNNEL:
-	case RTE_FDIR_MODE_SIGNATURE:
-	case RTE_FDIR_MODE_PERFECT_MAC_VLAN:
-		DP_ERR(edev, "Unsupported flowdir mode %d\n", fdir->mode);
-		return -ENOTSUP;
-	}
+	qdev->arfs_info.arfs.mode = ECORE_FILTER_CONFIG_MODE_DISABLE;
+	DP_INFO(edev, "flowdir is disabled\n");
 
 	return 0;
 }
@@ -258,9 +236,6 @@ qede_config_arfs_filter(struct rte_eth_dev *eth_dev,
 	if (add) {
 		if (qdev->arfs_info.arfs.mode ==
 			ECORE_FILTER_CONFIG_MODE_DISABLE) {
-			/* Force update */
-			eth_dev->data->dev_conf.fdir_conf.mode =
-						RTE_FDIR_MODE_PERFECT;
 			qdev->arfs_info.arfs.mode =
 					ECORE_FILTER_CONFIG_MODE_5_TUPLE;
 			DP_INFO(edev, "Force enable flowdir in perfect mode\n");
@@ -388,10 +363,8 @@ qede_arfs_construct_pkt(struct rte_eth_dev *eth_dev,
 		ip6->vtc_flow =
 			rte_cpu_to_be_32(QEDE_FDIR_IPV6_DEFAULT_VTC_FLOW);
 
-		rte_memcpy(&ip6->src_addr, arfs->tuple.src_ipv6,
-			   IPV6_ADDR_LEN);
-		rte_memcpy(&ip6->dst_addr, arfs->tuple.dst_ipv6,
-			   IPV6_ADDR_LEN);
+		memcpy(&ip6->src_addr, arfs->tuple.src_ipv6, IPV6_ADDR_LEN);
+		memcpy(&ip6->dst_addr, arfs->tuple.dst_ipv6, IPV6_ADDR_LEN);
 		len += sizeof(struct rte_ipv6_hdr);
 		params->ipv6 = true;
 
@@ -562,7 +535,7 @@ qede_udp_dst_port_del(struct rte_eth_dev *eth_dev,
 
 		qdev->vxlan.udp_port = udp_port;
 		/* If the request is to delete UDP port and if the number of
-		 * VXLAN filters have reached 0 then VxLAN offload can be be
+		 * VXLAN filters have reached 0 then VxLAN offload can be
 		 * disabled.
 		 */
 		if (qdev->vxlan.enable && qdev->vxlan.num_filters == 0)
@@ -591,7 +564,7 @@ qede_udp_dst_port_del(struct rte_eth_dev *eth_dev,
 
 		qdev->vxlan.udp_port = udp_port;
 		/* If the request is to delete UDP port and if the number of
-		 * GENEVE filters have reached 0 then GENEVE offload can be be
+		 * GENEVE filters have reached 0 then GENEVE offload can be
 		 * disabled.
 		 */
 		if (qdev->geneve.enable && qdev->geneve.num_filters == 0)
@@ -821,12 +794,10 @@ qede_flow_parse_pattern(__rte_unused struct rte_eth_dev *dev,
 				const struct rte_flow_item_ipv6 *spec;
 
 				spec = pattern->spec;
-				rte_memcpy(flow->entry.tuple.src_ipv6,
-					   spec->hdr.src_addr,
-					   IPV6_ADDR_LEN);
-				rte_memcpy(flow->entry.tuple.dst_ipv6,
-					   spec->hdr.dst_addr,
-					   IPV6_ADDR_LEN);
+				memcpy(flow->entry.tuple.src_ipv6,
+				       spec->hdr.src_addr, IPV6_ADDR_LEN);
+				memcpy(flow->entry.tuple.dst_ipv6,
+				       spec->hdr.dst_addr, IPV6_ADDR_LEN);
 				flow->entry.tuple.eth_proto =
 					RTE_ETHER_TYPE_IPV6;
 			}

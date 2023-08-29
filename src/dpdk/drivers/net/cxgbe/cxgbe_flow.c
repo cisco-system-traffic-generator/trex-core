@@ -188,47 +188,22 @@ ch_rte_parsetype_eth(const void *dmask, const struct rte_flow_item *item,
 		return 0;
 
 	/* we don't support SRC_MAC filtering*/
-	if (!rte_is_zero_ether_addr(&spec->src) ||
-	    (umask && !rte_is_zero_ether_addr(&umask->src)))
+	if (!rte_is_zero_ether_addr(&spec->hdr.src_addr) ||
+	    (umask && !rte_is_zero_ether_addr(&umask->hdr.src_addr)))
 		return rte_flow_error_set(e, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM,
 					  item,
 					  "src mac filtering not supported");
 
-	if (!rte_is_zero_ether_addr(&spec->dst) ||
-	    (umask && !rte_is_zero_ether_addr(&umask->dst))) {
+	if (!rte_is_zero_ether_addr(&spec->hdr.dst_addr) ||
+	    (umask && !rte_is_zero_ether_addr(&umask->hdr.dst_addr))) {
 		CXGBE_FILL_FS(0, 0x1ff, macidx);
-		CXGBE_FILL_FS_MEMCPY(spec->dst.addr_bytes, mask->dst.addr_bytes,
+		CXGBE_FILL_FS_MEMCPY(spec->hdr.dst_addr.addr_bytes, mask->hdr.dst_addr.addr_bytes,
 				     dmac);
 	}
 
-	if (spec->type || (umask && umask->type))
-		CXGBE_FILL_FS(be16_to_cpu(spec->type),
-			      be16_to_cpu(mask->type), ethtype);
-
-	return 0;
-}
-
-static int
-ch_rte_parsetype_port(const void *dmask, const struct rte_flow_item *item,
-		      struct ch_filter_specification *fs,
-		      struct rte_flow_error *e)
-{
-	const struct rte_flow_item_phy_port *val = item->spec;
-	const struct rte_flow_item_phy_port *umask = item->mask;
-	const struct rte_flow_item_phy_port *mask;
-
-	mask = umask ? umask : (const struct rte_flow_item_phy_port *)dmask;
-
-	if (!val)
-		return 0; /* Wildcard, match all physical ports */
-
-	if (val->index > 0x7)
-		return rte_flow_error_set(e, EINVAL, RTE_FLOW_ERROR_TYPE_ITEM,
-					  item,
-					  "port index up to 0x7 is supported");
-
-	if (val->index || (umask && umask->index))
-		CXGBE_FILL_FS(val->index, mask->index, iport);
+	if (spec->hdr.ether_type || (umask && umask->hdr.ether_type))
+		CXGBE_FILL_FS(be16_to_cpu(spec->hdr.ether_type),
+			      be16_to_cpu(mask->hdr.ether_type), ethtype);
 
 	return 0;
 }
@@ -264,71 +239,26 @@ ch_rte_parsetype_vlan(const void *dmask, const struct rte_flow_item *item,
 	if (fs->val.ethtype == RTE_ETHER_TYPE_QINQ) {
 		CXGBE_FILL_FS(1, 1, ovlan_vld);
 		if (spec) {
-			if (spec->tci || (umask && umask->tci))
-				CXGBE_FILL_FS(be16_to_cpu(spec->tci),
-					      be16_to_cpu(mask->tci), ovlan);
+			if (spec->hdr.vlan_tci || (umask && umask->hdr.vlan_tci))
+				CXGBE_FILL_FS(be16_to_cpu(spec->hdr.vlan_tci),
+					      be16_to_cpu(mask->hdr.vlan_tci), ovlan);
 			fs->mask.ethtype = 0;
 			fs->val.ethtype = 0;
 		}
 	} else {
 		CXGBE_FILL_FS(1, 1, ivlan_vld);
 		if (spec) {
-			if (spec->tci || (umask && umask->tci))
-				CXGBE_FILL_FS(be16_to_cpu(spec->tci),
-					      be16_to_cpu(mask->tci), ivlan);
+			if (spec->hdr.vlan_tci || (umask && umask->hdr.vlan_tci))
+				CXGBE_FILL_FS(be16_to_cpu(spec->hdr.vlan_tci),
+					      be16_to_cpu(mask->hdr.vlan_tci), ivlan);
 			fs->mask.ethtype = 0;
 			fs->val.ethtype = 0;
 		}
 	}
 
-	if (spec && (spec->inner_type || (umask && umask->inner_type)))
-		CXGBE_FILL_FS(be16_to_cpu(spec->inner_type),
-			      be16_to_cpu(mask->inner_type), ethtype);
-
-	return 0;
-}
-
-static int
-ch_rte_parsetype_pf(const void *dmask __rte_unused,
-		    const struct rte_flow_item *item __rte_unused,
-		    struct ch_filter_specification *fs,
-		    struct rte_flow_error *e __rte_unused)
-{
-	struct rte_flow *flow = (struct rte_flow *)fs->private;
-	struct rte_eth_dev *dev = flow->dev;
-	struct adapter *adap = ethdev2adap(dev);
-
-	CXGBE_FILL_FS(1, 1, pfvf_vld);
-
-	CXGBE_FILL_FS(adap->pf, 0x7, pf);
-	return 0;
-}
-
-static int
-ch_rte_parsetype_vf(const void *dmask, const struct rte_flow_item *item,
-		    struct ch_filter_specification *fs,
-		    struct rte_flow_error *e)
-{
-	const struct rte_flow_item_vf *umask = item->mask;
-	const struct rte_flow_item_vf *val = item->spec;
-	const struct rte_flow_item_vf *mask;
-
-	/* If user has not given any mask, then use chelsio supported mask. */
-	mask = umask ? umask : (const struct rte_flow_item_vf *)dmask;
-
-	CXGBE_FILL_FS(1, 1, pfvf_vld);
-
-	if (!val)
-		return 0; /* Wildcard, match all Vf */
-
-	if (val->id > UCHAR_MAX)
-		return rte_flow_error_set(e, EINVAL,
-					  RTE_FLOW_ERROR_TYPE_ITEM,
-					  item,
-					  "VF ID > MAX(255)");
-
-	if (val->id || (umask && umask->id))
-		CXGBE_FILL_FS(val->id, mask->id, vf);
+	if (spec && (spec->hdr.eth_proto || (umask && umask->hdr.eth_proto)))
+		CXGBE_FILL_FS(be16_to_cpu(spec->hdr.eth_proto),
+			      be16_to_cpu(mask->hdr.eth_proto), ethtype);
 
 	return 0;
 }
@@ -668,7 +598,6 @@ ch_rte_parse_atype_switch(const struct rte_flow_action *a,
 	const struct rte_flow_action_set_ipv4 *ipv4;
 	const struct rte_flow_action_set_ipv6 *ipv6;
 	const struct rte_flow_action_set_tp *tp_port;
-	const struct rte_flow_action_phy_port *port;
 	const struct rte_flow_action_set_mac *mac;
 	int item_index;
 	u16 tmp_vlan;
@@ -714,10 +643,6 @@ ch_rte_parse_atype_switch(const struct rte_flow_action *a,
 		break;
 	case RTE_FLOW_ACTION_TYPE_OF_POP_VLAN:
 		fs->newvlan = VLAN_REMOVE;
-		break;
-	case RTE_FLOW_ACTION_TYPE_PHY_PORT:
-		port = (const struct rte_flow_action_phy_port *)a->conf;
-		fs->eport = port->index;
 		break;
 	case RTE_FLOW_ACTION_TYPE_SET_IPV4_SRC:
 		item_index = cxgbe_get_flow_item_index(items,
@@ -906,7 +831,6 @@ cxgbe_rtef_parse_actions(struct rte_flow *flow,
 			goto action_switch;
 		case RTE_FLOW_ACTION_TYPE_OF_PUSH_VLAN:
 		case RTE_FLOW_ACTION_TYPE_OF_POP_VLAN:
-		case RTE_FLOW_ACTION_TYPE_PHY_PORT:
 		case RTE_FLOW_ACTION_TYPE_MAC_SWAP:
 		case RTE_FLOW_ACTION_TYPE_SET_IPV4_SRC:
 		case RTE_FLOW_ACTION_TYPE_SET_IPV4_DST:
@@ -965,24 +889,17 @@ static struct chrte_fparse parseitem[] = {
 	[RTE_FLOW_ITEM_TYPE_ETH] = {
 		.fptr  = ch_rte_parsetype_eth,
 		.dmask = &(const struct rte_flow_item_eth){
-			.dst.addr_bytes = "\xff\xff\xff\xff\xff\xff",
-			.src.addr_bytes = "\x00\x00\x00\x00\x00\x00",
-			.type = 0xffff,
-		}
-	},
-
-	[RTE_FLOW_ITEM_TYPE_PHY_PORT] = {
-		.fptr = ch_rte_parsetype_port,
-		.dmask = &(const struct rte_flow_item_phy_port){
-			.index = 0x7,
+			.hdr.dst_addr.addr_bytes = "\xff\xff\xff\xff\xff\xff",
+			.hdr.src_addr.addr_bytes = "\x00\x00\x00\x00\x00\x00",
+			.hdr.ether_type = 0xffff,
 		}
 	},
 
 	[RTE_FLOW_ITEM_TYPE_VLAN] = {
 		.fptr = ch_rte_parsetype_vlan,
 		.dmask = &(const struct rte_flow_item_vlan){
-			.tci = 0xffff,
-			.inner_type = 0xffff,
+			.hdr.vlan_tci = 0xffff,
+			.hdr.eth_proto = 0xffff,
 		}
 	},
 
@@ -1020,18 +937,6 @@ static struct chrte_fparse parseitem[] = {
 	[RTE_FLOW_ITEM_TYPE_TCP] = {
 		.fptr  = ch_rte_parsetype_tcp,
 		.dmask = &rte_flow_item_tcp_mask,
-	},
-
-	[RTE_FLOW_ITEM_TYPE_PF] = {
-		.fptr = ch_rte_parsetype_pf,
-		.dmask = NULL,
-	},
-
-	[RTE_FLOW_ITEM_TYPE_VF] = {
-		.fptr = ch_rte_parsetype_vf,
-		.dmask = &(const struct rte_flow_item_vf){
-			.id = 0xffffffff,
-		}
 	},
 };
 

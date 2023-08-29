@@ -30,24 +30,46 @@ extern "C" {
 struct rte_cryptodev_asym_session;
 
 /** asym xform type name strings */
+__rte_deprecated
 extern const char *
 rte_crypto_asym_xform_strings[];
+
+/** asym key exchange operation type name strings */
+extern const char *
+rte_crypto_asym_ke_strings[];
 
 /** asym operations type name strings */
 extern const char *
 rte_crypto_asym_op_strings[];
 
-/**
- * TLS named curves
- * https://tools.ietf.org/html/rfc8422
+#define RTE_CRYPTO_ASYM_FLAG_PUB_KEY_NO_PADDING		RTE_BIT32(0)
+/**<
+ * Flag to denote public key will be returned without leading zero bytes
+ * and if the flag is not set, public key will be padded to the left with
+ * zeros to the size of the underlying algorithm (default)
  */
-enum rte_crypto_ec_group {
-	RTE_CRYPTO_EC_GROUP_UNKNOWN  = 0,
+#define RTE_CRYPTO_ASYM_FLAG_SHARED_KEY_NO_PADDING	RTE_BIT32(1)
+/**<
+ * Flag to denote shared secret will be returned without leading zero bytes
+ * and if the flag is not set, shared secret will be padded to the left with
+ * zeros to the size of the underlying algorithm (default)
+ */
+
+/**
+ * List of elliptic curves. This enum aligns with
+ * TLS "Supported Groups" registry (previously known  as
+ * NamedCurve registry). FFDH groups are not, and will not
+ * be included in this list.
+ * Deprecation for selected curve in TLS does not deprecate
+ * the selected curve in Cryptodev.
+ * https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml
+ */
+enum rte_crypto_curve_id {
 	RTE_CRYPTO_EC_GROUP_SECP192R1 = 19,
 	RTE_CRYPTO_EC_GROUP_SECP224R1 = 21,
 	RTE_CRYPTO_EC_GROUP_SECP256R1 = 23,
 	RTE_CRYPTO_EC_GROUP_SECP384R1 = 24,
-	RTE_CRYPTO_EC_GROUP_SECP521R1 = 25,
+	RTE_CRYPTO_EC_GROUP_SECP521R1 = 25
 };
 
 /**
@@ -91,8 +113,12 @@ enum rte_crypto_asym_xform_type {
 	/**< Elliptic Curve Digital Signature Algorithm
 	 * Perform Signature Generation and Verification.
 	 */
+	RTE_CRYPTO_ASYM_XFORM_ECDH,
+	/**< Elliptic Curve Diffie Hellman */
 	RTE_CRYPTO_ASYM_XFORM_ECPM,
 	/**< Elliptic Curve Point Multiplication */
+	RTE_CRYPTO_ASYM_XFORM_ECFPM,
+	/**< Elliptic Curve Fixed Point Multiplication */
 	RTE_CRYPTO_ASYM_XFORM_TYPE_LIST_END
 	/**< End of list */
 };
@@ -109,13 +135,23 @@ enum rte_crypto_asym_op_type {
 	/**< Signature Generation operation */
 	RTE_CRYPTO_ASYM_OP_VERIFY,
 	/**< Signature Verification operation */
-	RTE_CRYPTO_ASYM_OP_PRIVATE_KEY_GENERATE,
-	/**< DH Private Key generation operation */
-	RTE_CRYPTO_ASYM_OP_PUBLIC_KEY_GENERATE,
-	/**< DH Public Key generation operation */
-	RTE_CRYPTO_ASYM_OP_SHARED_SECRET_COMPUTE,
-	/**< DH Shared Secret compute operation */
 	RTE_CRYPTO_ASYM_OP_LIST_END
+};
+
+/**
+ * Asymmetric crypto key exchange operation type
+ */
+enum rte_crypto_asym_ke_type {
+	RTE_CRYPTO_ASYM_KE_PRIV_KEY_GENERATE,
+	/**< Private Key generation operation */
+	RTE_CRYPTO_ASYM_KE_PUB_KEY_GENERATE,
+	/**< Public Key generation operation */
+	RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE,
+	/**< Shared Secret compute operation */
+	RTE_CRYPTO_ASYM_KE_PUB_KEY_VERIFY
+	/**< Public Key Verification - can be used for
+	 * elliptic curve point validation.
+	 */
 };
 
 /**
@@ -203,6 +239,62 @@ struct rte_crypto_rsa_priv_key_qt {
 };
 
 /**
+ * RSA padding type
+ */
+struct rte_crypto_rsa_padding {
+	enum rte_crypto_rsa_padding_type type;
+	/**< RSA padding scheme to be used for transform */
+	enum rte_crypto_auth_algorithm hash;
+	/**<
+	 * RSA padding hash algorithm
+	 * Valid hash algorithms are:
+	 * MD5, SHA1, SHA224, SHA256, SHA384, SHA512
+	 *
+	 * When a specific padding type is selected, the following rules apply:
+	 * - RTE_CRYPTO_RSA_PADDING_NONE:
+	 * This field is ignored by the PMD
+	 *
+	 * - RTE_CRYPTO_RSA_PADDING_PKCS1_5:
+	 * When signing an operation this field is used to determine value
+	 * of the DigestInfo structure, therefore specifying which algorithm
+	 * was used to create the message digest.
+	 * When doing encryption/decryption this field is ignored for this
+	 * padding type.
+	 *
+	 * - RTE_CRYPTO_RSA_PADDING_OAEP
+	 * This field shall be set with the hash algorithm used
+	 * in the padding scheme
+	 *
+	 * - RTE_CRYPTO_RSA_PADDING_PSS
+	 * This field shall be set with the hash algorithm used
+	 * in the padding scheme (and to create the input message digest)
+	 */
+	enum rte_crypto_auth_algorithm mgf1hash;
+	/**<
+	 * Hash algorithm to be used for mask generation if the
+	 * padding scheme is either OAEP or PSS. If the padding
+	 * scheme is unspecified a data hash algorithm is used
+	 * for mask generation. Valid hash algorithms are:
+	 * MD5, SHA1, SHA224, SHA256, SHA384, SHA512
+	 */
+	uint16_t pss_saltlen;
+	/**<
+	 * RSA PSS padding salt length
+	 *
+	 * Used only when RTE_CRYPTO_RSA_PADDING_PSS padding is selected,
+	 * otherwise ignored.
+	 */
+	rte_crypto_param oaep_label;
+	/**<
+	 * RSA OAEP padding optional label
+	 *
+	 * Used only when RTE_CRYPTO_RSA_PADDING_OAEP padding is selected,
+	 * otherwise ignored. If label.data == NULL, a default
+	 * label (empty string) is used.
+	 */
+};
+
+/**
  * Asymmetric RSA transform data
  *
  * Structure describing RSA xform params
@@ -256,8 +348,6 @@ struct rte_crypto_modinv_xform {
  *
  */
 struct rte_crypto_dh_xform {
-	enum rte_crypto_asym_op_type type;
-	/**< Setup xform for key generate or shared secret compute */
 	rte_crypto_uint p;
 	/**< Prime modulus data */
 	rte_crypto_uint g;
@@ -278,13 +368,7 @@ struct rte_crypto_dsa_xform {
 	rte_crypto_uint g;
 	/**< Generator of the subgroup */
 	rte_crypto_uint x;
-	/**< x: Private key of the signer in octet-string network
-	 * byte order format.
-	 * Used when app has pre-defined private key.
-	 * Valid only when xform chain is DSA ONLY.
-	 * if xform chain is DH private key generate + DSA, then DSA sign
-	 * compute will use internally generated key.
-	 */
+	/**< x: Private key of the signer */
 };
 
 /**
@@ -294,7 +378,7 @@ struct rte_crypto_dsa_xform {
  *
  */
 struct rte_crypto_ec_xform {
-	enum rte_crypto_ec_group curve_id;
+	enum rte_crypto_curve_id curve_id;
 	/**< Pre-defined ec groups */
 };
 
@@ -332,8 +416,6 @@ struct rte_crypto_rsa_op_param {
 	 * (i.e. must be at least RSA key size). The message.length
 	 * field should be 0 and will be overwritten by the PMD
 	 * with the decrypted length.
-	 *
-	 * All data is in Octet-string network byte order format.
 	 */
 
 	rte_crypto_param cipher;
@@ -348,7 +430,8 @@ struct rte_crypto_rsa_op_param {
 	 * at least RSA key size). The cipher.length field should
 	 * be 0 and will be overwritten by the PMD with the encrypted length.
 	 *
-	 * All data is in Octet-string network byte order format.
+	 * When RTE_CRYPTO_RSA_PADDING_NONE and RTE_CRYPTO_ASYM_OP_VERIFY
+	 * selected, this is an output of decrypted signature.
 	 */
 
 	rte_crypto_param sign;
@@ -362,28 +445,10 @@ struct rte_crypto_rsa_op_param {
 	 * with enough memory to hold signature output (i.e. must be
 	 * at least RSA key size). The sign.length field should
 	 * be 0 and will be overwritten by the PMD with the signature length.
-	 *
-	 * All data is in Octet-string network byte order format.
 	 */
 
-	enum rte_crypto_rsa_padding_type pad;
-	/**< RSA padding scheme to be used for transform */
-
-	enum rte_crypto_auth_algorithm md;
-	/**< Hash algorithm to be used for data hash if padding
-	 * scheme is either OAEP or PSS. Valid hash algorithms
-	 * are:
-	 * MD5, SHA1, SHA224, SHA256, SHA384, SHA512
-	 */
-
-	enum rte_crypto_auth_algorithm mgf1md;
-	/**<
-	 * Hash algorithm to be used for mask generation if
-	 * padding scheme is either OAEP or PSS. If padding
-	 * scheme is unspecified data hash algorithm is used
-	 * for mask generation. Valid hash algorithms are:
-	 * MD5, SHA1, SHA224, SHA256, SHA384, SHA512
-	 */
+	struct rte_crypto_rsa_padding padding;
+	/**< RSA padding information */
 };
 
 /**
@@ -391,28 +456,70 @@ struct rte_crypto_rsa_op_param {
  * @note:
  */
 struct rte_crypto_dh_op_param {
-	rte_crypto_uint pub_key;
-	/**<
-	 * Output generated public key when xform type is
-	 * DH PUB_KEY_GENERATION.
-	 * Input peer public key when xform type is DH
-	 * SHARED_SECRET_COMPUTATION
-	 *
-	 */
-
+	enum rte_crypto_asym_ke_type ke_type;
+	/**< Key exchange operation type */
 	rte_crypto_uint priv_key;
 	/**<
-	 * Output generated private key if xform type is
-	 * DH PRIVATE_KEY_GENERATION
-	 * Input when xform type is DH SHARED_SECRET_COMPUTATION.
+	 * Output - generated private key when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_PRIV_KEY_GENERATE.
 	 *
+	 * Input - private key when ke_type is one of:
+	 * RTE_CRYPTO_ASYM_KE_PUB_KEY_GENERATE,
+	 * RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE.
+	 *
+	 * In case priv_key.length is 0 and ke_type is set with
+	 * RTE_CRYPTO_ASYM_KE_PUB_KEY_GENERATE, CSRNG capable
+	 * device will generate a private key and use it for public
+	 * key generation.
 	 */
-
+	rte_crypto_uint pub_key;
+	/**<
+	 * Output - generated public key when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_PUB_KEY_GENERATE.
+	 *
+	 * Input - peer's public key when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE.
+	 */
 	rte_crypto_uint shared_secret;
 	/**<
-	 * Output with calculated shared secret
-	 * when dh xform set up with op type = SHARED_SECRET_COMPUTATION.
+	 * Output - calculated shared secret when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE.
+	 */
+};
+
+/**
+ * Elliptic Curve Diffie-Hellman Operations params.
+ */
+struct rte_crypto_ecdh_op_param {
+	enum rte_crypto_asym_ke_type ke_type;
+	/**< Key exchange operation type */
+	rte_crypto_uint priv_key;
+	/**<
+	 * Output - generated private key when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_PRIVATE_KEY_GENERATE.
 	 *
+	 * Input - private key when ke_type is one of:
+	 * RTE_CRYPTO_ASYM_KE_PUBLIC_KEY_GENERATE,
+	 * RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE.
+	 *
+	 * In case priv_key.length is 0 and ke_type is set with
+	 * RTE_CRYPTO_ASYM_KE_PUBLIC_KEY_GENERATE, CSRNG capable
+	 * device will generate private key and use it for public
+	 * key generation.
+	 */
+	struct rte_crypto_ec_point pub_key;
+	/**<
+	 * Output - generated public key when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_PUBLIC_KEY_GENERATE.
+	 *
+	 * Input - peer's public key, when ke_type is one of:
+	 * RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE,
+	 * RTE_CRYPTO_ASYM_KE_EC_PUBLIC_KEY_VERIFY.
+	 */
+	struct rte_crypto_ec_point shared_secret;
+	/**<
+	 * Output - calculated shared secret when ke_type is
+	 * RTE_CRYPTO_ASYM_KE_SHARED_SECRET_COMPUTE.
 	 */
 };
 
@@ -554,10 +661,16 @@ struct rte_crypto_asym_op {
 		struct rte_crypto_mod_op_param modex;
 		struct rte_crypto_mod_op_param modinv;
 		struct rte_crypto_dh_op_param dh;
+		struct rte_crypto_ecdh_op_param ecdh;
 		struct rte_crypto_dsa_op_param dsa;
 		struct rte_crypto_ecdsa_op_param ecdsa;
 		struct rte_crypto_ecpm_op_param ecpm;
 	};
+	uint16_t flags;
+	/**<
+	 * Asymmetric crypto operation flags.
+	 * Please refer to the RTE_CRYPTO_ASYM_FLAG_*.
+	 */
 };
 
 #ifdef __cplusplus

@@ -5,6 +5,9 @@
 #ifndef _ROC_IO_H_
 #define _ROC_IO_H_
 
+#include "roc_platform.h" /* for __plt_always_inline macro */
+
+#ifndef ROC_LMT_BASE_ID_GET
 #define ROC_LMT_BASE_ID_GET(lmt_addr, lmt_id)                                  \
 	do {                                                                   \
 		/* 32 Lines per core */                                        \
@@ -12,7 +15,10 @@
 		/* Each line is of 128B */                                     \
 		(lmt_addr) += ((uint64_t)lmt_id << ROC_LMT_LINE_SIZE_LOG2);    \
 	} while (0)
+#endif
 
+/* Define it if not defined in roc_platform.h */
+#ifndef ROC_LMT_CPT_BASE_ID_GET
 #define ROC_LMT_CPT_BASE_ID_GET(lmt_addr, lmt_id)                              \
 	do {                                                                   \
 		/* 16 Lines per core */                                        \
@@ -21,6 +27,7 @@
 		/* Each line is of 128B */                                     \
 		(lmt_addr) += ((uint64_t)lmt_id << ROC_LMT_LINE_SIZE_LOG2);    \
 	} while (0)
+#endif
 
 #define roc_load_pair(val0, val1, addr)                                        \
 	({                                                                     \
@@ -123,7 +130,8 @@ roc_lmt_submit_ldeor(plt_iova_t io_address)
 
 	asm volatile(PLT_CPU_FEATURE_PREAMBLE "ldeor xzr, %x[rf], [%[rs]]"
 		     : [rf] "=r"(result)
-		     : [rs] "r"(io_address));
+		     : [rs] "r"(io_address)
+		     : "memory");
 	return result;
 }
 
@@ -134,7 +142,8 @@ roc_lmt_submit_ldeorl(plt_iova_t io_address)
 
 	asm volatile(PLT_CPU_FEATURE_PREAMBLE "ldeorl xzr,%x[rf],[%[rs]]"
 		     : [rf] "=r"(result)
-		     : [rs] "r"(io_address));
+		     : [rs] "r"(io_address)
+		     : "memory");
 	return result;
 }
 
@@ -143,7 +152,8 @@ roc_lmt_submit_steor(uint64_t data, plt_iova_t io_address)
 {
 	asm volatile(PLT_CPU_FEATURE_PREAMBLE
 		     "steor %x[d], [%[rs]]" ::[d] "r"(data),
-		     [rs] "r"(io_address));
+		     [rs] "r"(io_address)
+		     : "memory");
 }
 
 static __plt_always_inline void
@@ -151,7 +161,8 @@ roc_lmt_submit_steorl(uint64_t data, plt_iova_t io_address)
 {
 	asm volatile(PLT_CPU_FEATURE_PREAMBLE
 		     "steorl %x[d], [%[rs]]" ::[d] "r"(data),
-		     [rs] "r"(io_address));
+		     [rs] "r"(io_address)
+		     : "memory");
 }
 
 static __plt_always_inline void
@@ -159,14 +170,15 @@ roc_lmt_mov(void *out, const void *in, const uint32_t lmtext)
 {
 	volatile const __uint128_t *src128 = (const __uint128_t *)in;
 	volatile __uint128_t *dst128 = (__uint128_t *)out;
+	uint32_t i;
 
 	dst128[0] = src128[0];
 	dst128[1] = src128[1];
 	/* lmtext receives following value:
 	 * 1: NIX_SUBDC_EXT needed i.e. tx vlan case
 	 */
-	if (lmtext)
-		dst128[2] = src128[2];
+	for (i = 0; i < lmtext; i++)
+		dst128[2 + i] = src128[2 + i];
 }
 
 static __plt_always_inline void

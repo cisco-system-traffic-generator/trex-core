@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
- *   Copyright 2017-2021 NXP
+ *   Copyright 2017-2022 NXP
  *
  */
 
@@ -19,7 +19,8 @@
 #include <rte_security_driver.h>
 #endif
 #include <rte_cycles.h>
-#include <rte_dev.h>
+#include <dev_driver.h>
+#include <rte_io.h>
 #include <rte_ip.h>
 #include <rte_kvargs.h>
 #include <rte_malloc.h>
@@ -40,7 +41,7 @@
 #include <desc/pdcp.h>
 #include <desc/sdap.h>
 
-#include <rte_dpaa_bus.h>
+#include <bus_dpaa_driver.h>
 #include <dpaa_sec.h>
 #include <dpaa_sec_event.h>
 #include <dpaa_sec_log.h>
@@ -151,9 +152,6 @@ dqrr_out_fq_cb_rx(struct qman_portal *qm __always_unused,
 	struct dpaa_sec_job *job;
 	struct dpaa_sec_op_ctx *ctx;
 
-	if (DPAA_PER_LCORE_DPAA_SEC_OP_NB >= DPAA_SEC_BURST)
-		return qman_cb_dqrr_defer;
-
 	if (!(dqrr->stat & QM_DQRR_STAT_FD_VALID))
 		return qman_cb_dqrr_consume;
 
@@ -182,7 +180,6 @@ dqrr_out_fq_cb_rx(struct qman_portal *qm __always_unused,
 		}
 		mbuf->data_len = len;
 	}
-	DPAA_PER_LCORE_RTE_CRYPTO_OP[DPAA_PER_LCORE_DPAA_SEC_OP_NB++] = ctx->op;
 	dpaa_sec_op_ending(ctx);
 
 	return qman_cb_dqrr_consume;
@@ -673,15 +670,10 @@ dpaa_sec_dump(struct dpaa_sec_op_ctx *ctx, struct dpaa_sec_qp *qp)
 	struct qm_sg_entry sg[2];
 
 	if (op->sess_type == RTE_CRYPTO_OP_WITH_SESSION)
-		sess = (dpaa_sec_session *)
-			get_sym_session_private_data(
-					op->sym->session,
-					dpaa_cryptodev_driver_id);
+		sess = CRYPTODEV_GET_SYM_SESS_PRIV(op->sym->session);
 #ifdef RTE_LIBRTE_SECURITY
 	else if (op->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION)
-		sess = (dpaa_sec_session *)
-			get_sec_session_private_data(
-					op->sym->sec_session);
+		sess = SECURITY_GET_SESS_PRIV(op->sym->session);
 #endif
 	if (sess == NULL) {
 		printf("session is NULL\n");
@@ -762,14 +754,14 @@ mbuf_dump:
 	printf("ctx info:\n");
 	printf("job->sg[0] output info:\n");
 	memcpy(&sg[0], &job->sg[0], sizeof(sg[0]));
-	printf("\taddr = %"PRIx64",\n\tlen = %d,\n\tfinal = %d,\n\textention = %d"
+	printf("\taddr = %"PRIx64",\n\tlen = %d,\n\tfinal = %d,\n\textension = %d"
 		"\n\tbpid = %d\n\toffset = %d\n",
 		(uint64_t)sg[0].addr, sg[0].length, sg[0].final,
 		sg[0].extension, sg[0].bpid, sg[0].offset);
 	printf("\njob->sg[1] input info:\n");
 	memcpy(&sg[1], &job->sg[1], sizeof(sg[1]));
 	hw_sg_to_cpu(&sg[1]);
-	printf("\taddr = %"PRIx64",\n\tlen = %d,\n\tfinal = %d,\n\textention = %d"
+	printf("\taddr = %"PRIx64",\n\tlen = %d,\n\tfinal = %d,\n\textension = %d"
 		"\n\tbpid = %d\n\toffset = %d\n",
 		(uint64_t)sg[1].addr, sg[1].length, sg[1].final,
 		sg[1].extension, sg[1].bpid, sg[1].offset);
@@ -1930,16 +1922,11 @@ dpaa_sec_enqueue_burst(void *qp, struct rte_crypto_op **ops,
 
 			switch (op->sess_type) {
 			case RTE_CRYPTO_OP_WITH_SESSION:
-				ses = (dpaa_sec_session *)
-					get_sym_session_private_data(
-						op->sym->session,
-						dpaa_cryptodev_driver_id);
+				ses = CRYPTODEV_GET_SYM_SESS_PRIV(op->sym->session);
 				break;
 #ifdef RTE_LIB_SECURITY
 			case RTE_CRYPTO_OP_SECURITY_SESSION:
-				ses = (dpaa_sec_session *)
-					get_sec_session_private_data(
-							op->sym->sec_session);
+				ses = SECURITY_GET_SESS_PRIV(op->sym->session);
 				break;
 #endif
 			default:
@@ -2551,11 +2538,6 @@ dpaa_sec_attach_sess_q(struct dpaa_sec_qp *qp, dpaa_sec_session *sess)
 	int ret;
 
 	sess->qp[rte_lcore_id() % MAX_DPAA_CORES] = qp;
-	ret = dpaa_sec_prep_cdb(sess);
-	if (ret) {
-		DPAA_SEC_ERR("Unable to prepare sec cdb");
-		return ret;
-	}
 	if (unlikely(!DPAA_PER_LCORE_PORTAL)) {
 		ret = rte_dpaa_portal_init((void *)0);
 		if (ret) {
@@ -2684,31 +2666,24 @@ err1:
 static int
 dpaa_sec_sym_session_configure(struct rte_cryptodev *dev,
 		struct rte_crypto_sym_xform *xform,
-		struct rte_cryptodev_sym_session *sess,
-		struct rte_mempool *mempool)
+		struct rte_cryptodev_sym_session *sess)
 {
-	void *sess_private_data;
+	void *sess_private_data = CRYPTODEV_GET_SYM_SESS_PRIV(sess);
 	int ret;
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (rte_mempool_get(mempool, &sess_private_data)) {
-		DPAA_SEC_ERR("Couldn't get object from session mempool");
-		return -ENOMEM;
-	}
-
 	ret = dpaa_sec_set_session_parameters(dev, xform, sess_private_data);
 	if (ret != 0) {
 		DPAA_SEC_ERR("failed to configure session parameters");
-
-		/* Return session to mempool */
-		rte_mempool_put(mempool, sess_private_data);
 		return ret;
 	}
 
-	set_sym_session_private_data(sess, dev->driver_id,
-			sess_private_data);
-
+	ret = dpaa_sec_prep_cdb(sess_private_data);
+	if (ret) {
+		DPAA_SEC_ERR("Unable to prepare sec cdb");
+		return ret;
+	}
 
 	return 0;
 }
@@ -2717,7 +2692,6 @@ static inline void
 free_session_memory(struct rte_cryptodev *dev, dpaa_sec_session *s)
 {
 	struct dpaa_sec_dev_private *qi = dev->data->dev_private;
-	struct rte_mempool *sess_mp = rte_mempool_from_obj((void *)s);
 	uint8_t i;
 
 	for (i = 0; i < MAX_DPAA_CORES; i++) {
@@ -2727,7 +2701,6 @@ free_session_memory(struct rte_cryptodev *dev, dpaa_sec_session *s)
 		s->qp[i] = NULL;
 	}
 	free_session_data(s);
-	rte_mempool_put(sess_mp, (void *)s);
 }
 
 /** Clear the memory of session so it doesn't leave key material behind */
@@ -2736,14 +2709,10 @@ dpaa_sec_sym_session_clear(struct rte_cryptodev *dev,
 		struct rte_cryptodev_sym_session *sess)
 {
 	PMD_INIT_FUNC_TRACE();
-	uint8_t index = dev->driver_id;
-	void *sess_priv = get_sym_session_private_data(sess, index);
+	void *sess_priv = CRYPTODEV_GET_SYM_SESS_PRIV(sess);
 	dpaa_sec_session *s = (dpaa_sec_session *)sess_priv;
 
-	if (sess_priv) {
-		free_session_memory(dev, s);
-		set_sym_session_private_data(sess, index, NULL);
-	}
+	free_session_memory(dev, s);
 }
 
 #ifdef RTE_LIB_SECURITY
@@ -3272,17 +3241,11 @@ out:
 static int
 dpaa_sec_security_session_create(void *dev,
 				 struct rte_security_session_conf *conf,
-				 struct rte_security_session *sess,
-				 struct rte_mempool *mempool)
+				 struct rte_security_session *sess)
 {
-	void *sess_private_data;
+	void *sess_private_data = SECURITY_GET_SESS_PRIV(sess);
 	struct rte_cryptodev *cdev = (struct rte_cryptodev *)dev;
 	int ret;
-
-	if (rte_mempool_get(mempool, &sess_private_data)) {
-		DPAA_SEC_ERR("Couldn't get object from session mempool");
-		return -ENOMEM;
-	}
 
 	switch (conf->protocol) {
 	case RTE_SECURITY_PROTOCOL_IPSEC:
@@ -3300,12 +3263,14 @@ dpaa_sec_security_session_create(void *dev,
 	}
 	if (ret != 0) {
 		DPAA_SEC_ERR("failed to configure session parameters");
-		/* Return session to mempool */
-		rte_mempool_put(mempool, sess_private_data);
 		return ret;
 	}
 
-	set_sec_session_private_data(sess, sess_private_data);
+	ret = dpaa_sec_prep_cdb(sess_private_data);
+	if (ret) {
+		DPAA_SEC_ERR("Unable to prepare sec cdb");
+		return ret;
+	}
 
 	return ret;
 }
@@ -3316,15 +3281,21 @@ dpaa_sec_security_session_destroy(void *dev __rte_unused,
 		struct rte_security_session *sess)
 {
 	PMD_INIT_FUNC_TRACE();
-	void *sess_priv = get_sec_session_private_data(sess);
+	void *sess_priv = SECURITY_GET_SESS_PRIV(sess);
 	dpaa_sec_session *s = (dpaa_sec_session *)sess_priv;
 
 	if (sess_priv) {
 		free_session_memory((struct rte_cryptodev *)dev, s);
-		set_sec_session_private_data(sess, NULL);
 	}
 	return 0;
 }
+
+static unsigned int
+dpaa_sec_security_session_get_size(void *device __rte_unused)
+{
+	return sizeof(dpaa_sec_session);
+}
+
 #endif
 static int
 dpaa_sec_dev_configure(struct rte_cryptodev *dev __rte_unused,
@@ -3583,6 +3554,7 @@ dpaa_sec_capabilities_get(void *device __rte_unused)
 static const struct rte_security_ops dpaa_sec_security_ops = {
 	.session_create = dpaa_sec_security_session_create,
 	.session_update = NULL,
+	.session_get_size = dpaa_sec_security_session_get_size,
 	.session_stats_get = NULL,
 	.session_destroy = dpaa_sec_security_session_destroy,
 	.set_pkt_metadata = NULL,
@@ -3654,9 +3626,35 @@ dpaa_sec_dev_init(struct rte_cryptodev *cryptodev)
 	struct dpaa_sec_qp *qp;
 	uint32_t i, flags;
 	int ret;
+	void *cmd_map;
+	int map_fd = -1;
 
 	PMD_INIT_FUNC_TRACE();
 
+	internals = cryptodev->data->dev_private;
+	map_fd = open("/dev/mem", O_RDWR);
+	if (unlikely(map_fd < 0)) {
+		DPAA_SEC_ERR("Unable to open (/dev/mem)");
+		return map_fd;
+	}
+	internals->sec_hw = mmap(NULL, MAP_SIZE, PROT_READ | PROT_WRITE,
+			    MAP_SHARED, map_fd, SEC_BASE_ADDR);
+	if (internals->sec_hw == MAP_FAILED) {
+		DPAA_SEC_ERR("Memory map failed");
+		close(map_fd);
+		return -EINVAL;
+	}
+	cmd_map = (uint8_t *)internals->sec_hw +
+		  (BLOCK_OFFSET * QI_BLOCK_NUMBER) + CMD_REG;
+	if (!(be32_to_cpu(rte_read32(cmd_map)) & QICTL_DQEN))
+		/* enable QI interface */
+		rte_write32(cpu_to_be32(QICTL_DQEN), cmd_map);
+
+	ret = munmap(internals->sec_hw, MAP_SIZE);
+	if (ret)
+		DPAA_SEC_WARN("munmap failed\n");
+
+	close(map_fd);
 	cryptodev->driver_id = dpaa_cryptodev_driver_id;
 	cryptodev->dev_ops = &crypto_ops;
 
@@ -3673,7 +3671,6 @@ dpaa_sec_dev_init(struct rte_cryptodev *cryptodev)
 			RTE_CRYPTODEV_FF_OOP_LB_IN_SGL_OUT |
 			RTE_CRYPTODEV_FF_OOP_LB_IN_LB_OUT;
 
-	internals = cryptodev->data->dev_private;
 	internals->max_nb_queue_pairs = RTE_DPAA_MAX_NB_SEC_QPS;
 	internals->max_nb_sessions = RTE_DPAA_SEC_PMD_MAX_NB_SESSIONS;
 
@@ -3740,23 +3737,24 @@ cryptodev_dpaa_sec_probe(struct rte_dpaa_driver *dpaa_drv __rte_unused,
 
 	int retval;
 
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
+		return 0;
+
 	snprintf(cryptodev_name, sizeof(cryptodev_name), "%s", dpaa_dev->name);
 
 	cryptodev = rte_cryptodev_pmd_allocate(cryptodev_name, rte_socket_id());
 	if (cryptodev == NULL)
 		return -ENOMEM;
 
-	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
-		cryptodev->data->dev_private = rte_zmalloc_socket(
-					"cryptodev private structure",
-					sizeof(struct dpaa_sec_dev_private),
-					RTE_CACHE_LINE_SIZE,
-					rte_socket_id());
+	cryptodev->data->dev_private = rte_zmalloc_socket(
+				"cryptodev private structure",
+				sizeof(struct dpaa_sec_dev_private),
+				RTE_CACHE_LINE_SIZE,
+				rte_socket_id());
 
-		if (cryptodev->data->dev_private == NULL)
-			rte_panic("Cannot allocate memzone for private "
-					"device data");
-	}
+	if (cryptodev->data->dev_private == NULL)
+		rte_panic("Cannot allocate memzone for private "
+				"device data");
 
 	dpaa_dev->crypto_dev = cryptodev;
 	cryptodev->device = &dpaa_dev->device;
@@ -3798,8 +3796,7 @@ cryptodev_dpaa_sec_probe(struct rte_dpaa_driver *dpaa_drv __rte_unused,
 	retval = -ENXIO;
 out:
 	/* In case of error, cleanup is done */
-	if (rte_eal_process_type() == RTE_PROC_PRIMARY)
-		rte_free(cryptodev->data->dev_private);
+	rte_free(cryptodev->data->dev_private);
 
 	rte_cryptodev_pmd_release_device(cryptodev);
 

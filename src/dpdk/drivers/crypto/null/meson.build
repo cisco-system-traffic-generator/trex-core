@@ -9,3 +9,4 @@ endif
 
 deps += 'bus_vdev'
 sources = files('null_crypto_pmd.c', 'null_crypto_pmd_ops.c')
+require_iova_in_mbuf = false

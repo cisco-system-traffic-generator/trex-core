@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/queue.h>
 
 #include <rte_eal_memconfig.h>
 #include <rte_errno.h>
@@ -35,7 +36,7 @@ struct rte_rib_node {
 	uint8_t		depth;
 	uint8_t		flag;
 	uint64_t	nh;
-	__extension__ uint64_t	ext[0];
+	__extension__ uint64_t ext[];
 };
 
 struct rte_rib {
@@ -48,13 +49,13 @@ struct rte_rib {
 };
 
 static inline bool
-is_valid_node(struct rte_rib_node *node)
+is_valid_node(const struct rte_rib_node *node)
 {
 	return (node->flag & RTE_RIB_VALID_NODE) == RTE_RIB_VALID_NODE;
 }
 
 static inline bool
-is_right_node(struct rte_rib_node *node)
+is_right_node(const struct rte_rib_node *node)
 {
 	return node->parent->right == node;
 }
@@ -71,6 +72,8 @@ is_covered(uint32_t ip1, uint32_t ip2, uint8_t depth)
 static inline struct rte_rib_node *
 get_nxt_node(struct rte_rib_node *node, uint32_t ip)
 {
+	if (node->depth == RIB_MAXDEPTH)
+		return NULL;
 	return (ip & (1 << (31 - node->depth))) ? node->right : node->left;
 }
 
@@ -99,7 +102,7 @@ rte_rib_lookup(struct rte_rib *rib, uint32_t ip)
 {
 	struct rte_rib_node *cur, *prev = NULL;
 
-	if (rib == NULL) {
+	if (unlikely(rib == NULL)) {
 		rte_errno = EINVAL;
 		return NULL;
 	}
@@ -147,7 +150,7 @@ __rib_lookup_exact(struct rte_rib *rib, uint32_t ip, uint8_t depth)
 struct rte_rib_node *
 rte_rib_lookup_exact(struct rte_rib *rib, uint32_t ip, uint8_t depth)
 {
-	if ((rib == NULL) || (depth > RIB_MAXDEPTH)) {
+	if (unlikely(rib == NULL || depth > RIB_MAXDEPTH)) {
 		rte_errno = EINVAL;
 		return NULL;
 	}
@@ -167,7 +170,7 @@ rte_rib_get_nxt(struct rte_rib *rib, uint32_t ip,
 {
 	struct rte_rib_node *tmp, *prev = NULL;
 
-	if ((rib == NULL) || (depth > RIB_MAXDEPTH)) {
+	if (unlikely(rib == NULL || depth > RIB_MAXDEPTH)) {
 		rte_errno = EINVAL;
 		return NULL;
 	}
@@ -244,7 +247,7 @@ rte_rib_insert(struct rte_rib *rib, uint32_t ip, uint8_t depth)
 	uint32_t common_prefix;
 	uint8_t common_depth;
 
-	if ((rib == NULL) || (depth > RIB_MAXDEPTH)) {
+	if (unlikely(rib == NULL || depth > RIB_MAXDEPTH)) {
 		rte_errno = EINVAL;
 		return NULL;
 	}
@@ -342,7 +345,7 @@ rte_rib_insert(struct rte_rib *rib, uint32_t ip, uint8_t depth)
 int
 rte_rib_get_ip(const struct rte_rib_node *node, uint32_t *ip)
 {
-	if ((node == NULL) || (ip == NULL)) {
+	if (unlikely(node == NULL || ip == NULL)) {
 		rte_errno = EINVAL;
 		return -1;
 	}
@@ -353,7 +356,7 @@ rte_rib_get_ip(const struct rte_rib_node *node, uint32_t *ip)
 int
 rte_rib_get_depth(const struct rte_rib_node *node, uint8_t *depth)
 {
-	if ((node == NULL) || (depth == NULL)) {
+	if (unlikely(node == NULL || depth == NULL)) {
 		rte_errno = EINVAL;
 		return -1;
 	}
@@ -370,7 +373,7 @@ rte_rib_get_ext(struct rte_rib_node *node)
 int
 rte_rib_get_nh(const struct rte_rib_node *node, uint64_t *nh)
 {
-	if ((node == NULL) || (nh == NULL)) {
+	if (unlikely(node == NULL || nh == NULL)) {
 		rte_errno = EINVAL;
 		return -1;
 	}
@@ -381,7 +384,7 @@ rte_rib_get_nh(const struct rte_rib_node *node, uint64_t *nh)
 int
 rte_rib_set_nh(struct rte_rib_node *node, uint64_t nh)
 {
-	if (node == NULL) {
+	if (unlikely(node == NULL)) {
 		rte_errno = EINVAL;
 		return -1;
 	}
@@ -399,7 +402,7 @@ rte_rib_create(const char *name, int socket_id, const struct rte_rib_conf *conf)
 	struct rte_mempool *node_pool;
 
 	/* Check user arguments. */
-	if (name == NULL || conf == NULL || conf->max_nodes <= 0) {
+	if (unlikely(name == NULL || conf == NULL || conf->max_nodes <= 0)) {
 		rte_errno = EINVAL;
 		return NULL;
 	}
@@ -434,7 +437,7 @@ rte_rib_create(const char *name, int socket_id, const struct rte_rib_conf *conf)
 
 	/* allocate tailq entry */
 	te = rte_zmalloc("RIB_TAILQ_ENTRY", sizeof(*te), 0);
-	if (te == NULL) {
+	if (unlikely(te == NULL)) {
 		RTE_LOG(ERR, LPM,
 			"Can not allocate tailq entry for RIB %s\n", name);
 		rte_errno = ENOMEM;
@@ -444,7 +447,7 @@ rte_rib_create(const char *name, int socket_id, const struct rte_rib_conf *conf)
 	/* Allocate memory to store the RIB data structures. */
 	rib = rte_zmalloc_socket(mem_name,
 		sizeof(struct rte_rib),	RTE_CACHE_LINE_SIZE, socket_id);
-	if (rib == NULL) {
+	if (unlikely(rib == NULL)) {
 		RTE_LOG(ERR, LPM, "RIB %s memory allocation failed\n", name);
 		rte_errno = ENOMEM;
 		goto free_te;

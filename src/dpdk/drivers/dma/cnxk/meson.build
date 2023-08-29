@@ -3,3 +3,4 @@
 
 deps += ['bus_pci', 'common_cnxk', 'dmadev']
 sources = files('cnxk_dmadev.c')
+require_iova_in_mbuf = false

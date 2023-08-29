@@ -9,7 +9,7 @@
 #include <rte_kvargs.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
-#include <rte_bus_vdev.h>
+#include <bus_vdev_driver.h>
 
 #include <fcntl.h>
 #include <linux/ethtool.h>
@@ -490,11 +490,6 @@ mrvl_dev_configure(struct rte_eth_dev *dev)
 		return -EINVAL;
 	}
 
-	if (dev->data->dev_conf.rxmode.split_hdr_size) {
-		MRVL_LOG(INFO, "Split headers not supported");
-		return -EINVAL;
-	}
-
 	if (dev->data->dev_conf.rxmode.mtu > priv->max_mtu) {
 		MRVL_LOG(ERR, "MTU %u is larger than max_mtu %u\n",
 			 dev->data->dev_conf.rxmode.mtu,
@@ -858,7 +853,7 @@ mrvl_dev_start(struct rte_eth_dev *dev)
 	}
 
 	/*
-	 * In case there are some some stale uc/mc mac addresses flush them
+	 * In case there are some stale uc/mc mac addresses flush them
 	 * here. It cannot be done during mrvl_dev_close() as port information
 	 * is already gone at that point (due to pp2_ppio_deinit() in
 	 * mrvl_dev_stop()).
@@ -1626,13 +1621,14 @@ mrvl_xstats_get(struct rte_eth_dev *dev,
 {
 	struct mrvl_priv *priv = dev->data->dev_private;
 	struct pp2_ppio_statistics ppio_stats;
-	unsigned int i;
+	unsigned int i, count;
 
-	if (!stats)
-		return 0;
+	count = RTE_DIM(mrvl_xstats_tbl);
+	if (n < count)
+		return count;
 
 	pp2_ppio_get_statistics(priv->ppio, &ppio_stats, 0);
-	for (i = 0; i < n && i < RTE_DIM(mrvl_xstats_tbl); i++) {
+	for (i = 0; i < count; i++) {
 		uint64_t val;
 
 		if (mrvl_xstats_tbl[i].size == sizeof(uint32_t))
@@ -1648,7 +1644,7 @@ mrvl_xstats_get(struct rte_eth_dev *dev,
 		stats[i].value = val;
 	}
 
-	return n;
+	return count;
 }
 
 /**

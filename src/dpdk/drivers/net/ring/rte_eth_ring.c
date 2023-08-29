@@ -2,19 +2,23 @@
  * Copyright(c) 2010-2015 Intel Corporation
  */
 
+#include <stdlib.h>
+
 #include "rte_eth_ring.h"
 #include <rte_mbuf.h>
 #include <ethdev_driver.h>
 #include <rte_malloc.h>
 #include <rte_memcpy.h>
+#include <rte_os_shim.h>
 #include <rte_string_fns.h>
-#include <rte_bus_vdev.h>
+#include <bus_vdev_driver.h>
 #include <rte_kvargs.h>
 #include <rte_errno.h>
 
 #define ETH_RING_NUMA_NODE_ACTION_ARG	"nodeaction"
 #define ETH_RING_ACTION_CREATE		"CREATE"
 #define ETH_RING_ACTION_ATTACH		"ATTACH"
+#define ETH_RING_ACTION_MAX_LEN		8 /* CREATE | ACTION */
 #define ETH_RING_INTERNAL_ARG		"internal"
 #define ETH_RING_INTERNAL_ARG_MAX_LEN	19 /* "0x..16chars..\0" */
 
@@ -284,6 +288,29 @@ eth_dev_close(struct rte_eth_dev *dev)
 	return ret;
 }
 
+static int ring_monitor_callback(const uint64_t value,
+		const uint64_t arg[RTE_POWER_MONITOR_OPAQUE_SZ])
+{
+	/* Check if the head pointer has changed */
+	return value != arg[0];
+}
+
+static int
+eth_get_monitor_addr(void *rx_queue, struct rte_power_monitor_cond *pmc)
+{
+	struct rte_ring *rng = ((struct ring_queue *)rx_queue)->rng;
+
+	/*
+	 * Monitor ring head since if head moves
+	 * there are packets to transmit
+	 */
+	pmc->addr = &rng->prod.head;
+	pmc->size = sizeof(rng->prod.head);
+	pmc->opaque[0] = rng->prod.head;
+	pmc->fn = ring_monitor_callback;
+	return 0;
+}
+
 static const struct eth_dev_ops ops = {
 	.dev_close = eth_dev_close,
 	.dev_start = eth_dev_start,
@@ -303,6 +330,7 @@ static const struct eth_dev_ops ops = {
 	.promiscuous_disable = eth_promiscuous_disable,
 	.allmulticast_enable = eth_allmulticast_enable,
 	.allmulticast_disable = eth_allmulticast_disable,
+	.get_monitor_addr = eth_get_monitor_addr,
 };
 
 static int
@@ -513,7 +541,7 @@ eth_dev_ring_create(const char *name,
 }
 
 struct node_action_pair {
-	char name[PATH_MAX];
+	char name[ETH_RING_ACTION_MAX_LEN];
 	unsigned int node;
 	enum dev_action action;
 };

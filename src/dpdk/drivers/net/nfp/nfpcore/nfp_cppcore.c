@@ -15,6 +15,7 @@
 #include <ethdev_pci.h>
 
 #include "nfp_cpp.h"
+#include "nfp_logs.h"
 #include "nfp_target.h"
 #include "nfp6000/nfp6000.h"
 #include "nfp6000/nfp_xpb.h"
@@ -50,7 +51,7 @@ nfp_cpp_model(struct nfp_cpp *cpp)
 	int err;
 	uint32_t model;
 
-	if (!cpp)
+	if (cpp == NULL)
 		return NFP_CPP_MODEL_INVALID;
 
 	err = __nfp_cpp_model_autodetect(cpp, &model);
@@ -82,7 +83,7 @@ nfp_cpp_serial_set(struct nfp_cpp *cpp, const uint8_t *serial,
 		free(cpp->serial);
 
 	cpp->serial = malloc(serial_len);
-	if (!cpp->serial)
+	if (cpp->serial == NULL)
 		return -1;
 
 	memcpy(cpp->serial, serial, serial_len);
@@ -94,7 +95,7 @@ nfp_cpp_serial_set(struct nfp_cpp *cpp, const uint8_t *serial,
 uint16_t
 nfp_cpp_interface(struct nfp_cpp *cpp)
 {
-	if (!cpp)
+	if (cpp == NULL)
 		return NFP_CPP_INTERFACE(NFP_CPP_INTERFACE_TYPE_INVALID, 0, 0);
 
 	return cpp->interface;
@@ -139,7 +140,7 @@ nfp_cpp_area_alloc_with_name(struct nfp_cpp *cpp, uint32_t dest,
 	uint64_t tmp64 = (uint64_t)address;
 	int tmp, err;
 
-	if (!cpp)
+	if (cpp == NULL)
 		return NULL;
 
 	/* CPP bus uses only a 40-bit address */
@@ -153,12 +154,12 @@ nfp_cpp_area_alloc_with_name(struct nfp_cpp *cpp, uint32_t dest,
 
 	address = (unsigned long long)tmp64;
 
-	if (!name)
+	if (name == NULL)
 		name = "";
 
 	area = calloc(1, sizeof(*area) + cpp->op->area_priv_size +
 		      strlen(name) + 1);
-	if (!area)
+	if (area == NULL)
 		return NULL;
 
 	area->cpp = cpp;
@@ -216,7 +217,7 @@ nfp_cpp_area_alloc_acquire(struct nfp_cpp *cpp, uint32_t destination,
 	struct nfp_cpp_area *area;
 
 	area = nfp_cpp_area_alloc(cpp, destination, address, size);
-	if (!area)
+	if (area == NULL)
 		return NULL;
 
 	if (nfp_cpp_area_acquire(area)) {
@@ -403,7 +404,7 @@ nfp_xpb_to_cpp(struct nfp_cpp *cpp, uint32_t *xpb_addr)
 	 */
 	island = ((*xpb_addr) >> 24) & 0x3f;
 
-	if (!island)
+	if (island == 0)
 		return xpb;
 
 	if (island == 1) {
@@ -554,11 +555,11 @@ nfp_cpp_alloc(struct rte_pci_device *dev, int driver_lock_needed)
 
 	ops = nfp_cpp_transport_operations();
 
-	if (!ops || !ops->init)
+	if (ops == NULL || ops->init == NULL)
 		return NFP_ERRPTR(EINVAL);
 
 	cpp = calloc(1, sizeof(*cpp));
-	if (!cpp)
+	if (cpp == NULL)
 		return NULL;
 
 	cpp->op = ops;
@@ -700,8 +701,8 @@ nfp_cpp_read(struct nfp_cpp *cpp, uint32_t destination,
 	int err;
 
 	area = nfp_cpp_area_alloc_acquire(cpp, destination, address, length);
-	if (!area) {
-		printf("Area allocation/acquire failed\n");
+	if (area == NULL) {
+		PMD_DRV_LOG(ERR, "Area allocation/acquire failed");
 		return -1;
 	}
 
@@ -728,7 +729,7 @@ nfp_cpp_write(struct nfp_cpp *cpp, uint32_t destination,
 	int err;
 
 	area = nfp_cpp_area_alloc_acquire(cpp, destination, address, length);
-	if (!area)
+	if (area == NULL)
 		return -1;
 
 	err = nfp_cpp_area_write(area, 0, kernel_vaddr, length);
@@ -840,11 +841,11 @@ nfp_cpp_map_area(struct nfp_cpp *cpp, int domain, int target, uint64_t addr,
 	dest = NFP_CPP_ISLAND_ID(target, NFP_CPP_ACTION_RW, 0, domain);
 
 	*area = nfp_cpp_area_alloc_acquire(cpp, dest, addr, size);
-	if (!*area)
+	if (*area == NULL)
 		goto err_eio;
 
 	res = nfp_cpp_area_iomem(*area);
-	if (!res)
+	if (res == NULL)
 		goto err_release_free;
 
 	return res;

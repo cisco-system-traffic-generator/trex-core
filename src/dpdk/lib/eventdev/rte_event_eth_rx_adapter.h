@@ -38,10 +38,15 @@
  *  - rte_event_eth_rx_adapter_queue_stats_get()
  *  - rte_event_eth_rx_adapter_queue_stats_reset()
  *  - rte_event_eth_rx_adapter_event_port_get()
+ *  - rte_event_eth_rx_adapter_instance_get()
+ *  - rte_event_eth_rx_adapter_runtime_params_get()
+ *  - rte_event_eth_rx_adapter_runtime_params_init()
+ *  - rte_event_eth_rx_adapter_runtime_params_set()
  *
  * The application creates an ethernet to event adapter using
  * rte_event_eth_rx_adapter_create_ext() or rte_event_eth_rx_adapter_create()
  * or rte_event_eth_rx_adapter_create_with_params() functions.
+ *
  * The adapter needs to know which ethernet rx queues to poll for mbufs as well
  * as event device parameters such as the event queue identifier, event
  * priority and scheduling type that the adapter should use when constructing
@@ -86,6 +91,7 @@ extern "C" {
 
 #include <stdint.h>
 
+#include <rte_compat.h>
 #include <rte_service.h>
 
 #include "rte_eventdev.h"
@@ -298,6 +304,31 @@ struct rte_event_eth_rx_adapter_params {
 };
 
 /**
+ * Adapter runtime configuration parameters
+ */
+struct rte_event_eth_rx_adapter_runtime_params {
+	uint32_t max_nb_rx;
+	/**< The adapter can return early if it has processed at least
+	 * max_nb_rx mbufs. This isn't treated as a requirement; batching may
+	 * cause the adapter to process more than max_nb_rx mbufs.
+	 *
+	 * rte_event_eth_rx_adapter_create() or
+	 * rte_event_eth_adapter_create_with_params() configures the
+	 * adapter with default value of max_nb_rx.
+	 * rte_event_eth_rx_adapter_create_ext() configures the adapter with
+	 * user provided value of max_nb_rx through
+	 * rte_event_eth_rx_adapter_conf::max_nb_rx parameter.
+	 * rte_event_eth_rx_adapter_runtime_params_set() allows to re-configure
+	 * max_nb_rx during runtime (after adding at least one queue)
+	 *
+	 * This is valid for the devices without
+	 * RTE_EVENT_ETH_RX_ADAPTER_CAP_INTERNAL_PORT capability.
+	 */
+	uint32_t rsvd[15];
+	/**< Reserved fields for future use */
+};
+
+/**
  *
  * Callback function invoked by the SW adapter before it continues
  * to process events. The callback is passed the size of the enqueue
@@ -375,10 +406,24 @@ int rte_event_eth_rx_adapter_create_ext(uint8_t id, uint8_t dev_id,
  * Create a new ethernet Rx event adapter with the specified identifier.
  * This function uses an internal configuration function that creates an event
  * port. This default function reconfigures the event device with an
- * additional event port and setups up the event port using the port_config
+ * additional event port and setup the event port using the port_config
  * parameter passed into this function. In case the application needs more
  * control in configuration of the service, it should use the
  * rte_event_eth_rx_adapter_create_ext() version.
+ *
+ * When this API is used for creating adapter instance,
+ * ``rte_event_dev_config::nb_event_ports`` is automatically incremented,
+ * and event device is reconfigured with additional event port during service
+ * initialization. This event device reconfigure logic also increments the
+ * ``rte_event_dev_config::nb_single_link_event_port_queues``
+ * parameter if the adapter event port config is of type
+ * ``RTE_EVENT_PORT_CFG_SINGLE_LINK``.
+ *
+ * Application no longer needs to account for
+ * ``rte_event_dev_config::nb_event_ports`` and
+ * ``rte_event_dev_config::nb_single_link_event_port_queues``
+ * parameters required for eth Rx adapter in the event device configuration
+ * when the adapter is created with this API.
  *
  * @param id
  *  The identifier of the ethernet Rx event adapter.
@@ -457,7 +502,7 @@ int rte_event_eth_rx_adapter_free(uint8_t id);
  * @see RTE_EVENT_ETH_RX_ADAPTER_CAP_MULTI_EVENTQ
  *
  * @param conf
- *  Additional configuration structure of type *rte_event_eth_rx_adapter_conf*
+ *  Additional configuration structure of type *rte_event_eth_rx_adapter_queue_conf*
  *
  * @return
  *  - 0: Success, Receive queue added correctly.
@@ -703,6 +748,86 @@ rte_event_eth_rx_adapter_queue_stats_reset(uint8_t id,
 __rte_experimental
 int
 rte_event_eth_rx_adapter_event_port_get(uint8_t id, uint8_t *event_port_id);
+
+/**
+ * Get RX adapter instance ID for a RX queue
+ *
+ * @param eth_dev_id
+ *  Port identifier of Ethernet device.
+ *
+ * @param rx_queue_id
+ *  Ethernet device receive queue index.
+ *
+ * @param[out] rxa_inst_id
+ *  Pointer to store RX adapter instance identifier.
+ *  Contains valid Rx adapter instance id when return value is 0
+ *
+ * @return
+ *  -  0: Success
+ *  - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_rx_adapter_instance_get(uint16_t eth_dev_id,
+				      uint16_t rx_queue_id,
+				      uint8_t *rxa_inst_id);
+
+/**
+ * Initialize the adapter runtime configuration parameters with default values
+ *
+ * @param params
+ *  A pointer to structure of type struct rte_event_eth_rx_adapter_runtime_params
+ *
+ * @return
+ *  -  0: Success
+ *  - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_rx_adapter_runtime_params_init(
+		struct rte_event_eth_rx_adapter_runtime_params *params);
+
+/**
+ * Set the adapter runtime configuration parameters
+ *
+ * @param id
+ *  Adapter identifier
+ *
+ * @param params
+ *  A pointer to structure of type struct rte_event_eth_rx_adapter_runtime_params
+ *  with configuration parameter values. The reserved fields of the structure
+ *  must be initialized to zero and the valid fields need to be set appropriately.
+ *  This structure can be initialized using
+ *  rte_event_eth_rx_adapter_runtime_params_init() to default values or
+ *  application may reset this structure and update the required fields.
+ *
+ * @return
+ *  -  0: Success
+ *  - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_rx_adapter_runtime_params_set(uint8_t id,
+		struct rte_event_eth_rx_adapter_runtime_params *params);
+
+/**
+ * Get the adapter runtime configuration parameters
+ *
+ * @param id
+ *  Adapter identifier
+ *
+ * @param[out] params
+ *  A pointer to structure of type struct rte_event_eth_rx_adapter_runtime_params
+ *  containing valid adapter parameters when return value is 0.
+ *
+ * @return
+ *  -  0: Success
+ *  - <0: Error code on failure
+ */
+__rte_experimental
+int
+rte_event_eth_rx_adapter_runtime_params_get(uint8_t id,
+		struct rte_event_eth_rx_adapter_runtime_params *params);
 
 #ifdef __cplusplus
 }

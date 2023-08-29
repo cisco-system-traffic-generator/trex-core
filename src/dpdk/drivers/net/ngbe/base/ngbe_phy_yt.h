@@ -7,7 +7,8 @@
 #ifndef _NGBE_PHY_YT_H_
 #define _NGBE_PHY_YT_H_
 
-#define NGBE_PHYID_YT			0x00000110U
+#define NGBE_PHYID_YT8521		0x00000110U
+#define NGBE_PHYID_YT8531		0x4F51E910U
 
 /* Common EXT */
 #define YT_SMI_PHY			0xA000
@@ -30,6 +31,11 @@
 #define   YT_RGMII_CONF2_LINKUP		MS16(4, 0x1)
 #define YT_MISC				0xA006
 #define   YT_MISC_FIBER_PRIO		MS16(8, 0x1) /* 0 for UTP */
+#define   YT_MISC_RESV			MS16(0, 0x1)
+
+/* SDS EXT */
+#define YT_AUTO				0xA5
+#define   YT_AUTO_SENSING		MS16(15, 0x1)
 
 /* MII common registers in UTP and SDS */
 #define YT_BCR				0x0
@@ -88,6 +94,8 @@ s32 ngbe_reset_phy_yt(struct ngbe_hw *hw);
 
 s32 ngbe_check_phy_link_yt(struct ngbe_hw *hw,
 		u32 *speed, bool *link_up);
+s32 ngbe_set_phy_power_yt(struct ngbe_hw *hw, bool on);
+
 s32 ngbe_setup_phy_link_yt(struct ngbe_hw *hw,
 			u32 speed, bool autoneg_wait_to_complete);
 s32 ngbe_get_phy_advertised_pause_yt(struct ngbe_hw *hw,

@@ -3,6 +3,7 @@
  */
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include <rte_byteorder.h>
@@ -356,9 +357,6 @@ rte_trace_metadata_dump(FILE *f)
 	struct trace *trace = trace_obj_get();
 	char *ctf_meta = trace->ctf_meta;
 	int rc;
-
-	if (!rte_trace_is_enabled())
-		return 0;
 
 	if (ctf_meta == NULL)
 		return -EINVAL;

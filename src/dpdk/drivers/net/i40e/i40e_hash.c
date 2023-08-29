@@ -384,8 +384,10 @@ i40e_hash_get_pattern_type(const struct rte_flow_item pattern[],
 		}
 
 		prev_item_type = last_item_type;
-		assert(last_item_type < (enum rte_flow_item_type)
-				RTE_DIM(pattern_item_header));
+		if (last_item_type >= (enum rte_flow_item_type)
+				RTE_DIM(pattern_item_header))
+			goto not_sup;
+
 		item_hdr = pattern_item_header[last_item_type];
 		assert(item_hdr);
 
@@ -656,10 +658,6 @@ i40e_hash_config_pctype_symmetric(struct i40e_hw *hw,
 {
 	struct i40e_pf *pf = &((struct i40e_adapter *)hw->back)->pf;
 	uint32_t reg;
-
-	/* For X722, get translated pctype in fd pctype register */
-	if (hw->mac.type == I40E_MAC_X722)
-		pctype = i40e_read_rx_ctl(hw, I40E_GLQF_FD_PCTYPES(pctype));
 
 	reg = i40e_read_rx_ctl(hw, I40E_GLQF_HSYM(pctype));
 	if (symmetric) {
@@ -988,7 +986,7 @@ i40e_hash_parse_queue_region(const struct rte_eth_dev *dev,
 	vlan_spec = pattern->spec;
 	vlan_mask = pattern->mask;
 	if (!vlan_spec || !vlan_mask ||
-	    (rte_be_to_cpu_16(vlan_mask->tci) >> 13) != 7)
+	    (rte_be_to_cpu_16(vlan_mask->hdr.vlan_tci) >> 13) != 7)
 		return rte_flow_error_set(error, EINVAL,
 					  RTE_FLOW_ERROR_TYPE_ITEM, pattern,
 					  "Pattern error.");
@@ -1035,7 +1033,7 @@ i40e_hash_parse_queue_region(const struct rte_eth_dev *dev,
 
 	rss_conf->region_queue_num = (uint8_t)rss_act->queue_num;
 	rss_conf->region_queue_start = rss_act->queue[0];
-	rss_conf->region_priority = rte_be_to_cpu_16(vlan_spec->tci) >> 13;
+	rss_conf->region_priority = rte_be_to_cpu_16(vlan_spec->hdr.vlan_tci) >> 13;
 	return 0;
 }
 

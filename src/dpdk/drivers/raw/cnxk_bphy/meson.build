@@ -10,3 +10,4 @@ sources = files(
         'cnxk_bphy_irq.c',
 )
 headers = files('rte_pmd_bphy.h')
+require_iova_in_mbuf = false

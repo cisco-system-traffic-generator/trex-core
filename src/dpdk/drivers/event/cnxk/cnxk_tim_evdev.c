@@ -4,21 +4,23 @@
 
 #include <math.h>
 
+#include "roc_npa.h"
+
 #include "cnxk_eventdev.h"
 #include "cnxk_tim_evdev.h"
 
 static struct event_timer_adapter_ops cnxk_tim_ops;
+static cnxk_sso_set_priv_mem_t sso_set_priv_mem_fn;
 
 static int
 cnxk_tim_chnk_pool_create(struct cnxk_tim_ring *tim_ring,
 			  struct rte_event_timer_adapter_conf *rcfg)
 {
-	unsigned int cache_sz = (tim_ring->nb_chunks / 1.5);
 	unsigned int mp_flags = 0;
+	unsigned int cache_sz;
 	char pool_name[25];
 	int rc;
 
-	cache_sz /= rte_lcore_count();
 	/* Create chunk pool. */
 	if (rcfg->flags & RTE_EVENT_TIMER_ADAPTER_F_SP_PUT) {
 		mp_flags = RTE_MEMPOOL_F_SP_PUT | RTE_MEMPOOL_F_SC_GET;
@@ -29,9 +31,7 @@ cnxk_tim_chnk_pool_create(struct cnxk_tim_ring *tim_ring,
 	snprintf(pool_name, sizeof(pool_name), "cnxk_tim_chunk_pool%d",
 		 tim_ring->ring_id);
 
-	if (cache_sz > CNXK_TIM_MAX_POOL_CACHE_SZ)
-		cache_sz = CNXK_TIM_MAX_POOL_CACHE_SZ;
-	cache_sz = cache_sz != 0 ? cache_sz : 2;
+	cache_sz = CNXK_TIM_MAX_POOL_CACHE_SZ;
 	tim_ring->nb_chunks += (cache_sz * rte_lcore_count());
 	if (!tim_ring->disable_npa) {
 		tim_ring->chunk_pool = rte_mempool_create_empty(
@@ -119,80 +119,6 @@ cnxk_tim_ring_info_get(const struct rte_event_timer_adapter *adptr,
 		   sizeof(struct rte_event_timer_adapter_conf));
 }
 
-static inline void
-sort_multi_array(double ref_arr[], uint64_t arr1[], uint64_t arr2[],
-		 uint64_t arr3[], uint8_t sz)
-{
-	int x;
-
-	for (x = 0; x < sz - 1; x++) {
-		if (ref_arr[x] > ref_arr[x + 1]) {
-			PLT_SWAP(ref_arr[x], ref_arr[x + 1]);
-			PLT_SWAP(arr1[x], arr1[x + 1]);
-			PLT_SWAP(arr2[x], arr2[x + 1]);
-			PLT_SWAP(arr3[x], arr3[x + 1]);
-			x = -1;
-		}
-	}
-}
-
-static inline void
-populate_sample(uint64_t tck[], uint64_t ns[], double diff[], uint64_t dst[],
-		uint64_t req_tck, uint64_t clk_freq, double tck_ns, uint8_t sz,
-		bool mov_fwd)
-{
-	int i;
-
-	for (i = 0; i < sz; i++) {
-		tck[i] = i ? tck[i - 1] : req_tck;
-		do {
-			mov_fwd ? tck[i]++ : tck[i]--;
-			ns[i] = round((double)tck[i] * tck_ns);
-			if (round((double)tck[i] * tck_ns) >
-			    ((double)tck[i] * tck_ns))
-				continue;
-		} while (ns[i] % (uint64_t)cnxk_tim_ns_per_tck(clk_freq));
-		diff[i] = PLT_MAX((double)ns[i], (double)tck[i] * tck_ns) -
-			  PLT_MIN((double)ns[i], (double)tck[i] * tck_ns);
-		dst[i] = mov_fwd ? tck[i] - req_tck : req_tck - tck[i];
-	}
-}
-
-static void
-tim_adjust_resolution(uint64_t *req_ns, uint64_t *req_tck, double tck_ns,
-		      uint64_t clk_freq, uint64_t max_tmo, uint64_t m_tck)
-{
-#define MAX_SAMPLES 5
-	double rmax_diff[MAX_SAMPLES], rmin_diff[MAX_SAMPLES];
-	uint64_t min_tck[MAX_SAMPLES], max_tck[MAX_SAMPLES];
-	uint64_t min_dst[MAX_SAMPLES], max_dst[MAX_SAMPLES];
-	uint64_t min_ns[MAX_SAMPLES], max_ns[MAX_SAMPLES];
-	int i;
-
-	populate_sample(max_tck, max_ns, rmax_diff, max_dst, *req_tck, clk_freq,
-			tck_ns, MAX_SAMPLES, true);
-	sort_multi_array(rmax_diff, max_dst, max_tck, max_ns, MAX_SAMPLES);
-
-	populate_sample(min_tck, min_ns, rmin_diff, min_dst, *req_tck, clk_freq,
-			tck_ns, MAX_SAMPLES, false);
-	sort_multi_array(rmin_diff, min_dst, min_tck, min_ns, MAX_SAMPLES);
-
-	for (i = 0; i < MAX_SAMPLES; i++) {
-		if (min_dst[i] < max_dst[i] && min_tck[i] > m_tck &&
-		    (max_tmo / min_ns[i]) <=
-			    (TIM_MAX_BUCKET_SIZE - TIM_MIN_BUCKET_SIZE)) {
-			*req_tck = min_tck[i];
-			*req_ns = min_ns[i];
-			break;
-		} else if ((max_tmo / max_ns[i]) <
-			   (TIM_MAX_BUCKET_SIZE - TIM_MIN_BUCKET_SIZE)) {
-			*req_tck = max_tck[i];
-			*req_ns = max_ns[i];
-			break;
-		}
-	}
-}
-
 static int
 cnxk_tim_ring_create(struct rte_event_timer_adapter *adptr)
 {
@@ -263,27 +189,7 @@ cnxk_tim_ring_create(struct rte_event_timer_adapter *adptr)
 		goto tim_hw_free;
 	}
 
-	tim_ring->tck_nsec =
-		round(RTE_ALIGN_MUL_NEAR((long double)rcfg->timer_tick_ns,
-					 cnxk_tim_ns_per_tck(clk_freq)));
-	if (log10(clk_freq) - floor(log10(clk_freq)) != 0.0) {
-		uint64_t req_ns, req_tck;
-		double tck_ns;
-
-		req_ns = tim_ring->tck_nsec;
-		tck_ns = NSECPERSEC / clk_freq;
-		req_tck = round(rcfg->timer_tick_ns / tck_ns);
-		tim_adjust_resolution(&req_ns, &req_tck, tck_ns, clk_freq,
-				      rcfg->max_tmo_ns, min_intvl_cyc);
-		if ((tim_ring->tck_nsec != req_ns) &&
-		    !(rcfg->flags & RTE_EVENT_TIMER_ADAPTER_F_ADJUST_RES)) {
-			rc = -ERANGE;
-			goto tim_hw_free;
-		}
-		tim_ring->tck_nsec = ceil(req_tck * tck_ns);
-	}
-
-	tim_ring->tck_int = round((long double)tim_ring->tck_nsec /
+	tim_ring->tck_int = round((double)rcfg->timer_tick_ns /
 				  cnxk_tim_ns_per_tck(clk_freq));
 	tim_ring->tck_nsec =
 		ceil(tim_ring->tck_int * cnxk_tim_ns_per_tck(clk_freq));
@@ -296,6 +202,13 @@ cnxk_tim_ring_create(struct rte_event_timer_adapter *adptr)
 	tim_ring->chunk_sz = dev->chunk_sz;
 	tim_ring->disable_npa = dev->disable_npa;
 	tim_ring->enable_stats = dev->enable_stats;
+	tim_ring->base = roc_tim_lf_base_get(&dev->tim, tim_ring->ring_id);
+	tim_ring->tbase = cnxk_tim_get_tick_base(clk_src, tim_ring->base);
+
+	if (roc_model_is_cn9k() && (tim_ring->clk_src == ROC_TIM_CLK_SRC_GTI))
+		tim_ring->tick_fn = cnxk_tim_cntvct;
+	else
+		tim_ring->tick_fn = cnxk_tim_tick_read;
 
 	for (i = 0; i < dev->ring_ctl_cnt; i++) {
 		struct cnxk_tim_ctl *ring_ctl = &dev->ring_ctl_data[i];
@@ -342,7 +255,6 @@ cnxk_tim_ring_create(struct rte_event_timer_adapter *adptr)
 		goto tim_chnk_free;
 	}
 
-	tim_ring->base = roc_tim_lf_base_get(&dev->tim, tim_ring->ring_id);
 	plt_write64((uint64_t)tim_ring->bkt, tim_ring->base + TIM_LF_RING_BASE);
 	plt_write64(tim_ring->aura, tim_ring->base + TIM_LF_RING_AURA);
 
@@ -353,6 +265,7 @@ cnxk_tim_ring_create(struct rte_event_timer_adapter *adptr)
 	cnxk_sso_updt_xae_cnt(cnxk_sso_pmd_priv(dev->event_dev), tim_ring,
 			      RTE_EVENT_TYPE_TIMER);
 	cnxk_sso_xae_reconfigure(dev->event_dev);
+	sso_set_priv_mem_fn(dev->event_dev, NULL);
 
 	plt_tim_dbg(
 		"Total memory used %" PRIu64 "MB\n",
@@ -391,31 +304,6 @@ cnxk_tim_ring_free(struct rte_event_timer_adapter *adptr)
 	return 0;
 }
 
-static void
-cnxk_tim_calibrate_start_tsc(struct cnxk_tim_ring *tim_ring)
-{
-#define CNXK_TIM_CALIB_ITER 1E6
-	uint32_t real_bkt, bucket;
-	int icount, ecount = 0;
-	uint64_t bkt_cyc;
-
-	for (icount = 0; icount < CNXK_TIM_CALIB_ITER; icount++) {
-		real_bkt = plt_read64(tim_ring->base + TIM_LF_RING_REL) >> 44;
-		bkt_cyc = cnxk_tim_cntvct();
-		bucket = (bkt_cyc - tim_ring->ring_start_cyc) /
-			 tim_ring->tck_int;
-		bucket = bucket % (tim_ring->nb_bkts);
-		tim_ring->ring_start_cyc =
-			bkt_cyc - (real_bkt * tim_ring->tck_int);
-		if (bucket != real_bkt)
-			ecount++;
-	}
-	tim_ring->last_updt_cyc = bkt_cyc;
-	plt_tim_dbg("Bucket mispredict %3.2f distance %d\n",
-		    100 - (((double)(icount - ecount) / (double)icount) * 100),
-		    bucket - real_bkt);
-}
-
 static int
 cnxk_tim_ring_start(const struct rte_event_timer_adapter *adptr)
 {
@@ -431,12 +319,16 @@ cnxk_tim_ring_start(const struct rte_event_timer_adapter *adptr)
 	if (rc < 0)
 		return rc;
 
-	tim_ring->tot_int = tim_ring->tck_int * tim_ring->nb_bkts;
 	tim_ring->fast_div = rte_reciprocal_value_u64(tim_ring->tck_int);
 	tim_ring->fast_bkt = rte_reciprocal_value_u64(tim_ring->nb_bkts);
 
-	cnxk_tim_calibrate_start_tsc(tim_ring);
+	if (roc_model_is_cn9k() && (tim_ring->clk_src == ROC_TIM_CLK_SRC_GTI)) {
+		uint64_t start_diff;
 
+		start_diff = cnxk_tim_cntvct(tim_ring->tbase) -
+			     cnxk_tim_tick_read(tim_ring->tbase);
+		tim_ring->ring_start_cyc += start_diff;
+	}
 	return rc;
 }
 
@@ -462,7 +354,8 @@ cnxk_tim_stats_get(const struct rte_event_timer_adapter *adapter,
 		   struct rte_event_timer_adapter_stats *stats)
 {
 	struct cnxk_tim_ring *tim_ring = adapter->data->adapter_priv;
-	uint64_t bkt_cyc = cnxk_tim_cntvct() - tim_ring->ring_start_cyc;
+	uint64_t bkt_cyc =
+		tim_ring->tick_fn(tim_ring->tbase) - tim_ring->ring_start_cyc;
 
 	stats->evtim_exp_count =
 		__atomic_load_n(&tim_ring->arm_cnt, __ATOMIC_RELAXED);
@@ -483,9 +376,11 @@ cnxk_tim_stats_reset(const struct rte_event_timer_adapter *adapter)
 
 int
 cnxk_tim_caps_get(const struct rte_eventdev *evdev, uint64_t flags,
-		  uint32_t *caps, const struct event_timer_adapter_ops **ops)
+		  uint32_t *caps, const struct event_timer_adapter_ops **ops,
+		  cnxk_sso_set_priv_mem_t priv_mem_fn)
 {
 	struct cnxk_tim_evdev *dev = cnxk_tim_priv_get();
+	struct cnxk_tim_ring *tim_ring;
 
 	RTE_SET_USED(flags);
 
@@ -497,6 +392,7 @@ cnxk_tim_caps_get(const struct rte_eventdev *evdev, uint64_t flags,
 	cnxk_tim_ops.start = cnxk_tim_ring_start;
 	cnxk_tim_ops.stop = cnxk_tim_ring_stop;
 	cnxk_tim_ops.get_info = cnxk_tim_ring_info_get;
+	sso_set_priv_mem_fn = priv_mem_fn;
 
 	if (dev->enable_stats) {
 		cnxk_tim_ops.stats_get = cnxk_tim_stats_get;
@@ -507,6 +403,12 @@ cnxk_tim_caps_get(const struct rte_eventdev *evdev, uint64_t flags,
 	dev->event_dev = (struct rte_eventdev *)(uintptr_t)evdev;
 	*caps = RTE_EVENT_TIMER_ADAPTER_CAP_INTERNAL_PORT |
 		RTE_EVENT_TIMER_ADAPTER_CAP_PERIODIC;
+
+	tim_ring = ((struct rte_event_timer_adapter_data
+			     *)((char *)caps - offsetof(struct rte_event_timer_adapter_data, caps)))
+			   ->adapter_priv;
+	if (tim_ring != NULL && rte_eal_process_type() == RTE_PROC_SECONDARY)
+		cnxk_tim_set_fp_ops(tim_ring);
 	*ops = &cnxk_tim_ops;
 
 	return 0;

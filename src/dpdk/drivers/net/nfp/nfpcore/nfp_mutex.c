@@ -10,6 +10,7 @@
 #include <sched.h>
 
 #include "nfp_cpp.h"
+#include "nfp_logs.h"
 #include "nfp6000/nfp6000.h"
 
 #define MUTEX_LOCKED(interface)  ((((uint32_t)(interface)) << 16) | 0x000f)
@@ -152,7 +153,7 @@ nfp_cpp_mutex_alloc(struct nfp_cpp *cpp, int target,
 		return NFP_ERRPTR(EEXIST);
 
 	mutex = calloc(sizeof(*mutex), 1);
-	if (!mutex)
+	if (mutex == NULL)
 		return NFP_ERRPTR(ENOMEM);
 
 	mutex->cpp = cpp;
@@ -204,7 +205,7 @@ nfp_cpp_mutex_owner(struct nfp_cpp_mutex *mutex)
 	if (key != mutex->key)
 		return NFP_ERRNO(EPERM);
 
-	if (!MUTEX_IS_LOCKED(value))
+	if (MUTEX_IS_LOCKED(value) == 0)
 		return 0;
 
 	return MUTEX_INTERFACE(value);
@@ -265,12 +266,9 @@ nfp_cpp_mutex_lock(struct nfp_cpp_mutex *mutex)
 		if (err < 0 && errno != EBUSY)
 			return err;
 		if (time(NULL) >= warn_at) {
-			printf("Warning: waiting for NFP mutex\n");
-			printf("\tusage:%u\n", mutex->usage);
-			printf("\tdepth:%hd]\n", mutex->depth);
-			printf("\ttarget:%d\n", mutex->target);
-			printf("\taddr:%llx\n", mutex->address);
-			printf("\tkey:%08x]\n", mutex->key);
+			PMD_DRV_LOG(ERR, "Warning: waiting for NFP mutex usage:%u depth:%hd] target:%d addr:%llx key:%08x]",
+				    mutex->usage, mutex->depth, mutex->target,
+				    mutex->address, mutex->key);
 			warn_at = time(NULL) + 60;
 		}
 		sched_yield();

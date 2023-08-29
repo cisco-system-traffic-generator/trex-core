@@ -5,7 +5,7 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_io.h>
@@ -461,6 +461,27 @@ hisi_dma_stats_reset(struct rte_dma_dev *dev, uint16_t vchan)
 	return 0;
 }
 
+static int
+hisi_dma_vchan_status(const struct rte_dma_dev *dev, uint16_t vchan,
+		      enum rte_dma_vchan_status *status)
+{
+	struct hisi_dma_dev *hw = dev->data->dev_private;
+	uint32_t val;
+
+	RTE_SET_USED(vchan);
+
+	val = hisi_dma_read_queue(hw, HISI_DMA_QUEUE_FSM_REG);
+	val = FIELD_GET(HISI_DMA_QUEUE_FSM_STS_M, val);
+	if (val == HISI_DMA_STATE_RUN)
+		*status = RTE_DMA_VCHAN_ACTIVE;
+	else if (val == HISI_DMA_STATE_CPL)
+		*status = RTE_DMA_VCHAN_IDLE;
+	else
+		*status = RTE_DMA_VCHAN_HALTED_ERROR;
+
+	return 0;
+}
+
 static void
 hisi_dma_dump_range(struct hisi_dma_dev *hw, FILE *f, uint32_t start,
 		    uint32_t end)
@@ -634,7 +655,7 @@ hisi_dma_scan_cq(struct hisi_dma_dev *hw)
 	uint16_t count = 0;
 	uint64_t misc;
 
-	while (true) {
+	while (count < hw->cq_depth) {
 		cqe = &hw->cqe[cq_head];
 		misc = cqe->misc;
 		misc = rte_le_to_cpu_64(misc);
@@ -642,6 +663,16 @@ hisi_dma_scan_cq(struct hisi_dma_dev *hw)
 			break;
 
 		csq_head = FIELD_GET(CQE_SQ_HEAD_MASK, misc);
+		if (unlikely(csq_head > hw->sq_depth_mask)) {
+			/**
+			 * Defensive programming to prevent overflow of the
+			 * status array indexed by csq_head. Only error logs
+			 * are used for prompting.
+			 */
+			HISI_DMA_ERR(hw, "invalid csq_head:%u!\n", csq_head);
+			count = 0;
+			break;
+		}
 		if (unlikely(misc & CQE_STATUS_MASK))
 			hw->status[csq_head] = FIELD_GET(CQE_STATUS_MASK,
 							 misc);
@@ -702,12 +733,12 @@ hisi_dma_completed(void *dev_private,
 		}
 		sq_head = (sq_head + 1) & hw->sq_depth_mask;
 	}
+	*last_idx = hw->cridx + i - 1;
 	if (i > 0) {
 		hw->cridx += i;
-		*last_idx = hw->cridx - 1;
 		hw->sq_head = sq_head;
+		hw->completed += i;
 	}
-	hw->completed += i;
 
 	return i;
 }
@@ -761,12 +792,12 @@ hisi_dma_completed_status(void *dev_private,
 		hw->status[sq_head] = HISI_DMA_STATUS_SUCCESS;
 		sq_head = (sq_head + 1) & hw->sq_depth_mask;
 	}
+	*last_idx = hw->cridx + cpl_num - 1;
 	if (likely(cpl_num > 0)) {
 		hw->cridx += cpl_num;
-		*last_idx = hw->cridx - 1;
 		hw->sq_head = sq_head;
+		hw->completed += cpl_num;
 	}
-	hw->completed += cpl_num;
 
 	return cpl_num;
 }
@@ -806,6 +837,14 @@ hisi_dma_gen_dev_name(const struct rte_pci_device *pci_dev,
  *                           dev_stop|          |
  *                                   |          v
  *                                ------------------
+ *                                |      CPL       |
+ *                                ------------------
+ *                                   ^          |
+ *                      hardware     |          |
+ *                      completed all|          |dev_submit
+ *                      descriptors  |          |
+ *                                   |          |
+ *                                ------------------
  *                                |      RUN       |
  *                                ------------------
  *
@@ -819,6 +858,7 @@ static const struct rte_dma_dev_ops hisi_dmadev_ops = {
 	.vchan_setup      = hisi_dma_vchan_setup,
 	.stats_get        = hisi_dma_stats_get,
 	.stats_reset      = hisi_dma_stats_reset,
+	.vchan_status     = hisi_dma_vchan_status,
 	.dev_dump         = hisi_dma_dump,
 };
 

@@ -33,7 +33,7 @@
 #include <rte_malloc.h>
 #include <rte_ring.h>
 
-#include <rte_dpaa_bus.h>
+#include <bus_dpaa_driver.h>
 #include <rte_dpaa_logs.h>
 #include <dpaa_mempool.h>
 
@@ -133,6 +133,8 @@ static const struct rte_dpaa_xstats_name_off dpaa_xstats_strings[] = {
 };
 
 static struct rte_dpaa_driver rte_dpaa_pmd;
+int dpaa_valid_dev;
+struct rte_mempool *dpaa_tx_sg_pool;
 
 static int
 dpaa_eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info);
@@ -360,7 +362,8 @@ dpaa_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_L4_FRAG,
 		RTE_PTYPE_L4_TCP,
 		RTE_PTYPE_L4_UDP,
-		RTE_PTYPE_L4_SCTP
+		RTE_PTYPE_L4_SCTP,
+		RTE_PTYPE_TUNNEL_ESP
 	};
 
 	PMD_INIT_FUNC_TRACE();
@@ -988,8 +991,7 @@ int dpaa_eth_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
 	} else {
 		DPAA_PMD_WARN("The requested maximum Rx packet size (%u) is"
 		     " larger than a single mbuf (%u) and scattered"
-		     " mode has not been requested",
-		     max_rx_pktlen, buffsz - RTE_PKTMBUF_HEADROOM);
+		     " mode has not been requested", max_rx_pktlen, buffsz);
 	}
 
 	dpaa_intf->bp_info = DPAA_MEMPOOL_TO_POOL_INFO(mp);
@@ -1004,7 +1006,7 @@ int dpaa_eth_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
 		if (vsp_id >= 0) {
 			ret = dpaa_port_vsp_update(dpaa_intf, fmc_q, vsp_id,
 					DPAA_MEMPOOL_TO_POOL_INFO(mp)->bpid,
-					fif);
+					fif, buffsz + RTE_PKTMBUF_HEADROOM);
 			if (ret) {
 				DPAA_PMD_ERR("dpaa_port_vsp_update failed");
 				return ret;
@@ -1211,23 +1213,17 @@ int
 dpaa_eth_eventq_detach(const struct rte_eth_dev *dev,
 		int eth_rx_queue_id)
 {
-	struct qm_mcc_initfq opts;
+	struct qm_mcc_initfq opts = {0};
 	int ret;
 	u32 flags = 0;
 	struct dpaa_if *dpaa_intf = dev->data->dev_private;
 	struct qman_fq *rxq = &dpaa_intf->rx_queues[eth_rx_queue_id];
 
-	dpaa_poll_queue_default_config(&opts);
-
-	if (dpaa_intf->cgr_rx) {
-		opts.we_mask |= QM_INITFQ_WE_CGID;
-		opts.fqd.cgid = dpaa_intf->cgr_rx[eth_rx_queue_id].cgrid;
-		opts.fqd.fq_ctrl |= QM_FQCTRL_CGE;
-	}
-
+	qman_retire_fq(rxq, NULL);
+	qman_oos_fq(rxq);
 	ret = qman_init_fq(rxq, flags, &opts);
 	if (ret) {
-		DPAA_PMD_ERR("init rx fqid %d failed with ret: %d",
+		DPAA_PMD_ERR("detach rx fqid %d failed with ret: %d",
 			     rxq->fqid, ret);
 	}
 
@@ -1502,7 +1498,7 @@ static int dpaa_dev_queue_intr_disable(struct rte_eth_dev *dev,
 
 	temp1 = read(rxq->q_fd, &temp, sizeof(temp));
 	if (temp1 != sizeof(temp))
-		DPAA_PMD_ERR("irq read error");
+		DPAA_PMD_DEBUG("read did not return anything");
 
 	qman_fq_portal_thread_irq(rxq->qp);
 
@@ -2229,7 +2225,20 @@ rte_dpaa_probe(struct rte_dpaa_driver *dpaa_drv,
 	/* Invoke PMD device initialization function */
 	diag = dpaa_dev_init(eth_dev);
 	if (diag == 0) {
+		if (!dpaa_tx_sg_pool) {
+			dpaa_tx_sg_pool =
+				rte_pktmbuf_pool_create("dpaa_mbuf_tx_sg_pool",
+				DPAA_POOL_SIZE,
+				DPAA_POOL_CACHE_SIZE, 0,
+				DPAA_MAX_SGS * sizeof(struct qm_sg_entry),
+				rte_socket_id());
+			if (dpaa_tx_sg_pool == NULL) {
+				DPAA_PMD_ERR("SG pool creation failed\n");
+				return -ENOMEM;
+			}
+		}
 		rte_eth_dev_probing_finish(eth_dev);
+		dpaa_valid_dev++;
 		return 0;
 	}
 
@@ -2247,6 +2256,9 @@ rte_dpaa_remove(struct rte_dpaa_device *dpaa_dev)
 
 	eth_dev = dpaa_dev->eth_dev;
 	dpaa_eth_dev_close(eth_dev);
+	dpaa_valid_dev--;
+	if (!dpaa_valid_dev)
+		rte_mempool_free(dpaa_tx_sg_pool);
 	ret = rte_eth_dev_release_port(eth_dev);
 
 	return ret;

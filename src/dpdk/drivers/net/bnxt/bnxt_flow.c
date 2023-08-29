@@ -126,8 +126,7 @@ bnxt_filter_type_check(const struct rte_flow_item pattern[],
 }
 
 static int
-bnxt_validate_and_parse_flow_type(struct bnxt *bp,
-				  const struct rte_flow_attr *attr,
+bnxt_validate_and_parse_flow_type(const struct rte_flow_attr *attr,
 				  const struct rte_flow_item pattern[],
 				  struct rte_flow_error *error,
 				  struct bnxt_filter_info *filter)
@@ -148,16 +147,13 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 	const struct rte_flow_item_vxlan *vxlan_mask;
 	uint8_t vni_mask[] = {0xFF, 0xFF, 0xFF};
 	uint8_t tni_mask[] = {0xFF, 0xFF, 0xFF};
-	const struct rte_flow_item_vf *vf_spec;
 	uint32_t tenant_id_be = 0, valid_flags = 0;
 	bool vni_masked = 0;
 	bool tni_masked = 0;
 	uint32_t en_ethertype;
 	uint8_t inner = 0;
-	uint32_t vf = 0;
 	uint32_t en = 0;
 	int use_ntuple;
-	int dflt_vnic;
 
 	use_ntuple = bnxt_filter_type_check(pattern, error);
 	if (use_ntuple < 0)
@@ -203,10 +199,10 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 			 * Destination MAC address mask must not be partially
 			 * set. Should be all 1's or all 0's.
 			 */
-			if ((!rte_is_zero_ether_addr(&eth_mask->src) &&
-			     !rte_is_broadcast_ether_addr(&eth_mask->src)) ||
-			    (!rte_is_zero_ether_addr(&eth_mask->dst) &&
-			     !rte_is_broadcast_ether_addr(&eth_mask->dst))) {
+			if ((!rte_is_zero_ether_addr(&eth_mask->hdr.src_addr) &&
+			     !rte_is_broadcast_ether_addr(&eth_mask->hdr.src_addr)) ||
+			    (!rte_is_zero_ether_addr(&eth_mask->hdr.dst_addr) &&
+			     !rte_is_broadcast_ether_addr(&eth_mask->hdr.dst_addr))) {
 				rte_flow_error_set(error,
 						   EINVAL,
 						   RTE_FLOW_ERROR_TYPE_ITEM,
@@ -216,8 +212,8 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 			}
 
 			/* Mask is not allowed. Only exact matches are */
-			if (eth_mask->type &&
-			    eth_mask->type != RTE_BE16(0xffff)) {
+			if (eth_mask->hdr.ether_type &&
+			    eth_mask->hdr.ether_type != RTE_BE16(0xffff)) {
 				rte_flow_error_set(error, EINVAL,
 						   RTE_FLOW_ERROR_TYPE_ITEM,
 						   item,
@@ -225,8 +221,8 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 				return -rte_errno;
 			}
 
-			if (rte_is_broadcast_ether_addr(&eth_mask->dst)) {
-				dst = &eth_spec->dst;
+			if (rte_is_broadcast_ether_addr(&eth_mask->hdr.dst_addr)) {
+				dst = &eth_spec->hdr.dst_addr;
 				if (!rte_is_valid_assigned_ether_addr(dst)) {
 					rte_flow_error_set(error,
 							   EINVAL,
@@ -238,7 +234,7 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 					return -rte_errno;
 				}
 				rte_memcpy(filter->dst_macaddr,
-					   &eth_spec->dst, RTE_ETHER_ADDR_LEN);
+					   &eth_spec->hdr.dst_addr, RTE_ETHER_ADDR_LEN);
 				en |= use_ntuple ?
 					NTUPLE_FLTR_ALLOC_INPUT_EN_DST_MACADDR :
 					EM_FLOW_ALLOC_INPUT_EN_DST_MACADDR;
@@ -249,8 +245,8 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 				PMD_DRV_LOG(DEBUG,
 					    "Creating a priority flow\n");
 			}
-			if (rte_is_broadcast_ether_addr(&eth_mask->src)) {
-				src = &eth_spec->src;
+			if (rte_is_broadcast_ether_addr(&eth_mask->hdr.src_addr)) {
+				src = &eth_spec->hdr.src_addr;
 				if (!rte_is_valid_assigned_ether_addr(src)) {
 					rte_flow_error_set(error,
 							   EINVAL,
@@ -262,7 +258,7 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 					return -rte_errno;
 				}
 				rte_memcpy(filter->src_macaddr,
-					   &eth_spec->src, RTE_ETHER_ADDR_LEN);
+					   &eth_spec->hdr.src_addr, RTE_ETHER_ADDR_LEN);
 				en |= use_ntuple ?
 					NTUPLE_FLTR_ALLOC_INPUT_EN_SRC_MACADDR :
 					EM_FLOW_ALLOC_INPUT_EN_SRC_MACADDR;
@@ -274,9 +270,9 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 			   *  PMD_DRV_LOG(ERR, "Handle this condition\n");
 			   * }
 			   */
-			if (eth_mask->type) {
+			if (eth_mask->hdr.ether_type) {
 				filter->ethertype =
-					rte_be_to_cpu_16(eth_spec->type);
+					rte_be_to_cpu_16(eth_spec->hdr.ether_type);
 				en |= en_ethertype;
 			}
 			if (inner)
@@ -299,11 +295,11 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 						   " supported");
 				return -rte_errno;
 			}
-			if (vlan_mask->tci &&
-			    vlan_mask->tci == RTE_BE16(0x0fff)) {
+			if (vlan_mask->hdr.vlan_tci &&
+			    vlan_mask->hdr.vlan_tci == RTE_BE16(0x0fff)) {
 				/* Only the VLAN ID can be matched. */
 				filter->l2_ovlan =
-					rte_be_to_cpu_16(vlan_spec->tci &
+					rte_be_to_cpu_16(vlan_spec->hdr.vlan_tci &
 							 RTE_BE16(0x0fff));
 				en |= EM_FLOW_ALLOC_INPUT_EN_OVLAN_VID;
 			} else {
@@ -314,8 +310,8 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 						   "VLAN mask is invalid");
 				return -rte_errno;
 			}
-			if (vlan_mask->inner_type &&
-			    vlan_mask->inner_type != RTE_BE16(0xffff)) {
+			if (vlan_mask->hdr.eth_proto &&
+			    vlan_mask->hdr.eth_proto != RTE_BE16(0xffff)) {
 				rte_flow_error_set(error, EINVAL,
 						   RTE_FLOW_ERROR_TYPE_ITEM,
 						   item,
@@ -323,9 +319,9 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 						   " valid");
 				return -rte_errno;
 			}
-			if (vlan_mask->inner_type) {
+			if (vlan_mask->hdr.eth_proto) {
 				filter->ethertype =
-					rte_be_to_cpu_16(vlan_spec->inner_type);
+					rte_be_to_cpu_16(vlan_spec->hdr.eth_proto);
 				en |= en_ethertype;
 			}
 
@@ -567,9 +563,11 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 				break;
 			}
 
-			if (vxlan_spec->rsvd1 || vxlan_spec->rsvd0[0] ||
-			    vxlan_spec->rsvd0[1] || vxlan_spec->rsvd0[2] ||
-			    vxlan_spec->flags != 0x8) {
+			if ((vxlan_spec->hdr.rsvd0[0] != 0) ||
+			    (vxlan_spec->hdr.rsvd0[1] != 0) ||
+			    (vxlan_spec->hdr.rsvd0[2] != 0) ||
+			    (vxlan_spec->hdr.rsvd1 != 0) ||
+			    (vxlan_spec->hdr.flags != 8)) {
 				rte_flow_error_set(error,
 						   EINVAL,
 						   RTE_FLOW_ERROR_TYPE_ITEM,
@@ -581,7 +579,7 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 			/* Check if VNI is masked. */
 			if (vxlan_mask != NULL) {
 				vni_masked =
-					!!memcmp(vxlan_mask->vni, vni_mask,
+					!!memcmp(vxlan_mask->hdr.vni, vni_mask,
 						 RTE_DIM(vni_mask));
 				if (vni_masked) {
 					rte_flow_error_set
@@ -594,7 +592,7 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 				}
 
 				rte_memcpy(((uint8_t *)&tenant_id_be + 1),
-					   vxlan_spec->vni, 3);
+					   vxlan_spec->hdr.vni, 3);
 				filter->vni =
 					rte_be_to_cpu_32(tenant_id_be);
 				filter->tunnel_type =
@@ -680,56 +678,6 @@ bnxt_validate_and_parse_flow_type(struct bnxt *bp,
 			}
 			break;
 
-		case RTE_FLOW_ITEM_TYPE_VF:
-			vf_spec = item->spec;
-			vf = vf_spec->id;
-			if (!BNXT_PF(bp)) {
-				rte_flow_error_set(error,
-						   EINVAL,
-						   RTE_FLOW_ERROR_TYPE_ITEM,
-						   item,
-						   "Configuring on a VF!");
-				return -rte_errno;
-			}
-
-			if (vf >= bp->pdev->max_vfs) {
-				rte_flow_error_set(error,
-						   EINVAL,
-						   RTE_FLOW_ERROR_TYPE_ITEM,
-						   item,
-						   "Incorrect VF id!");
-				return -rte_errno;
-			}
-
-			if (!attr->transfer) {
-				rte_flow_error_set(error,
-						   ENOTSUP,
-						   RTE_FLOW_ERROR_TYPE_ITEM,
-						   item,
-						   "Matching VF traffic without"
-						   " affecting it (transfer attribute)"
-						   " is unsupported");
-				return -rte_errno;
-			}
-
-			filter->mirror_vnic_id =
-			dflt_vnic = bnxt_hwrm_func_qcfg_vf_dflt_vnic_id(bp, vf);
-			if (dflt_vnic < 0) {
-				/* This simply indicates there's no driver
-				 * loaded. This is not an error.
-				 */
-				rte_flow_error_set
-					(error,
-					 EINVAL,
-					 RTE_FLOW_ERROR_TYPE_ITEM,
-					 item,
-					 "Unable to get default VNIC for VF");
-				return -rte_errno;
-			}
-
-			filter->mirror_vnic_id = dflt_vnic;
-			en |= NTUPLE_FLTR_ALLOC_INPUT_EN_MIRROR_VNIC_ID;
-			break;
 		default:
 			break;
 		}
@@ -1074,7 +1022,6 @@ bnxt_update_filter_flags_en(struct bnxt_filter_info *filter,
 		filter1, filter->fw_l2_filter_id, filter->l2_ref_cnt);
 }
 
-/* Valid actions supported along with RSS are count and mark. */
 static int
 bnxt_validate_rss_action(const struct rte_flow_action actions[])
 {
@@ -1116,12 +1063,54 @@ bnxt_vnic_rss_cfg_update(struct bnxt *bp,
 			 struct rte_flow_error *error)
 {
 	const struct rte_flow_action_rss *rss;
-	unsigned int rss_idx, i;
+	unsigned int rss_idx, i, j, fw_idx;
 	uint16_t hash_type;
 	uint64_t types;
 	int rc;
 
 	rss = (const struct rte_flow_action_rss *)act->conf;
+
+	/* must specify either all the Rx queues created by application or zero queues */
+	if (rss->queue_num && vnic->rx_queue_cnt != rss->queue_num) {
+		rte_flow_error_set(error,
+				   EINVAL,
+				   RTE_FLOW_ERROR_TYPE_ACTION,
+				   act,
+				   "Incorrect RXQ count");
+		rc = -rte_errno;
+		goto ret;
+	}
+
+	/* Validate Rx queues */
+	for (i = 0; i < rss->queue_num; i++) {
+		PMD_DRV_LOG(DEBUG, "RSS action Queue %d\n", rss->queue[i]);
+
+		if (rss->queue[i] >= bp->rx_nr_rings ||
+		    !bp->rx_queues[rss->queue[i]]) {
+			rte_flow_error_set(error,
+					   EINVAL,
+					   RTE_FLOW_ERROR_TYPE_ACTION,
+					   act,
+					   "Invalid queue ID for RSS");
+			rc = -rte_errno;
+			goto ret;
+		}
+	}
+
+	/* Duplicate queue ids are not supported. */
+	for (i = 0; i < rss->queue_num; i++) {
+		for (j = i + 1; j < rss->queue_num; j++) {
+			if (rss->queue[i] == rss->queue[j]) {
+				rte_flow_error_set(error,
+						   EINVAL,
+						   RTE_FLOW_ERROR_TYPE_ACTION,
+						   act,
+						   "Duplicate queue ID for RSS");
+				rc = -rte_errno;
+				goto ret;
+			}
+		}
+	}
 
 	/* Currently only Toeplitz hash is supported. */
 	if (rss->func != RTE_ETH_HASH_FUNCTION_DEFAULT &&
@@ -1190,28 +1179,22 @@ bnxt_vnic_rss_cfg_update(struct bnxt *bp,
 	if (rss->queue_num == 0)
 		goto skip_rss_table;
 
-	/* Validate Rx queues */
-	for (i = 0; i < rss->queue_num; i++) {
-		PMD_DRV_LOG(DEBUG, "RSS action Queue %d\n", rss->queue[i]);
-
-		if (rss->queue[i] >= bp->rx_nr_rings ||
-		    !bp->rx_queues[rss->queue[i]]) {
-			rte_flow_error_set(error,
-					   EINVAL,
-					   RTE_FLOW_ERROR_TYPE_ACTION,
-					   act,
-					   "Invalid queue ID for RSS");
-			rc = -rte_errno;
-			goto ret;
-		}
-	}
-
 	/* Prepare the indirection table */
-	for (rss_idx = 0; rss_idx < HW_HASH_INDEX_SIZE; rss_idx++) {
+	for (rss_idx = 0, fw_idx = 0; rss_idx < HW_HASH_INDEX_SIZE;
+	     rss_idx++, fw_idx++) {
+		uint8_t *rxq_state = bp->eth_dev->data->rx_queue_state;
 		struct bnxt_rx_queue *rxq;
 		uint32_t idx;
 
-		idx = rss->queue[rss_idx % rss->queue_num];
+		for (i = 0; i < bp->rx_cp_nr_rings; i++) {
+			idx = rss->queue[fw_idx % rss->queue_num];
+			if (rxq_state[idx] != RTE_ETH_QUEUE_STATE_STOPPED)
+				break;
+			fw_idx++;
+		}
+
+		if (i == bp->rx_cp_nr_rings)
+			return 0;
 
 		if (BNXT_CHIP_P5(bp)) {
 			rxq = bp->rx_queues[idx];
@@ -1263,7 +1246,7 @@ bnxt_validate_and_parse_flow(struct rte_eth_dev *dev,
 	int rc, use_ntuple;
 
 	rc =
-	bnxt_validate_and_parse_flow_type(bp, attr, pattern, error, filter);
+	bnxt_validate_and_parse_flow_type(attr, pattern, error, filter);
 	if (rc != 0)
 		goto ret;
 
@@ -1404,23 +1387,6 @@ use_vnic:
 				HWRM_CFA_NTUPLE_FILTER_ALLOC_INPUT_FLAGS_DROP;
 
 		bnxt_update_filter_flags_en(filter, filter1, use_ntuple);
-		break;
-	case RTE_FLOW_ACTION_TYPE_COUNT:
-		vnic0 = &bp->vnic_info[0];
-		filter1 = bnxt_get_l2_filter(bp, filter, vnic0);
-		if (filter1 == NULL) {
-			rte_flow_error_set(error,
-					   ENOSPC,
-					   RTE_FLOW_ERROR_TYPE_ACTION,
-					   act,
-					   "New filter not available");
-			rc = -rte_errno;
-			goto ret;
-		}
-
-		filter->fw_l2_filter_id = filter1->fw_l2_filter_id;
-		filter->flow_id = filter1->flow_id;
-		filter->flags = HWRM_CFA_NTUPLE_FILTER_ALLOC_INPUT_FLAGS_METER;
 		break;
 	case RTE_FLOW_ACTION_TYPE_VF:
 		act_vf = (const struct rte_flow_action_vf *)act->conf;

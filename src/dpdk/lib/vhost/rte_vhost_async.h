@@ -140,6 +140,23 @@ __rte_experimental
 int rte_vhost_async_get_inflight(int vid, uint16_t queue_id);
 
 /**
+ * This function is lock-free version to return the amount of in-flight
+ * packets for the vhost queue which uses async channel acceleration.
+ *
+ * @note This function does not perform any locking, it should only be
+ * used within the vhost ops, which already holds the lock.
+ *
+ * @param vid
+ * id of vhost device to enqueue data
+ * @param queue_id
+ * queue id to enqueue data
+ * @return
+ * the amount of in-flight packets on success; -1 on failure
+ */
+__rte_experimental
+int rte_vhost_async_get_inflight_thread_unsafe(int vid, uint16_t queue_id);
+
+/**
  * This function checks async completion status and clear packets for
  * a specific vhost device queue. Packets which are inflight will be
  * returned in an array.
@@ -167,6 +184,31 @@ uint16_t rte_vhost_clear_queue_thread_unsafe(int vid, uint16_t queue_id,
 		uint16_t vchan_id);
 
 /**
+ * This function checks async completion status and clear packets for
+ * a specific vhost device queue. Packets which are inflight will be
+ * returned in an array.
+ *
+ * @param vid
+ *  ID of vhost device to clear data
+ * @param queue_id
+ *  Queue id to clear data
+ * @param pkts
+ *  Blank array to get return packet pointer
+ * @param count
+ *  Size of the packet array
+ * @param dma_id
+ *  The identifier of the DMA device
+ * @param vchan_id
+ *  The identifier of virtual DMA channel
+ * @return
+ *  Number of packets returned
+ */
+__rte_experimental
+uint16_t rte_vhost_clear_queue(int vid, uint16_t queue_id,
+		struct rte_mbuf **pkts, uint16_t count, int16_t dma_id,
+		uint16_t vchan_id);
+
+/**
  * The DMA vChannels used in asynchronous data path must be configured
  * first. So this function needs to be called before enabling DMA
  * acceleration for vring. If this function fails, the given DMA vChannel
@@ -186,6 +228,63 @@ uint16_t rte_vhost_clear_queue_thread_unsafe(int vid, uint16_t queue_id,
  */
 __rte_experimental
 int rte_vhost_async_dma_configure(int16_t dma_id, uint16_t vchan_id);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice
+ *
+ * This function tries to receive packets from the guest with offloading
+ * copies to the DMA vChannels. Successfully dequeued packets are returned
+ * in "pkts". The other packets that their copies are submitted to
+ * the DMA vChannels but not completed are called "in-flight packets".
+ * This function will not return in-flight packets until their copies are
+ * completed by the DMA vChannels.
+ *
+ * @param vid
+ *  ID of vhost device to dequeue data
+ * @param queue_id
+ *  ID of virtqueue to dequeue data
+ * @param mbuf_pool
+ *  Mbuf_pool where host mbuf is allocated
+ * @param pkts
+ *  Blank array to keep successfully dequeued packets
+ * @param count
+ *  Size of the packet array
+ * @param nr_inflight
+ *  >= 0: The amount of in-flight packets
+ *  -1: Meaningless, indicates failed lock acquisition or invalid queue_id/dma_id
+ * @param dma_id
+ *  The identifier of DMA device
+ * @param vchan_id
+ *  The identifier of virtual DMA channel
+ * @return
+ *  Number of successfully dequeued packets
+ */
+__rte_experimental
+uint16_t
+rte_vhost_async_try_dequeue_burst(int vid, uint16_t queue_id,
+	struct rte_mempool *mbuf_pool, struct rte_mbuf **pkts, uint16_t count,
+	int *nr_inflight, int16_t dma_id, uint16_t vchan_id);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice.
+ *
+ * Unconfigure DMA vChannel in Vhost asynchronous data path.
+ * This function should be called when the specified DMA vChannel is no longer
+ * used by the Vhost library. Before this function is called, make sure there
+ * does not exist in-flight packets in DMA vChannel.
+ *
+ * @param dma_id
+ *  the identifier of DMA device
+ * @param vchan_id
+ *  the identifier of virtual DMA channel
+ * @return
+ *  0 on success, and -1 on failure
+ */
+__rte_experimental
+int
+rte_vhost_async_dma_unconfigure(int16_t dma_id, uint16_t vchan_id);
 
 #ifdef __cplusplus
 }

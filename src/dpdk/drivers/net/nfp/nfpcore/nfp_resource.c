@@ -7,9 +7,8 @@
 #include <time.h>
 #include <endian.h>
 
-#include <rte_string_fns.h>
-
 #include "nfp_cpp.h"
+#include "nfp_logs.h"
 #include "nfp6000/nfp6000.h"
 #include "nfp_resource.h"
 #include "nfp_crc.h"
@@ -78,8 +77,8 @@ nfp_cpp_resource_find(struct nfp_cpp *cpp, struct nfp_resource *res)
 	strlcpy(name_pad, res->name, sizeof(name_pad));
 
 	/* Search for a matching entry */
-	if (!memcmp(name_pad, NFP_RESOURCE_TBL_NAME "\0\0\0\0\0\0\0\0", 8)) {
-		printf("Grabbing device lock not supported\n");
+	if (memcmp(name_pad, NFP_RESOURCE_TBL_NAME "\0\0\0\0\0\0\0\0", 8) == 0) {
+		PMD_DRV_LOG(ERR, "Grabbing device lock not supported");
 		return -EOPNOTSUPP;
 	}
 	key = nfp_crc32_posix(name_pad, NFP_RESOURCE_ENTRY_NAME_SZ);
@@ -158,7 +157,7 @@ nfp_resource_acquire(struct nfp_cpp *cpp, const char *name)
 	int count;
 
 	res = malloc(sizeof(*res));
-	if (!res)
+	if (res == NULL)
 		return NULL;
 
 	memset(res, 0, sizeof(*res));
@@ -168,7 +167,7 @@ nfp_resource_acquire(struct nfp_cpp *cpp, const char *name)
 	dev_mutex = nfp_cpp_mutex_alloc(cpp, NFP_RESOURCE_TBL_TARGET,
 					NFP_RESOURCE_TBL_BASE,
 					NFP_RESOURCE_TBL_KEY);
-	if (!dev_mutex) {
+	if (dev_mutex == NULL) {
 		free(res);
 		return NULL;
 	}
@@ -179,13 +178,13 @@ nfp_resource_acquire(struct nfp_cpp *cpp, const char *name)
 
 	for (;;) {
 		err = nfp_resource_try_acquire(cpp, res, dev_mutex);
-		if (!err)
+		if (err == 0)
 			break;
 		if (err != -EBUSY)
 			goto err_free;
 
 		if (count++ > 1000) {
-			printf("Error: resource %s timed out\n", name);
+			PMD_DRV_LOG(ERR, "Error: resource %s timed out", name);
 			err = -EBUSY;
 			goto err_free;
 		}

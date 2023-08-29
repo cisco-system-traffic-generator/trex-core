@@ -123,12 +123,12 @@ struct qat_sym_session {
 int
 qat_sym_session_configure(struct rte_cryptodev *dev,
 		struct rte_crypto_sym_xform *xform,
-		struct rte_cryptodev_sym_session *sess,
-		struct rte_mempool *mempool);
+		struct rte_cryptodev_sym_session *sess);
 
 int
 qat_sym_session_set_parameters(struct rte_cryptodev *dev,
-		struct rte_crypto_sym_xform *xform, void *session_private);
+		struct rte_crypto_sym_xform *xform, void *session_private,
+		rte_iova_t session_private_iova);
 
 int
 qat_sym_session_configure_aead(struct rte_cryptodev *dev,
@@ -177,9 +177,11 @@ qat_sym_validate_zuc_key(int key_len, enum icp_qat_hw_cipher_algo *alg);
 #ifdef RTE_LIB_SECURITY
 int
 qat_security_session_create(void *dev, struct rte_security_session_conf *conf,
-		struct rte_security_session *sess, struct rte_mempool *mempool);
+		struct rte_security_session *sess);
 int
 qat_security_session_destroy(void *dev, struct rte_security_session *sess);
+unsigned int
+qat_security_session_get_size(void *dev __rte_unused);
 #endif
 
 #endif /* _QAT_SYM_SESSION_H_ */

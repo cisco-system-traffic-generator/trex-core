@@ -7,7 +7,8 @@
 #include <rte_crypto.h>
 #include <rte_security.h>
 
-#include "roc_api.h"
+#include "roc_ie_on.h"
+#include "roc_ie_ot.h"
 
 /* Response length calculation data */
 struct cnxk_ipsec_outb_rlens {
@@ -58,5 +59,16 @@ cnxk_onf_ipsec_outb_sa_fill(struct roc_onf_ipsec_outb_sa *sa,
 			    struct rte_crypto_sym_xform *crypto_xfrm);
 bool __roc_api cnxk_onf_ipsec_inb_sa_valid(struct roc_onf_ipsec_inb_sa *sa);
 bool __roc_api cnxk_onf_ipsec_outb_sa_valid(struct roc_onf_ipsec_outb_sa *sa);
+
+/* [CN9K] */
+int __roc_api
+cnxk_on_ipsec_inb_sa_create(struct rte_security_ipsec_xform *ipsec,
+			    struct rte_crypto_sym_xform *crypto_xform,
+			    struct roc_ie_on_inb_sa *in_sa);
+
+int __roc_api
+cnxk_on_ipsec_outb_sa_create(struct rte_security_ipsec_xform *ipsec,
+			     struct rte_crypto_sym_xform *crypto_xform,
+			     struct roc_ie_on_outb_sa *out_sa);
 
 #endif /* _CNXK_SECURITY_H__ */

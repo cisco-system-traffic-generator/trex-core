@@ -47,6 +47,7 @@ libraries = [
         'power',
         'rawdev',
         'regexdev',
+        'mldev',
         'dmadev',
         'rib',
         'reorder',
@@ -85,9 +86,17 @@ optional_libs = [
         'vhost',
 ]
 
+dpdk_libs_deprecated += [
+        'flow_classify',
+        'kni',
+]
+
 disabled_libs = []
 opt_disabled_libs = run_command(list_dir_globs, get_option('disable_libs'),
         check: true).stdout().split()
+if dpdk_conf.get('RTE_IOVA_IN_MBUF') == 0
+    opt_disabled_libs += ['kni']
+endif
 foreach l:opt_disabled_libs
     if not optional_libs.contains(l)
         warning('Cannot disable mandatory library "@0@"'.format(l))
@@ -112,6 +121,7 @@ foreach l:libraries
     reason = '<unknown reason>' # set if build == false to explain why
     name = l
     use_function_versioning = false
+    annotate_locks = false
     sources = []
     headers = []
     indirect_headers = [] # public headers not directly included by apps
@@ -133,7 +143,13 @@ foreach l:libraries
     if disabled_libs.contains(l)
         build = false
         reason = 'explicitly disabled via build config'
+        if dpdk_libs_deprecated.contains(l)
+            reason += ' (deprecated lib)'
+        endif
     else
+        if dpdk_libs_deprecated.contains(l)
+            warning('Enabling deprecated library, "@0@"'.format(l))
+        endif
         subdir(l)
     endif
     if name != l
@@ -149,6 +165,9 @@ foreach l:libraries
         if not is_variable('shared_rte_' + d)
             build = false
             reason = 'missing internal dependency, "@0@"'.format(d)
+            if dpdk_libs_deprecated.contains(d)
+                reason += ' (deprecated lib)'
+            endif
             message('Disabling @1@ [@2@]: missing internal dependency "@0@"'
                     .format(d, name, 'lib/' + l))
         else
@@ -175,6 +194,7 @@ foreach l:libraries
 
     libname = 'rte_' + name
     includes += include_directories(l)
+    dpdk_includes += include_directories(l)
 
     if developer_mode and is_windows and use_function_versioning
         message('@0@: Function versioning is not supported by Windows.'.format(name))
@@ -184,6 +204,10 @@ foreach l:libraries
         cflags += '-DRTE_USE_FUNCTION_VERSIONING'
     endif
     cflags += '-DRTE_LOG_DEFAULT_LOGTYPE=lib.' + l
+    if annotate_locks and cc.get_id() == 'clang' and cc.version().version_compare('>=3.5.0')
+        cflags += '-DRTE_ANNOTATE_LOCKS'
+        cflags += '-Wthread-safety'
+    endif
 
     # first build static lib
     static_lib = static_library(libname,
@@ -206,34 +230,35 @@ foreach l:libraries
         # RTE_BUILD_SHARED_LIB defined
         cflags += '-DRTE_BUILD_SHARED_LIB'
     endif
-    version_map = '@0@/@1@/version.map'.format(
-            meson.current_source_dir(), l)
-    implib = 'librte_' + l + '.dll.a'
 
-    def_file = custom_target(libname + '_def',
-            command: [map_to_win_cmd, '@INPUT@', '@OUTPUT@'],
-            input: version_map,
-            output: '@0@_exports.def'.format(libname))
-
-    mingw_map = custom_target(libname + '_mingw',
-            command: [map_to_win_cmd, '@INPUT@', '@OUTPUT@'],
-            input: version_map,
-            output: '@0@_mingw.map'.format(libname))
+    version_map = '@0@/@1@/version.map'.format(meson.current_source_dir(), l)
+    lk_deps = [version_map]
 
     if is_ms_linker
+        def_file = custom_target(libname + '_def',
+                command: [map_to_win_cmd, '@INPUT@', '@OUTPUT@'],
+                input: version_map,
+                output: '@0@_exports.def'.format(libname))
+        lk_deps += [def_file]
+
         lk_args = ['-Wl,/def:' + def_file.full_path()]
         if meson.version().version_compare('<0.54.0')
-            lk_args += ['-Wl,/implib:lib\\' + implib]
+            lk_args += ['-Wl,/implib:lib\\librte_' + l + '.dll.a']
         endif
     else
         if is_windows
+            mingw_map = custom_target(libname + '_mingw',
+                    command: [map_to_win_cmd, '@INPUT@', '@OUTPUT@'],
+                    input: version_map,
+                    output: '@0@_mingw.map'.format(libname))
+            lk_deps += [mingw_map]
+
             lk_args = ['-Wl,--version-script=' + mingw_map.full_path()]
         else
             lk_args = ['-Wl,--version-script=' + version_map]
         endif
     endif
 
-    lk_deps = [version_map, def_file, mingw_map]
     if developer_mode and not is_windows
         # on unix systems check the output of the
         # check-symbols.sh script, using it as a
@@ -266,6 +291,8 @@ foreach l:libraries
 
     set_variable('shared_rte_' + name, shared_dep)
     set_variable('static_rte_' + name, static_dep)
+    dpdk_shared_lib_deps += shared_dep
+    dpdk_static_lib_deps += static_dep
     if developer_mode
         message('lib/@0@: Defining dependency "@1@"'.format(l, name))
     endif

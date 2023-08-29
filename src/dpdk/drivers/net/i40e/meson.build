@@ -1,6 +1,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2017 Intel Corporation
 
+if arch_subdir == 'loongarch'
+    build = false
+    reason = 'not supported on LoongArch'
+    subdir_done()
+endif
+
+if arch_subdir == 'riscv'
+    build = false
+    reason = 'not supported on RISC-V'
+    subdir_done()
+endif
+
+if dpdk_conf.get('RTE_IOVA_IN_MBUF') == 0
+    subdir_done()
+endif
+
 cflags += ['-DPF_DRIVER',
     '-DVF_DRIVER',
     '-DINTEGRATED_VF',
@@ -20,6 +36,8 @@ sources = files(
         'i40e_vf_representor.c',
         'rte_pmd_i40e.c',
 )
+
+testpmd_sources = files('i40e_testpmd.c')
 
 deps += ['hash']
 includes += include_directories('base')

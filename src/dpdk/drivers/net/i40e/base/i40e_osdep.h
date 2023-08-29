@@ -166,7 +166,6 @@ static inline uint64_t i40e_read64_addr(volatile void *addr)
 //support for i40evf
 #define I40EVF_WRITE_FLUSH(a) I40E_READ_REG(a, I40E_VFGEN_RSTAT)
 #endif
-
 #define I40E_READ_REG(hw, reg) i40e_read_addr(I40E_PCI_REG_ADDR((hw), (reg)))
 #define I40E_WRITE_REG(hw, reg, value) \
 	I40E_PCI_REG_WRITE(I40E_PCI_REG_ADDR((hw), (reg)), (value))

@@ -4,6 +4,7 @@
  * All rights reserved.
  */
 
+#include <stdlib.h>
 #include <time.h>
 
 #include <pcap.h>
@@ -15,7 +16,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
-#include <rte_bus_vdev.h>
+#include <bus_vdev_driver.h>
 #include <rte_os_shim.h>
 
 #include "pcap_osdep.h"
@@ -1336,7 +1337,7 @@ eth_from_pcaps(struct rte_vdev_device *vdev,
 		internals->if_index =
 			osdep_iface_index_get(rx_queues->queue[0].name);
 
-		/* phy_mac arg is applied only only if "iface" devarg is provided */
+		/* phy_mac arg is applied only if "iface" devarg is provided */
 		if (rx_queues->phy_mac) {
 			if (eth_pcap_update_mac(rx_queues->queue[0].name,
 					eth_dev, vdev->device.numa_node) == 0)

@@ -5,6 +5,8 @@
 #ifndef __ROC_IE_OT_H__
 #define __ROC_IE_OT_H__
 
+#include "roc_platform.h"
+
 /* CN10K IPSEC opcodes */
 #define ROC_IE_OT_MAJOR_OP_PROCESS_OUTBOUND_IPSEC 0x28UL
 #define ROC_IE_OT_MAJOR_OP_PROCESS_INBOUND_IPSEC  0x29UL
@@ -15,7 +17,10 @@
 #define ROC_IE_OT_CTX_ILEN 2
 /* PKIND to be used for CPT Meta parsing */
 #define ROC_IE_OT_CPT_PKIND	  58
+#define ROC_IE_OT_CPT_TS_PKIND	  54
 #define ROC_IE_OT_SA_CTX_HDR_SIZE 1
+
+#define ROC_IE_OT_INPLACE_BIT BIT(6)
 
 enum roc_ie_ot_ucc_ipsec {
 	ROC_IE_OT_UCC_SUCCESS = 0x00,
@@ -45,14 +50,14 @@ enum roc_ie_ot_ucc_ipsec {
 	ROC_IE_OT_UCC_ERR_SA_BAD_IP = 0xc7,
 	ROC_IE_OT_UCC_ERR_PKT_IP_FRAG = 0xc8,
 	ROC_IE_OT_UCC_ERR_PKT_REPLAY_WINDOW = 0xc9,
+	ROC_IE_OT_UCC_SUCCESS_PKT_IP_BADCSUM = 0xed,
+	ROC_IE_OT_UCC_SUCCESS_PKT_L4_GOODCSUM = 0xee,
+	ROC_IE_OT_UCC_SUCCESS_PKT_L4_BADCSUM = 0xef,
 	ROC_IE_OT_UCC_SUCCESS_SA_SOFTEXP_FIRST = 0xf0,
-	ROC_IE_OT_UCC_SUCCESS_PKT_IP_BADCSUM = 0xf1,
+	ROC_IE_OT_UCC_SUCCESS_PKT_UDPESP_NZCSUM = 0xf1,
 	ROC_IE_OT_UCC_SUCCESS_SA_SOFTEXP_AGAIN = 0xf2,
-	ROC_IE_OT_UCC_SUCCESS_PKT_L4_GOODCSUM = 0xf3,
-	ROC_IE_OT_UCC_SUCCESS_PKT_L4_BADCSUM = 0xf4,
-	ROC_IE_OT_UCC_SUCCESS_PKT_UDPESP_NZCSUM = 0xf5,
-	ROC_IE_OT_UCC_SUCCESS_PKT_UDP_ZEROCSUM = 0xf6,
-	ROC_IE_OT_UCC_SUCCESS_PKT_IP_GOODCSUM = 0xf7,
+	ROC_IE_OT_UCC_SUCCESS_PKT_UDP_ZEROCSUM = 0xf3,
+	ROC_IE_OT_UCC_SUCCESS_PKT_IP_GOODCSUM = 0x0,
 };
 
 enum {
@@ -159,6 +164,15 @@ enum {
 	ROC_IE_OT_ERR_CTL_MODE_CLEAR = 1,
 	ROC_IE_OT_ERR_CTL_MODE_RING = 2,
 };
+
+static __plt_always_inline bool
+roc_ie_ot_ucc_is_success(uint8_t ucc)
+{
+	uint8_t uc_base = (uint8_t)ROC_IE_OT_UCC_SUCCESS_PKT_IP_BADCSUM - 1u;
+
+	ucc--;
+	return (ucc >= uc_base);
+}
 
 /* Context units in bytes */
 #define ROC_CTX_UNIT_8B		  8

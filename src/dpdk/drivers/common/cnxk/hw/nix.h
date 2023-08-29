@@ -830,7 +830,7 @@
 #define NIX_CHAN_LBKX_CHX(a, b)                                                \
 	(0x000ull | ((uint64_t)(a) << 8) | (uint64_t)(b))
 #define NIX_CHAN_CPT_CH_END   (0x4ffull) /* [CN10K, .) */
-#define NIX_CHAN_CPT_CH_START (0x400ull) /* [CN10K, .) */
+#define NIX_CHAN_CPT_CH_START (0x800ull) /* [CN10K, .) */
 #define NIX_CHAN_R4	      (0x400ull) /* [CN9K, CN10K) */
 #define NIX_CHAN_R5	      (0x500ull)
 #define NIX_CHAN_R6	      (0x600ull)
@@ -842,6 +842,11 @@
 /* [CN10K, .) */
 #define NIX_CHAN_RPMX_LMACX_CHX(a, b, c)                                       \
 	(0x800ull | ((uint64_t)(a) << 8) | ((uint64_t)(b) << 4) | (uint64_t)(c))
+
+/* The mask is to extract lower 10-bits of channel number
+ * which CPT will pass to X2P.
+ */
+#define NIX_CHAN_CPT_X2P_MASK (0x3ffull)
 
 #define NIX_INTF_SDP  (0x4ull)
 #define NIX_INTF_CGX0 (0x0ull) /* [CN9K, CN10K) */
@@ -856,6 +861,7 @@
 #define NIX_CQERRINT_DOOR_ERR  (0x0ull)
 #define NIX_CQERRINT_WR_FULL   (0x1ull)
 #define NIX_CQERRINT_CQE_FAULT (0x2ull)
+#define NIX_CQERRINT_CPT_DROP  (0x3ull) /* [CN10KB, .) */
 
 #define NIX_LINK_SDP (0xdull) /* [CN10K, .) */
 #define NIX_LINK_CPT (0xeull) /* [CN10K, .) */
@@ -1004,11 +1010,12 @@ struct nix_cqe_hdr_s {
 /* NIX completion queue context structure */
 struct nix_cq_ctx_s {
 	uint64_t base : 64; /* W0 */
-	uint64_t rsvd_67_64 : 4;
+	uint64_t lbp_ena : 1;
+	uint64_t lbpid_low : 3;
 	uint64_t bp_ena : 1;
-	uint64_t rsvd_71_69 : 3;
+	uint64_t lbpid_med : 3;
 	uint64_t bpid : 9;
-	uint64_t rsvd_83_81 : 3;
+	uint64_t lbpid_high : 3;
 	uint64_t qint_idx : 7;
 	uint64_t cq_err : 1;
 	uint64_t cint_idx : 7;
@@ -1022,10 +1029,14 @@ struct nix_cq_ctx_s {
 	uint64_t drop : 8;
 	uint64_t drop_ena : 1;
 	uint64_t ena : 1;
-	uint64_t rsvd_211_210 : 2;
-	uint64_t substream : 20;
+	uint64_t cpt_drop_err_en : 1;
+	uint64_t rsvd_211 : 1;
+	uint64_t substream : 12;
+	uint64_t stash_thresh : 4;
+	uint64_t lbp_frac : 4;
 	uint64_t caching : 1;
-	uint64_t rsvd_235_233 : 3;
+	uint64_t stashing : 1;
+	uint64_t rsvd_235_234 : 2;
 	uint64_t qsize : 4;
 	uint64_t cq_err_int : 8;
 	uint64_t cq_err_int_ena : 8;
@@ -1237,7 +1248,9 @@ struct nix_cn10k_rq_ctx_s {
 	uint64_t ipsech_ena : 1;
 	uint64_t ena_wqwd : 1;
 	uint64_t cq : 20;
-	uint64_t rsvd_36_24 : 13;
+	uint64_t rsvd_34_24 : 11;
+	uint64_t port_ol4_dis : 1;
+	uint64_t port_il4_dis : 1;
 	uint64_t lenerr_dis : 1;
 	uint64_t csum_il4_dis : 1;
 	uint64_t csum_ol4_dis : 1;
@@ -2111,6 +2124,7 @@ struct nix_lso_format {
 #define NIX_CN9K_MAX_HW_FRS 9212UL
 #define NIX_LBK_MAX_HW_FRS  65535UL
 #define NIX_SDP_MAX_HW_FRS  65535UL
+#define NIX_SDP_16K_HW_FRS  16380UL
 #define NIX_RPM_MAX_HW_FRS  16380UL
 #define NIX_MIN_HW_FRS	    60UL
 

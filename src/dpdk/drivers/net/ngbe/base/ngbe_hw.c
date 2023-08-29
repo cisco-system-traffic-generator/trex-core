@@ -53,6 +53,7 @@ s32 ngbe_init_hw(struct ngbe_hw *hw)
 {
 	s32 status;
 
+	ngbe_read_efuse(hw);
 	ngbe_save_eeprom_version(hw);
 
 	/* Reset the hardware */
@@ -1058,17 +1059,30 @@ out:
  **/
 s32 ngbe_set_pcie_master(struct ngbe_hw *hw, bool enable)
 {
+	struct rte_pci_device *pci_dev = (struct rte_pci_device *)hw->back;
 	s32 status = 0;
-	u16 addr = 0x04;
-	u32 data, i;
+	s32 ret = 0;
+	u32 i;
+	u16 reg;
 
-	ngbe_hic_pcie_read(hw, addr, &data, 4);
+	ret = rte_pci_read_config(pci_dev, &reg,
+			sizeof(reg), PCI_COMMAND);
+	if (ret != sizeof(reg)) {
+		DEBUGOUT("Cannot read command from PCI config space!\n");
+		return -1;
+	}
+
 	if (enable)
-		data |= 0x04;
+		reg |= PCI_COMMAND_MASTER;
 	else
-		data &= ~0x04;
+		reg &= ~PCI_COMMAND_MASTER;
 
-	ngbe_hic_pcie_write(hw, addr, &data, 4);
+	ret = rte_pci_write_config(pci_dev, &reg,
+			sizeof(reg), PCI_COMMAND);
+	if (ret != sizeof(reg)) {
+		DEBUGOUT("Cannot write command to PCI config space!\n");
+		return -1;
+	}
 
 	if (enable)
 		goto out;
@@ -1803,6 +1817,59 @@ s32 ngbe_enable_rx_dma(struct ngbe_hw *hw, u32 regval)
 	hw->mac.enable_sec_rx_path(hw);
 
 	return 0;
+}
+
+/* cmd_addr is used for some special command:
+ * 1. to be sector address, when implemented erase sector command
+ * 2. to be flash address when implemented read, write flash address
+ *
+ * Return 0 on success, return 1 on failure.
+ */
+u32 ngbe_fmgr_cmd_op(struct ngbe_hw *hw, u32 cmd, u32 cmd_addr)
+{
+	u32 cmd_val, i;
+
+	cmd_val = NGBE_SPICMD_CMD(cmd) | NGBE_SPICMD_CLK(3) | cmd_addr;
+	wr32(hw, NGBE_SPICMD, cmd_val);
+
+	for (i = 0; i < NGBE_SPI_TIMEOUT; i++) {
+		if (rd32(hw, NGBE_SPISTAT) & NGBE_SPISTAT_OPDONE)
+			break;
+
+		usec_delay(10);
+	}
+	if (i == NGBE_SPI_TIMEOUT)
+		return 1;
+
+	return 0;
+}
+
+u32 ngbe_flash_read_dword(struct ngbe_hw *hw, u32 addr)
+{
+	u32 status;
+
+	status = ngbe_fmgr_cmd_op(hw, 1, addr);
+	if (status == 0x1) {
+		DEBUGOUT("Read flash timeout.");
+		return status;
+	}
+
+	return rd32(hw, NGBE_SPIDAT);
+}
+
+void ngbe_read_efuse(struct ngbe_hw *hw)
+{
+	u32 efuse[2];
+	u8 lan_id = hw->bus.lan_id;
+
+	efuse[0] = ngbe_flash_read_dword(hw, 0xfe010 + lan_id * 8);
+	efuse[1] = ngbe_flash_read_dword(hw, 0xfe010 + lan_id * 8 + 4);
+
+	DEBUGOUT("port %d efuse[0] = %08x, efuse[1] = %08x\n",
+		lan_id, efuse[0], efuse[1]);
+
+	hw->gphy_efuse[0] = efuse[0];
+	hw->gphy_efuse[1] = efuse[1];
 }
 
 void ngbe_map_device_id(struct ngbe_hw *hw)

@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -16,6 +17,7 @@
 #include <rte_alarm.h>
 #include <rte_string_fns.h>
 #include <rte_eal_memconfig.h>
+#include <rte_malloc.h>
 
 #include "vhost.h"
 #include "virtio_user_dev.h"
@@ -57,13 +59,25 @@ virtio_user_kick_queue(struct virtio_user_dev *dev, uint32_t queue_sel)
 	int ret;
 	struct vhost_vring_file file;
 	struct vhost_vring_state state;
-	struct vring *vring = &dev->vrings[queue_sel];
-	struct vring_packed *pq_vring = &dev->packed_vrings[queue_sel];
+	struct vring *vring = &dev->vrings.split[queue_sel];
+	struct vring_packed *pq_vring = &dev->vrings.packed[queue_sel];
 	struct vhost_vring_addr addr = {
 		.index = queue_sel,
 		.log_guest_addr = 0,
 		.flags = 0, /* disable log */
 	};
+
+	if (queue_sel == dev->max_queue_pairs * 2) {
+		if (!dev->scvq) {
+			PMD_INIT_LOG(ERR, "(%s) Shadow control queue expected but missing",
+					dev->path);
+			goto err;
+		}
+
+		/* Use shadow control queue information */
+		vring = &dev->scvq->vq_split.ring;
+		pq_vring = &dev->scvq->vq_packed.ring;
+	}
 
 	if (dev->features & (1ULL << VIRTIO_F_RING_PACKED)) {
 		addr.desc_user_addr =
@@ -117,19 +131,15 @@ static int
 virtio_user_queue_setup(struct virtio_user_dev *dev,
 			int (*fn)(struct virtio_user_dev *, uint32_t))
 {
-	uint32_t i, queue_sel;
+	uint32_t i, nr_vq;
 
-	for (i = 0; i < dev->max_queue_pairs; ++i) {
-		queue_sel = 2 * i + VTNET_SQ_RQ_QUEUE_IDX;
-		if (fn(dev, queue_sel) < 0) {
-			PMD_DRV_LOG(ERR, "(%s) setup rx vq %u failed", dev->path, i);
-			return -1;
-		}
-	}
-	for (i = 0; i < dev->max_queue_pairs; ++i) {
-		queue_sel = 2 * i + VTNET_SQ_TQ_QUEUE_IDX;
-		if (fn(dev, queue_sel) < 0) {
-			PMD_DRV_LOG(INFO, "(%s) setup tx vq %u failed", dev->path, i);
+	nr_vq = dev->max_queue_pairs * 2;
+	if (dev->hw_cvq)
+		nr_vq++;
+
+	for (i = 0; i < nr_vq; i++) {
+		if (fn(dev, i) < 0) {
+			PMD_DRV_LOG(ERR, "(%s) setup VQ %u failed", dev->path, i);
 			return -1;
 		}
 	}
@@ -153,8 +163,9 @@ virtio_user_dev_set_features(struct virtio_user_dev *dev)
 
 	/* Strip VIRTIO_NET_F_MAC, as MAC address is handled in vdev init */
 	features &= ~(1ull << VIRTIO_NET_F_MAC);
-	/* Strip VIRTIO_NET_F_CTRL_VQ, as devices do not really need to know */
-	features &= ~(1ull << VIRTIO_NET_F_CTRL_VQ);
+	/* Strip VIRTIO_NET_F_CTRL_VQ if the devices does not really support control VQ */
+	if (!dev->hw_cvq)
+		features &= ~(1ull << VIRTIO_NET_F_CTRL_VQ);
 	features &= ~(1ull << VIRTIO_NET_F_STATUS);
 	ret = dev->ops->set_features(dev, features);
 	if (ret < 0)
@@ -260,6 +271,38 @@ err:
 	return -1;
 }
 
+static int
+virtio_user_dev_init_max_queue_pairs(struct virtio_user_dev *dev, uint32_t user_max_qp)
+{
+	int ret;
+
+	if (!(dev->device_features & (1ULL << VIRTIO_NET_F_MQ))) {
+		dev->max_queue_pairs = 1;
+		return 0;
+	}
+
+	if (!dev->ops->get_config) {
+		dev->max_queue_pairs = user_max_qp;
+		return 0;
+	}
+
+	ret = dev->ops->get_config(dev, (uint8_t *)&dev->max_queue_pairs,
+			offsetof(struct virtio_net_config, max_virtqueue_pairs),
+			sizeof(uint16_t));
+	if (ret) {
+		/*
+		 * We need to know the max queue pair from the device so that
+		 * the control queue gets the right index.
+		 */
+		dev->max_queue_pairs = 1;
+		PMD_DRV_LOG(ERR, "(%s) Failed to get max queue pairs from device", dev->path);
+
+		return ret;
+	}
+
+	return 0;
+}
+
 int
 virtio_user_dev_set_mac(struct virtio_user_dev *dev)
 {
@@ -343,11 +386,15 @@ out:
 static int
 virtio_user_dev_init_notify(struct virtio_user_dev *dev)
 {
-	uint32_t i, j;
+	uint32_t i, j, nr_vq;
 	int callfd;
 	int kickfd;
 
-	for (i = 0; i < dev->max_queue_pairs * 2; i++) {
+	nr_vq = dev->max_queue_pairs * 2;
+	if (dev->hw_cvq)
+		nr_vq++;
+
+	for (i = 0; i < nr_vq; i++) {
 		/* May use invalid flag, but some backend uses kickfd and
 		 * callfd as criteria to judge if dev is alive. so finally we
 		 * use real event_fd.
@@ -417,7 +464,7 @@ virtio_user_fill_intr_handle(struct virtio_user_dev *dev)
 
 	for (i = 0; i < dev->max_queue_pairs; ++i) {
 		if (rte_intr_efds_index_set(eth_dev->intr_handle, i,
-				dev->callfds[i]))
+				dev->callfds[2 * i + VTNET_SQ_RQ_QUEUE_IDX]))
 			return -rte_errno;
 	}
 
@@ -518,24 +565,94 @@ virtio_user_dev_setup(struct virtio_user_dev *dev)
 		return -1;
 	}
 
-	if (virtio_user_dev_init_notify(dev) < 0) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to init notifiers", dev->path);
-		goto destroy;
+	return 0;
+}
+
+static int
+virtio_user_alloc_vrings(struct virtio_user_dev *dev)
+{
+	int i, size, nr_vrings;
+	bool packed_ring = !!(dev->device_features & (1ull << VIRTIO_F_RING_PACKED));
+
+	nr_vrings = dev->max_queue_pairs * 2;
+	if (dev->device_features & (1ull << VIRTIO_NET_F_MQ))
+		nr_vrings++;
+
+	dev->callfds = rte_zmalloc("virtio_user_dev", nr_vrings * sizeof(*dev->callfds), 0);
+	if (!dev->callfds) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to alloc callfds", dev->path);
+		return -1;
 	}
 
-	if (virtio_user_fill_intr_handle(dev) < 0) {
-		PMD_INIT_LOG(ERR, "(%s) Failed to init interrupt handler", dev->path);
-		goto uninit;
+	dev->kickfds = rte_zmalloc("virtio_user_dev", nr_vrings * sizeof(*dev->kickfds), 0);
+	if (!dev->kickfds) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to alloc kickfds", dev->path);
+		goto free_callfds;
+	}
+
+	for (i = 0; i < nr_vrings; i++) {
+		dev->callfds[i] = -1;
+		dev->kickfds[i] = -1;
+	}
+
+	if (packed_ring)
+		size = sizeof(*dev->vrings.packed);
+	else
+		size = sizeof(*dev->vrings.split);
+	dev->vrings.ptr = rte_zmalloc("virtio_user_dev", nr_vrings * size, 0);
+	if (!dev->vrings.ptr) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to alloc vrings metadata", dev->path);
+		goto free_kickfds;
+	}
+
+	if (packed_ring) {
+		dev->packed_queues = rte_zmalloc("virtio_user_dev",
+				nr_vrings * sizeof(*dev->packed_queues), 0);
+		if (!dev->packed_queues) {
+			PMD_INIT_LOG(ERR, "(%s) Failed to alloc packed queues metadata",
+					dev->path);
+			goto free_vrings;
+		}
+	}
+
+	dev->qp_enabled = rte_zmalloc("virtio_user_dev",
+			dev->max_queue_pairs * sizeof(*dev->qp_enabled), 0);
+	if (!dev->qp_enabled) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to alloc QP enable states", dev->path);
+		goto free_packed_queues;
 	}
 
 	return 0;
 
-uninit:
-	virtio_user_dev_uninit_notify(dev);
-destroy:
-	dev->ops->destroy(dev);
+free_packed_queues:
+	rte_free(dev->packed_queues);
+	dev->packed_queues = NULL;
+free_vrings:
+	rte_free(dev->vrings.ptr);
+	dev->vrings.ptr = NULL;
+free_kickfds:
+	rte_free(dev->kickfds);
+	dev->kickfds = NULL;
+free_callfds:
+	rte_free(dev->callfds);
+	dev->callfds = NULL;
 
 	return -1;
+}
+
+static void
+virtio_user_free_vrings(struct virtio_user_dev *dev)
+{
+	rte_free(dev->qp_enabled);
+	dev->qp_enabled = NULL;
+	rte_free(dev->packed_queues);
+	dev->packed_queues = NULL;
+	rte_free(dev->vrings.ptr);
+	dev->vrings.ptr = NULL;
+	rte_free(dev->kickfds);
+	dev->kickfds = NULL;
+	rte_free(dev->callfds);
+	dev->callfds = NULL;
 }
 
 /* Use below macro to filter features from vhost backend */
@@ -560,25 +677,19 @@ destroy:
 	 1ULL << VIRTIO_F_RING_PACKED)
 
 int
-virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
+virtio_user_dev_init(struct virtio_user_dev *dev, char *path, uint16_t queues,
 		     int cq, int queue_size, const char *mac, char **ifname,
 		     int server, int mrg_rxbuf, int in_order, int packed_vq,
 		     enum virtio_user_backend_type backend_type)
 {
 	uint64_t backend_features;
-	int i;
 
 	pthread_mutex_init(&dev->mutex, NULL);
 	strlcpy(dev->path, path, PATH_MAX);
 
-	for (i = 0; i < VIRTIO_MAX_VIRTQUEUES; i++) {
-		dev->kickfds[i] = -1;
-		dev->callfds[i] = -1;
-	}
-
 	dev->started = 0;
-	dev->max_queue_pairs = queues;
 	dev->queue_pairs = 1; /* mq disabled by default */
+	dev->max_queue_pairs = queues; /* initialize to user requested value for kernel backend */
 	dev->queue_size = queue_size;
 	dev->is_server = server;
 	dev->mac_specified = 0;
@@ -598,22 +709,28 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 
 	if (dev->ops->set_owner(dev) < 0) {
 		PMD_INIT_LOG(ERR, "(%s) Failed to set backend owner", dev->path);
-		return -1;
+		goto destroy;
 	}
 
 	if (dev->ops->get_backend_features(&backend_features) < 0) {
 		PMD_INIT_LOG(ERR, "(%s) Failed to get backend features", dev->path);
-		return -1;
+		goto destroy;
 	}
 
 	dev->unsupported_features = ~(VIRTIO_USER_SUPPORTED_FEATURES | backend_features);
 
 	if (dev->ops->get_features(dev, &dev->device_features) < 0) {
 		PMD_INIT_LOG(ERR, "(%s) Failed to get device features", dev->path);
-		return -1;
+		goto destroy;
 	}
 
 	virtio_user_dev_init_mac(dev, mac);
+
+	if (virtio_user_dev_init_max_queue_pairs(dev, queues))
+		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MQ);
+
+	if (dev->max_queue_pairs > 1)
+		cq = 1;
 
 	if (!mrg_rxbuf)
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MRG_RXBUF);
@@ -653,16 +770,40 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, int queues,
 	dev->frontend_features &= ~dev->unsupported_features;
 	dev->device_features &= ~dev->unsupported_features;
 
+	if (virtio_user_alloc_vrings(dev) < 0) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to allocate vring metadata", dev->path);
+		goto destroy;
+	}
+
+	if (virtio_user_dev_init_notify(dev) < 0) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to init notifiers", dev->path);
+		goto free_vrings;
+	}
+
+	if (virtio_user_fill_intr_handle(dev) < 0) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to init interrupt handler", dev->path);
+		goto notify_uninit;
+	}
+
 	if (rte_mem_event_callback_register(VIRTIO_USER_MEM_EVENT_CLB_NAME,
 				virtio_user_mem_event_cb, dev)) {
 		if (rte_errno != ENOTSUP) {
 			PMD_INIT_LOG(ERR, "(%s) Failed to register mem event callback",
 					dev->path);
-			return -1;
+			goto notify_uninit;
 		}
 	}
 
 	return 0;
+
+notify_uninit:
+	virtio_user_dev_uninit_notify(dev);
+free_vrings:
+	virtio_user_free_vrings(dev);
+destroy:
+	dev->ops->destroy(dev);
+
+	return -1;
 }
 
 void
@@ -679,6 +820,8 @@ virtio_user_dev_uninit(struct virtio_user_dev *dev)
 
 	virtio_user_dev_uninit_notify(dev);
 
+	virtio_user_free_vrings(dev);
+
 	free(dev->ifname);
 
 	if (dev->is_server)
@@ -687,7 +830,7 @@ virtio_user_dev_uninit(struct virtio_user_dev *dev)
 	dev->ops->destroy(dev);
 }
 
-uint8_t
+static uint8_t
 virtio_user_handle_mq(struct virtio_user_dev *dev, uint16_t q_pairs)
 {
 	uint16_t i;
@@ -704,19 +847,25 @@ virtio_user_handle_mq(struct virtio_user_dev *dev, uint16_t q_pairs)
 	for (i = q_pairs; i < dev->max_queue_pairs; ++i)
 		ret |= dev->ops->enable_qp(dev, i, 0);
 
+	if (dev->scvq)
+		ret |= dev->ops->cvq_enable(dev, 1);
+
 	dev->queue_pairs = q_pairs;
 
 	return ret;
 }
 
+#define CVQ_MAX_DATA_DESCS 32
+
 static uint32_t
-virtio_user_handle_ctrl_msg(struct virtio_user_dev *dev, struct vring *vring,
+virtio_user_handle_ctrl_msg_split(struct virtio_user_dev *dev, struct vring *vring,
 			    uint16_t idx_hdr)
 {
 	struct virtio_net_ctrl_hdr *hdr;
 	virtio_net_ctrl_ack status = ~0;
 	uint16_t i, idx_data, idx_status;
 	uint32_t n_descs = 0;
+	int dlen[CVQ_MAX_DATA_DESCS], nb_dlen = 0;
 
 	/* locate desc for header, data, and status */
 	idx_data = vring->desc[idx_hdr].next;
@@ -724,6 +873,7 @@ virtio_user_handle_ctrl_msg(struct virtio_user_dev *dev, struct vring *vring,
 
 	i = idx_data;
 	while (vring->desc[i].flags == VRING_DESC_F_NEXT) {
+		dlen[nb_dlen++] = vring->desc[i].len;
 		i = vring->desc[i].next;
 		n_descs++;
 	}
@@ -744,6 +894,10 @@ virtio_user_handle_ctrl_msg(struct virtio_user_dev *dev, struct vring *vring,
 		   hdr->class == VIRTIO_NET_CTRL_VLAN) {
 		status = 0;
 	}
+
+	if (!status && dev->scvq)
+		status = virtio_send_command(&dev->scvq->cq,
+				(struct virtio_pmd_ctrl *)hdr, dlen, nb_dlen);
 
 	/* Update status */
 	*(virtio_net_ctrl_ack *)(uintptr_t)vring->desc[idx_status].addr = status;
@@ -770,6 +924,7 @@ virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
 	uint16_t idx_data, idx_status;
 	/* initialize to one, header is first */
 	uint32_t n_descs = 1;
+	int dlen[CVQ_MAX_DATA_DESCS], nb_dlen = 0;
 
 	/* locate desc for header, data, and status */
 	idx_data = idx_hdr + 1;
@@ -780,6 +935,7 @@ virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
 
 	idx_status = idx_data;
 	while (vring->desc[idx_status].flags & VRING_DESC_F_NEXT) {
+		dlen[nb_dlen++] = vring->desc[idx_status].len;
 		idx_status++;
 		if (idx_status >= dev->queue_size)
 			idx_status -= dev->queue_size;
@@ -800,6 +956,10 @@ virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
 		status = 0;
 	}
 
+	if (!status && dev->scvq)
+		status = virtio_send_command(&dev->scvq->cq,
+				(struct virtio_pmd_ctrl *)hdr, dlen, nb_dlen);
+
 	/* Update status */
 	*(virtio_net_ctrl_ack *)(uintptr_t)
 		vring->desc[idx_status].addr = status;
@@ -811,11 +971,11 @@ virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
 	return n_descs;
 }
 
-void
+static void
 virtio_user_handle_cq_packed(struct virtio_user_dev *dev, uint16_t queue_idx)
 {
 	struct virtio_user_queue *vq = &dev->packed_queues[queue_idx];
-	struct vring_packed *vring = &dev->packed_vrings[queue_idx];
+	struct vring_packed *vring = &dev->vrings.packed[queue_idx];
 	uint16_t n_descs, flags;
 
 	/* Perform a load-acquire barrier in desc_is_avail to
@@ -843,13 +1003,13 @@ virtio_user_handle_cq_packed(struct virtio_user_dev *dev, uint16_t queue_idx)
 	}
 }
 
-void
-virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
+static void
+virtio_user_handle_cq_split(struct virtio_user_dev *dev, uint16_t queue_idx)
 {
 	uint16_t avail_idx, desc_idx;
 	struct vring_used_elem *uep;
 	uint32_t n_descs;
-	struct vring *vring = &dev->vrings[queue_idx];
+	struct vring *vring = &dev->vrings.split[queue_idx];
 
 	/* Consume avail ring, using used ring idx as first one */
 	while (__atomic_load_n(&vring->used->idx, __ATOMIC_RELAXED)
@@ -858,7 +1018,7 @@ virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 			    & (vring->num - 1);
 		desc_idx = vring->avail->ring[avail_idx];
 
-		n_descs = virtio_user_handle_ctrl_msg(dev, vring, desc_idx);
+		n_descs = virtio_user_handle_ctrl_msg_split(dev, vring, desc_idx);
 
 		/* Update used ring */
 		uep = &vring->used->ring[avail_idx];
@@ -867,6 +1027,57 @@ virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
 
 		__atomic_add_fetch(&vring->used->idx, 1, __ATOMIC_RELAXED);
 	}
+}
+
+void
+virtio_user_handle_cq(struct virtio_user_dev *dev, uint16_t queue_idx)
+{
+	if (virtio_with_packed_queue(&dev->hw))
+		virtio_user_handle_cq_packed(dev, queue_idx);
+	else
+		virtio_user_handle_cq_split(dev, queue_idx);
+}
+
+static void
+virtio_user_control_queue_notify(struct virtqueue *vq, void *cookie)
+{
+	struct virtio_user_dev *dev = cookie;
+	uint64_t buf = 1;
+
+	if (write(dev->kickfds[vq->vq_queue_index], &buf, sizeof(buf)) < 0)
+		PMD_DRV_LOG(ERR, "failed to kick backend: %s",
+			    strerror(errno));
+}
+
+int
+virtio_user_dev_create_shadow_cvq(struct virtio_user_dev *dev, struct virtqueue *vq)
+{
+	char name[VIRTQUEUE_MAX_NAME_SZ];
+	struct virtqueue *scvq;
+
+	snprintf(name, sizeof(name), "port%d_shadow_cvq", vq->hw->port_id);
+	scvq = virtqueue_alloc(&dev->hw, vq->vq_queue_index, vq->vq_nentries,
+			VTNET_CQ, SOCKET_ID_ANY, name);
+	if (!scvq) {
+		PMD_INIT_LOG(ERR, "(%s) Failed to alloc shadow control vq\n", dev->path);
+		return -ENOMEM;
+	}
+
+	scvq->cq.notify_queue = &virtio_user_control_queue_notify;
+	scvq->cq.notify_cookie = dev;
+	dev->scvq = scvq;
+
+	return 0;
+}
+
+void
+virtio_user_dev_destroy_shadow_cvq(struct virtio_user_dev *dev)
+{
+	if (!dev->scvq)
+		return;
+
+	virtqueue_free(dev->scvq);
+	dev->scvq = NULL;
 }
 
 int

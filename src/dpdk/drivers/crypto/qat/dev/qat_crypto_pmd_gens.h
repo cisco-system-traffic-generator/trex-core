@@ -330,7 +330,7 @@ qat_sym_convert_op_to_vec_auth(struct rte_crypto_op *op,
 	}
 
 	n_src = rte_crypto_mbuf_to_vec(op->sym->m_src, auth_ofs,
-			auth_ofs + auth_len, in_sgl->vec,
+			auth_len, in_sgl->vec,
 			QAT_SYM_SGL_MAX_NUMBER);
 	if (n_src < 0 || n_src > op->sym->m_src->nb_segs) {
 		op->status = RTE_CRYPTO_OP_STATUS_ERROR;
@@ -343,7 +343,7 @@ qat_sym_convert_op_to_vec_auth(struct rte_crypto_op *op,
 	if (unlikely((op->sym->m_dst != NULL) &&
 			(op->sym->m_dst != op->sym->m_src))) {
 		int n_dst = rte_crypto_mbuf_to_vec(op->sym->m_dst, auth_ofs,
-				auth_ofs + auth_len, out_sgl->vec,
+				auth_len, out_sgl->vec,
 				QAT_SYM_SGL_MAX_NUMBER);
 
 		if ((n_dst < 0) || (n_dst > op->sym->m_dst->nb_segs)) {
@@ -369,7 +369,7 @@ qat_sym_convert_op_to_vec_chain(struct rte_crypto_op *op,
 		struct rte_crypto_va_iova_ptr *digest)
 {
 	union rte_crypto_sym_ofs ofs;
-	uint32_t min_ofs = 0, max_len = 0;
+	uint32_t max_len = 0;
 	uint32_t cipher_len = 0, cipher_ofs = 0;
 	uint32_t auth_len = 0, auth_ofs = 0;
 	int is_oop = (op->sym->m_dst != NULL) &&
@@ -395,12 +395,12 @@ qat_sym_convert_op_to_vec_chain(struct rte_crypto_op *op,
 	ret = qat_cipher_is_len_in_bits(ctx, op);
 	switch (ret) {
 	case 1:
-		cipher_len = op->sym->aead.data.length >> 3;
-		cipher_ofs = op->sym->aead.data.offset >> 3;
+		cipher_len = op->sym->cipher.data.length >> 3;
+		cipher_ofs = op->sym->cipher.data.offset >> 3;
 		break;
 	case 0:
-		cipher_len = op->sym->aead.data.length;
-		cipher_ofs = op->sym->aead.data.offset;
+		cipher_len = op->sym->cipher.data.length;
+		cipher_ofs = op->sym->cipher.data.offset;
 		break;
 	default:
 		QAT_DP_LOG(ERR,
@@ -426,7 +426,6 @@ qat_sym_convert_op_to_vec_chain(struct rte_crypto_op *op,
 		return -EINVAL;
 	}
 
-	min_ofs = cipher_ofs < auth_ofs ? cipher_ofs : auth_ofs;
 	max_len = RTE_MAX(cipher_ofs + cipher_len, auth_ofs + auth_len);
 
 	/* digest in buffer check. Needed only for wireless algos */
@@ -463,7 +462,8 @@ qat_sym_convert_op_to_vec_chain(struct rte_crypto_op *op,
 					ctx->digest_length);
 	}
 
-	n_src = rte_crypto_mbuf_to_vec(op->sym->m_src, min_ofs, max_len,
+	/* Passing 0 as cipher & auth offsets are assigned into ofs later */
+	n_src = rte_crypto_mbuf_to_vec(op->sym->m_src, 0, max_len,
 			in_sgl->vec, QAT_SYM_SGL_MAX_NUMBER);
 	if (unlikely(n_src < 0 || n_src > op->sym->m_src->nb_segs)) {
 		op->status = RTE_CRYPTO_OP_STATUS_ERROR;
@@ -473,7 +473,7 @@ qat_sym_convert_op_to_vec_chain(struct rte_crypto_op *op,
 
 	if (unlikely((op->sym->m_dst != NULL) &&
 			(op->sym->m_dst != op->sym->m_src))) {
-		int n_dst = rte_crypto_mbuf_to_vec(op->sym->m_dst, min_ofs,
+		int n_dst = rte_crypto_mbuf_to_vec(op->sym->m_dst, 0,
 				max_len, out_sgl->vec, QAT_SYM_SGL_MAX_NUMBER);
 
 		if (n_dst < 0 || n_dst > op->sym->m_dst->nb_segs) {
@@ -928,8 +928,9 @@ void
 qat_sym_session_set_ext_hash_flags_gen2(struct qat_sym_session *session,
 		uint8_t hash_flag);
 
-struct qat_capabilities_info
-qat_asym_crypto_cap_get_gen1(struct qat_pci_device *qat_dev);
+int
+qat_asym_crypto_cap_get_gen1(struct qat_cryptodev_private *internals,
+			const char *capa_memz_name, const uint16_t slice_map);
 
 uint64_t
 qat_asym_crypto_feature_flags_get_gen1(struct qat_pci_device *qat_dev);

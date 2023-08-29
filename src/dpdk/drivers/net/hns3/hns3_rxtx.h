@@ -2,11 +2,20 @@
  * Copyright(c) 2018-2021 HiSilicon Limited.
  */
 
-#ifndef _HNS3_RXTX_H_
-#define _HNS3_RXTX_H_
+#ifndef HNS3_RXTX_H
+#define HNS3_RXTX_H
 
 #include <stdint.h>
+
+#include <ethdev_driver.h>
 #include <rte_mbuf_core.h>
+#include <rte_ethdev.h>
+#include <rte_ethdev_core.h>
+#include <rte_io.h>
+#include <rte_mempool.h>
+#include <rte_memzone.h>
+
+#include "hns3_ethdev.h"
 
 #define	HNS3_MIN_RING_DESC	64
 #define	HNS3_MAX_RING_DESC	32768
@@ -348,7 +357,7 @@ struct hns3_rx_queue {
 	 * The following fields are not accessed in the I/O path, so they are
 	 * placed at the end.
 	 */
-	void *io_base;
+	void *io_base __rte_cache_aligned;
 	struct hns3_adapter *hns;
 	uint64_t rx_ring_phys_addr; /* RX ring DMA address */
 	const struct rte_memzone *mz;
@@ -521,7 +530,7 @@ struct hns3_tx_queue {
 	 * The following fields are not accessed in the I/O path, so they are
 	 * placed at the end.
 	 */
-	void *io_base;
+	void *io_base __rte_cache_aligned;
 	struct hns3_adapter *hns;
 	uint64_t tx_ring_phys_addr; /* TX ring DMA address */
 	const struct rte_memzone *mz;
@@ -691,10 +700,12 @@ int hns3_rxq_iterate(struct rte_eth_dev *dev,
 		 int (*callback)(struct hns3_rx_queue *, void *), void *arg);
 void hns3_dev_release_mbufs(struct hns3_adapter *hns);
 int hns3_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t nb_desc,
-			unsigned int socket, const struct rte_eth_rxconf *conf,
+			unsigned int socket_id,
+			const struct rte_eth_rxconf *conf,
 			struct rte_mempool *mp);
 int hns3_tx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t nb_desc,
-			unsigned int socket, const struct rte_eth_txconf *conf);
+			unsigned int socket_id,
+			const struct rte_eth_txconf *conf);
 uint32_t hns3_rx_queue_count(void *rx_queue);
 int hns3_dev_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id);
 int hns3_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id);
@@ -704,9 +715,11 @@ uint16_t hns3_recv_pkts_simple(void *rx_queue, struct rte_mbuf **rx_pkts,
 				uint16_t nb_pkts);
 uint16_t hns3_recv_scattered_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 				  uint16_t nb_pkts);
-uint16_t hns3_recv_pkts_vec(void *rx_queue, struct rte_mbuf **rx_pkts,
+uint16_t hns3_recv_pkts_vec(void *__restrict rx_queue,
+			    struct rte_mbuf **__restrict rx_pkts,
 			    uint16_t nb_pkts);
-uint16_t hns3_recv_pkts_vec_sve(void *rx_queue, struct rte_mbuf **rx_pkts,
+uint16_t hns3_recv_pkts_vec_sve(void *__restrict rx_queue,
+				struct rte_mbuf **__restrict rx_pkts,
 				uint16_t nb_pkts);
 int hns3_rx_burst_mode_get(struct rte_eth_dev *dev,
 			   __rte_unused uint16_t queue_id,
@@ -727,9 +740,6 @@ int hns3_tx_burst_mode_get(struct rte_eth_dev *dev,
 const uint32_t *hns3_dev_supported_ptypes_get(struct rte_eth_dev *dev);
 void hns3_init_rx_ptype_tble(struct rte_eth_dev *dev);
 void hns3_set_rxtx_function(struct rte_eth_dev *eth_dev);
-eth_tx_burst_t hns3_get_tx_function(struct rte_eth_dev *dev,
-				    eth_tx_prep_t *prep);
-
 uint32_t hns3_get_tqp_intr_reg_offset(uint16_t tqp_intr_id);
 void hns3_set_queue_intr_gl(struct hns3_hw *hw, uint16_t queue_id,
 			    uint8_t gl_idx, uint16_t gl_value);
@@ -751,7 +761,7 @@ void hns3_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 		       struct rte_eth_rxq_info *qinfo);
 void hns3_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 		       struct rte_eth_txq_info *qinfo);
-uint32_t hns3_get_tqp_reg_offset(uint16_t idx);
+uint32_t hns3_get_tqp_reg_offset(uint16_t queue_id);
 int hns3_start_all_txqs(struct rte_eth_dev *dev);
 int hns3_start_all_rxqs(struct rte_eth_dev *dev);
 void hns3_stop_all_txqs(struct rte_eth_dev *dev);
@@ -763,5 +773,7 @@ int hns3_dev_tx_descriptor_status(void *tx_queue, uint16_t offset);
 void hns3_tx_push_init(struct rte_eth_dev *dev);
 void hns3_stop_tx_datapath(struct rte_eth_dev *dev);
 void hns3_start_tx_datapath(struct rte_eth_dev *dev);
+void hns3_stop_rxtx_datapath(struct rte_eth_dev *dev);
+void hns3_start_rxtx_datapath(struct rte_eth_dev *dev);
 
-#endif /* _HNS3_RXTX_H_ */
+#endif /* HNS3_RXTX_H */

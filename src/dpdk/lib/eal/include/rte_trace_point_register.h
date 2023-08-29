@@ -20,9 +20,10 @@ RTE_DECLARE_PER_LCORE(volatile int, trace_point_sz);
 
 #define RTE_TRACE_POINT_REGISTER(trace, name) \
 rte_trace_point_t __attribute__((section("__rte_trace_point"))) __##trace; \
+static const char __##trace##_name[] = RTE_STR(name); \
 RTE_INIT(trace##_init) \
 { \
-	__rte_trace_point_register(&__##trace, RTE_STR(name), \
+	__rte_trace_point_register(&__##trace, __##trace##_name, \
 		(void (*)(void)) trace); \
 }
 
@@ -44,6 +45,15 @@ do { \
 	RTE_SET_USED(in); \
 	__rte_trace_point_emit_field(__RTE_TRACE_EMIT_STRING_LEN_MAX, \
 		RTE_STR(in)"[32]", "string_bounded_t"); \
+} while (0)
+
+#define rte_trace_point_emit_blob(in, len) \
+do { \
+	RTE_SET_USED(in); \
+	__rte_trace_point_emit(len, uint8_t); \
+	__rte_trace_point_emit_field(RTE_TRACE_BLOB_LEN_MAX, \
+		RTE_STR(in)"[" RTE_STR(RTE_TRACE_BLOB_LEN_MAX)"]", \
+		RTE_STR(uint8_t)); \
 } while (0)
 
 #ifdef __cplusplus

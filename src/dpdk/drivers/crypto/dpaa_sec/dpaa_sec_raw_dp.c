@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2021 NXP
+ * Copyright 2021-2022 NXP
  */
 
 #include <rte_byteorder.h>
@@ -15,7 +15,7 @@
 #include <desc/algo.h>
 #include <desc/ipsec.h>
 
-#include <rte_dpaa_bus.h>
+#include <bus_dpaa_driver.h>
 #include <dpaa_sec.h>
 #include <dpaa_sec_log.h>
 
@@ -397,8 +397,8 @@ build_dpaa_raw_dp_chain_fd(uint8_t *drv_ctx,
 	unsigned int i;
 	uint16_t auth_hdr_len = ofs.ofs.cipher.head -
 				ofs.ofs.auth.head;
-	uint16_t auth_tail_len = ofs.ofs.auth.tail;
-	uint32_t auth_only_len = (auth_tail_len << 16) | auth_hdr_len;
+	uint16_t auth_tail_len;
+	uint32_t auth_only_len;
 	int data_len = 0, auth_len = 0, cipher_len = 0;
 
 	for (i = 0; i < sgl->num; i++)
@@ -406,6 +406,8 @@ build_dpaa_raw_dp_chain_fd(uint8_t *drv_ctx,
 
 	cipher_len = data_len - ofs.ofs.cipher.head - ofs.ofs.cipher.tail;
 	auth_len = data_len - ofs.ofs.auth.head - ofs.ofs.auth.tail;
+	auth_tail_len = auth_len - cipher_len - auth_hdr_len;
+	auth_only_len = (auth_tail_len << 16) | auth_hdr_len;
 
 	if (sgl->num > MAX_SG_ENTRIES) {
 		DPAA_SEC_DP_ERR("Cipher-Auth: Max sec segs supported is %d",
@@ -448,6 +450,7 @@ build_dpaa_raw_dp_chain_fd(uint8_t *drv_ctx,
 			qm_sg_entry_set64(sg, dest_sgl->vec[i].iova);
 			sg->length = dest_sgl->vec[i].len;
 		}
+		sg->length -= ofs.ofs.cipher.tail;
 	} else {
 		qm_sg_entry_set64(sg, sgl->vec[0].iova);
 		sg->length = sgl->vec[0].len - ofs.ofs.cipher.head;
@@ -460,6 +463,7 @@ build_dpaa_raw_dp_chain_fd(uint8_t *drv_ctx,
 			qm_sg_entry_set64(sg, sgl->vec[i].iova);
 			sg->length = sgl->vec[i].len;
 		}
+		sg->length -= ofs.ofs.cipher.tail;
 	}
 
 	if (is_encode(ses)) {
@@ -641,7 +645,7 @@ build_dpaa_raw_dp_cipher_fd(uint8_t *drv_ctx,
 	return cf;
 }
 
-#ifdef RTE_LIBRTE_SECURITY
+#ifdef RTE_LIB_SECURITY
 static inline struct dpaa_sec_job *
 build_dpaa_raw_proto_sg(uint8_t *drv_ctx,
 			struct rte_crypto_sgl *sgl,
@@ -1010,11 +1014,10 @@ dpaa_sec_configure_raw_dp_ctx(struct rte_cryptodev *dev, uint16_t qp_id,
 	}
 
 	if (sess_type == RTE_CRYPTO_OP_SECURITY_SESSION)
-		sess = (dpaa_sec_session *)get_sec_session_private_data(
-				session_ctx.sec_sess);
+		sess = SECURITY_GET_SESS_PRIV(session_ctx.sec_sess);
 	else if (sess_type == RTE_CRYPTO_OP_WITH_SESSION)
-		sess = (dpaa_sec_session *)get_sym_session_private_data(
-			session_ctx.crypto_sess, dpaa_cryptodev_driver_id);
+		sess = (dpaa_sec_session *)
+			CRYPTODEV_GET_SYM_SESS_PRIV(session_ctx.crypto_sess);
 	else
 		return -ENOTSUP;
 	raw_dp_ctx->dequeue_burst = dpaa_sec_raw_dequeue_burst;
@@ -1032,7 +1035,7 @@ dpaa_sec_configure_raw_dp_ctx(struct rte_cryptodev *dev, uint16_t qp_id,
 		sess->build_raw_dp_fd = build_dpaa_raw_dp_chain_fd;
 	else if (sess->ctxt == DPAA_SEC_AEAD)
 		sess->build_raw_dp_fd = build_raw_cipher_auth_gcm_sg;
-#ifdef RTE_LIBRTE_SECURITY
+#ifdef RTE_LIB_SECURITY
 	else if (sess->ctxt == DPAA_SEC_IPSEC ||
 			sess->ctxt == DPAA_SEC_PDCP)
 		sess->build_raw_dp_fd = build_dpaa_raw_proto_sg;

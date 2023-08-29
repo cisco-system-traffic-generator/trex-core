@@ -50,11 +50,12 @@ s32 ngbe_write_phy_reg_mvl(struct ngbe_hw *hw,
 
 s32 ngbe_check_phy_mode_mvl(struct ngbe_hw *hw)
 {
-	u16 value = 0;
+	u8 value = 0;
+	u32 phy_mode = 0;
 
-	/* select page 18 reg 20 */
-	ngbe_write_phy_reg_mdi(hw, MVL_PAGE_SEL, 0, 18);
-	ngbe_read_phy_reg_mdi(hw, MVL_GEN_CTL, 0, &value);
+	phy_mode = ngbe_flash_read_dword(hw, 0xFF010);
+	value = (u8)(phy_mode >> (hw->bus.lan_id * 8));
+
 	if (MVL_GEN_CTL_MODE(value) == MVL_GEN_CTL_MODE_COPPER) {
 		/* mode select to RGMII-to-copper */
 		hw->phy.type = ngbe_phy_mvl;
@@ -121,9 +122,7 @@ s32 ngbe_init_phy_mvl(struct ngbe_hw *hw)
 	value = MVL_INTR_EN_ANC | MVL_INTR_EN_LSC;
 	hw->phy.write_reg(hw, MVL_INTR_EN, 0, value);
 
-	ngbe_read_phy_reg_mdi(hw, MVL_CTRL, 0, &value);
-	value |= MVL_CTRL_PWDN;
-	ngbe_write_phy_reg_mdi(hw, MVL_CTRL, 0, value);
+	hw->phy.set_phy_power(hw, false);
 
 	return ret_val;
 }
@@ -204,22 +203,30 @@ s32 ngbe_setup_phy_link_mvl(struct ngbe_hw *hw, u32 speed,
 			   MVL_PHY_1000BASET_HALF);
 		value_r9 |= value;
 		hw->phy.write_reg(hw, MVL_PHY_1000BASET, 0, value_r9);
+
+		value = MVL_CTRL_RESTART_AN | MVL_CTRL_ANE |
+			MVL_CTRL_RESET | MVL_CTRL_DUPLEX;
+		ngbe_write_phy_reg_mdi(hw, MVL_CTRL, 0, value);
 	} else {
-		hw->phy.autoneg_advertised = 1;
+		hw->phy.autoneg_advertised |= NGBE_LINK_SPEED_1GB_FULL;
 
 		hw->phy.read_reg(hw, MVL_ANA, 0, &value);
 		value &= ~(MVL_PHY_1000BASEX_HALF | MVL_PHY_1000BASEX_FULL);
 		value |= MVL_PHY_1000BASEX_FULL;
 		hw->phy.write_reg(hw, MVL_ANA, 0, value);
+
+		if (hw->mac.autoneg)
+			value = MVL_CTRL_RESTART_AN | MVL_CTRL_ANE |
+				MVL_CTRL_RESET | MVL_CTRL_DUPLEX |
+				MVL_CTRL_SPEED_SELECT1;
+		else
+			value = MVL_CTRL_RESET | MVL_CTRL_DUPLEX |
+				MVL_CTRL_SPEED_SELECT1;
+		ngbe_write_phy_reg_mdi(hw, MVL_CTRL, 0, value);
 	}
 
-	value = MVL_CTRL_RESTART_AN | MVL_CTRL_ANE | MVL_CTRL_RESET;
-	ngbe_write_phy_reg_mdi(hw, MVL_CTRL, 0, value);
-
 skip_an:
-	ngbe_read_phy_reg_mdi(hw, MVL_CTRL, 0, &value);
-	value |= MVL_CTRL_PWDN;
-	ngbe_write_phy_reg_mdi(hw, MVL_CTRL, 0, value);
+	hw->phy.set_phy_power(hw, true);
 
 	hw->phy.read_reg(hw, MVL_INTR, 0, &value);
 
@@ -356,3 +363,16 @@ s32 ngbe_check_phy_link_mvl(struct ngbe_hw *hw,
 	return status;
 }
 
+s32 ngbe_set_phy_power_mvl(struct ngbe_hw *hw, bool on)
+{
+	u16 value = 0;
+
+	hw->phy.read_reg(hw, MVL_CTRL, 0, &value);
+	if (on)
+		value &= ~MVL_CTRL_PWDN;
+	else
+		value |= MVL_CTRL_PWDN;
+	hw->phy.write_reg(hw, MVL_CTRL, 0, value);
+
+	return 0;
+}

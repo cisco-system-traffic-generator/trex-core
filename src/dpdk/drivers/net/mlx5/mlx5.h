@@ -33,11 +33,19 @@
 #include "mlx5_utils.h"
 #include "mlx5_os.h"
 #include "mlx5_autoconf.h"
+#include "rte_pmd_mlx5.h"
 #if defined(HAVE_IBV_FLOW_DV_SUPPORT) || !defined(HAVE_INFINIBAND_VERBS_H)
-#include "mlx5_dr.h"
+#ifndef RTE_EXEC_ENV_WINDOWS
+#define HAVE_MLX5_HWS_SUPPORT 1
+#else
+#define __be64 uint64_t
+#endif
+#include "hws/mlx5dr.h"
 #endif
 
 #define MLX5_SH(dev) (((struct mlx5_priv *)(dev)->data->dev_private)->sh)
+
+#define MLX5_HW_INV_QUEUE UINT32_MAX
 
 /*
  * Number of modification commands.
@@ -151,7 +159,6 @@ struct mlx5_dev_cap {
 	/* HW has bug working with tunnel packet decap and scatter FCS. */
 	uint32_t hw_fcs_strip:1; /* FCS stripping is supported. */
 	uint32_t rt_timestamp:1; /* Realtime timestamp format. */
-	uint32_t lro_supported:1; /* Whether LRO is supported. */
 	uint32_t rq_delay_drop_en:1; /* Enable RxQ delay drop. */
 	uint32_t tunnel_en:3;
 	/* Whether tunnel stateless offloads are supported. */
@@ -264,6 +271,7 @@ struct mlx5_port_config {
 	unsigned int hw_vlan_insert:1; /* VLAN insertion in WQE is supported. */
 	unsigned int hw_padding:1; /* End alignment padding is supported. */
 	unsigned int cqe_comp:1; /* CQE compression is enabled. */
+	unsigned int enh_cqe_comp:1; /* Enhanced CQE compression is enabled. */
 	unsigned int cqe_comp_fmt:3; /* CQE compression format. */
 	unsigned int rx_vec_en:1; /* Rx vector is enabled. */
 	unsigned int std_delay_drop:1; /* Enable standard Rxq delay drop. */
@@ -299,8 +307,8 @@ struct mlx5_sh_config {
 	uint32_t reclaim_mode:2; /* Memory reclaim mode. */
 	uint32_t dv_esw_en:1; /* Enable E-Switch DV flow. */
 	/* Enable DV flow. 1 means SW steering, 2 means HW steering. */
-	unsigned int dv_flow_en:2;
-	uint32_t dv_xmeta_en:2; /* Enable extensive flow metadata. */
+	uint32_t dv_flow_en:2; /* Enable DV flow. */
+	uint32_t dv_xmeta_en:3; /* Enable extensive flow metadata. */
 	uint32_t dv_miss_info:1; /* Restore packet after partial hw miss. */
 	uint32_t l3_vxlan_en:1; /* Enable L3 VXLAN flow creation. */
 	uint32_t vf_nl_en:1; /* Enable Netlink requests in VF mode. */
@@ -308,9 +316,15 @@ struct mlx5_sh_config {
 	uint32_t decap_en:1; /* Whether decap will be used or not. */
 	uint32_t hw_fcs_strip:1; /* FCS stripping is supported. */
 	uint32_t allow_duplicate_pattern:1;
+	uint32_t lro_allowed:1; /* Whether LRO is allowed. */
+	struct {
+		uint16_t service_core;
+		uint32_t cycle_time; /* query cycle time in milli-second. */
+	} cnt_svc; /* configure for HW steering's counter's service. */
 	/* Allow/Prevent the duplicate rules pattern. */
+	uint32_t fdb_def_rule:1; /* Create FDB default jump rule */
+	uint32_t repr_matching:1; /* Enable implicit vport matching in HWS FDB. */
 };
-
 
 /* Structure for VF VLAN workaround. */
 struct mlx5_vf_vlan {
@@ -335,14 +349,33 @@ struct mlx5_lb_ctx {
 enum {
 	MLX5_HW_Q_JOB_TYPE_CREATE, /* Flow create job type. */
 	MLX5_HW_Q_JOB_TYPE_DESTROY, /* Flow destroy job type. */
+	MLX5_HW_Q_JOB_TYPE_UPDATE,
+	MLX5_HW_Q_JOB_TYPE_QUERY,
 };
+
+#define MLX5_HW_MAX_ITEMS (16)
 
 /* HW steering flow management job descriptor. */
 struct mlx5_hw_q_job {
 	uint32_t type; /* Job type. */
-	struct rte_flow_hw *flow; /* Flow attached to the job. */
+	union {
+		struct rte_flow_hw *flow; /* Flow attached to the job. */
+		const void *action; /* Indirect action attached to the job. */
+	};
 	void *user_data; /* Job user data. */
 	uint8_t *encap_data; /* Encap data. */
+	struct mlx5_modification_cmd *mhdr_cmd;
+	struct rte_flow_item *items;
+	union {
+		struct {
+			/* Pointer to ct query user memory. */
+			struct rte_flow_action_conntrack *profile;
+			/* Pointer to ct ASO query out memory. */
+			void *out_data;
+		} __rte_packed;
+		struct rte_flow_item_ethdev port_spec;
+		struct rte_flow_item_tag tag_spec;
+	} __rte_packed;
 };
 
 /* HW steering job descriptor LIFO pool. */
@@ -350,11 +383,15 @@ struct mlx5_hw_q {
 	uint32_t job_idx; /* Free job index. */
 	uint32_t size; /* LIFO size. */
 	struct mlx5_hw_q_job **job; /* LIFO header. */
+	struct rte_ring *indir_cq; /* Indirect action SW completion queue. */
+	struct rte_ring *indir_iq; /* Indirect action SW in progress queue. */
 } __rte_cache_aligned;
 
+
+#define MLX5_COUNTER_POOLS_MAX_NUM (1 << 15)
 #define MLX5_COUNTERS_PER_POOL 512
 #define MLX5_MAX_PENDING_QUERIES 4
-#define MLX5_CNT_CONTAINER_RESIZE 64
+#define MLX5_CNT_MR_ALLOC_BULK 64
 #define MLX5_CNT_SHARED_OFFSET 0x80000000
 #define IS_BATCH_CNT(cnt) (((cnt) & (MLX5_CNT_SHARED_OFFSET - 1)) >= \
 			   MLX5_CNT_BATCH_OFFSET)
@@ -513,7 +550,6 @@ TAILQ_HEAD(mlx5_counter_pools, mlx5_flow_counter_pool);
 /* Counter global management structure. */
 struct mlx5_flow_counter_mng {
 	volatile uint16_t n_valid; /* Number of valid pools. */
-	uint16_t n; /* Number of pools. */
 	uint16_t last_pool_idx; /* Last used pool index */
 	int min_id; /* The minimum counter ID in the pools. */
 	int max_id; /* The maximum counter ID in the pools. */
@@ -555,6 +591,7 @@ struct mlx5_aso_sq_elem {
 			struct mlx5_aso_ct_action *ct;
 			char *query_data;
 		};
+		void *user_data;
 	};
 };
 
@@ -564,7 +601,9 @@ struct mlx5_aso_sq {
 	struct mlx5_aso_cq cq;
 	struct mlx5_devx_sq sq_obj;
 	struct mlx5_pmd_mr mr;
+	volatile struct mlx5_aso_wqe *db;
 	uint16_t pi;
+	uint16_t db_pi;
 	uint32_t head;
 	uint32_t tail;
 	uint32_t sqn;
@@ -582,6 +621,7 @@ struct mlx5_aso_age_action {
 };
 
 #define MLX5_ASO_AGE_ACTIONS_PER_POOL 512
+#define MLX5_ASO_AGE_CONTAINER_RESIZE 64
 
 struct mlx5_aso_age_pool {
 	struct mlx5_devx_obj *flow_hit_aso_obj;
@@ -625,12 +665,45 @@ struct mlx5_geneve_tlv_option_resource {
 /* Current time in seconds. */
 #define MLX5_CURR_TIME_SEC	(rte_rdtsc() / rte_get_tsc_hz())
 
+/*
+ * HW steering queue oriented AGE info.
+ * It contains an array of rings, one for each HWS queue.
+ */
+struct mlx5_hws_q_age_info {
+	uint16_t nb_rings; /* Number of aged-out ring lists. */
+	struct rte_ring *aged_lists[]; /* Aged-out lists. */
+};
+
+/*
+ * HW steering AGE info.
+ * It has a ring list containing all aged out flow rules.
+ */
+struct mlx5_hws_age_info {
+	struct rte_ring *aged_list; /* Aged out lists. */
+};
+
 /* Aging information for per port. */
 struct mlx5_age_info {
 	uint8_t flags; /* Indicate if is new event or need to be triggered. */
-	struct mlx5_counters aged_counters; /* Aged counter list. */
-	struct aso_age_list aged_aso; /* Aged ASO actions list. */
-	rte_spinlock_t aged_sl; /* Aged flow list lock. */
+	union {
+		/* SW/FW steering AGE info. */
+		struct {
+			struct mlx5_counters aged_counters;
+			/* Aged counter list. */
+			struct aso_age_list aged_aso;
+			/* Aged ASO actions list. */
+			rte_spinlock_t aged_sl; /* Aged flow list lock. */
+		};
+		struct {
+			struct mlx5_indexed_pool *ages_ipool;
+			union {
+				struct mlx5_hws_age_info hw_age;
+				/* HW steering AGE info. */
+				struct mlx5_hws_q_age_info *hw_q_age;
+				/* HW steering queue oriented AGE info. */
+			};
+		};
+	};
 };
 
 /* Per port data of shared IB device. */
@@ -761,8 +834,6 @@ struct mlx5_meter_policy_action_container {
 
 /* Flow meter policy parameter structure. */
 struct mlx5_flow_meter_policy {
-	struct rte_eth_dev *dev;
-	/* The port dev on which policy is created. */
 	uint32_t is_rss:1;
 	/* Is RSS policy table. */
 	uint32_t ingress:1;
@@ -775,15 +846,33 @@ struct mlx5_flow_meter_policy {
 	/* Is queue action in policy table. */
 	uint32_t is_hierarchy:1;
 	/* Is meter action in policy table. */
+	uint32_t match_port:1;
+	/* If policy flows match src port. */
+	uint32_t hierarchy_match_port:1;
+	/* Is any meter in hierarchy contains policy flow that matches src port. */
+	uint32_t skip_r:1;
+	/* If red color policy is skipped. */
 	uint32_t skip_y:1;
 	/* If yellow color policy is skipped. */
 	uint32_t skip_g:1;
 	/* If green color policy is skipped. */
 	uint32_t mark:1;
 	/* If policy contains mark action. */
+	uint32_t initialized:1;
+	/* Initialized. */
+	uint16_t group;
+	/* The group. */
 	rte_spinlock_t sl;
 	uint32_t ref_cnt;
 	/* Use count. */
+	struct rte_flow_pattern_template *hws_item_templ;
+	/* Hardware steering item templates. */
+	struct rte_flow_actions_template *hws_act_templ[MLX5_MTR_DOMAIN_MAX];
+	/* Hardware steering action templates. */
+	struct rte_flow_template_table *hws_flow_table[MLX5_MTR_DOMAIN_MAX];
+	/* Hardware steering tables. */
+	struct rte_flow *hws_flow_rule[MLX5_MTR_DOMAIN_MAX][RTE_COLORS];
+	/* Hardware steering rules. */
 	struct mlx5_meter_policy_action_container act_cnt[MLX5_MTR_RTE_COLORS];
 	/* Policy actions container. */
 	void *dr_drop_action[MLX5_MTR_DOMAIN_MAX];
@@ -850,7 +939,7 @@ struct mlx5_flow_meter_info {
 	 * applications) at the device level.
 	 *
 	 * It complements the behavior of some pattern items such as
-	 * RTE_FLOW_ITEM_TYPE_PHY_PORT and is meaningless without them.
+	 * RTE_FLOW_ITEM_TYPE_REPRESENTED_PORT and is meaningless without them.
 	 *
 	 * When transferring flow rules, ingress and egress attributes keep
 	 * their original meaning, as if processing traffic emitted or
@@ -858,7 +947,10 @@ struct mlx5_flow_meter_info {
 	 */
 	uint32_t transfer:1;
 	uint32_t def_policy:1;
+	uint32_t initialized:1;
 	/* Meter points to default policy. */
+	uint32_t color_aware:1;
+	/* Meter is color aware mode. */
 	void *drop_rule[MLX5_MTR_DOMAIN_MAX];
 	/* Meter drop rule in drop table. */
 	uint32_t drop_cnt;
@@ -867,8 +959,14 @@ struct mlx5_flow_meter_info {
 	/**< Use count. */
 	struct mlx5_indexed_pool *flow_ipool;
 	/**< Index pool for flow id. */
-	void *meter_action;
+	void *meter_action_g;
 	/**< Flow meter action. */
+	void *meter_action_y;
+	/**< Flow meter action for yellow init_color. */
+	uint32_t meter_offset;
+	/**< Flow meter offset. */
+	uint16_t group;
+	/**< Flow meter group. */
 };
 
 /* PPS(packets per second) map to BPS(Bytes per second).
@@ -903,6 +1001,7 @@ struct mlx5_flow_meter_profile {
 	uint32_t ref_cnt; /**< Use count. */
 	uint32_t g_support:1; /**< If G color will be generated. */
 	uint32_t y_support:1; /**< If Y color will be generated. */
+	uint32_t initialized:1; /**< Initialized. */
 };
 
 /* 2 meters in each ASO cache line */
@@ -920,16 +1019,28 @@ struct mlx5_flow_meter_profile {
 enum mlx5_aso_mtr_state {
 	ASO_METER_FREE, /* In free list. */
 	ASO_METER_WAIT, /* ACCESS_ASO WQE in progress. */
+	ASO_METER_WAIT_ASYNC, /* CQE will be handled by async pull. */
 	ASO_METER_READY, /* CQE received. */
+};
+
+/*aso flow meter type*/
+enum mlx5_aso_mtr_type {
+	ASO_METER_INDIRECT,
+	ASO_METER_DIRECT,
 };
 
 /* Generic aso_flow_meter information. */
 struct mlx5_aso_mtr {
-	LIST_ENTRY(mlx5_aso_mtr) next;
+	union {
+		LIST_ENTRY(mlx5_aso_mtr) next;
+		struct mlx5_aso_mtr_pool *pool;
+	};
+	enum mlx5_aso_mtr_type type;
 	struct mlx5_flow_meter_info fm;
 	/**< Pointer to the next aso flow meter structure. */
 	uint8_t state; /**< ASO flow meter state. */
-	uint8_t offset;
+	uint32_t offset;
+	enum rte_color init_color;
 };
 
 /* Generic aso_flow_meter pool structure. */
@@ -938,7 +1049,11 @@ struct mlx5_aso_mtr_pool {
 	/*Must be the first in pool*/
 	struct mlx5_devx_obj *devx_obj;
 	/* The devx object of the minimum aso flow meter ID. */
+	struct mlx5dr_action *action; /* HWS action. */
+	struct mlx5_indexed_pool *idx_pool; /* HWS index pool. */
 	uint32_t index; /* Pool index in management structure. */
+	uint32_t nb_sq; /* Number of ASO SQ. */
+	struct mlx5_aso_sq *sq; /* ASO SQs. */
 };
 
 LIST_HEAD(aso_meter_list, mlx5_aso_mtr);
@@ -951,6 +1066,14 @@ struct mlx5_aso_mtr_pools_mng {
 	struct aso_meter_list meters; /* Free ASO flow meter list. */
 	struct mlx5_aso_sq sq; /*SQ using by ASO flow meter. */
 	struct mlx5_aso_mtr_pool **pools; /* ASO flow meter pool array. */
+};
+
+/* Bulk management structure for ASO flow meter. */
+struct mlx5_mtr_bulk {
+	uint32_t size; /* Number of ASO objects. */
+	struct mlx5dr_action *action; /* HWS action */
+	struct mlx5_devx_obj *devx_obj; /* DEVX object. */
+	struct mlx5_aso_mtr *aso; /* Array of ASO objects. */
 };
 
 /* Meter management structure for global flow meter resource. */
@@ -1006,6 +1129,7 @@ struct mlx5_flow_tbl_resource {
 #define MLX5_FLOW_TABLE_LEVEL_METER (MLX5_MAX_TABLES - 3)
 #define MLX5_FLOW_TABLE_LEVEL_POLICY (MLX5_MAX_TABLES - 4)
 #define MLX5_MAX_TABLES_EXTERNAL MLX5_FLOW_TABLE_LEVEL_POLICY
+#define MLX5_FLOW_TABLE_HWS_POLICY (MLX5_MAX_TABLES - 10)
 #define MLX5_MAX_TABLES_FDB UINT16_MAX
 #define MLX5_FLOW_TABLE_FACTOR 10
 
@@ -1098,6 +1222,7 @@ struct mlx5_bond_info {
 enum mlx5_aso_ct_state {
 	ASO_CONNTRACK_FREE, /* Inactive, in the free list. */
 	ASO_CONNTRACK_WAIT, /* WQE sent in the SQ. */
+	ASO_CONNTRACK_WAIT_ASYNC, /* CQE will be handled by async pull. */
 	ASO_CONNTRACK_READY, /* CQE received w/o error. */
 	ASO_CONNTRACK_QUERY, /* WQE for query sent. */
 	ASO_CONNTRACK_MAX, /* Guard. */
@@ -1105,9 +1230,22 @@ enum mlx5_aso_ct_state {
 
 /* Generic ASO connection tracking structure. */
 struct mlx5_aso_ct_action {
-	LIST_ENTRY(mlx5_aso_ct_action) next; /* Pointer to the next ASO CT. */
-	void *dr_action_orig; /* General action object for original dir. */
-	void *dr_action_rply; /* General action object for reply dir. */
+	union {
+		/* SWS mode struct. */
+		struct {
+			/* Pointer to the next ASO CT. Used only in SWS. */
+			LIST_ENTRY(mlx5_aso_ct_action) next;
+		};
+		/* HWS mode struct. */
+		struct {
+			/* Pointer to action pool. Used only in HWS. */
+			struct mlx5_aso_ct_pool *pool;
+		};
+	};
+	/* General action object for original dir. */
+	void *dr_action_orig;
+	/* General action object for reply dir. */
+	void *dr_action_rply;
 	uint32_t refcnt; /* Action used count in device flows. */
 	uint16_t offset; /* Offset of ASO CT in DevX objects bulk. */
 	uint16_t peer; /* The only peer port index could also use this CT. */
@@ -1119,27 +1257,47 @@ struct mlx5_aso_ct_action {
 #define MLX5_ASO_CT_UPDATE_STATE(c, s) \
 	__atomic_store_n(&((c)->state), (s), __ATOMIC_RELAXED)
 
+#ifdef PEDANTIC
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+
 /* ASO connection tracking software pool definition. */
 struct mlx5_aso_ct_pool {
 	uint16_t index; /* Pool index in pools array. */
+	/* Free ASO CT index in the pool. Used by HWS. */
+	struct mlx5_indexed_pool *cts;
 	struct mlx5_devx_obj *devx_obj;
-	/* The first devx object in the bulk, used for freeing (not yet). */
-	struct mlx5_aso_ct_action actions[MLX5_ASO_CT_ACTIONS_PER_POOL];
+	union {
+		void *dummy_action;
+		/* Dummy action to increase the reference count in the driver. */
+		struct mlx5dr_action *dr_action;
+		/* HWS action. */
+	};
+	struct mlx5_aso_sq *sq; /* Async ASO SQ. */
+	struct mlx5_aso_sq *shared_sq; /* Shared ASO SQ. */
+	struct mlx5_aso_ct_action actions[0];
 	/* CT action structures bulk. */
 };
 
 LIST_HEAD(aso_ct_list, mlx5_aso_ct_action);
+
+#define MLX5_ASO_CT_SQ_NUM 16
 
 /* Pools management structure for ASO connection tracking pools. */
 struct mlx5_aso_ct_pools_mng {
 	struct mlx5_aso_ct_pool **pools;
 	uint16_t n; /* Total number of pools. */
 	uint16_t next; /* Number of pools in use, index of next free pool. */
+	uint32_t nb_sq; /* Number of ASO SQ. */
 	rte_spinlock_t ct_sl; /* The ASO CT free list lock. */
 	rte_rwlock_t resize_rwl; /* The ASO CT pool resize lock. */
 	struct aso_ct_list free_cts; /* Free ASO CT objects list. */
-	struct mlx5_aso_sq aso_sq; /* ASO queue objects. */
+	struct mlx5_aso_sq aso_sqs[0]; /* ASO queue objects. */
 };
+
+#ifdef PEDANTIC
+#pragma GCC diagnostic error "-Wpedantic"
+#endif
 
 /* LAG attr. */
 struct mlx5_lag {
@@ -1151,9 +1309,11 @@ struct mlx5_lag {
 struct mlx5_flex_parser_devx {
 	struct mlx5_list_entry entry;  /* List element at the beginning. */
 	uint32_t num_samples;
+	uint8_t anchor_id;
 	void *devx_obj;
 	struct mlx5_devx_graph_node_attr devx_conf;
 	uint32_t sample_ids[MLX5_GRAPH_NODE_SAMPLE_NUM];
+	struct mlx5_devx_match_sample_info_query_attr sample_info[MLX5_GRAPH_NODE_SAMPLE_NUM];
 };
 
 /* Pattern field descriptor - how to translate flex pattern into samples. */
@@ -1172,6 +1332,33 @@ struct mlx5_flex_item {
 	enum rte_flow_item_flex_tunnel_mode tunnel_mode; /* Tunnel mode. */
 	uint32_t mapnum; /* Number of pattern translation entries. */
 	struct mlx5_flex_pattern_field map[MLX5_FLEX_ITEM_MAPPING_NUM];
+};
+
+/* Mlx5 internal flex parser profile structure. */
+struct mlx5_internal_flex_parser_profile {
+	uint32_t refcnt;
+	struct mlx5_flex_item flex; /* Hold map info for modify field. */
+};
+
+struct mlx5_send_to_kernel_action {
+	void *action;
+	void *tbl;
+};
+
+#define HWS_CNT_ASO_SQ_NUM 4
+
+struct mlx5_hws_aso_mng {
+	uint16_t sq_num;
+	struct mlx5_aso_sq sqs[HWS_CNT_ASO_SQ_NUM];
+};
+
+struct mlx5_hws_cnt_svc_mng {
+	uint32_t refcnt;
+	uint32_t service_core;
+	uint32_t query_interval;
+	pthread_t service_thread;
+	uint8_t svc_running;
+	struct mlx5_hws_aso_mng aso_mng __rte_cache_aligned;
 };
 
 /*
@@ -1194,6 +1381,14 @@ struct mlx5_dev_ctx_shared {
 	uint32_t drop_action_check_flag:1; /* Check Flag for drop action. */
 	uint32_t flow_priority_check_flag:1; /* Check Flag for flow priority. */
 	uint32_t metadata_regc_check_flag:1; /* Check Flag for metadata REGC. */
+	uint32_t hws_tags:1; /* Check if tags info for HWS initialized. */
+	uint32_t shared_mark_enabled:1;
+	/* If mark action is enabled on Rxqs (shared E-Switch domain). */
+	uint32_t lag_rx_port_affinity_en:1;
+	/* lag_rx_port_affinity is supported. */
+	uint32_t hws_max_log_bulk_sz:5;
+	/* Log of minimal HWS counters created hard coded. */
+	uint32_t hws_max_nb_counters; /* Maximal number for HWS counters. */
 	uint32_t max_port; /* Maximal IB device port index. */
 	struct mlx5_bond_info bond; /* Bonding information. */
 	struct mlx5_common_device *cdev; /* Backend mlx5 device. */
@@ -1225,6 +1420,7 @@ struct mlx5_dev_ctx_shared {
 	/* Direct Rules tables for FDB, NIC TX+RX */
 	void *dr_drop_action; /* Pointer to DR drop action, any domain. */
 	void *pop_vlan_action; /* Pointer to DR pop VLAN action. */
+	struct mlx5_send_to_kernel_action send_to_kernel_action;
 	struct mlx5_hlist *encaps_decaps; /* Encap/decap action hash list. */
 	struct mlx5_hlist *modify_cmds;
 	struct mlx5_hlist *tag_table;
@@ -1234,7 +1430,8 @@ struct mlx5_dev_ctx_shared {
 	struct mlx5_list *dest_array_list;
 	struct mlx5_list *flex_parsers_dv; /* Flex Item parsers. */
 	/* List of destination array actions. */
-	struct mlx5_flow_counter_mng cmng; /* Counters management structure. */
+	struct mlx5_flow_counter_mng sws_cmng;
+	/* SW steering counters management structure. */
 	void *default_miss_action; /* Default miss action. */
 	struct mlx5_indexed_pool *ipool[MLX5_IPOOL_MAX];
 	struct mlx5_indexed_pool *mdh_ipools[MLX5_MAX_MODIFY_NUM];
@@ -1250,6 +1447,7 @@ struct mlx5_dev_ctx_shared {
 	struct mlx5_uar rx_uar; /* DevX UAR for Rx. */
 	struct mlx5_proc_priv *pppriv; /* Pointer to primary private process. */
 	struct mlx5_ecpri_parser_profile ecpri_parser;
+	struct mlx5_internal_flex_parser_profile srh_flex_parser; /* srh flex parser structure. */
 	/* Flex parser profiles information. */
 	LIST_HEAD(shared_rxqs, mlx5_rxq_ctrl) shared_rxqs; /* Shared RXQs. */
 	struct mlx5_aso_age_mng *aso_age_mng;
@@ -1259,12 +1457,17 @@ struct mlx5_dev_ctx_shared {
 	rte_spinlock_t geneve_tlv_opt_sl; /* Lock for geneve tlv resource */
 	struct mlx5_flow_mtr_mng *mtrmng;
 	/* Meter management structure. */
-	struct mlx5_aso_ct_pools_mng *ct_mng;
-	/* Management data for ASO connection tracking. */
+	struct mlx5_aso_ct_pools_mng *ct_mng; /* Management data for ASO CT in HWS only. */
 	struct mlx5_lb_ctx self_lb; /* QP to enable self loopback for Devx. */
 	unsigned int flow_max_priority;
 	enum modify_reg flow_mreg_c[MLX5_MREG_C_NUM];
 	/* Availability of mreg_c's. */
+	void *devx_channel_lwm;
+	struct rte_intr_handle *intr_handle_lwm;
+	pthread_mutex_t lwm_config_lock;
+	uint32_t host_shaper_rate:8;
+	uint32_t lwm_triggered:1;
+	struct mlx5_hws_cnt_svc_mng *cnt_svc;
 	struct mlx5_dev_shared_port port[]; /* per device port data array. */
 };
 
@@ -1273,6 +1476,8 @@ struct mlx5_dev_ctx_shared {
  * Caution, secondary process may rebuild the struct during port start.
  */
 struct mlx5_proc_priv {
+	void *hca_bar;
+	/* Mapped HCA PCI BAR area. */
 	size_t uar_table_sz;
 	/* Size of UAR register table. */
 	struct mlx5_uar_data uar_table[];
@@ -1283,6 +1488,12 @@ struct mlx5_proc_priv {
 TAILQ_HEAD(mlx5_mtr_profiles, mlx5_flow_meter_profile);
 /* MTR list. */
 TAILQ_HEAD(mlx5_legacy_flow_meters, mlx5_legacy_flow_meter);
+
+struct mlx5_mtr_config {
+	uint32_t nb_meters; /**< Number of configured meters */
+	uint32_t nb_meter_profiles; /**< Number of configured meter profiles */
+	uint32_t nb_meter_policies; /**< Number of configured meter policies */
+};
 
 /* RSS description. */
 struct mlx5_flow_rss_desc {
@@ -1375,6 +1586,8 @@ struct mlx5_txq_obj {
 			struct mlx5_devx_obj *sq;
 			/* DevX object for Sx queue. */
 			struct mlx5_devx_obj *tis; /* The TIS object. */
+			void *umem_buf_wq_buffer;
+			void *umem_obj_wq_buffer;
 		};
 		struct {
 			struct rte_eth_dev *dev;
@@ -1391,6 +1604,7 @@ enum mlx5_rxq_modify_type {
 	MLX5_RXQ_MOD_RST2RDY, /* modify state from reset to ready. */
 	MLX5_RXQ_MOD_RDY2ERR, /* modify state from ready to error. */
 	MLX5_RXQ_MOD_RDY2RST, /* modify state from ready to reset. */
+	MLX5_RXQ_MOD_RDY2RDY, /* modify state from ready to ready. */
 };
 
 enum mlx5_txq_modify_type {
@@ -1400,6 +1614,7 @@ enum mlx5_txq_modify_type {
 };
 
 struct mlx5_rxq_priv;
+struct mlx5_priv;
 
 /* HW objects operations structure. */
 struct mlx5_obj_ops {
@@ -1408,6 +1623,7 @@ struct mlx5_obj_ops {
 	int (*rxq_event_get)(struct mlx5_rxq_obj *rxq_obj);
 	int (*rxq_obj_modify)(struct mlx5_rxq_priv *rxq, uint8_t type);
 	void (*rxq_obj_release)(struct mlx5_rxq_priv *rxq);
+	int (*rxq_event_get_lwm)(struct mlx5_priv *priv, int *rxq_idx, int *port_id);
 	int (*ind_table_new)(struct rte_eth_dev *dev, const unsigned int log_n,
 			     struct mlx5_ind_table_obj *ind_tbl);
 	int (*ind_table_modify)(struct rte_eth_dev *dev,
@@ -1434,6 +1650,42 @@ struct mlx5_obj_ops {
 
 #define MLX5_RSS_HASH_FIELDS_LEN RTE_DIM(mlx5_rss_hash_fields)
 
+struct mlx5_hw_ctrl_flow {
+	LIST_ENTRY(mlx5_hw_ctrl_flow) next;
+	struct rte_eth_dev *owner_dev;
+	struct rte_flow *flow;
+};
+
+/*
+ * Flow rule structure for flow engine mode control, focus on group 0.
+ * Apply to all supported domains.
+ */
+struct mlx5_dv_flow_info {
+	LIST_ENTRY(mlx5_dv_flow_info) next;
+	uint32_t orig_prio; /* prio set by user */
+	uint32_t flow_idx_high_prio;
+	/* flow index owned by standby mode. priority is lower unless DUP flags. */
+	uint32_t flow_idx_low_prio;
+	struct rte_flow_item *items;
+	struct rte_flow_action *actions;
+	struct rte_flow_attr attr;
+};
+
+struct mlx5_flow_engine_mode_info {
+	enum mlx5_flow_engine_mode mode;
+	uint32_t mode_flag;
+	/* The list is maintained in insertion order. */
+	LIST_HEAD(hot_up_info, mlx5_dv_flow_info) hot_upgrade;
+};
+/* HW Steering port configuration passed to rte_flow_configure(). */
+struct mlx5_flow_hw_attr {
+	struct rte_flow_port_attr port_attr;
+	uint16_t nb_queue;
+	struct rte_flow_queue_attr *queue_attr;
+};
+
+struct mlx5_flow_hw_ctrl_rx;
+
 struct mlx5_priv {
 	struct rte_eth_dev_data *dev_data;  /* Pointer to device data. */
 	struct mlx5_dev_ctx_shared *sh; /* Shared device context. */
@@ -1455,6 +1707,7 @@ struct mlx5_priv {
 	unsigned int mtr_reg_share:1; /* Whether support meter REG_C share. */
 	unsigned int lb_used:1; /* Loopback queue is referred to. */
 	uint32_t mark_enabled:1; /* If mark action is enabled on rxqs. */
+	uint32_t num_lag_ports:4; /* Number of ports can be bonded. */
 	uint16_t domain_id; /* Switch domain identifier. */
 	uint16_t vport_id; /* Associated VF vport index (if any). */
 	uint32_t vport_meta_tag; /* Used for vport index match ove VF LAG. */
@@ -1474,6 +1727,15 @@ struct mlx5_priv {
 	unsigned int reta_idx_n; /* RETA index size. */
 	struct mlx5_drop drop_queue; /* Flow drop queues. */
 	void *root_drop_action; /* Pointer to root drop action. */
+	rte_spinlock_t hw_ctrl_lock;
+	LIST_HEAD(hw_ctrl_flow, mlx5_hw_ctrl_flow) hw_ctrl_flows;
+	struct rte_flow_template_table *hw_esw_sq_miss_root_tbl;
+	struct rte_flow_template_table *hw_esw_sq_miss_tbl;
+	struct rte_flow_template_table *hw_esw_zero_tbl;
+	struct rte_flow_template_table *hw_tx_meta_cpy_tbl;
+	struct rte_flow_pattern_template *hw_tx_repr_tagging_pt;
+	struct rte_flow_actions_template *hw_tx_repr_tagging_at;
+	struct rte_flow_template_table *hw_tx_repr_tagging_tbl;
 	struct mlx5_indexed_pool *flows[MLX5_FLOW_TYPE_MAXI];
 	/* RTE Flow rules. */
 	uint32_t ctrl_flows; /* Control flow rules. */
@@ -1493,7 +1755,7 @@ struct mlx5_priv {
 	uint32_t refcnt; /**< Reference counter. */
 	/**< Verbs modify header action object. */
 	uint8_t ft_type; /**< Flow table type, Rx or Tx. */
-	uint8_t max_lro_msg_size;
+	uint32_t max_lro_msg_size;
 	uint32_t link_speed_capa; /* Link speed capabilities. */
 	struct mlx5_xstats_ctrl xstats_ctrl; /* Extended stats control. */
 	struct mlx5_stats_ctrl stats_ctrl; /* Stats control. */
@@ -1504,12 +1766,16 @@ struct mlx5_priv {
 	struct mlx5_nl_vlan_vmwa_context *vmwa_context; /* VLAN WA context. */
 	struct mlx5_hlist *mreg_cp_tbl;
 	/* Hash table of Rx metadata register copy table. */
+	struct mlx5_mtr_config mtr_config; /* Meter configuration */
 	uint8_t mtr_sfx_reg; /* Meter prefix-suffix flow match REG_C. */
 	uint8_t mtr_color_reg; /* Meter color match REG_C. */
 	struct mlx5_legacy_flow_meters flow_meters; /* MTR list. */
 	struct mlx5_l3t_tbl *mtr_profile_tbl; /* Meter index lookup table. */
+	struct mlx5_flow_meter_profile *mtr_profile_arr; /* Profile array. */
 	struct mlx5_l3t_tbl *policy_idx_tbl; /* Policy index lookup table. */
+	struct mlx5_flow_meter_policy *mtr_policy_arr; /* Policy array. */
 	struct mlx5_l3t_tbl *mtr_idx_tbl; /* Meter index lookup table. */
+	struct mlx5_mtr_bulk mtr_bulk; /* Meter index mapping for HWS */
 	uint8_t skip_default_rss_reta; /* Skip configuration of default reta. */
 	uint8_t fdb_def_rule; /* Whether fdb jump to table 1 is configured. */
 	struct mlx5_mp_id mp_id; /* ID of a multi-process process */
@@ -1523,28 +1789,48 @@ struct mlx5_priv {
 	struct mlx5_flex_item flex_item[MLX5_PORT_FLEX_ITEM_NUM];
 	/* Flex items have been created on the port. */
 	uint32_t flex_item_map; /* Map of allocated flex item elements. */
+	uint32_t nb_queue; /* HW steering queue number. */
+	struct mlx5_hws_cnt_pool *hws_cpool; /* HW steering's counter pool. */
+	uint32_t hws_mark_refcnt; /* HWS mark action reference counter. */
+	struct mlx5_flow_engine_mode_info mode_info; /* Process set flow engine info. */
+	struct mlx5_flow_hw_attr *hw_attr; /* HW Steering port configuration. */
 #if defined(HAVE_IBV_FLOW_DV_SUPPORT) || !defined(HAVE_INFINIBAND_VERBS_H)
 	/* Item template list. */
 	LIST_HEAD(flow_hw_itt, rte_flow_pattern_template) flow_hw_itt;
 	/* Action template list. */
 	LIST_HEAD(flow_hw_at, rte_flow_actions_template) flow_hw_at;
 	struct mlx5dr_context *dr_ctx; /**< HW steering DR context. */
-	uint32_t nb_queue; /* HW steering queue number. */
 	/* HW steering queue polling mechanism job descriptor LIFO. */
+	uint32_t hws_strict_queue:1;
+	/**< Whether all operations strictly happen on the same HWS queue. */
+	uint32_t hws_age_req:1; /**< Whether this port has AGE indexed pool. */
 	struct mlx5_hw_q *hw_q;
 	/* HW steering rte flow table list header. */
 	LIST_HEAD(flow_hw_tbl, rte_flow_template_table) flow_hw_tbl;
+	struct mlx5dr_action *hw_push_vlan[MLX5DR_TABLE_TYPE_MAX];
+	struct mlx5dr_action *hw_pop_vlan[MLX5DR_TABLE_TYPE_MAX];
+	struct mlx5dr_action **hw_vport;
 	/* HW steering global drop action. */
-	struct mlx5dr_action *hw_drop[MLX5_HW_ACTION_FLAG_MAX]
-				     [MLX5DR_TABLE_TYPE_MAX];
-	/* HW steering global drop action. */
-	struct mlx5dr_action *hw_tag[MLX5_HW_ACTION_FLAG_MAX];
+	struct mlx5dr_action *hw_drop[2];
+	/* HW steering global tag action. */
+	struct mlx5dr_action *hw_tag[2];
+	/* HW steering create ongoing rte flow table list header. */
+	LIST_HEAD(flow_hw_tbl_ongo, rte_flow_template_table) flow_hw_tbl_ongo;
 	struct mlx5_indexed_pool *acts_ipool; /* Action data indexed pool. */
+	struct mlx5_aso_ct_pools_mng *ct_mng;
+	/* Management data for ASO connection tracking. */
+	struct mlx5_aso_ct_pool *hws_ctpool; /* HW steering's CT pool. */
+	struct mlx5_aso_mtr_pool *hws_mpool; /* HW steering's Meter pool. */
+	struct mlx5_flow_hw_ctrl_rx *hw_ctrl_rx;
+	/**< HW steering templates used to create control flow rules. */
 #endif
+	struct rte_eth_dev *shared_host; /* Host device for HW steering. */
+	uint16_t shared_refcnt; /* HW steering host reference counter. */
 };
 
 #define PORT_ID(priv) ((priv)->dev_data->port_id)
 #define ETH_DEV(priv) (&rte_eth_devices[PORT_ID(priv)])
+#define CTRL_QUEUE_ID(priv) ((priv)->nb_queue - 1)
 
 struct rte_hairpin_peer_info {
 	uint32_t qp_id;
@@ -1598,6 +1884,8 @@ int mlx5_net_remove(struct mlx5_common_device *cdev);
 bool mlx5_is_hpf(struct rte_eth_dev *dev);
 bool mlx5_is_sf_repr(struct rte_eth_dev *dev);
 void mlx5_age_event_prepare(struct mlx5_dev_ctx_shared *sh);
+int mlx5_lwm_setup(struct mlx5_priv *priv);
+void mlx5_lwm_unset(struct mlx5_dev_ctx_shared *sh);
 
 /* Macro to iterate over all valid ports for mlx5 driver. */
 #define MLX5_ETH_FOREACH_DEV(port_id, dev) \
@@ -1677,8 +1965,6 @@ int mlx5_sysfs_switch_info(unsigned int ifindex,
 			   struct mlx5_switch_info *info);
 void mlx5_translate_port_name(const char *port_name_in,
 			      struct mlx5_switch_info *port_info_out);
-void mlx5_intr_callback_unregister(const struct rte_intr_handle *handle,
-				   rte_intr_callback_fn cb_fn, void *cb_arg);
 int mlx5_sysfs_bond_info(unsigned int pf_ifindex, unsigned int *ifindex,
 			 char *ifname);
 int mlx5_get_module_info(struct rte_eth_dev *dev,
@@ -1799,7 +2085,7 @@ int mlx5_flow_ops_get(struct rte_eth_dev *dev, const struct rte_flow_ops **ops);
 int mlx5_flow_start_default(struct rte_eth_dev *dev);
 void mlx5_flow_stop_default(struct rte_eth_dev *dev);
 int mlx5_flow_verify(struct rte_eth_dev *dev);
-int mlx5_ctrl_flow_source_queue(struct rte_eth_dev *dev, uint32_t queue);
+int mlx5_ctrl_flow_source_queue(struct rte_eth_dev *dev, uint32_t sq_num);
 int mlx5_ctrl_flow_vlan(struct rte_eth_dev *dev,
 			struct rte_flow_item_eth *eth_spec,
 			struct rte_flow_item_eth *eth_mask,
@@ -1811,7 +2097,7 @@ int mlx5_ctrl_flow(struct rte_eth_dev *dev,
 int mlx5_flow_lacp_miss(struct rte_eth_dev *dev);
 struct rte_flow *mlx5_flow_create_esw_table_zero_flow(struct rte_eth_dev *dev);
 uint32_t mlx5_flow_create_devx_sq_miss_flow(struct rte_eth_dev *dev,
-					    uint32_t txq);
+					    uint32_t sq_num);
 void mlx5_flow_async_pool_query_handle(struct mlx5_dev_ctx_shared *sh,
 				       uint64_t async_id, int status);
 void mlx5_set_query_alarm(struct mlx5_dev_ctx_shared *sh);
@@ -1837,6 +2123,9 @@ int mlx5_validate_action_ct(struct rte_eth_dev *dev,
 			    const struct rte_flow_action_conntrack *conntrack,
 			    struct rte_flow_error *error);
 
+int mlx5_flow_get_q_aged_flows(struct rte_eth_dev *dev, uint32_t queue_id,
+			       void **contexts, uint32_t nb_contexts,
+			       struct rte_flow_error *error);
 
 /* mlx5_mp_os.c */
 
@@ -1856,6 +2145,12 @@ void mlx5_pmd_socket_uninit(void);
 
 /* mlx5_flow_meter.c */
 
+int mlx5_flow_meter_init(struct rte_eth_dev *dev,
+			 uint32_t nb_meters,
+			 uint32_t nb_meter_profiles,
+			 uint32_t nb_meter_policies,
+			 uint32_t nb_queues);
+void mlx5_flow_meter_uninit(struct rte_eth_dev *dev);
 int mlx5_flow_meter_ops_get(struct rte_eth_dev *dev, void *arg);
 struct mlx5_flow_meter_info *mlx5_flow_meter_find(struct mlx5_priv *priv,
 		uint32_t meter_id, uint32_t *mtr_idx);
@@ -1871,6 +2166,10 @@ struct mlx5_flow_meter_policy *mlx5_flow_meter_policy_find
 		(struct rte_eth_dev *dev,
 		uint32_t policy_id,
 		uint32_t *policy_idx);
+struct mlx5_flow_meter_info *
+mlx5_flow_meter_hierarchy_next_meter(struct mlx5_priv *priv,
+				     struct mlx5_flow_meter_policy *policy,
+				     uint32_t *mtr_idx);
 struct mlx5_flow_meter_policy *
 mlx5_flow_meter_hierarchy_get_final_policy(struct rte_eth_dev *dev,
 					struct mlx5_flow_meter_policy *policy);
@@ -1912,6 +2211,8 @@ int mlx5_txpp_xstats_get_names(struct rte_eth_dev *dev,
 			       struct rte_eth_xstat_name *xstats_names,
 			       unsigned int n, unsigned int n_used);
 void mlx5_txpp_interrupt_handler(void *cb_arg);
+int mlx5_txpp_map_hca_bar(struct rte_eth_dev *dev);
+void mlx5_txpp_unmap_hca_bar(struct rte_eth_dev *dev);
 
 /* mlx5_rxtx.c */
 
@@ -1919,30 +2220,59 @@ eth_tx_burst_t mlx5_select_tx_function(struct rte_eth_dev *dev);
 
 /* mlx5_flow_aso.c */
 
+int mlx5_aso_mtr_queue_init(struct mlx5_dev_ctx_shared *sh,
+			    struct mlx5_aso_mtr_pool *hws_pool,
+			    struct mlx5_aso_mtr_pools_mng *pool_mng,
+			    uint32_t nb_queues);
+void mlx5_aso_mtr_queue_uninit(struct mlx5_dev_ctx_shared *sh,
+			       struct mlx5_aso_mtr_pool *hws_pool,
+			       struct mlx5_aso_mtr_pools_mng *pool_mng);
 int mlx5_aso_queue_init(struct mlx5_dev_ctx_shared *sh,
-		enum mlx5_access_aso_opc_mod aso_opc_mod);
+			enum mlx5_access_aso_opc_mod aso_opc_mode,
+			uint32_t nb_queues);
 int mlx5_aso_flow_hit_queue_poll_start(struct mlx5_dev_ctx_shared *sh);
 int mlx5_aso_flow_hit_queue_poll_stop(struct mlx5_dev_ctx_shared *sh);
 void mlx5_aso_queue_uninit(struct mlx5_dev_ctx_shared *sh,
-		enum mlx5_access_aso_opc_mod aso_opc_mod);
-int mlx5_aso_meter_update_by_wqe(struct mlx5_dev_ctx_shared *sh,
+			   enum mlx5_access_aso_opc_mod aso_opc_mod);
+int mlx5_aso_meter_update_by_wqe(struct mlx5_dev_ctx_shared *sh, uint32_t queue,
+		struct mlx5_aso_mtr *mtr, struct mlx5_mtr_bulk *bulk,
+		void *user_data, bool push);
+int mlx5_aso_mtr_wait(struct mlx5_dev_ctx_shared *sh, uint32_t queue,
 		struct mlx5_aso_mtr *mtr);
-int mlx5_aso_mtr_wait(struct mlx5_dev_ctx_shared *sh,
-		struct mlx5_aso_mtr *mtr);
-int mlx5_aso_ct_update_by_wqe(struct mlx5_dev_ctx_shared *sh,
+int mlx5_aso_ct_update_by_wqe(struct mlx5_dev_ctx_shared *sh, uint32_t queue,
 			      struct mlx5_aso_ct_action *ct,
-			      const struct rte_flow_action_conntrack *profile);
-int mlx5_aso_ct_wait_ready(struct mlx5_dev_ctx_shared *sh,
+			      const struct rte_flow_action_conntrack *profile,
+			      void *user_data,
+			      bool push);
+int mlx5_aso_ct_wait_ready(struct mlx5_dev_ctx_shared *sh, uint32_t queue,
 			   struct mlx5_aso_ct_action *ct);
-int mlx5_aso_ct_query_by_wqe(struct mlx5_dev_ctx_shared *sh,
+int mlx5_aso_ct_query_by_wqe(struct mlx5_dev_ctx_shared *sh, uint32_t queue,
 			     struct mlx5_aso_ct_action *ct,
-			     struct rte_flow_action_conntrack *profile);
-int mlx5_aso_ct_available(struct mlx5_dev_ctx_shared *sh,
+			     struct rte_flow_action_conntrack *profile,
+			     void *user_data, bool push);
+int mlx5_aso_ct_available(struct mlx5_dev_ctx_shared *sh, uint32_t queue,
 			  struct mlx5_aso_ct_action *ct);
 uint32_t
 mlx5_get_supported_sw_parsing_offloads(const struct mlx5_hca_attr *attr);
 uint32_t
 mlx5_get_supported_tunneling_offloads(const struct mlx5_hca_attr *attr);
+
+void mlx5_aso_ct_obj_analyze(struct rte_flow_action_conntrack *profile,
+			     char *wdata);
+void mlx5_aso_push_wqe(struct mlx5_dev_ctx_shared *sh,
+		       struct mlx5_aso_sq *sq);
+int mlx5_aso_pull_completion(struct mlx5_aso_sq *sq,
+			     struct rte_flow_op_result res[],
+			     uint16_t n_res);
+int mlx5_aso_cnt_queue_init(struct mlx5_dev_ctx_shared *sh);
+void mlx5_aso_cnt_queue_uninit(struct mlx5_dev_ctx_shared *sh);
+int mlx5_aso_cnt_query(struct mlx5_dev_ctx_shared *sh,
+		struct mlx5_hws_cnt_pool *cpool);
+int mlx5_aso_ct_queue_init(struct mlx5_dev_ctx_shared *sh,
+			   struct mlx5_aso_ct_pools_mng *ct_mng,
+			   uint32_t nb_queues);
+int mlx5_aso_ct_queue_uninit(struct mlx5_dev_ctx_shared *sh,
+			     struct mlx5_aso_ct_pools_mng *ct_mng);
 
 /* mlx5_flow_flex.c */
 
@@ -1958,6 +2288,12 @@ void mlx5_flex_item_port_cleanup(struct rte_eth_dev *dev);
 void mlx5_flex_flow_translate_item(struct rte_eth_dev *dev, void *matcher,
 				   void *key, const struct rte_flow_item *item,
 				   bool is_inner);
+int mlx5_flex_get_sample_id(const struct mlx5_flex_item *tp,
+			    uint32_t idx, uint32_t *pos,
+			    bool is_inner, uint32_t *def);
+int mlx5_flex_get_parser_value_per_byte_off(const struct rte_flow_item_flex *item,
+					    void *flex, uint32_t byte_off,
+					    bool is_mask, bool tunnel, uint32_t *value);
 int mlx5_flex_acquire_index(struct rte_eth_dev *dev,
 			    struct rte_flow_item_flex_handle *handle,
 			    bool acquire);
@@ -1973,4 +2309,8 @@ struct mlx5_list_entry *mlx5_flex_parser_clone_cb(void *list_ctx,
 						  void *ctx);
 void mlx5_flex_parser_clone_free_cb(void *tool_ctx,
 				    struct mlx5_list_entry *entry);
+
+int mlx5_alloc_srh_flex_parser(struct rte_eth_dev *dev);
+
+void mlx5_free_srh_flex_parser(struct rte_eth_dev *dev);
 #endif /* RTE_PMD_MLX5_H_ */

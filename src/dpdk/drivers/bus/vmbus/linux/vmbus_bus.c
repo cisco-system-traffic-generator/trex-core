@@ -20,7 +20,7 @@
 #include <rte_bus_vmbus.h>
 
 #include "eal_filesystem.h"
-#include "vmprivate.h"
+#include "../private.h"
 
 /** Pathname of VMBUS devices directory. */
 #define SYSFS_VMBUS_DEVICES "/sys/bus/vmbus/devices"
@@ -293,7 +293,6 @@ vmbus_scan_one(const char *name)
 			goto error;
 		dev->device.numa_node = tmp;
 	} else {
-		/* if no NUMA support, set default to 0 */
 		dev->device.numa_node = SOCKET_ID_ANY;
 	}
 

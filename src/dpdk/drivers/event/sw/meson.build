@@ -9,3 +9,4 @@ sources = files(
         'sw_evdev.c',
 )
 deps += ['hash', 'bus_vdev']
+require_iova_in_mbuf = false

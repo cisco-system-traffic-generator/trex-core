@@ -81,7 +81,7 @@ hns3_timesync_configure(struct hns3_adapter *hns, bool en)
 	struct hns3_hw *hw = &hns->hw;
 	struct hns3_pf *pf = &hns->pf;
 	struct hns3_cmd_desc desc;
-	int val;
+	uint32_t val;
 	int ret;
 
 	hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_CFG_PTP_MODE, false);
@@ -125,7 +125,6 @@ hns3_timesync_enable(struct rte_eth_dev *dev)
 
 	if (pf->ptp_enable)
 		return 0;
-	hns3_warn(hw, "note: please ensure Rx/Tx burst mode is simple or common when enabling PTP!");
 
 	rte_spinlock_lock(&hw->lock);
 	ret = hns3_timesync_configure(hns, true);
@@ -217,17 +216,21 @@ hns3_timesync_read_tx_timestamp(struct rte_eth_dev *dev,
 int
 hns3_timesync_read_time(struct rte_eth_dev *dev, struct timespec *ts)
 {
+#define HNS3_PTP_SEC_H_OFFSET	32
+#define HNS3_PTP_SEC_H_MASK	0xFFFF
+
 	struct hns3_hw *hw = HNS3_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	uint32_t sec_hi, sec_lo;
 	uint64_t ns, sec;
 
 	if (!hns3_dev_get_support(hw, PTP))
 		return -ENOTSUP;
 
-	sec = hns3_read_dev(hw, HNS3_CURR_TIME_OUT_L);
-	sec |= (uint64_t)(hns3_read_dev(hw, HNS3_CURR_TIME_OUT_H) & 0xFFFF)
-		<< 32;
-
 	ns = hns3_read_dev(hw, HNS3_CURR_TIME_OUT_NS);
+	sec_hi = hns3_read_dev(hw, HNS3_CURR_TIME_OUT_H) & HNS3_PTP_SEC_H_MASK;
+	sec_lo = hns3_read_dev(hw, HNS3_CURR_TIME_OUT_L);
+	sec = ((uint64_t)sec_hi << HNS3_PTP_SEC_H_OFFSET) | sec_lo;
+
 	ns += sec * NSEC_PER_SEC;
 	*ts = rte_ns_to_timespec(ns);
 

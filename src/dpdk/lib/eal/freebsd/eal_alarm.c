@@ -11,13 +11,13 @@
 #include <time.h>
 #include <errno.h>
 
+#include <eal_trace_internal.h>
 #include <rte_alarm.h>
 #include <rte_cycles.h>
 #include <rte_common.h>
 #include <rte_errno.h>
 #include <rte_interrupts.h>
 #include <rte_spinlock.h>
-#include <rte_eal_trace.h>
 
 #include "eal_private.h"
 #include "eal_alarm_private.h"
@@ -171,11 +171,11 @@ eal_alarm_callback(void *arg __rte_unused)
 	struct timespec now;
 	struct alarm_entry *ap;
 
-	rte_spinlock_lock(&alarm_list_lk);
-	ap = LIST_FIRST(&alarm_list);
-
 	if (clock_gettime(CLOCK_TYPE_ID, &now) < 0)
 		return;
+
+	rte_spinlock_lock(&alarm_list_lk);
+	ap = LIST_FIRST(&alarm_list);
 
 	while (ap != NULL && timespec_cmp(&now, &ap->time) >= 0) {
 		ap->executing = 1;

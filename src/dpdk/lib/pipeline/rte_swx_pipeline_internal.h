@@ -104,8 +104,19 @@ TAILQ_HEAD(port_out_tailq, port_out);
 
 struct port_out_runtime {
 	rte_swx_port_out_pkt_tx_t pkt_tx;
+	rte_swx_port_out_pkt_fast_clone_tx_t pkt_fast_clone_tx;
+	rte_swx_port_out_pkt_clone_tx_t pkt_clone_tx;
 	rte_swx_port_out_flush_t flush;
 	void *obj;
+};
+
+/*
+ * Packet mirroring.
+ */
+struct mirroring_session {
+	uint32_t port_id;
+	int fast_clone;
+	uint32_t truncation_length;
 };
 
 /*
@@ -173,6 +184,38 @@ struct extern_func_runtime {
 };
 
 /*
+ * Hash function.
+ */
+struct hash_func {
+	TAILQ_ENTRY(hash_func) node;
+	char name[RTE_SWX_NAME_SIZE];
+	rte_swx_hash_func_t func;
+	uint32_t id;
+};
+
+TAILQ_HEAD(hash_func_tailq, hash_func);
+
+struct hash_func_runtime {
+	rte_swx_hash_func_t func;
+};
+
+/*
+ * RSS.
+ */
+struct rss {
+	TAILQ_ENTRY(rss) node;
+	char name[RTE_SWX_NAME_SIZE];
+	uint32_t id;
+};
+
+TAILQ_HEAD(rss_tailq, rss);
+
+struct rss_runtime {
+	uint32_t key_size; /* key size in bytes. */
+	uint8_t key[0]; /* key. */
+};
+
+/*
  * Header.
  */
 struct header {
@@ -227,6 +270,22 @@ enum instruction_type {
 	INSTR_TX_I, /* port_out = I */
 	INSTR_DROP,
 
+	/*
+	 * mirror slot_id session_id
+	 * slot_id = MEFT
+	 * session_id = MEFT
+	 */
+	INSTR_MIRROR,
+
+	/* recirculate
+	 */
+	INSTR_RECIRCULATE,
+
+	/* recircid m.recirc_pass_id
+	 * Read the internal recirculation pass ID into the specified meta-data field.
+	 */
+	INSTR_RECIRCID,
+
 	/* extract h.header */
 	INSTR_HDR_EXTRACT,
 	INSTR_HDR_EXTRACT2,
@@ -264,11 +323,14 @@ enum instruction_type {
 	 * dst = src
 	 * dst = HMEF, src = HMEFTI
 	 */
-	INSTR_MOV,    /* dst = MEF, src = MEFT */
-	INSTR_MOV_MH, /* dst = MEF, src = H */
-	INSTR_MOV_HM, /* dst = H, src = MEFT */
-	INSTR_MOV_HH, /* dst = H, src = H */
-	INSTR_MOV_I,  /* dst = HMEF, src = I */
+	INSTR_MOV,     /* dst = MEF, src = MEFT; size(dst) <= 64 bits, size(src) <= 64 bits. */
+	INSTR_MOV_MH,  /* dst = MEF, src = H; size(dst) <= 64 bits, size(src) <= 64 bits. */
+	INSTR_MOV_HM,  /* dst = H, src = MEFT; size(dst) <= 64 bits, size(src) <= 64 bits. */
+	INSTR_MOV_HH,  /* dst = H, src = H; size(dst) <= 64 bits, size(src) <= 64 bits. */
+	INSTR_MOV_DMA, /* dst and src in NBO format. */
+	INSTR_MOV_128, /* dst and src in NBO format, size(dst) = size(src) = 128 bits. */
+	INSTR_MOV_128_32, /* dst and src in NBO format, size(dst) = 128 bits, size(src) = 32 b. */
+	INSTR_MOV_I,   /* dst = HMEF, src = I; size(dst) <= 64 bits. */
 
 	/* dma h.header t.field
 	 * memcpy(h.header, t.field, sizeof(h.header))
@@ -449,17 +511,44 @@ enum instruction_type {
 	INSTR_LEARNER,
 	INSTR_LEARNER_AF,
 
-	/* learn LEARNER ACTION_NAME [ m.action_first_arg ] */
+	/* learn ACTION_NAME [ m.action_first_arg ] m.timeout_id */
 	INSTR_LEARNER_LEARN,
+
+	/* rearm [ m.timeout_id ] */
+	INSTR_LEARNER_REARM,
+	INSTR_LEARNER_REARM_NEW,
 
 	/* forget */
 	INSTR_LEARNER_FORGET,
+
+	/* entryid m.table_entry_id
+	 * Read the internal table entry ID into the specified meta-data field.
+	 */
+	INSTR_ENTRYID,
 
 	/* extern e.obj.func */
 	INSTR_EXTERN_OBJ,
 
 	/* extern f.func */
 	INSTR_EXTERN_FUNC,
+
+	/* hash HASH_FUNC_NAME dst src_first src_last
+	 * Compute hash value over range of struct fields.
+	 * dst = M
+	 * src_first = HMEFT
+	 * src_last = HMEFT
+	 * src_first and src_last must be fields within the same struct
+	 */
+	INSTR_HASH_FUNC,
+
+	/* rss RSS_OBJ_NAME dst src_first src_last
+	 * Compute the RSS hash value over range of struct fields.
+	 * dst = M
+	 * src_first = HMEFT
+	 * src_last = HMEFT
+	 * src_first and src_last must be fields within the same struct
+	 */
+	INSTR_RSS,
 
 	/* jmp LABEL
 	 * Unconditional jump
@@ -576,6 +665,7 @@ struct instr_io {
 
 struct instr_hdr_validity {
 	uint8_t header_id;
+	uint8_t struct_id;
 };
 
 struct instr_table {
@@ -584,7 +674,9 @@ struct instr_table {
 
 struct instr_learn {
 	uint8_t action_id;
-	uint8_t mf_offset;
+	uint8_t mf_first_arg_offset;
+	uint8_t mf_timeout_id_offset;
+	uint8_t mf_timeout_id_n_bits;
 };
 
 struct instr_extern_obj {
@@ -594,6 +686,36 @@ struct instr_extern_obj {
 
 struct instr_extern_func {
 	uint8_t ext_func_id;
+};
+
+struct instr_hash_func {
+	uint8_t hash_func_id;
+
+	struct {
+		uint8_t offset;
+		uint8_t n_bits;
+	} dst;
+
+	struct {
+		uint8_t struct_id;
+		uint16_t offset;
+		uint16_t n_bytes;
+	} src;
+};
+
+struct instr_rss {
+	uint8_t rss_obj_id;
+
+	struct {
+		uint8_t offset;
+		uint8_t n_bits;
+	} dst;
+
+	struct {
+		uint8_t struct_id;
+		uint16_t offset;
+		uint16_t n_bytes;
+	} src;
 };
 
 struct instr_dst_src {
@@ -670,6 +792,7 @@ struct instruction {
 	enum instruction_type type;
 	union {
 		struct instr_io io;
+		struct instr_dst_src mirror;
 		struct instr_hdr_validity valid;
 		struct instr_dst_src mov;
 		struct instr_regarray regarray;
@@ -680,6 +803,8 @@ struct instruction {
 		struct instr_learn learn;
 		struct instr_extern_obj ext_obj;
 		struct instr_extern_func ext_func;
+		struct instr_hash_func hash_func;
+		struct instr_rss rss;
 		struct instr_jmp jmp;
 	};
 };
@@ -750,6 +875,7 @@ struct table {
 	int *action_is_for_table_entries;
 	int *action_is_for_default_entry;
 
+	struct hash_func *hf;
 	uint32_t size;
 	uint32_t id;
 };
@@ -821,8 +947,10 @@ struct learner {
 	int *action_is_for_table_entries;
 	int *action_is_for_default_entry;
 
+	struct hash_func *hf;
 	uint32_t size;
-	uint32_t timeout;
+	uint32_t timeout[RTE_SWX_TABLE_LEARNER_N_KEY_TIMEOUTS_MAX];
+	uint32_t n_timeouts;
 	uint32_t id;
 };
 
@@ -836,6 +964,7 @@ struct learner_runtime {
 struct learner_statistics {
 	uint64_t n_pkts_hit[2]; /* 0 = Miss, 1 = Hit. */
 	uint64_t n_pkts_learn[2]; /* 0 = Learn OK, 1 = Learn error. */
+	uint64_t n_pkts_rearm;
 	uint64_t n_pkts_forget;
 	uint64_t *n_pkts_action;
 };
@@ -902,6 +1031,10 @@ struct thread {
 	/* Packet. */
 	struct rte_swx_pkt pkt;
 	uint8_t *ptr;
+	uint32_t *mirroring_slots;
+	uint64_t mirroring_slots_mask;
+	int recirculate;
+	uint32_t recirc_pass_id;
 
 	/* Structures. */
 	uint8_t **structs;
@@ -923,6 +1056,7 @@ struct thread {
 	struct learner_runtime *learners;
 	struct rte_swx_table_state *table_state;
 	uint64_t action_id;
+	size_t entry_id;
 	int hit; /* 0 = Miss, 1 = Hit. */
 	uint32_t learner_id;
 	uint64_t time;
@@ -1373,10 +1507,12 @@ instr_operand_nbo(struct thread *t, const struct instr_operand *x)
 #endif
 
 #ifndef RTE_SWX_PIPELINE_INSTRUCTION_TABLE_SIZE_MAX
-#define RTE_SWX_PIPELINE_INSTRUCTION_TABLE_SIZE_MAX 256
+#define RTE_SWX_PIPELINE_INSTRUCTION_TABLE_SIZE_MAX 1024
 #endif
 
 struct rte_swx_pipeline {
+	char name[RTE_SWX_NAME_SIZE];
+
 	struct struct_type_tailq struct_types;
 	struct port_in_type_tailq port_in_types;
 	struct port_in_tailq ports_in;
@@ -1385,6 +1521,8 @@ struct rte_swx_pipeline {
 	struct extern_type_tailq extern_types;
 	struct extern_obj_tailq extern_objs;
 	struct extern_func_tailq extern_funcs;
+	struct hash_func_tailq hash_funcs;
+	struct rss_tailq rss;
 	struct header_tailq headers;
 	struct struct_type *metadata_st;
 	uint32_t metadata_struct_id;
@@ -1399,12 +1537,15 @@ struct rte_swx_pipeline {
 
 	struct port_in_runtime *in;
 	struct port_out_runtime *out;
+	struct mirroring_session *mirroring_sessions;
 	struct instruction **action_instructions;
 	action_func_t *action_funcs;
 	struct rte_swx_table_state *table_state;
 	struct table_statistics *table_stats;
 	struct selector_statistics *selector_stats;
 	struct learner_statistics *learner_stats;
+	struct hash_func_runtime *hash_func_runtime;
+	struct rss_runtime **rss_runtime;
 	struct regarray_runtime *regarray_runtime;
 	struct metarray_runtime *metarray_runtime;
 	struct instruction *instructions;
@@ -1416,8 +1557,12 @@ struct rte_swx_pipeline {
 	uint32_t n_structs;
 	uint32_t n_ports_in;
 	uint32_t n_ports_out;
+	uint32_t n_mirroring_slots;
+	uint32_t n_mirroring_sessions;
 	uint32_t n_extern_objs;
 	uint32_t n_extern_funcs;
+	uint32_t n_hash_funcs;
+	uint32_t n_rss;
 	uint32_t n_actions;
 	uint32_t n_tables;
 	uint32_t n_selectors;
@@ -1501,6 +1646,28 @@ __instr_rx_exec(struct rte_swx_pipeline *p, struct thread *t, const struct instr
 	struct rte_swx_pkt *pkt = &t->pkt;
 	int pkt_received;
 
+	/* Recirculation: keep the current packet. */
+	if (t->recirculate) {
+		TRACE("[Thread %2u] rx - recirculate (pass %u)\n",
+		      p->thread_id,
+		      t->recirc_pass_id + 1);
+
+		/* Packet. */
+		t->ptr = &pkt->pkt[pkt->offset];
+		t->mirroring_slots_mask = 0;
+		t->recirculate = 0;
+		t->recirc_pass_id++;
+
+		/* Headers. */
+		t->valid_headers = 0;
+		t->n_headers_out = 0;
+
+		/* Tables. */
+		t->table_state = p->table_state;
+
+		return 1;
+	}
+
 	/* Packet. */
 	pkt_received = port->pkt_rx(port->obj, pkt);
 	t->ptr = &pkt->pkt[pkt->offset];
@@ -1510,6 +1677,9 @@ __instr_rx_exec(struct rte_swx_pipeline *p, struct thread *t, const struct instr
 	      p->thread_id,
 	      pkt_received ? "1 pkt" : "0 pkts",
 	      p->port_id);
+
+	t->mirroring_slots_mask = 0;
+	t->recirc_pass_id = 0;
 
 	/* Headers. */
 	t->valid_headers = 0;
@@ -1597,11 +1767,52 @@ emit_handler(struct thread *t)
 }
 
 static inline void
+mirroring_handler(struct rte_swx_pipeline *p, struct thread *t, struct rte_swx_pkt *pkt)
+{
+	uint64_t slots_mask = t->mirroring_slots_mask, slot_mask;
+	uint32_t slot_id;
+
+	for (slot_id = 0, slot_mask = 1LLU ; slots_mask; slot_id++, slot_mask <<= 1)
+		if (slot_mask & slots_mask) {
+			struct port_out_runtime *port;
+			struct mirroring_session *session;
+			uint32_t port_id, session_id;
+
+			session_id = t->mirroring_slots[slot_id];
+			session = &p->mirroring_sessions[session_id];
+
+			port_id = session->port_id;
+			port = &p->out[port_id];
+
+			if (session->fast_clone)
+				port->pkt_fast_clone_tx(port->obj, pkt);
+			else
+				port->pkt_clone_tx(port->obj, pkt, session->truncation_length);
+
+			slots_mask &= ~slot_mask;
+		}
+}
+
+static inline void
 __instr_tx_exec(struct rte_swx_pipeline *p, struct thread *t, const struct instruction *ip)
 {
 	uint64_t port_id = METADATA_READ(t, ip->io.io.offset, ip->io.io.n_bits);
 	struct port_out_runtime *port = &p->out[port_id];
 	struct rte_swx_pkt *pkt = &t->pkt;
+
+	/* Recirculation: keep the current packet. */
+	if (t->recirculate) {
+		TRACE("[Thread %2u]: tx 1 pkt - recirculate\n",
+		      p->thread_id);
+
+		/* Headers. */
+		emit_handler(t);
+
+		/* Packet. */
+		mirroring_handler(p, t, pkt);
+
+		return;
+	}
 
 	TRACE("[Thread %2u]: tx 1 pkt to port %u\n",
 	      p->thread_id,
@@ -1611,6 +1822,7 @@ __instr_tx_exec(struct rte_swx_pipeline *p, struct thread *t, const struct instr
 	emit_handler(t);
 
 	/* Packet. */
+	mirroring_handler(p, t, pkt);
 	port->pkt_tx(port->obj, pkt);
 }
 
@@ -1621,6 +1833,20 @@ __instr_tx_i_exec(struct rte_swx_pipeline *p, struct thread *t, const struct ins
 	struct port_out_runtime *port = &p->out[port_id];
 	struct rte_swx_pkt *pkt = &t->pkt;
 
+	/* Recirculation: keep the current packet. */
+	if (t->recirculate) {
+		TRACE("[Thread %2u]: tx (i) 1 pkt - recirculate\n",
+		      p->thread_id);
+
+		/* Headers. */
+		emit_handler(t);
+
+		/* Packet. */
+		mirroring_handler(p, t, pkt);
+
+		return;
+	}
+
 	TRACE("[Thread %2u]: tx (i) 1 pkt to port %u\n",
 	      p->thread_id,
 	      (uint32_t)port_id);
@@ -1629,6 +1855,7 @@ __instr_tx_i_exec(struct rte_swx_pipeline *p, struct thread *t, const struct ins
 	emit_handler(t);
 
 	/* Packet. */
+	mirroring_handler(p, t, pkt);
 	port->pkt_tx(port->obj, pkt);
 }
 
@@ -1648,7 +1875,52 @@ __instr_drop_exec(struct rte_swx_pipeline *p,
 	emit_handler(t);
 
 	/* Packet. */
+	mirroring_handler(p, t, pkt);
 	port->pkt_tx(port->obj, pkt);
+}
+
+static inline void
+__instr_mirror_exec(struct rte_swx_pipeline *p,
+		    struct thread *t,
+		    const struct instruction *ip)
+{
+	uint64_t slot_id = instr_operand_hbo(t, &ip->mirror.dst);
+	uint64_t session_id = instr_operand_hbo(t, &ip->mirror.src);
+
+	slot_id &= p->n_mirroring_slots - 1;
+	session_id &= p->n_mirroring_sessions - 1;
+
+	TRACE("[Thread %2u]: mirror pkt (slot = %u, session = %u)\n",
+	      p->thread_id,
+	      (uint32_t)slot_id,
+	      (uint32_t)session_id);
+
+	t->mirroring_slots[slot_id] = session_id;
+	t->mirroring_slots_mask |= 1LLU << slot_id;
+}
+
+static inline void
+__instr_recirculate_exec(struct rte_swx_pipeline *p __rte_unused,
+			 struct thread *t,
+			 const struct instruction *ip __rte_unused)
+{
+	TRACE("[Thread %2u]: recirculate\n",
+	      p->thread_id);
+
+	t->recirculate = 1;
+}
+
+static inline void
+__instr_recircid_exec(struct rte_swx_pipeline *p __rte_unused,
+		      struct thread *t,
+		      const struct instruction *ip)
+{
+	TRACE("[Thread %2u]: recircid (pass %u)\n",
+	      p->thread_id,
+	      t->recirc_pass_id);
+
+	/* Meta-data. */
+	METADATA_WRITE(t, ip->io.io.offset, ip->io.io.n_bits, t->recirc_pass_id);
 }
 
 /*
@@ -1840,9 +2112,9 @@ __instr_hdr_emit_many_exec(struct rte_swx_pipeline *p __rte_unused,
 {
 	uint64_t valid_headers = t->valid_headers;
 	uint32_t n_headers_out = t->n_headers_out;
-	struct header_out_runtime *ho = &t->headers_out[n_headers_out - 1];
+	struct header_out_runtime *ho = NULL;
 	uint8_t *ho_ptr = NULL;
-	uint32_t ho_nbytes = 0, first = 1, i;
+	uint32_t ho_nbytes = 0, i;
 
 	for (i = 0; i < n_emit; i++) {
 		uint32_t header_id = ip->io.hdr.header_id[i];
@@ -1854,18 +2126,21 @@ __instr_hdr_emit_many_exec(struct rte_swx_pipeline *p __rte_unused,
 
 		uint8_t *hi_ptr = t->structs[struct_id];
 
-		if (!MASK64_BIT_GET(valid_headers, header_id))
-			continue;
+		if (!MASK64_BIT_GET(valid_headers, header_id)) {
+			TRACE("[Thread %2u]: emit header %u (invalid)\n",
+			      p->thread_id,
+			      header_id);
 
-		TRACE("[Thread %2u]: emit header %u\n",
+			continue;
+		}
+
+		TRACE("[Thread %2u]: emit header %u (valid)\n",
 		      p->thread_id,
 		      header_id);
 
 		/* Headers. */
-		if (first) {
-			first = 0;
-
-			if (!t->n_headers_out) {
+		if (!ho) {
+			if (!n_headers_out) {
 				ho = &t->headers_out[0];
 
 				ho->ptr0 = hi_ptr0;
@@ -1878,6 +2153,8 @@ __instr_hdr_emit_many_exec(struct rte_swx_pipeline *p __rte_unused,
 
 				continue;
 			} else {
+				ho = &t->headers_out[n_headers_out - 1];
+
 				ho_ptr = ho->ptr;
 				ho_nbytes = ho->n_bytes;
 			}
@@ -1899,7 +2176,8 @@ __instr_hdr_emit_many_exec(struct rte_swx_pipeline *p __rte_unused,
 		}
 	}
 
-	ho->n_bytes = ho_nbytes;
+	if (ho)
+		ho->n_bytes = ho_nbytes;
 	t->n_headers_out = n_headers_out;
 }
 
@@ -2008,11 +2286,22 @@ __instr_hdr_validate_exec(struct rte_swx_pipeline *p __rte_unused,
 			  const struct instruction *ip)
 {
 	uint32_t header_id = ip->valid.header_id;
+	uint32_t struct_id = ip->valid.struct_id;
+	uint64_t valid_headers = t->valid_headers;
+	struct header_runtime *h = &t->headers[header_id];
 
 	TRACE("[Thread %2u] validate header %u\n", p->thread_id, header_id);
 
+	/* If this header is already valid, then its associated t->structs[] element is also valid
+	 * and therefore it should not be modified. It could point to the packet buffer (in case of
+	 * extracted header) and setting it to the default location (h->ptr0) would be incorrect.
+	 */
+	if (MASK64_BIT_GET(valid_headers, header_id))
+		return;
+
 	/* Headers. */
-	t->valid_headers = MASK64_BIT_SET(t->valid_headers, header_id);
+	t->structs[struct_id] = h->ptr0;
+	t->valid_headers = MASK64_BIT_SET(valid_headers, header_id);
 }
 
 /*
@@ -2040,7 +2329,9 @@ __instr_learn_exec(struct rte_swx_pipeline *p,
 		   const struct instruction *ip)
 {
 	uint64_t action_id = ip->learn.action_id;
-	uint32_t mf_offset = ip->learn.mf_offset;
+	uint32_t mf_first_arg_offset = ip->learn.mf_first_arg_offset;
+	uint32_t timeout_id = METADATA_READ(t, ip->learn.mf_timeout_id_offset,
+		ip->learn.mf_timeout_id_n_bits);
 	uint32_t learner_id = t->learner_id;
 	struct rte_swx_table_state *ts = &t->table_state[p->n_tables +
 		p->n_selectors + learner_id];
@@ -2053,7 +2344,8 @@ __instr_learn_exec(struct rte_swx_pipeline *p,
 					   l->mailbox,
 					   t->time,
 					   action_id,
-					   &t->metadata[mf_offset]);
+					   &t->metadata[mf_first_arg_offset],
+					   timeout_id);
 
 	TRACE("[Thread %2u] learner %u learn %s\n",
 	      p->thread_id,
@@ -2061,6 +2353,54 @@ __instr_learn_exec(struct rte_swx_pipeline *p,
 	      status ? "ok" : "error");
 
 	stats->n_pkts_learn[status] += 1;
+}
+
+/*
+ * rearm.
+ */
+static inline void
+__instr_rearm_exec(struct rte_swx_pipeline *p,
+		   struct thread *t,
+		   const struct instruction *ip __rte_unused)
+{
+	uint32_t learner_id = t->learner_id;
+	struct rte_swx_table_state *ts = &t->table_state[p->n_tables +
+		p->n_selectors + learner_id];
+	struct learner_runtime *l = &t->learners[learner_id];
+	struct learner_statistics *stats = &p->learner_stats[learner_id];
+
+	/* Table. */
+	rte_swx_table_learner_rearm(ts->obj, l->mailbox, t->time);
+
+	TRACE("[Thread %2u] learner %u rearm\n",
+	      p->thread_id,
+	      learner_id);
+
+	stats->n_pkts_rearm += 1;
+}
+
+static inline void
+__instr_rearm_new_exec(struct rte_swx_pipeline *p,
+		       struct thread *t,
+		       const struct instruction *ip)
+{
+	uint32_t timeout_id = METADATA_READ(t, ip->learn.mf_timeout_id_offset,
+		ip->learn.mf_timeout_id_n_bits);
+	uint32_t learner_id = t->learner_id;
+	struct rte_swx_table_state *ts = &t->table_state[p->n_tables +
+		p->n_selectors + learner_id];
+	struct learner_runtime *l = &t->learners[learner_id];
+	struct learner_statistics *stats = &p->learner_stats[learner_id];
+
+	/* Table. */
+	rte_swx_table_learner_rearm_new(ts->obj, l->mailbox, t->time, timeout_id);
+
+	TRACE("[Thread %2u] learner %u rearm with timeout ID %u\n",
+	      p->thread_id,
+	      learner_id,
+	      timeout_id);
+
+	stats->n_pkts_rearm += 1;
 }
 
 /*
@@ -2085,6 +2425,21 @@ __instr_forget_exec(struct rte_swx_pipeline *p,
 	      learner_id);
 
 	stats->n_pkts_forget += 1;
+}
+
+/*
+ * entryid.
+ */
+static inline void
+__instr_entryid_exec(struct rte_swx_pipeline *p __rte_unused,
+		       struct thread *t,
+		       const struct instruction *ip)
+{
+	TRACE("[Thread %2u]: entryid\n",
+	      p->thread_id);
+
+	/* Meta-data. */
+	METADATA_WRITE(t, ip->mov.dst.offset, ip->mov.dst.n_bits, t->entry_id);
 }
 
 /*
@@ -2131,6 +2486,85 @@ __instr_extern_func_exec(struct rte_swx_pipeline *p __rte_unused,
 }
 
 /*
+ * hash.
+ */
+static inline void
+__instr_hash_func_exec(struct rte_swx_pipeline *p,
+		       struct thread *t,
+		       const struct instruction *ip)
+{
+	uint32_t hash_func_id = ip->hash_func.hash_func_id;
+	uint32_t dst_offset = ip->hash_func.dst.offset;
+	uint32_t n_dst_bits = ip->hash_func.dst.n_bits;
+	uint32_t src_struct_id = ip->hash_func.src.struct_id;
+	uint32_t src_offset = ip->hash_func.src.offset;
+	uint32_t n_src_bytes = ip->hash_func.src.n_bytes;
+
+	struct hash_func_runtime *func = &p->hash_func_runtime[hash_func_id];
+	uint8_t *src_ptr = t->structs[src_struct_id];
+	uint32_t result;
+
+	TRACE("[Thread %2u] hash %u\n",
+	      p->thread_id,
+	      hash_func_id);
+
+	result = func->func(&src_ptr[src_offset], n_src_bytes, 0);
+	METADATA_WRITE(t, dst_offset, n_dst_bits, result);
+}
+
+/*
+ * rss.
+ */
+static inline uint32_t
+rss_func(void *rss_key, uint32_t rss_key_size, void *input_data, uint32_t input_data_size)
+{
+	uint32_t *key = (uint32_t *)rss_key;
+	uint32_t *data = (uint32_t *)input_data;
+	uint32_t key_size = rss_key_size >> 2;
+	uint32_t data_size = input_data_size >> 2;
+	uint32_t hash_val = 0, i;
+
+	for (i = 0; i < data_size; i++) {
+		uint32_t d;
+
+		for (d = data[i]; d; d &= (d - 1)) {
+			uint32_t key0, key1, pos;
+
+			pos = rte_bsf32(d);
+			key0 = key[i % key_size] << (31 - pos);
+			key1 = key[(i + 1) % key_size] >> (pos + 1);
+			hash_val ^= key0 | key1;
+		}
+	}
+
+	return hash_val;
+}
+
+static inline void
+__instr_rss_exec(struct rte_swx_pipeline *p,
+		 struct thread *t,
+		 const struct instruction *ip)
+{
+	uint32_t rss_obj_id = ip->rss.rss_obj_id;
+	uint32_t dst_offset = ip->rss.dst.offset;
+	uint32_t n_dst_bits = ip->rss.dst.n_bits;
+	uint32_t src_struct_id = ip->rss.src.struct_id;
+	uint32_t src_offset = ip->rss.src.offset;
+	uint32_t n_src_bytes = ip->rss.src.n_bytes;
+
+	struct rss_runtime *r = p->rss_runtime[rss_obj_id];
+	uint8_t *src_ptr = t->structs[src_struct_id];
+	uint32_t result;
+
+	TRACE("[Thread %2u] rss %u\n",
+	      p->thread_id,
+	      rss_obj_id);
+
+	result = rss_func(r->key, r->key_size, &src_ptr[src_offset], n_src_bytes);
+	METADATA_WRITE(t, dst_offset, n_dst_bits, result);
+}
+
+/*
  * mov.
  */
 static inline void
@@ -2171,6 +2605,74 @@ __instr_mov_hh_exec(struct rte_swx_pipeline *p __rte_unused,
 	TRACE("[Thread %2u] mov (hh)\n", p->thread_id);
 
 	MOV_HH(t, ip);
+}
+
+static inline void
+__instr_mov_dma_exec(struct rte_swx_pipeline *p __rte_unused,
+		     struct thread *t,
+		     const struct instruction *ip)
+{
+	uint8_t *dst = t->structs[ip->mov.dst.struct_id] + ip->mov.dst.offset;
+	uint8_t *src = t->structs[ip->mov.src.struct_id] + ip->mov.src.offset;
+
+	uint32_t n_dst = ip->mov.dst.n_bits >> 3;
+	uint32_t n_src = ip->mov.src.n_bits >> 3;
+
+	TRACE("[Thread %2u] mov (dma) %u bytes\n", p->thread_id, n);
+
+	/* Both dst and src are in NBO format. */
+	if (n_dst > n_src) {
+		uint32_t n_dst_zero = n_dst - n_src;
+
+		/* Zero padding the most significant bytes in dst. */
+		memset(dst, 0, n_dst_zero);
+		dst += n_dst_zero;
+
+		/* Copy src to dst. */
+		memcpy(dst, src, n_src);
+	} else {
+		uint32_t n_src_skipped = n_src - n_dst;
+
+		/* Copy src to dst. */
+		src += n_src_skipped;
+		memcpy(dst, src, n_dst);
+	}
+}
+
+static inline void
+__instr_mov_128_exec(struct rte_swx_pipeline *p __rte_unused,
+		     struct thread *t,
+		     const struct instruction *ip)
+{
+	uint8_t *dst_struct = t->structs[ip->mov.dst.struct_id];
+	uint64_t *dst64_ptr = (uint64_t *)&dst_struct[ip->mov.dst.offset];
+
+	uint8_t *src_struct = t->structs[ip->mov.src.struct_id];
+	uint64_t *src64_ptr = (uint64_t *)&src_struct[ip->mov.src.offset];
+
+	TRACE("[Thread %2u] mov (128)\n", p->thread_id);
+
+	dst64_ptr[0] = src64_ptr[0];
+	dst64_ptr[1] = src64_ptr[1];
+}
+
+static inline void
+__instr_mov_128_32_exec(struct rte_swx_pipeline *p __rte_unused,
+			struct thread *t,
+			const struct instruction *ip)
+{
+	uint8_t *dst = t->structs[ip->mov.dst.struct_id] + ip->mov.dst.offset;
+	uint8_t *src = t->structs[ip->mov.src.struct_id] + ip->mov.src.offset;
+
+	uint32_t *dst32 = (uint32_t *)dst;
+	uint32_t *src32 = (uint32_t *)src;
+
+	TRACE("[Thread %2u] mov (128 <- 32)\n", p->thread_id);
+
+	dst32[0] = 0;
+	dst32[1] = 0;
+	dst32[2] = 0;
+	dst32[3] = src32[0];
 }
 
 static inline void

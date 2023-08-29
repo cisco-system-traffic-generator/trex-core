@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright 2021 NXP
+ * Copyright 2021-2022 NXP
  */
 
 #include <cryptodev_pmd.h>
-#include <rte_fslmc.h>
+#include <bus_fslmc_driver.h>
 #include <fslmc_vfio.h>
 #include <dpaa2_hw_pvt.h>
 #include <dpaa2_hw_dpio.h>
@@ -44,8 +44,8 @@ build_raw_dp_chain_fd(uint8_t *drv_ctx,
 	uint16_t auth_hdr_len = ofs.ofs.cipher.head -
 				ofs.ofs.auth.head;
 
-	uint16_t auth_tail_len = ofs.ofs.auth.tail;
-	uint32_t auth_only_len = (auth_tail_len << 16) | auth_hdr_len;
+	uint16_t auth_tail_len;
+	uint32_t auth_only_len;
 	int icv_len = sess->digest_length;
 	uint8_t *old_icv;
 	uint8_t *iv_ptr = iv->va;
@@ -55,6 +55,8 @@ build_raw_dp_chain_fd(uint8_t *drv_ctx,
 
 	cipher_len = data_len - ofs.ofs.cipher.head - ofs.ofs.cipher.tail;
 	auth_len = data_len - ofs.ofs.auth.head - ofs.ofs.auth.tail;
+	auth_tail_len = auth_len - cipher_len - auth_hdr_len;
+	auth_only_len = (auth_tail_len << 16) | auth_hdr_len;
 	/* first FLE entry used to store session ctxt */
 	fle = (struct qbman_fle *)rte_malloc(NULL,
 			FLE_SG_MEM_SIZE(2 * sgl->num),
@@ -104,6 +106,7 @@ build_raw_dp_chain_fd(uint8_t *drv_ctx,
 			DPAA2_SET_FLE_OFFSET(sge, 0);
 			sge->length = dest_sgl->vec[i].len;
 		}
+		sge->length -= ofs.ofs.cipher.tail;
 	} else {
 		/* Configure Output SGE for Encap/Decap */
 		DPAA2_SET_FLE_ADDR(sge, sgl->vec[0].iova);
@@ -117,6 +120,7 @@ build_raw_dp_chain_fd(uint8_t *drv_ctx,
 			DPAA2_SET_FLE_OFFSET(sge, 0);
 			sge->length = sgl->vec[i].len;
 		}
+		sge->length -= ofs.ofs.cipher.tail;
 	}
 
 	if (sess->dir == DIR_ENC) {
@@ -1005,11 +1009,9 @@ dpaa2_sec_configure_raw_dp_ctx(struct rte_cryptodev *dev, uint16_t qp_id,
 	}
 
 	if (sess_type == RTE_CRYPTO_OP_SECURITY_SESSION)
-		sess = (dpaa2_sec_session *)get_sec_session_private_data(
-				session_ctx.sec_sess);
+		sess = SECURITY_GET_SESS_PRIV(session_ctx.sec_sess);
 	else if (sess_type == RTE_CRYPTO_OP_WITH_SESSION)
-		sess = (dpaa2_sec_session *)get_sym_session_private_data(
-			session_ctx.crypto_sess, cryptodev_driver_id);
+		sess = CRYPTODEV_GET_SYM_SESS_PRIV(session_ctx.crypto_sess);
 	else
 		return -ENOTSUP;
 	raw_dp_ctx->dequeue_burst = dpaa2_sec_raw_dequeue_burst;

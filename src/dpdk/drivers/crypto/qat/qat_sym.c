@@ -7,14 +7,16 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_crypto_sym.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_byteorder.h>
+#include <rte_security_driver.h>
 
 #include "qat_sym.h"
 #include "qat_crypto.h"
 #include "qat_qp.h"
 
 uint8_t qat_sym_driver_id;
+int qat_ipsec_mb_lib;
 
 struct qat_crypto_gen_dev_ops qat_sym_gen_dev_ops[QAT_N_GENS];
 
@@ -66,12 +68,7 @@ qat_sym_build_request(void *in_op, uint8_t *out_msg,
 		return -EINVAL;
 
 	if (likely(op->sess_type == RTE_CRYPTO_OP_WITH_SESSION)) {
-		ctx = get_sym_session_private_data(op->sym->session,
-				qat_sym_driver_id);
-		if (unlikely(!ctx)) {
-			QAT_DP_LOG(ERR, "No session for this device");
-			return -EINVAL;
-		}
+		ctx = (void *)CRYPTODEV_GET_SYM_SESS_PRIV(op->sym->session);
 		if (sess != (uintptr_t)ctx) {
 			struct rte_cryptodev *cdev;
 			struct qat_cryptodev_private *internals;
@@ -88,7 +85,7 @@ qat_sym_build_request(void *in_op, uint8_t *out_msg,
 			if (unlikely(ctx->build_request[proc_type] == NULL)) {
 				int ret =
 				qat_sym_gen_dev_ops[dev_gen].set_session(
-					(void *)cdev, (void *)sess);
+					(void *)cdev, (void *)ctx);
 				if (ret < 0) {
 					op->status =
 						RTE_CRYPTO_OP_STATUS_INVALID_SESSION;
@@ -104,16 +101,15 @@ qat_sym_build_request(void *in_op, uint8_t *out_msg,
 
 #ifdef RTE_LIB_SECURITY
 	else if (op->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION) {
-		if ((void *)sess != (void *)op->sym->sec_session) {
+		ctx = SECURITY_GET_SESS_PRIV(op->sym->session);
+		if (unlikely(!ctx)) {
+			QAT_DP_LOG(ERR, "No session for this device");
+			return -EINVAL;
+		}
+		if (sess != (uintptr_t)ctx) {
 			struct rte_cryptodev *cdev;
 			struct qat_cryptodev_private *internals;
 
-			ctx = get_sec_session_private_data(
-					op->sym->sec_session);
-			if (unlikely(!ctx)) {
-				QAT_DP_LOG(ERR, "No session for this device");
-				return -EINVAL;
-			}
 			if (unlikely(ctx->bpi_ctx == NULL)) {
 				QAT_DP_LOG(ERR, "QAT PMD only supports security"
 						" operation requests for"
@@ -149,7 +145,7 @@ qat_sym_build_request(void *in_op, uint8_t *out_msg,
 				}
 			}
 
-			sess = (uintptr_t)op->sym->sec_session;
+			sess = (uintptr_t)op->sym->session;
 			build_request = ctx->build_request[proc_type];
 			opaque[0] = sess;
 			opaque[1] = (uintptr_t)build_request;
@@ -186,6 +182,7 @@ qat_sym_dev_create(struct qat_pci_device *qat_pci_dev,
 		struct qat_dev_cmd_param *qat_dev_cmd_param __rte_unused)
 {
 	int i = 0, ret = 0;
+	uint16_t slice_map = 0;
 	struct qat_device_info *qat_dev_instance =
 			&qat_pci_devs[qat_pci_dev->qat_dev_id];
 	struct rte_cryptodev_pmd_init_params init_params = {
@@ -197,11 +194,8 @@ qat_sym_dev_create(struct qat_pci_device *qat_pci_dev,
 	char capa_memz_name[RTE_CRYPTODEV_NAME_MAX_LEN];
 	struct rte_cryptodev *cryptodev;
 	struct qat_cryptodev_private *internals;
-	struct qat_capabilities_info capa_info;
-	const struct rte_cryptodev_capabilities *capabilities;
 	const struct qat_crypto_gen_dev_ops *gen_dev_ops =
 		&qat_sym_gen_dev_ops[qat_pci_dev->qat_dev_gen];
-	uint64_t capa_size;
 
 	snprintf(name, RTE_CRYPTODEV_NAME_MAX_LEN, "%s_%s",
 			qat_pci_dev->name, "sym");
@@ -281,35 +275,25 @@ qat_sym_dev_create(struct qat_pci_device *qat_pci_dev,
 
 	internals->dev_id = cryptodev->data->dev_id;
 
-	capa_info = gen_dev_ops->get_capabilities(qat_pci_dev);
-	capabilities = capa_info.data;
-	capa_size = capa_info.size;
-
-	internals->capa_mz = rte_memzone_lookup(capa_memz_name);
-	if (internals->capa_mz == NULL) {
-		internals->capa_mz = rte_memzone_reserve(capa_memz_name,
-				capa_size, rte_socket_id(), 0);
-		if (internals->capa_mz == NULL) {
-			QAT_LOG(DEBUG,
-				"Error allocating memzone for capabilities, "
-				"destroying PMD for %s", name);
-			ret = -EFAULT;
-			goto error;
-		}
-	}
-
-	memcpy(internals->capa_mz->addr, capabilities, capa_size);
-	internals->qat_dev_capabilities = internals->capa_mz->addr;
-
-	while (1) {
-		if (qat_dev_cmd_param[i].name == NULL)
-			break;
+	while (qat_dev_cmd_param[i].name != NULL) {
 		if (!strcmp(qat_dev_cmd_param[i].name, SYM_ENQ_THRESHOLD_NAME))
 			internals->min_enq_burst_threshold =
 					qat_dev_cmd_param[i].val;
+		if (!strcmp(qat_dev_cmd_param[i].name, QAT_IPSEC_MB_LIB))
+			qat_ipsec_mb_lib = qat_dev_cmd_param[i].val;
+		if (!strcmp(qat_dev_cmd_param[i].name, QAT_CMD_SLICE_MAP))
+			slice_map = qat_dev_cmd_param[i].val;
 		i++;
 	}
 
+	if (gen_dev_ops->get_capabilities(internals,
+			capa_memz_name, slice_map) < 0) {
+		QAT_LOG(ERR,
+			"Device cannot obtain capabilities, destroying PMD for %s",
+			name);
+		ret = -1;
+		goto error;
+	}
 	internals->service_type = QAT_SERVICE_SYMMETRIC;
 	qat_pci_dev->sym_dev = internals;
 	QAT_LOG(DEBUG, "Created QAT SYM device %s as cryptodev instance %d",
@@ -389,8 +373,7 @@ qat_sym_configure_dp_ctx(struct rte_cryptodev *dev, uint16_t qp_id,
 	if (sess_type != RTE_CRYPTO_OP_WITH_SESSION)
 		return -EINVAL;
 
-	ctx = (struct qat_sym_session *)get_sym_session_private_data(
-			session_ctx.crypto_sess, qat_sym_driver_id);
+	ctx = CRYPTODEV_GET_SYM_SESS_PRIV(session_ctx.crypto_sess);
 
 	dp_ctx->session = ctx;
 

@@ -10,6 +10,7 @@
 
 #include <sys/queue.h>
 
+#include <dev_driver.h>
 #include <rte_class.h>
 #include <rte_malloc.h>
 #include <rte_spinlock.h>
@@ -22,21 +23,22 @@
 /** Double linked list of vDPA devices. */
 TAILQ_HEAD(vdpa_device_list, rte_vdpa_device);
 
-static struct vdpa_device_list vdpa_device_list =
-		TAILQ_HEAD_INITIALIZER(vdpa_device_list);
+static struct vdpa_device_list vdpa_device_list__ =
+	TAILQ_HEAD_INITIALIZER(vdpa_device_list__);
 static rte_spinlock_t vdpa_device_list_lock = RTE_SPINLOCK_INITIALIZER;
+static struct vdpa_device_list * const vdpa_device_list
+	__rte_guarded_by(&vdpa_device_list_lock) = &vdpa_device_list__;
 
-
-/* Unsafe, needs to be called with vdpa_device_list_lock held */
 static struct rte_vdpa_device *
 __vdpa_find_device_by_name(const char *name)
+	__rte_exclusive_locks_required(&vdpa_device_list_lock)
 {
 	struct rte_vdpa_device *dev, *ret = NULL;
 
 	if (name == NULL)
 		return NULL;
 
-	TAILQ_FOREACH(dev, &vdpa_device_list, next) {
+	TAILQ_FOREACH(dev, vdpa_device_list, next) {
 		if (!strncmp(dev->device->name, name, RTE_DEV_NAME_MAX_LEN)) {
 			ret = dev;
 			break;
@@ -72,6 +74,7 @@ rte_vdpa_register_device(struct rte_device *rte_dev,
 		struct rte_vdpa_dev_ops *ops)
 {
 	struct rte_vdpa_device *dev;
+	int ret = 0;
 
 	if (ops == NULL)
 		return NULL;
@@ -81,8 +84,8 @@ rte_vdpa_register_device(struct rte_device *rte_dev,
 			!ops->get_protocol_features || !ops->dev_conf ||
 			!ops->dev_close || !ops->set_vring_state ||
 			!ops->set_features) {
-		VHOST_LOG_CONFIG(ERR, "(%s) Some mandatory vDPA ops aren't implemented\n",
-				rte_dev->name);
+		VHOST_LOG_CONFIG(rte_dev->name, ERR,
+			"Some mandatory vDPA ops aren't implemented\n");
 		return NULL;
 	}
 
@@ -100,7 +103,21 @@ rte_vdpa_register_device(struct rte_device *rte_dev,
 
 	dev->device = rte_dev;
 	dev->ops = ops;
-	TAILQ_INSERT_TAIL(&vdpa_device_list, dev, next);
+
+	if (ops->get_dev_type) {
+		ret = ops->get_dev_type(dev, &dev->type);
+		if (ret) {
+			VHOST_LOG_CONFIG(rte_dev->name, ERR,
+					 "Failed to get vdpa dev type.\n");
+			ret = -1;
+			goto out_unlock;
+		}
+	} else {
+		/** by default, we assume vdpa device is a net device */
+		dev->type = RTE_VHOST_VDPA_DEVICE_TYPE_NET;
+	}
+
+	TAILQ_INSERT_TAIL(vdpa_device_list, dev, next);
 out_unlock:
 	rte_spinlock_unlock(&vdpa_device_list_lock);
 
@@ -114,11 +131,11 @@ rte_vdpa_unregister_device(struct rte_vdpa_device *dev)
 	int ret = -1;
 
 	rte_spinlock_lock(&vdpa_device_list_lock);
-	RTE_TAILQ_FOREACH_SAFE(cur_dev, &vdpa_device_list, next, tmp_dev) {
+	RTE_TAILQ_FOREACH_SAFE(cur_dev, vdpa_device_list, next, tmp_dev) {
 		if (dev != cur_dev)
 			continue;
 
-		TAILQ_REMOVE(&vdpa_device_list, dev, next);
+		TAILQ_REMOVE(vdpa_device_list, dev, next);
 		rte_free(dev);
 		ret = 0;
 		break;
@@ -130,6 +147,7 @@ rte_vdpa_unregister_device(struct rte_vdpa_device *dev)
 
 int
 rte_vdpa_relay_vring_used(int vid, uint16_t qid, void *vring_m)
+	__rte_no_thread_safety_analysis /* FIXME: requires iotlb_lock? */
 {
 	struct virtio_net *dev = get_device(vid);
 	uint16_t idx, idx_m, desc_id;
@@ -266,7 +284,8 @@ rte_vdpa_get_stats_names(struct rte_vdpa_device *dev,
 	if (!dev)
 		return -EINVAL;
 
-	RTE_FUNC_PTR_OR_ERR_RET(dev->ops->get_stats_names, -ENOTSUP);
+	if (dev->ops->get_stats_names == NULL)
+		return -ENOTSUP;
 
 	return dev->ops->get_stats_names(dev, stats_names, size);
 }
@@ -278,7 +297,8 @@ rte_vdpa_get_stats(struct rte_vdpa_device *dev, uint16_t qid,
 	if (!dev || !stats || !n)
 		return -EINVAL;
 
-	RTE_FUNC_PTR_OR_ERR_RET(dev->ops->get_stats, -ENOTSUP);
+	if (dev->ops->get_stats == NULL)
+		return -ENOTSUP;
 
 	return dev->ops->get_stats(dev, qid, stats, n);
 }
@@ -289,7 +309,8 @@ rte_vdpa_reset_stats(struct rte_vdpa_device *dev, uint16_t qid)
 	if (!dev)
 		return -EINVAL;
 
-	RTE_FUNC_PTR_OR_ERR_RET(dev->ops->reset_stats, -ENOTSUP);
+	if (dev->ops->reset_stats == NULL)
+		return -ENOTSUP;
 
 	return dev->ops->reset_stats(dev, qid);
 }
@@ -316,7 +337,7 @@ vdpa_find_device(const struct rte_vdpa_device *start, rte_vdpa_cmp_t cmp,
 
 	rte_spinlock_lock(&vdpa_device_list_lock);
 	if (start == NULL)
-		dev = TAILQ_FIRST(&vdpa_device_list);
+		dev = TAILQ_FIRST(vdpa_device_list);
 	else
 		dev = TAILQ_NEXT(start, next);
 

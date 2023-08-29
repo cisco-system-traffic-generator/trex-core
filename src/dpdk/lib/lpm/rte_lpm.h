@@ -13,6 +13,7 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <rte_compat.h>
 #include <rte_branch_prediction.h>
 #include <rte_byteorder.h>
 #include <rte_common.h>
@@ -179,8 +180,7 @@ rte_lpm_find_existing(const char *name);
  *
  * @param lpm
  *   LPM object handle
- * @return
- *   None
+ *   If lpm is NULL, no operation is performed.
  */
 void
 rte_lpm_free(struct rte_lpm *lpm);
@@ -279,7 +279,7 @@ rte_lpm_delete_all(struct rte_lpm *lpm);
  *   -EINVAL for incorrect arguments, -ENOENT on lookup miss, 0 on lookup hit
  */
 static inline int
-rte_lpm_lookup(struct rte_lpm *lpm, uint32_t ip, uint32_t *next_hop)
+rte_lpm_lookup(const struct rte_lpm *lpm, uint32_t ip, uint32_t *next_hop)
 {
 	unsigned tbl24_index = (ip >> 8);
 	uint32_t tbl_entry;
@@ -400,13 +400,17 @@ rte_lpm_lookupx4(const struct rte_lpm *lpm, xmm_t ip, uint32_t hop[4],
 #if defined(RTE_ARCH_ARM)
 #ifdef RTE_HAS_SVE_ACLE
 #include "rte_lpm_sve.h"
-#else
-#include "rte_lpm_neon.h"
+#undef rte_lpm_lookup_bulk
+#define rte_lpm_lookup_bulk(lpm, ips, next_hops, n) \
+		__rte_lpm_lookup_vec(lpm, ips, next_hops, n)
 #endif
+#include "rte_lpm_neon.h"
 #elif defined(RTE_ARCH_PPC_64)
 #include "rte_lpm_altivec.h"
-#else
+#elif defined(RTE_ARCH_X86)
 #include "rte_lpm_sse.h"
+#else
+#include "rte_lpm_scalar.h"
 #endif
 
 #ifdef __cplusplus

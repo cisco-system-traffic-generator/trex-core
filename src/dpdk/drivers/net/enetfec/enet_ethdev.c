@@ -2,9 +2,12 @@
  * Copyright 2020-2021 NXP
  */
 
+#include <inttypes.h>
+
 #include <ethdev_vdev.h>
 #include <ethdev_driver.h>
 #include <rte_io.h>
+
 #include "enet_pmd_logs.h"
 #include "enet_ethdev.h"
 #include "enet_regs.h"
@@ -51,6 +54,7 @@ enetfec_restart(struct rte_eth_dev *dev)
 	uint32_t rcntl = OPT_FRAME_SIZE | 0x04;
 	uint32_t ecntl = ENETFEC_ETHEREN;
 	uint32_t val;
+	int i;
 
 	/* Clear any outstanding interrupt. */
 	writel(0xffffffff, (uint8_t *)fep->hw_baseaddr_v + ENETFEC_EIR);
@@ -146,6 +150,9 @@ enetfec_restart(struct rte_eth_dev *dev)
 	/* And last, enable the transmit and receive processing */
 	rte_write32(rte_cpu_to_le_32(ecntl),
 		(uint8_t *)fep->hw_baseaddr_v + ENETFEC_ECR);
+
+	for (i = 0; i < fep->max_rx_queues; i++)
+		rte_write32(0, fep->rx_queues[i]->bd.active_reg_desc);
 	rte_delay_us(10);
 }
 
@@ -451,6 +458,12 @@ enetfec_rx_queue_setup(struct rte_eth_dev *dev,
 	/* Rx deferred start is not supported */
 	if (rx_conf->rx_deferred_start) {
 		ENETFEC_PMD_ERR("Rx deferred start not supported");
+		return -EINVAL;
+	}
+
+	if (queue_idx >= ENETFEC_MAX_Q) {
+		ENETFEC_PMD_ERR("Invalid queue id %" PRIu16 ", max %d\n",
+			queue_idx, ENETFEC_MAX_Q);
 		return -EINVAL;
 	}
 

@@ -83,16 +83,16 @@ static const
 enum rte_flow_action_type dpaa2_supported_action_type[] = {
 	RTE_FLOW_ACTION_TYPE_END,
 	RTE_FLOW_ACTION_TYPE_QUEUE,
-	RTE_FLOW_ACTION_TYPE_PHY_PORT,
 	RTE_FLOW_ACTION_TYPE_PORT_ID,
+	RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT,
 	RTE_FLOW_ACTION_TYPE_RSS
 };
 
 static const
 enum rte_flow_action_type dpaa2_supported_fs_action_type[] = {
 	RTE_FLOW_ACTION_TYPE_QUEUE,
-	RTE_FLOW_ACTION_TYPE_PHY_PORT,
-	RTE_FLOW_ACTION_TYPE_PORT_ID
+	RTE_FLOW_ACTION_TYPE_PORT_ID,
+	RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT,
 };
 
 /* Max of enum rte_flow_item_type + 1, for both IPv4 and IPv6*/
@@ -100,13 +100,13 @@ enum rte_flow_action_type dpaa2_supported_fs_action_type[] = {
 
 #ifndef __cplusplus
 static const struct rte_flow_item_eth dpaa2_flow_item_eth_mask = {
-	.dst.addr_bytes = "\xff\xff\xff\xff\xff\xff",
-	.src.addr_bytes = "\xff\xff\xff\xff\xff\xff",
-	.type = RTE_BE16(0xffff),
+	.hdr.dst_addr.addr_bytes = "\xff\xff\xff\xff\xff\xff",
+	.hdr.src_addr.addr_bytes = "\xff\xff\xff\xff\xff\xff",
+	.hdr.ether_type = RTE_BE16(0xffff),
 };
 
 static const struct rte_flow_item_vlan dpaa2_flow_item_vlan_mask = {
-	.tci = RTE_BE16(0xffff),
+	.hdr.vlan_tci = RTE_BE16(0xffff),
 };
 
 static const struct rte_flow_item_ipv4 dpaa2_flow_item_ipv4_mask = {
@@ -966,7 +966,7 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 		return -1;
 	}
 
-	if (memcmp((const char *)&mask->src, zero_cmp, RTE_ETHER_ADDR_LEN)) {
+	if (memcmp((const char *)&mask->hdr.src_addr, zero_cmp, RTE_ETHER_ADDR_LEN)) {
 		index = dpaa2_flow_extract_search(
 				&priv->extract.qos_key_extract.dpkg,
 				NET_PROT_ETH, NH_FLD_ETH_SA);
@@ -1009,8 +1009,8 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 				&flow->qos_rule,
 				NET_PROT_ETH,
 				NH_FLD_ETH_SA,
-				&spec->src.addr_bytes,
-				&mask->src.addr_bytes,
+				&spec->hdr.src_addr.addr_bytes,
+				&mask->hdr.src_addr.addr_bytes,
 				sizeof(struct rte_ether_addr));
 		if (ret) {
 			DPAA2_PMD_ERR("QoS NH_FLD_ETH_SA rule data set failed");
@@ -1022,8 +1022,8 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 				&flow->fs_rule,
 				NET_PROT_ETH,
 				NH_FLD_ETH_SA,
-				&spec->src.addr_bytes,
-				&mask->src.addr_bytes,
+				&spec->hdr.src_addr.addr_bytes,
+				&mask->hdr.src_addr.addr_bytes,
 				sizeof(struct rte_ether_addr));
 		if (ret) {
 			DPAA2_PMD_ERR("FS NH_FLD_ETH_SA rule data set failed");
@@ -1031,7 +1031,7 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 		}
 	}
 
-	if (memcmp((const char *)&mask->dst, zero_cmp, RTE_ETHER_ADDR_LEN)) {
+	if (memcmp((const char *)&mask->hdr.dst_addr, zero_cmp, RTE_ETHER_ADDR_LEN)) {
 		index = dpaa2_flow_extract_search(
 				&priv->extract.qos_key_extract.dpkg,
 				NET_PROT_ETH, NH_FLD_ETH_DA);
@@ -1076,8 +1076,8 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 				&flow->qos_rule,
 				NET_PROT_ETH,
 				NH_FLD_ETH_DA,
-				&spec->dst.addr_bytes,
-				&mask->dst.addr_bytes,
+				&spec->hdr.dst_addr.addr_bytes,
+				&mask->hdr.dst_addr.addr_bytes,
 				sizeof(struct rte_ether_addr));
 		if (ret) {
 			DPAA2_PMD_ERR("QoS NH_FLD_ETH_DA rule data set failed");
@@ -1089,8 +1089,8 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 				&flow->fs_rule,
 				NET_PROT_ETH,
 				NH_FLD_ETH_DA,
-				&spec->dst.addr_bytes,
-				&mask->dst.addr_bytes,
+				&spec->hdr.dst_addr.addr_bytes,
+				&mask->hdr.dst_addr.addr_bytes,
 				sizeof(struct rte_ether_addr));
 		if (ret) {
 			DPAA2_PMD_ERR("FS NH_FLD_ETH_DA rule data set failed");
@@ -1098,7 +1098,7 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 		}
 	}
 
-	if (memcmp((const char *)&mask->type, zero_cmp, sizeof(rte_be16_t))) {
+	if (memcmp((const char *)&mask->hdr.ether_type, zero_cmp, sizeof(rte_be16_t))) {
 		index = dpaa2_flow_extract_search(
 				&priv->extract.qos_key_extract.dpkg,
 				NET_PROT_ETH, NH_FLD_ETH_TYPE);
@@ -1142,8 +1142,8 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 				&flow->qos_rule,
 				NET_PROT_ETH,
 				NH_FLD_ETH_TYPE,
-				&spec->type,
-				&mask->type,
+				&spec->hdr.ether_type,
+				&mask->hdr.ether_type,
 				sizeof(rte_be16_t));
 		if (ret) {
 			DPAA2_PMD_ERR("QoS NH_FLD_ETH_TYPE rule data set failed");
@@ -1155,8 +1155,8 @@ dpaa2_configure_flow_eth(struct rte_flow *flow,
 				&flow->fs_rule,
 				NET_PROT_ETH,
 				NH_FLD_ETH_TYPE,
-				&spec->type,
-				&mask->type,
+				&spec->hdr.ether_type,
+				&mask->hdr.ether_type,
 				sizeof(rte_be16_t));
 		if (ret) {
 			DPAA2_PMD_ERR("FS NH_FLD_ETH_TYPE rule data set failed");
@@ -1266,7 +1266,7 @@ dpaa2_configure_flow_vlan(struct rte_flow *flow,
 		return -1;
 	}
 
-	if (!mask->tci)
+	if (!mask->hdr.vlan_tci)
 		return 0;
 
 	index = dpaa2_flow_extract_search(
@@ -1314,8 +1314,8 @@ dpaa2_configure_flow_vlan(struct rte_flow *flow,
 				&flow->qos_rule,
 				NET_PROT_VLAN,
 				NH_FLD_VLAN_TCI,
-				&spec->tci,
-				&mask->tci,
+				&spec->hdr.vlan_tci,
+				&mask->hdr.vlan_tci,
 				sizeof(rte_be16_t));
 	if (ret) {
 		DPAA2_PMD_ERR("QoS NH_FLD_VLAN_TCI rule data set failed");
@@ -1327,8 +1327,8 @@ dpaa2_configure_flow_vlan(struct rte_flow *flow,
 			&flow->fs_rule,
 			NET_PROT_VLAN,
 			NH_FLD_VLAN_TCI,
-			&spec->tci,
-			&mask->tci,
+			&spec->hdr.vlan_tci,
+			&mask->hdr.vlan_tci,
 			sizeof(rte_be16_t));
 	if (ret) {
 		DPAA2_PMD_ERR("FS NH_FLD_VLAN_TCI rule data set failed");
@@ -3279,21 +3279,20 @@ static inline struct rte_eth_dev *
 dpaa2_flow_redirect_dev(struct dpaa2_dev_priv *priv,
 	const struct rte_flow_action *action)
 {
-	const struct rte_flow_action_phy_port *phy_port;
 	const struct rte_flow_action_port_id *port_id;
 	int idx = -1;
 	struct rte_eth_dev *dest_dev;
 
-	if (action->type == RTE_FLOW_ACTION_TYPE_PHY_PORT) {
-		phy_port = (const struct rte_flow_action_phy_port *)
-					action->conf;
-		if (!phy_port->original)
-			idx = phy_port->index;
-	} else if (action->type == RTE_FLOW_ACTION_TYPE_PORT_ID) {
+	if (action->type == RTE_FLOW_ACTION_TYPE_PORT_ID) {
 		port_id = (const struct rte_flow_action_port_id *)
 					action->conf;
 		if (!port_id->original)
 			idx = port_id->id;
+	} else if (action->type == RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT) {
+		const struct rte_flow_action_ethdev *ethdev;
+
+		ethdev = (const struct rte_flow_action_ethdev *)action->conf;
+		idx = ethdev->port_id;
 	} else {
 		return NULL;
 	}
@@ -3337,7 +3336,7 @@ dpaa2_flow_verify_action(
 				return -1;
 			}
 			break;
-		case RTE_FLOW_ACTION_TYPE_PHY_PORT:
+		case RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT:
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
 			if (!dpaa2_flow_redirect_dev(priv, &actions[j])) {
 				DPAA2_PMD_ERR("Invalid port id of action");
@@ -3514,7 +3513,7 @@ dpaa2_generic_flow_set(struct rte_flow *flow,
 	while (!end_of_list) {
 		switch (actions[j].type) {
 		case RTE_FLOW_ACTION_TYPE_QUEUE:
-		case RTE_FLOW_ACTION_TYPE_PHY_PORT:
+		case RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT:
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
 			memset(&action, 0, sizeof(struct dpni_fs_action_cfg));
 			flow->action = actions[j].type;
@@ -4088,7 +4087,7 @@ int dpaa2_flow_destroy(struct rte_eth_dev *dev,
 
 	switch (flow->action) {
 	case RTE_FLOW_ACTION_TYPE_QUEUE:
-	case RTE_FLOW_ACTION_TYPE_PHY_PORT:
+	case RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT:
 	case RTE_FLOW_ACTION_TYPE_PORT_ID:
 		if (priv->num_rx_tc > 1) {
 			/* Remove entry from QoS table first */

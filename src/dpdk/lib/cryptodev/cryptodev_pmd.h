@@ -19,6 +19,8 @@ extern "C" {
 
 #include <string.h>
 
+#include <dev_driver.h>
+#include <rte_compat.h>
 #include <rte_malloc.h>
 #include <rte_log.h>
 #include <rte_common.h>
@@ -131,6 +133,38 @@ struct cryptodev_driver {
 	const struct rte_driver *driver;
 	uint8_t id;
 };
+
+/** Cryptodev symmetric crypto session
+ * Each session is derived from a fixed xform chain. Therefore each session
+ * has a fixed algo, key, op-type, digest_len etc.
+ */
+struct rte_cryptodev_sym_session {
+	RTE_MARKER cacheline0;
+	uint64_t opaque_data;
+	/**< Can be used for external metadata */
+	uint32_t sess_data_sz;
+	/**< Pointer to the user data stored after sess data */
+	uint16_t user_data_sz;
+	/**< Session user data will be placed after sess data */
+	uint8_t driver_id;
+	/**< Driver id to get the session priv */
+	rte_iova_t driver_priv_data_iova;
+	/**< Session driver data IOVA address */
+
+	RTE_MARKER cacheline1 __rte_cache_min_aligned;
+	/**< Second cache line - start of the driver session data */
+	uint8_t driver_priv_data[0];
+	/**< Driver specific session data, variable size */
+};
+
+/**
+ * Helper macro to get driver private data
+ */
+#define CRYPTODEV_GET_SYM_SESS_PRIV(s) \
+	((void *)(((struct rte_cryptodev_sym_session *)s)->driver_priv_data))
+#define CRYPTODEV_GET_SYM_SESS_PRIV_IOVA(s) \
+	(((struct rte_cryptodev_sym_session *)s)->driver_priv_data_iova)
+
 
 /**
  * Get the rte_cryptodev structure device pointer for the device. Assumes a
@@ -301,7 +335,6 @@ typedef unsigned int (*cryptodev_asym_get_session_private_size_t)(
  * @param	dev		Crypto device pointer
  * @param	xform		Single or chain of crypto xforms
  * @param	session		Pointer to cryptodev's private session structure
- * @param	mp		Mempool where the private session is allocated
  *
  * @return
  *  - Returns 0 if private session structure have been created successfully.
@@ -311,8 +344,8 @@ typedef unsigned int (*cryptodev_asym_get_session_private_size_t)(
  */
 typedef int (*cryptodev_sym_configure_session_t)(struct rte_cryptodev *dev,
 		struct rte_crypto_sym_xform *xform,
-		struct rte_cryptodev_sym_session *session,
-		struct rte_mempool *mp);
+		struct rte_cryptodev_sym_session *session);
+
 /**
  * Configure a Crypto asymmetric session on a device.
  *
@@ -337,6 +370,7 @@ typedef int (*cryptodev_asym_configure_session_t)(struct rte_cryptodev *dev,
  */
 typedef void (*cryptodev_sym_free_session_t)(struct rte_cryptodev *dev,
 		struct rte_cryptodev_sym_session *sess);
+
 /**
  * Clear asymmetric session private data.
  *
@@ -398,6 +432,32 @@ typedef int (*cryptodev_sym_configure_raw_dp_ctx_t)(
 	enum rte_crypto_op_sess_type sess_type,
 	union rte_cryptodev_session_ctx session_ctx, uint8_t is_update);
 
+/**
+ * Typedef that the driver provided to set event crypto meta data.
+ *
+ * @param	dev		Crypto device pointer.
+ * @param	sess		Crypto or security session.
+ * @param	op_type		Operation type.
+ * @param	sess_type	Session type.
+ * @param	ev_mdata	Pointer to the event crypto meta data
+ *				(aka *union rte_event_crypto_metadata*)
+ * @return
+ *   - On success return 0.
+ *   - On failure return negative integer.
+ */
+typedef int (*cryptodev_session_event_mdata_set_t)(
+	struct rte_cryptodev *dev, void *sess,
+	enum rte_crypto_op_type op_type,
+	enum rte_crypto_op_sess_type sess_type,
+	void *ev_mdata);
+
+/**
+ * @internal Query queue pair error interrupt event.
+ * @see rte_cryptodev_queue_pair_event_error_query()
+ */
+typedef int (*cryptodev_queue_pair_event_error_query_t)(struct rte_cryptodev *dev,
+					uint16_t qp_id);
+
 /** Crypto device operations function pointer table */
 struct rte_cryptodev_ops {
 	cryptodev_configure_t dev_configure;	/**< Configure device. */
@@ -442,6 +502,10 @@ struct rte_cryptodev_ops {
 			/**< Initialize raw data path context data. */
 		};
 	};
+	cryptodev_session_event_mdata_set_t session_ev_mdata_set;
+	/**< Set a Crypto or Security session even meta data. */
+	cryptodev_queue_pair_event_error_query_t queue_pair_event_error_query;
+	/**< Query queue error interrupt event */
 };
 
 
@@ -603,27 +667,18 @@ void
 cryptodev_fp_ops_set(struct rte_crypto_fp_ops *fp_ops,
 		     const struct rte_cryptodev *dev);
 
-static inline void *
-get_sym_session_private_data(const struct rte_cryptodev_sym_session *sess,
-		uint8_t driver_id) {
-	if (unlikely(sess->nb_drivers <= driver_id))
-		return NULL;
-
-	return sess->sess_data[driver_id].data;
-}
-
-static inline void
-set_sym_session_private_data(struct rte_cryptodev_sym_session *sess,
-		uint8_t driver_id, void *private_data)
-{
-	if (unlikely(sess->nb_drivers <= driver_id)) {
-		CDEV_LOG_ERR("Set private data for driver %u not allowed\n",
-				driver_id);
-		return;
-	}
-
-	sess->sess_data[driver_id].data = private_data;
-}
+/**
+ * Get session event meta data (aka *union rte_event_crypto_metadata*)
+ *
+ * @param	op            pointer to *rte_crypto_op* structure.
+ *
+ * @return
+ *  - On success, pointer to event crypto metadata
+ *  - On failure, NULL.
+ */
+__rte_internal
+void *
+rte_cryptodev_session_event_mdata_get(struct rte_crypto_op *op);
 
 /**
  * @internal
@@ -637,7 +692,9 @@ RTE_STD_C11 struct rte_cryptodev_asym_session {
 	uint16_t user_data_sz;
 	/**< Session user data will be placed after sess_data */
 	uint8_t padding[3];
-	uint8_t sess_private_data[0];
+	void *event_mdata;
+	/**< Event metadata (aka *union rte_event_crypto_metadata*) */
+	uint8_t sess_private_data[];
 };
 
 #ifdef __cplusplus

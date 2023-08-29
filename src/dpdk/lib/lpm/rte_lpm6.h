@@ -72,8 +72,7 @@ rte_lpm6_find_existing(const char *name);
  *
  * @param lpm
  *   LPM object handle
- * @return
- *   None
+ *   If lpm is NULL, no operation is performed.
  */
 void
 rte_lpm6_free(struct rte_lpm6 *lpm);

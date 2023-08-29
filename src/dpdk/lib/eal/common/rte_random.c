@@ -20,7 +20,11 @@ struct rte_rand_state {
 	uint64_t z5;
 } __rte_cache_aligned;
 
-static struct rte_rand_state rand_states[RTE_MAX_LCORE];
+/* One instance each for every lcore id-equipped thread, and one
+ * additional instance to be shared by all others threads (i.e., all
+ * unregistered non-EAL threads).
+ */
+static struct rte_rand_state rand_states[RTE_MAX_LCORE + 1];
 
 static uint32_t
 __rte_rand_lcg32(uint32_t *seed)
@@ -114,14 +118,15 @@ __rte_rand_lfsr258(struct rte_rand_state *state)
 static __rte_always_inline
 struct rte_rand_state *__rte_rand_get_state(void)
 {
-	unsigned int lcore_id;
+	unsigned int idx;
 
-	lcore_id = rte_lcore_id();
+	idx = rte_lcore_id();
 
-	if (unlikely(lcore_id == LCORE_ID_ANY))
-		lcore_id = rte_get_main_lcore();
+	/* last instance reserved for unregistered non-EAL threads */
+	if (unlikely(idx == LCORE_ID_ANY))
+		idx = RTE_MAX_LCORE;
 
-	return &rand_states[lcore_id];
+	return &rand_states[idx];
 }
 
 uint64_t
@@ -171,6 +176,25 @@ rte_rand_max(uint64_t upper_bound)
 	} while (unlikely(res >= upper_bound));
 
 	return res;
+}
+
+double
+rte_drand(void)
+{
+	static const uint64_t denom = (uint64_t)1 << 53;
+	uint64_t rand64 = rte_rand();
+
+	/*
+	 * The double mantissa only has 53 bits, so we uniformly mask off the
+	 * high 11 bits and then floating-point divide by 2^53 to achieve a
+	 * result in [0, 1).
+	 *
+	 * We are not allowed to emit 1.0, so denom must be one greater than
+	 * the possible range of the preceding step.
+	 */
+
+	rand64 &= denom - 1;
+	return (double)rand64 / denom;
 }
 
 static uint64_t

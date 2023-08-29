@@ -6,3 +6,4 @@ sources = files(
         'skeleton_rawdev.c',
         'skeleton_rawdev_test.c',
 )
+require_iova_in_mbuf = false

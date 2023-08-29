@@ -28,6 +28,8 @@
 /*Pipeline mode, fdir used at distributor stage*/
 #define ICE_FLOW_CLASSIFY_STAGE_DISTRIBUTOR 2
 
+#define ICE_FLOW_ENGINE_DISABLED(mask, type) ((mask) & BIT(type))
+
 static struct ice_engine_list engine_list =
 		TAILQ_HEAD_INITIALIZER(engine_list);
 
@@ -1831,11 +1833,19 @@ ice_flow_init(struct ice_adapter *ad)
 	TAILQ_INIT(&pf->dist_parser_list);
 	rte_spinlock_init(&pf->flow_ops_lock);
 
+	if (ice_parser_create(&ad->hw, &ad->psr) != ICE_SUCCESS)
+		PMD_INIT_LOG(WARNING, "Failed to initialize DDP parser, raw packet filter will not be supported");
+
 	RTE_TAILQ_FOREACH_SAFE(engine, &engine_list, node, temp) {
 		if (engine->init == NULL) {
 			PMD_INIT_LOG(ERR, "Invalid engine type (%d)",
 					engine->type);
 			return -ENOTSUP;
+		}
+
+		if (ICE_FLOW_ENGINE_DISABLED(ad->disabled_engine_mask, engine->type)) {
+			PMD_INIT_LOG(INFO, "Engine %d disabled", engine->type);
+			continue;
 		}
 
 		ret = engine->init(ad);
@@ -1858,6 +1868,11 @@ ice_flow_uninit(struct ice_adapter *ad)
 	void *temp;
 
 	RTE_TAILQ_FOREACH_SAFE(engine, &engine_list, node, temp) {
+		if (ICE_FLOW_ENGINE_DISABLED(ad->disabled_engine_mask, engine->type)) {
+			PMD_DRV_LOG(DEBUG, "Engine %d disabled skip it", engine->type);
+			continue;
+		}
+
 		if (engine->uninit)
 			engine->uninit(ad);
 	}
@@ -1884,6 +1899,11 @@ ice_flow_uninit(struct ice_adapter *ad)
 	while ((p_parser = TAILQ_FIRST(&pf->dist_parser_list))) {
 		TAILQ_REMOVE(&pf->dist_parser_list, p_parser, node);
 		rte_free(p_parser);
+	}
+
+	if (ad->psr != NULL) {
+		ice_parser_destroy(ad->psr);
+		ad->psr = NULL;
 	}
 }
 
@@ -2007,6 +2027,14 @@ ice_flow_valid_attr(struct ice_adapter *ad,
 		rte_flow_error_set(error, EINVAL,
 				RTE_FLOW_ERROR_TYPE_ATTR_EGRESS,
 				attr, "Not support egress.");
+		return -rte_errno;
+	}
+
+	/* Not supported */
+	if (attr->transfer) {
+		rte_flow_error_set(error, EINVAL,
+				   RTE_FLOW_ERROR_TYPE_ATTR_TRANSFER,
+				   attr, "Not support transfer.");
 		return -rte_errno;
 	}
 

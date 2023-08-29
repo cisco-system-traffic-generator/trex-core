@@ -19,9 +19,9 @@
 #include <ethdev_driver.h>
 #include <rte_lcore.h>
 #include <rte_memory.h>
-#include <rte_bus_vmbus.h>
+#include <bus_vmbus_driver.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_log.h>
 #include <rte_string_fns.h>
 #include <rte_alarm.h>
@@ -128,6 +128,10 @@ static void hn_remove_delayed(void *args)
 	if (ret)
 		PMD_DRV_LOG(ERR, "rte_eth_dev_stop failed port_id=%u ret=%d",
 			    port_id, ret);
+
+	/* Record the device parameters for possible hotplug events */
+	if (dev->devargs && dev->devargs->args)
+		hv->vf_devargs = strdup(dev->devargs->args);
 
 	ret = rte_eth_dev_close(port_id);
 	if (ret)

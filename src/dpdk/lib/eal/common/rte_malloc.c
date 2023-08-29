@@ -16,7 +16,7 @@
 #include <rte_common.h>
 #include <rte_spinlock.h>
 
-#include <rte_eal_trace.h>
+#include <eal_trace_internal.h>
 
 #include <rte_malloc.h>
 #include "malloc_elem.h"
@@ -350,16 +350,6 @@ rte_malloc_dump_stats(FILE *f, __rte_unused const char *type)
 		fprintf(f, "\tFree_count:%u,\n", sock_stats.free_count);
 	}
 	return;
-}
-
-/*
- * TODO: Set limit to memory that can be allocated to memory type
- */
-int
-rte_malloc_set_limit(__rte_unused const char *type,
-		__rte_unused size_t max)
-{
-	return 0;
 }
 
 /*

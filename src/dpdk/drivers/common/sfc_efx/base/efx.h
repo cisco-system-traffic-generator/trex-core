@@ -311,6 +311,8 @@ efx_nic_check_pcie_link_speed(
 	__in		uint32_t pcie_link_gen,
 	__out		efx_pcie_link_performance_t *resultp);
 
+#define	EFX_MAC_ADDR_LEN 6
+
 #if EFSYS_OPT_MCDI
 
 #if EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10()
@@ -405,6 +407,20 @@ extern	__checkReturn	efx_rc_t
 efx_mcdi_get_own_client_handle(
 	__in		efx_nic_t *enp,
 	__out		uint32_t *handle);
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_mcdi_client_mac_addr_get(
+	__in		efx_nic_t *enp,
+	__in		uint32_t client_handle,
+	__out		uint8_t addr_bytes[EFX_MAC_ADDR_LEN]);
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_mcdi_client_mac_addr_set(
+	__in		efx_nic_t *enp,
+	__in		uint32_t client_handle,
+	__in		const uint8_t addr_bytes[EFX_MAC_ADDR_LEN]);
 
 LIBEFX_API
 extern			void
@@ -616,11 +632,10 @@ typedef enum efx_link_mode_e {
 	EFX_LINK_NMODES
 } efx_link_mode_t;
 
-#define	EFX_MAC_ADDR_LEN 6
-
 #define	EFX_VNI_OR_VSID_LEN 3
 
-#define	EFX_MAC_ADDR_IS_MULTICAST(_address) (((uint8_t *)_address)[0] & 0x01)
+#define	EFX_MAC_ADDR_IS_MULTICAST(_address)	\
+	(((const uint8_t *)_address)[0] & 0x01)
 
 #define	EFX_MAC_MULTICAST_LIST_MAX	256
 
@@ -1572,6 +1587,7 @@ typedef struct efx_nic_cfg_s {
 	/* Number of rx descriptors the hardware requires for a push. */
 	uint32_t		enc_rx_push_align;
 	/* Maximum amount of data in DMA descriptor */
+	uint32_t		enc_rx_dma_desc_size_max;
 	uint32_t		enc_tx_dma_desc_size_max;
 	/*
 	 * Boundary which DMA descriptor data must not cross or 0 if no
@@ -4566,6 +4582,24 @@ efx_mae_action_set_populate_mark(
 	__in				efx_mae_actions_t *spec,
 	__in				uint32_t mark_value);
 
+/*
+ * Whilst efx_mae_action_set_populate_mark() can be used to request setting
+ * a user mark in matching packets and demands that the request come before
+ * setting the final destination (deliver action), this API can be invoked
+ * after deliver action has been added in order to request mark reset if
+ * the user's own mark request has not been added as a result of parsing.
+ *
+ * It is useful when the driver chains an outer rule (OR) with an action
+ * rule (AR) by virtue of a recirculation ID. The OR may set mark from
+ * this ID to help the driver identify packets that hit the OR and do
+ * not hit the AR. But, for packets that do hit the AR, the driver
+ * wants to reset the mark value to avoid confusing recipients.
+ */
+LIBEFX_API
+extern					void
+efx_mae_action_set_populate_mark_reset(
+	__in				efx_mae_actions_t *spec);
+
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
@@ -4871,17 +4905,17 @@ typedef enum efx_virtio_vq_type_e {
 
 typedef struct efx_virtio_vq_dyncfg_s {
 	/*
-	 * If queue is being created to be migrated then this
-	 * should be the FINAL_PIDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
+	 * If queue is being created to be migrated then this should be
+	 * the FINAL_AVAIL_IDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
 	 * of the queue being migrated from. Otherwise, it should be zero.
 	 */
-	uint32_t		evvd_vq_pidx;
+	uint32_t		evvd_vq_avail_idx;
 	/*
-	 * If this queue is being created to be migrated then this
-	 * should be the FINAL_CIDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
+	 * If queue is being created to be migrated then this should be
+	 * the FINAL_USED_IDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
 	 * of the queue being migrated from. Otherwise, it should be zero.
 	 */
-	uint32_t		evvd_vq_cidx;
+	uint32_t		evvd_vq_used_idx;
 } efx_virtio_vq_dyncfg_t;
 
 /*

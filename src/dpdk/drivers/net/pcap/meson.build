@@ -15,3 +15,5 @@ ext_deps += pcap_dep
 if is_windows
     ext_deps += cc.find_library('iphlpapi', required: true)
 endif
+
+require_iova_in_mbuf = false

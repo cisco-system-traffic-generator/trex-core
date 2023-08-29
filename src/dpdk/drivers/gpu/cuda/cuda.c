@@ -6,9 +6,9 @@
 
 #include <rte_malloc.h>
 #include <rte_pci.h>
-#include <rte_bus_pci.h>
+#include <bus_pci_driver.h>
 #include <rte_byteorder.h>
-#include <rte_dev.h>
+#include <dev_driver.h>
 
 #include <gpudev_driver.h>
 
@@ -16,6 +16,7 @@
 #include <cudaTypedefs.h>
 
 #include "common.h"
+#include "devices.h"
 
 #define CUDA_DRIVER_MIN_VERSION 11040
 #define CUDA_API_MIN_VERSION 3020
@@ -53,23 +54,6 @@ static unsigned int cuda_api_version;
 static int cuda_driver_version;
 static gdr_t gdrc_h;
 
-/* NVIDIA GPU vendor */
-#define NVIDIA_GPU_VENDOR_ID (0x10de)
-
-/* NVIDIA GPU device IDs */
-#define NVIDIA_GPU_A100_40GB_DEVICE_ID (0x20f1)
-#define NVIDIA_GPU_A100_80GB_DEVICE_ID (0x20b5)
-#define NVIDIA_GPU_A100_80GB_DPU_DEVICE_ID (0x20b8)
-
-#define NVIDIA_GPU_A30_24GB_DEVICE_ID (0x20b7)
-#define NVIDIA_GPU_A10_24GB_DEVICE_ID (0x2236)
-
-#define NVIDIA_GPU_V100_32GB_SXM_DEVICE_ID (0x1db5)
-#define NVIDIA_GPU_V100_32GB_PCIE_DEVICE_ID (0x1db6)
-#define NVIDIA_GPU_V100_16GB_DEVICE_ID (0x1db4)
-
-#define NVIDIA_GPU_T4_16GB_DEVICE_ID (0x1eb8)
-
 #define CUDA_MAX_ALLOCATION_NUM 512
 
 #define GPU_PAGE_SHIFT 16
@@ -81,15 +65,7 @@ RTE_LOG_REGISTER_DEFAULT(cuda_logtype, NOTICE);
 static const struct rte_pci_id pci_id_cuda_map[] = {
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
-				NVIDIA_GPU_A100_40GB_DEVICE_ID)
-	},
-	{
-		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
-				NVIDIA_GPU_A100_80GB_DEVICE_ID)
-	},
-	{
-		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
-				NVIDIA_GPU_A100_80GB_DPU_DEVICE_ID)
+				NVIDIA_GPU_A40_DEVICE_ID)
 	},
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
@@ -97,11 +73,71 @@ static const struct rte_pci_id pci_id_cuda_map[] = {
 	},
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A30X_24GB_DPU_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
 				NVIDIA_GPU_A10_24GB_DEVICE_ID)
 	},
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
-				NVIDIA_GPU_V100_32GB_SXM_DEVICE_ID)
+				NVIDIA_GPU_A10G_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A10M_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A100_40GB_SXM4_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A100_40GB_PCIE_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A100_80GB_SXM4_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A100_80GB_PCIE_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_A100X_80GB_DPU_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_GA100_PG506_207)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_GA100_PCIE)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_GA100_PG506_217)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_16GB_SXM2_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_16GB_DGXS_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_16GB_FHHL_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_16GB_PCIE_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_32GB_SXM2_DEVICE_ID)
 	},
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
@@ -109,11 +145,99 @@ static const struct rte_pci_id pci_id_cuda_map[] = {
 	},
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
-				NVIDIA_GPU_V100_16GB_DEVICE_ID)
+				NVIDIA_GPU_V100_32GB_DGXS_DEVICE_ID)
 	},
 	{
 		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
-				NVIDIA_GPU_T4_16GB_DEVICE_ID)
+				NVIDIA_GPU_V100_32GB_SXM3_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_32GB_SXM3_H_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100_SXM2)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_V100S_PCIE)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_TITAN_V_CEO_ED)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_GV100GL_PG500_216)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_GV100GL_PG503_216)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_TU102_TITAN_RTX)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_TU102GL_QUADRO_RTX)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_GV100_QUADRO_DEVICE_ID)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_4000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_5000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_6000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_8000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A4000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A6000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A5000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A4500)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A5500)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A2000)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_QUADRO_RTX_A2000_12GB)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_T4G)
+	},
+	{
+		RTE_PCI_DEVICE(NVIDIA_GPU_VENDOR_ID,
+				NVIDIA_GPU_T4)
 	},
 	{
 		.device_id = 0
@@ -133,7 +257,7 @@ struct cuda_info {
 enum mem_type {
 	GPU_MEM = 0,
 	CPU_REGISTERED,
-	GPU_REGISTERED /* Not used yet */
+	GPU_REGISTERED
 };
 
 /* key associated to a memory address */
@@ -829,47 +953,10 @@ cuda_mem_cpu_map(struct rte_gpu *dev, __rte_unused size_t size, void *ptr_in, vo
 		return -rte_errno;
 	}
 
+	mem_item->mtype = GPU_REGISTERED;
 	*ptr_out = mem_item->ptr_h;
 
 	return 0;
-}
-
-static int
-cuda_mem_free(struct rte_gpu *dev, void *ptr)
-{
-	CUresult res;
-	struct mem_entry *mem_item;
-	const char *err_string;
-	cuda_ptr_key hk;
-
-	if (dev == NULL)
-		return -ENODEV;
-
-	hk = get_hash_from_ptr((void *)ptr);
-
-	mem_item = mem_list_find_item(hk);
-	if (mem_item == NULL) {
-		rte_cuda_log(ERR, "Memory address 0x%p not found in driver memory", ptr);
-		rte_errno = EPERM;
-		return -rte_errno;
-	}
-
-	if (mem_item->mtype == GPU_MEM) {
-		res = pfn_cuMemFree(mem_item->ptr_orig_d);
-		if (res != 0) {
-			pfn_cuGetErrorString(res, &(err_string));
-			rte_cuda_log(ERR, "cuMemFree current failed with %s",
-					err_string);
-			rte_errno = EPERM;
-			return -rte_errno;
-		}
-
-		return mem_list_del_item(hk);
-	}
-
-	rte_cuda_log(ERR, "Memory type %d not supported", mem_item->mtype);
-
-	return -EPERM;
 }
 
 static int
@@ -929,14 +1016,66 @@ cuda_mem_cpu_unmap(struct rte_gpu *dev, void *ptr_in)
 		return -rte_errno;
 	}
 
-	if (gdrcopy_unpin(gdrc_h, mem_item->mh, (void *)mem_item->ptr_d,
-			mem_item->size)) {
-		rte_cuda_log(ERR, "Error unexposing GPU memory address 0x%p.", ptr_in);
+	if (mem_item->mtype == GPU_REGISTERED) {
+		if (gdrcopy_unpin(gdrc_h, mem_item->mh, (void *)mem_item->ptr_d,
+				mem_item->size)) {
+			rte_cuda_log(ERR, "Error unexposing GPU memory address 0x%p.", ptr_in);
+			rte_errno = EPERM;
+			return -rte_errno;
+		}
+
+		mem_item->mtype = GPU_MEM;
+	} else {
 		rte_errno = EPERM;
 		return -rte_errno;
 	}
 
 	return 0;
+}
+
+static int
+cuda_mem_free(struct rte_gpu *dev, void *ptr)
+{
+	CUresult res;
+	struct mem_entry *mem_item;
+	const char *err_string;
+	cuda_ptr_key hk;
+
+	if (dev == NULL)
+		return -ENODEV;
+
+	hk = get_hash_from_ptr((void *)ptr);
+
+	mem_item = mem_list_find_item(hk);
+	if (mem_item == NULL) {
+		rte_cuda_log(ERR, "Memory address 0x%p not found in driver memory", ptr);
+		rte_errno = EPERM;
+		return -rte_errno;
+	}
+
+	/*
+	 * If a GPU memory area that's CPU mapped is being freed
+	 * without calling cpu_unmap, force the unmapping.
+	 */
+	if (mem_item->mtype == GPU_REGISTERED)
+		cuda_mem_cpu_unmap(dev, ptr);
+
+	if (mem_item->mtype == GPU_MEM) {
+		res = pfn_cuMemFree(mem_item->ptr_orig_d);
+		if (res != 0) {
+			pfn_cuGetErrorString(res, &(err_string));
+			rte_cuda_log(ERR, "cuMemFree current failed with %s",
+					err_string);
+			rte_errno = EPERM;
+			return -rte_errno;
+		}
+
+		return mem_list_del_item(hk);
+	}
+
+	rte_cuda_log(ERR, "Memory type %d not supported", mem_item->mtype);
+
+	return -EPERM;
 }
 
 static int

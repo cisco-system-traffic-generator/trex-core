@@ -7,6 +7,7 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <net/if.h>
+#include <sys/un.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/if_ether.h>
@@ -20,11 +21,11 @@
 #include <ethdev_driver.h>
 #include <ethdev_vdev.h>
 #include <rte_kvargs.h>
-#include <rte_bus_vdev.h>
+#include <bus_vdev_driver.h>
 #include <rte_string_fns.h>
 #include <rte_branch_prediction.h>
 #include <rte_common.h>
-#include <rte_dev.h>
+#include <dev_driver.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
 #include <rte_lcore.h>
@@ -39,6 +40,7 @@
 #include <rte_power_intrinsics.h>
 
 #include "compat.h"
+#include "eal_filesystem.h"
 
 #ifndef SO_PREFER_BUSY_POLL
 #define SO_PREFER_BUSY_POLL 69
@@ -80,6 +82,23 @@ RTE_LOG_REGISTER_DEFAULT(af_xdp_logtype, NOTICE);
 #define ETH_AF_XDP_ETH_OVERHEAD		(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN)
 
 #define ETH_AF_XDP_MP_KEY "afxdp_mp_send_fds"
+
+#define MAX_LONG_OPT_SZ			64
+#define UDS_MAX_FD_NUM			2
+#define UDS_MAX_CMD_LEN			64
+#define UDS_MAX_CMD_RESP		128
+#define UDS_XSK_MAP_FD_MSG		"/xsk_map_fd"
+#define UDS_SOCK			"/tmp/afxdp.sock"
+#define UDS_CONNECT_MSG			"/connect"
+#define UDS_HOST_OK_MSG			"/host_ok"
+#define UDS_HOST_NAK_MSG		"/host_nak"
+#define UDS_VERSION_MSG			"/version"
+#define UDS_XSK_MAP_FD_MSG		"/xsk_map_fd"
+#define UDS_XSK_SOCKET_MSG		"/xsk_socket"
+#define UDS_FD_ACK_MSG			"/fd_ack"
+#define UDS_FD_NAK_MSG			"/fd_nak"
+#define UDS_FIN_MSG			"/fin"
+#define UDS_FIN_ACK_MSG			"/fin_ack"
 
 static int afxdp_dev_count;
 
@@ -150,6 +169,8 @@ struct pmd_internals {
 	bool shared_umem;
 	char prog_path[PATH_MAX];
 	bool custom_prog_configured;
+	bool force_copy;
+	bool use_cni;
 	struct bpf_map *map;
 
 	struct rte_ether_addr eth_addr;
@@ -168,6 +189,8 @@ struct pmd_process_private {
 #define ETH_AF_XDP_SHARED_UMEM_ARG		"shared_umem"
 #define ETH_AF_XDP_PROG_ARG			"xdp_prog"
 #define ETH_AF_XDP_BUDGET_ARG			"busy_budget"
+#define ETH_AF_XDP_FORCE_COPY_ARG		"force_copy"
+#define ETH_AF_XDP_USE_CNI_ARG			"use_cni"
 
 static const char * const valid_arguments[] = {
 	ETH_AF_XDP_IFACE_ARG,
@@ -176,6 +199,8 @@ static const char * const valid_arguments[] = {
 	ETH_AF_XDP_SHARED_UMEM_ARG,
 	ETH_AF_XDP_PROG_ARG,
 	ETH_AF_XDP_BUDGET_ARG,
+	ETH_AF_XDP_FORCE_COPY_ARG,
+	ETH_AF_XDP_USE_CNI_ARG,
 	NULL
 };
 
@@ -863,19 +888,61 @@ eth_stats_reset(struct rte_eth_dev *dev)
 	return 0;
 }
 
-static void
+#ifdef RTE_NET_AF_XDP_LIBBPF_XDP_ATTACH
+
+static int link_xdp_prog_with_dev(int ifindex, int fd, __u32 flags)
+{
+	return bpf_xdp_attach(ifindex, fd, flags, NULL);
+}
+
+static int
 remove_xdp_program(struct pmd_internals *internals)
 {
 	uint32_t curr_prog_id = 0;
+	int ret;
 
-	if (bpf_get_link_xdp_id(internals->if_index, &curr_prog_id,
-				XDP_FLAGS_UPDATE_IF_NOEXIST)) {
-		AF_XDP_LOG(ERR, "bpf_get_link_xdp_id failed\n");
-		return;
+	ret = bpf_xdp_query_id(internals->if_index, XDP_FLAGS_UPDATE_IF_NOEXIST,
+			       &curr_prog_id);
+	if (ret != 0) {
+		AF_XDP_LOG(ERR, "bpf_xdp_query_id failed\n");
+		return ret;
 	}
-	bpf_set_link_xdp_fd(internals->if_index, -1,
-			XDP_FLAGS_UPDATE_IF_NOEXIST);
+
+	ret = bpf_xdp_detach(internals->if_index, XDP_FLAGS_UPDATE_IF_NOEXIST,
+			     NULL);
+	if (ret != 0)
+		AF_XDP_LOG(ERR, "bpf_xdp_detach failed\n");
+	return ret;
 }
+
+#else
+
+static int link_xdp_prog_with_dev(int ifindex, int fd, __u32 flags)
+{
+	return bpf_set_link_xdp_fd(ifindex, fd, flags);
+}
+
+static int
+remove_xdp_program(struct pmd_internals *internals)
+{
+	uint32_t curr_prog_id = 0;
+	int ret;
+
+	ret = bpf_get_link_xdp_id(internals->if_index, &curr_prog_id,
+				  XDP_FLAGS_UPDATE_IF_NOEXIST);
+	if (ret != 0) {
+		AF_XDP_LOG(ERR, "bpf_get_link_xdp_id failed\n");
+		return ret;
+	}
+
+	ret = bpf_set_link_xdp_fd(internals->if_index, -1,
+				  XDP_FLAGS_UPDATE_IF_NOEXIST);
+	if (ret != 0)
+		AF_XDP_LOG(ERR, "bpf_set_link_xdp_fd failed\n");
+	return ret;
+}
+
+#endif
 
 static void
 xdp_umem_destroy(struct xsk_umem_info *umem)
@@ -929,7 +996,8 @@ eth_dev_close(struct rte_eth_dev *dev)
 	 */
 	dev->data->mac_addrs = NULL;
 
-	remove_xdp_program(internals);
+	if (remove_xdp_program(internals) != 0)
+		AF_XDP_LOG(ERR, "Error while removing XDP program.\n");
 
 	if (internals->shared_umem) {
 		struct internal_list *list;
@@ -1083,7 +1151,8 @@ xsk_umem_info *xdp_umem_configure(struct pmd_internals *internals,
 		ret = xsk_umem__create(&umem->umem, base_addr, umem_size,
 				&rxq->fq, &rxq->cq, &usr_config);
 		if (ret) {
-			AF_XDP_LOG(ERR, "Failed to create umem\n");
+			AF_XDP_LOG(ERR, "Failed to create umem [%d]: [%s]\n",
+				   errno, strerror(errno));
 			goto err;
 		}
 		umem->buffer = base_addr;
@@ -1195,7 +1264,7 @@ load_custom_xdp_prog(const char *prog_path, int if_index, struct bpf_map **map)
 	}
 
 	/* Link the program with the given network device */
-	ret = bpf_set_link_xdp_fd(if_index, prog_fd,
+	ret = link_xdp_prog_with_dev(if_index, prog_fd,
 					XDP_FLAGS_UPDATE_IF_NOEXIST);
 	if (ret) {
 		AF_XDP_LOG(ERR, "Failed to set prog fd %d on interface\n",
@@ -1269,6 +1338,247 @@ err_prefer:
 }
 
 static int
+init_uds_sock(struct sockaddr_un *server)
+{
+	int sock;
+
+	sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+	if (sock < 0) {
+		AF_XDP_LOG(ERR, "Failed to opening stream socket\n");
+		return -1;
+	}
+
+	server->sun_family = AF_UNIX;
+	strlcpy(server->sun_path, UDS_SOCK, sizeof(server->sun_path));
+
+	if (connect(sock, (struct sockaddr *)server, sizeof(struct sockaddr_un)) < 0) {
+		close(sock);
+		AF_XDP_LOG(ERR, "Error connecting stream socket errno = [%d]: [%s]\n",
+			   errno, strerror(errno));
+		return -1;
+	}
+
+	return sock;
+}
+
+struct msg_internal {
+	char response[UDS_MAX_CMD_RESP];
+	int len_param;
+	int num_fds;
+	int fds[UDS_MAX_FD_NUM];
+};
+
+static int
+send_msg(int sock, char *request, int *fd)
+{
+	int snd;
+	struct iovec iov;
+	struct msghdr msgh;
+	struct cmsghdr *cmsg;
+	struct sockaddr_un dst;
+	char control[CMSG_SPACE(sizeof(*fd))];
+
+	memset(&dst, 0, sizeof(dst));
+	dst.sun_family = AF_UNIX;
+	strlcpy(dst.sun_path, UDS_SOCK, sizeof(dst.sun_path));
+
+	/* Initialize message header structure */
+	memset(&msgh, 0, sizeof(msgh));
+	memset(control, 0, sizeof(control));
+	iov.iov_base = request;
+	iov.iov_len = strlen(request);
+
+	msgh.msg_name = &dst;
+	msgh.msg_namelen = sizeof(dst);
+	msgh.msg_iov = &iov;
+	msgh.msg_iovlen = 1;
+	msgh.msg_control = control;
+	msgh.msg_controllen = sizeof(control);
+
+	/* Translate the FD. */
+	cmsg = CMSG_FIRSTHDR(&msgh);
+	cmsg->cmsg_len = CMSG_LEN(sizeof(*fd));
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	memcpy(CMSG_DATA(cmsg), fd, sizeof(*fd));
+
+	/* Send the request message. */
+	do {
+		snd = sendmsg(sock, &msgh, 0);
+	} while (snd < 0 && errno == EINTR);
+
+	return snd;
+}
+
+static int
+read_msg(int sock, char *response, struct sockaddr_un *s, int *fd)
+{
+	int msglen;
+	struct msghdr msgh;
+	struct iovec iov;
+	char control[CMSG_SPACE(sizeof(*fd))];
+	struct cmsghdr *cmsg;
+
+	/* Initialize message header structure */
+	memset(&msgh, 0, sizeof(msgh));
+	iov.iov_base = response;
+	iov.iov_len = UDS_MAX_CMD_RESP;
+
+	msgh.msg_name = s;
+	msgh.msg_namelen = sizeof(*s);
+	msgh.msg_iov = &iov;
+	msgh.msg_iovlen = 1;
+	msgh.msg_control = control;
+	msgh.msg_controllen = sizeof(control);
+
+	msglen = recvmsg(sock, &msgh, 0);
+
+	/* zero length message means socket was closed */
+	if (msglen == 0)
+		return 0;
+
+	if (msglen < 0) {
+		AF_XDP_LOG(ERR, "recvmsg failed, %s\n", strerror(errno));
+		return -1;
+	}
+
+	/* read auxiliary FDs if any */
+	for (cmsg = CMSG_FIRSTHDR(&msgh); cmsg != NULL;
+			cmsg = CMSG_NXTHDR(&msgh, cmsg)) {
+		if (cmsg->cmsg_level == SOL_SOCKET &&
+				cmsg->cmsg_type == SCM_RIGHTS) {
+			memcpy(fd, CMSG_DATA(cmsg), sizeof(*fd));
+			break;
+		}
+	}
+
+	response[msglen] = '\0';
+	return msglen;
+}
+
+static int
+make_request_cni(int sock, struct sockaddr_un *server, char *request,
+		 int *req_fd, char *response, int *out_fd)
+{
+	int rval;
+
+	AF_XDP_LOG(DEBUG, "Request: [%s]\n", request);
+
+	/* if no file descriptor to send then directly write to socket.
+	 * else use sendmsg() to send the file descriptor.
+	 */
+	if (req_fd == NULL)
+		rval = write(sock, request, strlen(request));
+	else
+		rval = send_msg(sock, request, req_fd);
+
+	if (rval < 0) {
+		AF_XDP_LOG(ERR, "Write error %s\n", strerror(errno));
+		return -1;
+	}
+
+	rval = read_msg(sock, response, server, out_fd);
+	if (rval <= 0) {
+		AF_XDP_LOG(ERR, "Read error %d\n", rval);
+		return -1;
+	}
+	AF_XDP_LOG(DEBUG, "Response: [%s]\n", request);
+
+	return 0;
+}
+
+static int
+check_response(char *response, char *exp_resp, long size)
+{
+	return strncmp(response, exp_resp, size);
+}
+
+static int
+get_cni_fd(char *if_name)
+{
+	char request[UDS_MAX_CMD_LEN], response[UDS_MAX_CMD_RESP];
+	char hostname[MAX_LONG_OPT_SZ], exp_resp[UDS_MAX_CMD_RESP];
+	struct sockaddr_un server;
+	int xsk_map_fd = -1, out_fd = 0;
+	int sock, err;
+
+	err = gethostname(hostname, MAX_LONG_OPT_SZ - 1);
+	if (err)
+		return -1;
+
+	memset(&server, 0, sizeof(server));
+	sock = init_uds_sock(&server);
+	if (sock < 0)
+		return -1;
+
+	/* Initiates handshake to CNI send: /connect,hostname */
+	snprintf(request, sizeof(request), "%s,%s", UDS_CONNECT_MSG, hostname);
+	memset(response, 0, sizeof(response));
+	if (make_request_cni(sock, &server, request, NULL, response, &out_fd) < 0) {
+		AF_XDP_LOG(ERR, "Error in processing cmd [%s]\n", request);
+		goto err_close;
+	}
+
+	/* Expect /host_ok */
+	strlcpy(exp_resp, UDS_HOST_OK_MSG, UDS_MAX_CMD_LEN);
+	if (check_response(response, exp_resp, strlen(exp_resp)) < 0) {
+		AF_XDP_LOG(ERR, "Unexpected response [%s]\n", response);
+		goto err_close;
+	}
+	/* Request for "/version" */
+	strlcpy(request, UDS_VERSION_MSG, UDS_MAX_CMD_LEN);
+	memset(response, 0, sizeof(response));
+	if (make_request_cni(sock, &server, request, NULL, response, &out_fd) < 0) {
+		AF_XDP_LOG(ERR, "Error in processing cmd [%s]\n", request);
+		goto err_close;
+	}
+
+	/* Request for file descriptor for netdev name*/
+	snprintf(request, sizeof(request), "%s,%s", UDS_XSK_MAP_FD_MSG, if_name);
+	memset(response, 0, sizeof(response));
+	if (make_request_cni(sock, &server, request, NULL, response, &out_fd) < 0) {
+		AF_XDP_LOG(ERR, "Error in processing cmd [%s]\n", request);
+		goto err_close;
+	}
+
+	if (out_fd < 0) {
+		AF_XDP_LOG(ERR, "Error in processing cmd [%s]\n", request);
+		goto err_close;
+	}
+
+	xsk_map_fd = out_fd;
+
+	/* Expect fd_ack with file descriptor */
+	strlcpy(exp_resp, UDS_FD_ACK_MSG, UDS_MAX_CMD_LEN);
+	if (check_response(response, exp_resp, strlen(exp_resp)) < 0) {
+		AF_XDP_LOG(ERR, "Unexpected response [%s]\n", response);
+		goto err_close;
+	}
+
+	/* Initiate close connection */
+	strlcpy(request, UDS_FIN_MSG, UDS_MAX_CMD_LEN);
+	memset(response, 0, sizeof(response));
+	if (make_request_cni(sock, &server, request, NULL, response, &out_fd) < 0) {
+		AF_XDP_LOG(ERR, "Error in processing cmd [%s]\n", request);
+		goto err_close;
+	}
+
+	/* Connection close */
+	strlcpy(exp_resp, UDS_FIN_ACK_MSG, UDS_MAX_CMD_LEN);
+	if (check_response(response, exp_resp, strlen(exp_resp)) < 0) {
+		AF_XDP_LOG(ERR, "Unexpected response [%s]\n", response);
+		goto err_close;
+	}
+	close(sock);
+
+	return xsk_map_fd;
+
+err_close:
+	close(sock);
+	return -1;
+}
+
+static int
 xsk_configure(struct pmd_internals *internals, struct pkt_rx_queue *rxq,
 	      int ring_size)
 {
@@ -1308,9 +1618,17 @@ xsk_configure(struct pmd_internals *internals, struct pkt_rx_queue *rxq,
 	cfg.xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST;
 	cfg.bind_flags = 0;
 
+	/* Force AF_XDP socket into copy mode when users want it */
+	if (internals->force_copy)
+		cfg.bind_flags |= XDP_COPY;
+
 #if defined(XDP_USE_NEED_WAKEUP)
 	cfg.bind_flags |= XDP_USE_NEED_WAKEUP;
 #endif
+
+	/* Disable libbpf from loading XDP program */
+	if (internals->use_cni)
+		cfg.libbpf_flags |= XSK_LIBBPF_FLAGS__INHIBIT_PROG_LOAD;
 
 	if (strnlen(internals->prog_path, PATH_MAX)) {
 		if (!internals->custom_prog_configured) {
@@ -1363,7 +1681,23 @@ xsk_configure(struct pmd_internals *internals, struct pkt_rx_queue *rxq,
 		}
 	}
 
-	if (rxq->busy_budget) {
+	if (internals->use_cni) {
+		int err, fd, map_fd;
+
+		/* get socket fd from CNI plugin */
+		map_fd = get_cni_fd(internals->if_name);
+		if (map_fd < 0) {
+			AF_XDP_LOG(ERR, "Failed to receive CNI plugin fd\n");
+			goto out_xsk;
+		}
+		/* get socket fd */
+		fd = xsk_socket__fd(rxq->xsk);
+		err = bpf_map_update_elem(map_fd, &rxq->xsk_queue_idx, &fd, 0);
+		if (err) {
+			AF_XDP_LOG(ERR, "Failed to insert unprivileged xsk in map.\n");
+			goto out_xsk;
+		}
+	} else if (rxq->busy_budget) {
 		ret = configure_preferred_busy_poll(rxq);
 		if (ret) {
 			AF_XDP_LOG(ERR, "Failed configure busy polling.\n");
@@ -1534,6 +1868,27 @@ static const struct eth_dev_ops ops = {
 	.get_monitor_addr = eth_get_monitor_addr,
 };
 
+/* CNI option works in unprivileged container environment
+ * and ethernet device functionality will be reduced. So
+ * additional customiszed eth_dev_ops struct is needed
+ * for cni. Promiscuous enable and disable functionality
+ * is removed.
+ **/
+static const struct eth_dev_ops ops_cni = {
+	.dev_start = eth_dev_start,
+	.dev_stop = eth_dev_stop,
+	.dev_close = eth_dev_close,
+	.dev_configure = eth_dev_configure,
+	.dev_infos_get = eth_dev_info,
+	.mtu_set = eth_dev_mtu_set,
+	.rx_queue_setup = eth_rx_queue_setup,
+	.tx_queue_setup = eth_tx_queue_setup,
+	.link_update = eth_link_update,
+	.stats_get = eth_stats_get,
+	.stats_reset = eth_stats_reset,
+	.get_monitor_addr = eth_get_monitor_addr,
+};
+
 /** parse busy_budget argument */
 static int
 parse_budget_arg(const char *key __rte_unused,
@@ -1654,8 +2009,8 @@ xdp_get_channels_info(const char *if_name, int *max_queues,
 
 static int
 parse_parameters(struct rte_kvargs *kvlist, char *if_name, int *start_queue,
-			int *queue_cnt, int *shared_umem, char *prog_path,
-			int *busy_budget)
+		 int *queue_cnt, int *shared_umem, char *prog_path,
+		 int *busy_budget, int *force_copy, int *use_cni)
 {
 	int ret;
 
@@ -1688,6 +2043,16 @@ parse_parameters(struct rte_kvargs *kvlist, char *if_name, int *start_queue,
 
 	ret = rte_kvargs_process(kvlist, ETH_AF_XDP_BUDGET_ARG,
 				&parse_budget_arg, busy_budget);
+	if (ret < 0)
+		goto free_kvlist;
+
+	ret = rte_kvargs_process(kvlist, ETH_AF_XDP_FORCE_COPY_ARG,
+				&parse_integer_arg, force_copy);
+	if (ret < 0)
+		goto free_kvlist;
+
+	ret = rte_kvargs_process(kvlist, ETH_AF_XDP_USE_CNI_ARG,
+				 &parse_integer_arg, use_cni);
 	if (ret < 0)
 		goto free_kvlist;
 
@@ -1728,8 +2093,9 @@ error:
 
 static struct rte_eth_dev *
 init_internals(struct rte_vdev_device *dev, const char *if_name,
-		int start_queue_idx, int queue_cnt, int shared_umem,
-		const char *prog_path, int busy_budget)
+	       int start_queue_idx, int queue_cnt, int shared_umem,
+	       const char *prog_path, int busy_budget, int force_copy,
+	       int use_cni)
 {
 	const char *name = rte_vdev_device_name(dev);
 	const unsigned int numa_node = dev->device.numa_node;
@@ -1757,6 +2123,8 @@ init_internals(struct rte_vdev_device *dev, const char *if_name,
 	}
 #endif
 	internals->shared_umem = shared_umem;
+	internals->force_copy = force_copy;
+	internals->use_cni = use_cni;
 
 	if (xdp_get_channels_info(if_name, &internals->max_queue_cnt,
 				  &internals->combined_queue_cnt)) {
@@ -1815,7 +2183,11 @@ init_internals(struct rte_vdev_device *dev, const char *if_name,
 	eth_dev->data->dev_link = pmd_link;
 	eth_dev->data->mac_addrs = &internals->eth_addr;
 	eth_dev->data->dev_flags |= RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS;
-	eth_dev->dev_ops = &ops;
+	if (!internals->use_cni)
+		eth_dev->dev_ops = &ops;
+	else
+		eth_dev->dev_ops = &ops_cni;
+
 	eth_dev->rx_pkt_burst = eth_af_xdp_rx;
 	eth_dev->tx_pkt_burst = eth_af_xdp_tx;
 	eth_dev->process_private = process_private;
@@ -1941,6 +2313,8 @@ rte_pmd_af_xdp_probe(struct rte_vdev_device *dev)
 	int shared_umem = 0;
 	char prog_path[PATH_MAX] = {'\0'};
 	int busy_budget = -1, ret;
+	int force_copy = 0;
+	int use_cni = 0;
 	struct rte_eth_dev *eth_dev = NULL;
 	const char *name = rte_vdev_device_name(dev);
 
@@ -1981,14 +2355,23 @@ rte_pmd_af_xdp_probe(struct rte_vdev_device *dev)
 		return -EINVAL;
 	}
 
-	if (dev->device.numa_node == SOCKET_ID_ANY)
-		dev->device.numa_node = rte_socket_id();
-
 	if (parse_parameters(kvlist, if_name, &xsk_start_queue_idx,
 			     &xsk_queue_cnt, &shared_umem, prog_path,
-			     &busy_budget) < 0) {
+			     &busy_budget, &force_copy, &use_cni) < 0) {
 		AF_XDP_LOG(ERR, "Invalid kvargs value\n");
 		return -EINVAL;
+	}
+
+	if (use_cni && busy_budget > 0) {
+		AF_XDP_LOG(ERR, "When '%s' parameter is used, '%s' parameter is not valid\n",
+			ETH_AF_XDP_USE_CNI_ARG, ETH_AF_XDP_BUDGET_ARG);
+		return -EINVAL;
+	}
+
+	if (use_cni && strnlen(prog_path, PATH_MAX)) {
+		AF_XDP_LOG(ERR, "When '%s' parameter is used, '%s' parameter is not valid\n",
+			ETH_AF_XDP_USE_CNI_ARG, ETH_AF_XDP_PROG_ARG);
+			return -EINVAL;
 	}
 
 	if (strlen(if_name) == 0) {
@@ -1996,12 +2379,25 @@ rte_pmd_af_xdp_probe(struct rte_vdev_device *dev)
 		return -EINVAL;
 	}
 
+	/* get numa node id from net sysfs */
+	if (dev->device.numa_node == SOCKET_ID_ANY) {
+		unsigned long numa = 0;
+		char numa_path[PATH_MAX];
+
+		snprintf(numa_path, sizeof(numa_path), "/sys/class/net/%s/device/numa_node",
+			 if_name);
+		if (eal_parse_sysfs_value(numa_path, &numa) != 0)
+			dev->device.numa_node = rte_socket_id();
+		else
+			dev->device.numa_node = numa;
+	}
+
 	busy_budget = busy_budget == -1 ? ETH_AF_XDP_DFLT_BUSY_BUDGET :
 					busy_budget;
 
 	eth_dev = init_internals(dev, if_name, xsk_start_queue_idx,
-					xsk_queue_cnt, shared_umem, prog_path,
-					busy_budget);
+				 xsk_queue_cnt, shared_umem, prog_path,
+				 busy_budget, force_copy, use_cni);
 	if (eth_dev == NULL) {
 		AF_XDP_LOG(ERR, "Failed to init internals\n");
 		return -1;
@@ -2060,4 +2456,6 @@ RTE_PMD_REGISTER_PARAM_STRING(net_af_xdp,
 			      "queue_count=<int> "
 			      "shared_umem=<int> "
 			      "xdp_prog=<string> "
-			      "busy_budget=<int>");
+			      "busy_budget=<int> "
+			      "force_copy=<int> "
+			      "use_cni=<int> ");

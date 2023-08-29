@@ -5,11 +5,19 @@
 #ifndef _ROC_SSO_H_
 #define _ROC_SSO_H_
 
+#include "hw/ssow.h"
+
 struct roc_sso_hwgrp_qos {
 	uint16_t hwgrp;
 	uint8_t xaq_prcnt;
 	uint8_t iaq_prcnt;
 	uint8_t taq_prcnt;
+};
+
+struct roc_sso_hwgrp_stash {
+	uint16_t hwgrp;
+	uint8_t stash_offset;
+	uint8_t stash_count;
 };
 
 struct roc_sso_hws_stats {
@@ -54,42 +62,17 @@ struct roc_sso {
 	uint8_t reserved[ROC_SSO_MEM_SZ] __plt_cache_aligned;
 } __plt_cache_aligned;
 
-static __plt_always_inline uint64_t
-roc_sso_hws_head_wait(uintptr_t base)
-{
-	uintptr_t tag_op = base + SSOW_LF_GWS_TAG;
-	uint64_t tag;
-
-#if defined(__aarch64__)
-	asm volatile(PLT_CPU_FEATURE_PREAMBLE
-		     "		ldr %[tag], [%[tag_op]]	\n"
-		     "		tbnz %[tag], 35, done%=		\n"
-		     "		sevl				\n"
-		     "rty%=:	wfe				\n"
-		     "		ldr %[tag], [%[tag_op]]	\n"
-		     "		tbz %[tag], 35, rty%=		\n"
-		     "done%=:					\n"
-		     : [tag] "=&r"(tag)
-		     : [tag_op] "r"(tag_op));
-#else
-	do {
-		tag = plt_read64(tag_op);
-	} while (!(tag & BIT_ULL(35)));
-#endif
-	return tag;
-}
-
 /* SSO device initialization */
 int __roc_api roc_sso_dev_init(struct roc_sso *roc_sso);
 int __roc_api roc_sso_dev_fini(struct roc_sso *roc_sso);
 
 /* SSO device configuration */
-int __roc_api roc_sso_rsrc_init(struct roc_sso *roc_sso, uint8_t nb_hws,
-				uint16_t nb_hwgrp);
+int __roc_api roc_sso_rsrc_init(struct roc_sso *roc_sso, uint8_t nb_hws, uint16_t nb_hwgrp,
+				uint16_t nb_tim_lfs);
 void __roc_api roc_sso_rsrc_fini(struct roc_sso *roc_sso);
 int __roc_api roc_sso_hwgrp_qos_config(struct roc_sso *roc_sso,
 				       struct roc_sso_hwgrp_qos *qos,
-				       uint8_t nb_qos, uint32_t nb_xaq);
+				       uint16_t nb_qos);
 int __roc_api roc_sso_hwgrp_alloc_xaq(struct roc_sso *roc_sso,
 				      uint32_t npa_aura_id, uint16_t hwgrps);
 int __roc_api roc_sso_hwgrp_release_xaq(struct roc_sso *roc_sso,
@@ -111,6 +94,9 @@ int __roc_api roc_sso_hwgrp_init_xaq_aura(struct roc_sso *roc_sso,
 					  uint32_t nb_xae);
 int __roc_api roc_sso_hwgrp_free_xaq_aura(struct roc_sso *roc_sso,
 					  uint16_t nb_hwgrp);
+int __roc_api roc_sso_hwgrp_stash_config(struct roc_sso *roc_sso,
+					 struct roc_sso_hwgrp_stash *stash,
+					 uint16_t nb_stash);
 
 /* Debug */
 void __roc_api roc_sso_dump(struct roc_sso *roc_sso, uint8_t nb_hws,

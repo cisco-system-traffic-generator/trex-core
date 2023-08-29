@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <rte_compat.h>
 #include <rte_byteorder.h>
 #include <rte_ip.h>
 #include <rte_common.h>
@@ -329,8 +330,6 @@ rte_thash_find_existing(const char *name);
  *
  * @param ctx
  *  Thash context
- * @return
- *  None
  */
 __rte_experimental
 void
