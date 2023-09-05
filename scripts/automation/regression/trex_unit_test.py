@@ -282,6 +282,8 @@ class CTRexTestConfiguringPlugin(Plugin):
     def get_operation_mode (self):
         if self.stateful:
             return('stateful');
+        elif self.astf:
+            return "advanced-stateful"
         return('stateless');
 
 ##### option/configure

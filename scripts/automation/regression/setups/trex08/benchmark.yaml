@@ -249,19 +249,40 @@ test_performance_syn_attack_multi_cpus:
                                   
 
 test_tcp_http :
-    multiplier          : 20000
-    cores               : 1
-    bw_per_core         : 20
+    multiplier           : 55000
+    mpps_per_core_golden :
+                            min: 1.8
+                            max: 2.6
+
+test_udp_pcap :
+    multiplier           : 4000000
+    mpps_per_core_golden :
+                            min: 1.0
+                            max: 1.8
 
 test_ipv6_tcp_http :
-    multiplier          : 20000
-    cores               : 1
-    bw_per_core         : 20
+    multiplier           : 55000
+    mpps_per_core_golden :
+                            min: 1.4
+                            max: 2.4
+
+test_ipv6_udp_pcap :
+    multiplier           : 4000000
+    mpps_per_core_golden :
+                            min: 1.0
+                            max: 1.9
 
 test_tcp_sfr :
-    multiplier          : 20
-    cores               : 1
-    bw_per_core         : 20
+    multiplier          : 50
+    mpps_per_core_golden :
+                            min: 1.4
+                            max: 2.2
+
+test_tcp_udp_sfr :
+    multiplier          : 100
+    mpps_per_core_golden :
+                            min: 1.6
+                            max: 2.4
 
 test_tcp_sfr_no_crash :
     multiplier          : 100

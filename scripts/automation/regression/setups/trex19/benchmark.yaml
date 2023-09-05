@@ -245,18 +245,39 @@ test_all_profiles :
           - udp_1pkt_range_clients_split_garp.py # https://trex-tgn.cisco.com/youtrack/issue/trex-391
 
 test_tcp_http :
-    multiplier          : 15000
-    cores               : 5
-    bw_per_core         : 25
-        
+    multiplier           : 10000
+    mpps_per_core_golden :
+                            min: 1.1
+                            max: 2.0
+
+test_udp_pcap :
+    multiplier           : 2000000
+    mpps_per_core_golden :
+                            min: 0.5
+                            max: 1.2
+
 test_ipv6_tcp_http :
-    multiplier          : 15000
-    cores               : 1
-    bw_per_core         : 20
+    multiplier           : 10000
+    mpps_per_core_golden :
+                            min: 1.4
+                            max: 2.4
+
+test_ipv6_udp_pcap :
+    multiplier           : 2000000
+    mpps_per_core_golden :
+                            min: 0.5
+                            max: 1.2
 
 test_tcp_sfr :
     multiplier          : 10
-    cores               : 1
-    bw_per_core         : 20
+    mpps_per_core_golden :
+                            min: 1.1
+                            max: 1.9
+
+test_tcp_udp_sfr :
+    multiplier          : 60
+    mpps_per_core_golden :
+                            min: 1.1
+                            max: 1.9
 
 

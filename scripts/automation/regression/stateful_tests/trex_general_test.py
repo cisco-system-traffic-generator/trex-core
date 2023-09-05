@@ -139,6 +139,8 @@ class CTRexGeneral_Test(unittest.TestCase):
 
         cls.router            = CTRexScenario.router
 
+    def get_tst_name(self):
+        return self.id().split(".")[-1]
 
     def get_elk_obj (self):
         obj=trex_scenario.copy_elk_info ()
