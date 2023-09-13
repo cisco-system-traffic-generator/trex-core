@@ -877,6 +877,10 @@ def configure(conf):
         s += '#endif\n'
         write_file(os.path.join(conf.bldnode.abspath(), H_DPDK_CONFIG), s)
 
+    conf.env.DPDK_WITH_ARCHIVE = False
+    if conf.check_cxx(lib = 'archive', errmsg = 'Could not find libarchive', mandatory = False):
+        conf.env.DPDK_WITH_ARCHIVE = True
+
 def search_in_paths(paths):
     for path in paths:
         if os.path.exists(path):
@@ -2507,6 +2511,10 @@ def build_prog (bld, build_obj):
         if H_DPDK_CONFIG not in DPDK_FLAGS:
             DPDK_FLAGS.extend(['-include', H_DPDK_CONFIG])
         lib_ext.append('numa')
+
+    if bld.env.DPDK_WITH_ARCHIVE == True:
+        DPDK_FLAGS.extend(['-DRTE_HAS_LIBARCHIVE'])
+        linkflags += ['-larchive']
 
     if march == 'x86_64':
         bp_dpdk = SrcGroups([
