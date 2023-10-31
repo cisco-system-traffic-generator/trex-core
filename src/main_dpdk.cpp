@@ -6037,7 +6037,7 @@ COLD_FUNC void CPhyEthIF::start_queues(void) {
     struct rte_eth_dev_info dev_info;
     rte_eth_dev_info_get(m_repid, &dev_info);
 
-    for (int queue_id = 0; queue_id < dev_info.nb_rx_queues; queue_id++) {
+    for (int queue_id = dev_info.nb_rx_queues-1; queue_id >= 0; queue_id--) {
         struct rte_eth_rxq_info rxq_info;
         int ret = rte_eth_rx_queue_info_get(m_repid, queue_id, &rxq_info);
         if (ret == 0) {
@@ -6059,7 +6059,7 @@ COLD_FUNC void CPhyEthIF::start_queues(void) {
         }
     }
 
-    for (int queue_id = 0; queue_id < dev_info.nb_tx_queues; queue_id++) {
+    for (int queue_id = dev_info.nb_tx_queues-1; queue_id >= 0; queue_id--) {
         struct rte_eth_txq_info txq_info;
         int ret = rte_eth_tx_queue_info_get(m_repid, queue_id, &txq_info);
         if (ret == 0) {
