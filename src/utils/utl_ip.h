@@ -216,7 +216,7 @@ class COneIPv6Info : public COneIPInfo {
     virtual bool is_zero_ip();
 
  private:
-    virtual const void get_ip_str(char str[100]) {
+    virtual const void get_ip_str(char str[100]) const {
         ipv6_to_str((ipaddr_t *)m_ip, str);
     }
     uint16_t m_ip[8];
