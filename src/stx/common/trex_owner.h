@@ -22,6 +22,7 @@ limitations under the License.
 #ifndef __TREX_OWNER_H__
 #define __TREX_OWNER_H__
 
+#include <stdint.h>
 #include <string>
 
 /**

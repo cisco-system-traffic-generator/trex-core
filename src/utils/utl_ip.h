@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <map>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
