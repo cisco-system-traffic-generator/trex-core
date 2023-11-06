@@ -34,7 +34,7 @@ TRexPortAttr* CTRexExtendedDriverVirtBase::create_port_attr(tvpid_t tvpid, repid
 }
 
 TRexPortAttr* CTRexExtendedDriverIavf::create_port_attr(tvpid_t tvpid, repid_t repid) {
-    return new DpdkTRexPortAttr(tvpid, repid, true, true, false, false, true);
+    return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, true);
 }
 
 TRexPortAttr* CTRexExtendedDriverIxgbevf::create_port_attr(tvpid_t tvpid, repid_t repid) {
