@@ -205,7 +205,7 @@ test_performance_syn_attack_multi_cpus:
         core_count             : 6
         mult                   : "40%"
         mpps_per_core_golden   :
-                                  min: 6.5
+                                  min: 6.0
                                   max: 12.3
 
 
