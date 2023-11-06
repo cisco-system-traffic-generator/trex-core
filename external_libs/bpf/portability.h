@@ -39,7 +39,6 @@
  * flavors of UN*X.
  */
 
-#include <string.h>
 #include "funcattrs.h"
 
 #ifdef __cplusplus

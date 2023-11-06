@@ -21,7 +21,6 @@ limitations under the License.
 #ifndef __TREX_DP_PORT_EVENTS_H__
 #define __TREX_DP_PORT_EVENTS_H__
 
-#include <stdint.h>
 #include <unordered_map>
 #include <string>
 

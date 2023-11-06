@@ -26,7 +26,6 @@ limitations under the License.
 #include <mutex>
 #include <string>
 #include <vector>
-#include <stdexcept>
 
 namespace Json {
     class Value;

@@ -22,8 +22,6 @@
 #ifndef __PKT_GEN_H__
 #define __PKT_GEN_H__
 
-#include <stdint.h>
-
 enum {
     D_PKT_TYPE_ICMP = 1,
     D_PKT_TYPE_UDP = 2,
