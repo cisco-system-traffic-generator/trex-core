@@ -319,7 +319,7 @@ int utl_rte_pktmbuf_verify(struct rte_mbuf *m){
             ret = -1;
         }
         pkt_len+=seg_len;
-        if (rte_pktmbuf_mtod(m, char *)==0){
+        if (!rte_pktmbuf_mtod(m, char *)){
             printf(" SEG has pointer zero \n");
             ret = -1;
         }
