@@ -26,6 +26,7 @@ limitations under the License.
 #include "trex_stx.h"
 
 #include <sstream>
+#include <stdint.h>
 #include <os_time.h>
 
 
