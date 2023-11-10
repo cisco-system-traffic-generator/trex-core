@@ -22,6 +22,7 @@ limitations under the License.
 */
 
 
+#include <stdint.h>
 #include <string>
 
 #define _1MB_DOUBLE ((double)(1024.0*1024.0))
