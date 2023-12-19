@@ -137,7 +137,8 @@ private:
     bool   m_is_interactive;
 
     std::vector<TrexPublisherCtx*> m_ctxs;
-    
+
+protected:
     static const int MSG_COMPRESS_THRESHOLD = 256;
 };
 

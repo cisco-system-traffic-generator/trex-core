@@ -530,7 +530,6 @@ cxxflags_base =['-DWIN_UCODE_SIM',
                 '-Wno-deprecated-declarations',
                 '-Wno-dangling-pointer', # Disabled since unrecognized before gcc-12
                 '-Wno-error=maybe-uninitialized', # Additional warnings in gcc-11
-                '-Wno-error=overloaded-virtual', # Additional warnings in gcc-13
                 '-Wno-error=uninitialized',
                 '-std=c++0x',
                 '-Wno-sign-compare',
