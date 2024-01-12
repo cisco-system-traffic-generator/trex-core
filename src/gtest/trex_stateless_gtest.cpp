@@ -6524,7 +6524,7 @@ public:
         bcopy(test_pkt, p1, sizeof(test_pkt));
         EXPECT_EQ(m1->pkt_len, sizeof(test_pkt));
 
-        uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+        uint8_t tmp_buf[sizeof(struct tpg_payload_header)];
         struct tpg_payload_header* tpg_header = (tpg_payload_header*)
             utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct tpg_payload_header), tmp_buf);
 
@@ -6532,8 +6532,6 @@ public:
         EXPECT_EQ(tpg_header->seq, 3);
 
         rx_tpg_port->handle_pkt(m1);
-
-        rte_pktmbuf_free(m1);
 
         Json::Value stats;
         rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, false, false);
@@ -6554,6 +6552,7 @@ public:
         }
         VALIDATE_STATS_JSON(tag_stats, &exp);
 
+        rte_pktmbuf_free(m1);
         delete rx_tpg_port;
         free(port_cntr);
         delete tag_mgr;
@@ -6603,7 +6602,7 @@ public:
         bcopy(test_pkt, p1, sizeof(test_pkt));
         EXPECT_EQ(m1->pkt_len, sizeof(test_pkt));
 
-        uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+        uint8_t tmp_buf[sizeof(struct tpg_payload_header)];
         struct tpg_payload_header* tpg_header = (tpg_payload_header*)
             utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct tpg_payload_header), tmp_buf);
 
@@ -6611,8 +6610,6 @@ public:
         EXPECT_EQ(tpg_header->seq, 3);
 
         rx_tpg_port->handle_pkt(m1);
-
-        rte_pktmbuf_free(m1);
 
         // let's see the stats are successfully parsed
 
@@ -6628,6 +6625,7 @@ public:
         exp.set_cntrs(1, sizeof(test_pkt) + 4, 0, 0, 0, 0, 0);
         VALIDATE_STATS_JSON(unknown_stats, &exp);
 
+        rte_pktmbuf_free(m1);
         delete rx_tpg_port;
         free(port_cntr);
         delete tag_mgr;
@@ -6674,7 +6672,7 @@ public:
         bcopy(test_pkt, p1, sizeof(test_pkt));
         EXPECT_EQ(m1->pkt_len, sizeof(test_pkt));
 
-        uint8_t tmp_buf[sizeof(struct flow_stat_payload_header)];
+        uint8_t tmp_buf[sizeof(struct tpg_payload_header)];
         struct tpg_payload_header* tpg_header = (tpg_payload_header*)
             utl_rte_pktmbuf_get_last_bytes(m1, sizeof(struct tpg_payload_header), tmp_buf);
 
@@ -6682,8 +6680,6 @@ public:
         EXPECT_EQ(tpg_header->seq, 3);
 
         rx_tpg_port->handle_pkt(m1);
-
-        rte_pktmbuf_free(m1);
 
         Json::Value stats;
         rx_tpg_port->get_tpg_stats(stats, tpg_header->tpgid, 0, 1, true, true);
@@ -6705,6 +6701,7 @@ public:
 
         VALIDATE_STATS_JSON(untagged, &exp);
 
+        rte_pktmbuf_free(m1);
         delete rx_tpg_port;
         free(port_cntr);
         delete tag_mgr;
