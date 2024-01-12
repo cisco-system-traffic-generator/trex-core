@@ -6382,6 +6382,7 @@ public:
 
         delete rx_tpg_port;
         free(port_cntr);
+        delete tag_mgr;
     }
 
     void TestWithSomeErrors() {
@@ -6429,6 +6430,7 @@ public:
 
         delete rx_tpg_port;
         free(port_cntr);
+        delete tag_mgr;
     }
 
     void TestUntagged() {
@@ -6474,6 +6476,7 @@ public:
 
         delete rx_tpg_port;
         free(port_cntr);
+        delete tag_mgr;
     }
 
     void TestRxHandleValidTag(bool multicast) {
@@ -6553,6 +6556,7 @@ public:
         VALIDATE_STATS_JSON(tag_stats, &exp);
 
         rte_pktmbuf_free(m1);
+        utl_rte_mempool_delete(mp1);
         delete rx_tpg_port;
         free(port_cntr);
         delete tag_mgr;
@@ -6626,6 +6630,7 @@ public:
         VALIDATE_STATS_JSON(unknown_stats, &exp);
 
         rte_pktmbuf_free(m1);
+        utl_rte_mempool_delete(mp1);
         delete rx_tpg_port;
         free(port_cntr);
         delete tag_mgr;
@@ -6702,6 +6707,7 @@ public:
         VALIDATE_STATS_JSON(untagged, &exp);
 
         rte_pktmbuf_free(m1);
+        utl_rte_mempool_delete(mp1);
         delete rx_tpg_port;
         free(port_cntr);
         delete tag_mgr;
