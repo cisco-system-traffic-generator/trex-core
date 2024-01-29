@@ -547,7 +547,7 @@ or the new command
 <1>  look for the PCI id
 <2>  run the lspci -vv to find out the Part number
 <3>  Part number  should be MCX516A-CDAT(CX5)/MCX416A-CCAT (CX4) for 100Gb NICS
-<4>  PCI LnkSta (status) should be x16 and *NOT* x8 in case it is not you should look for UCS PCIe configucation (raiser)
+<4>  PCI LnkSta (status) should be x16 and *NOT* x8 in case it is not you should look for UCS PCIe configuration (raiser)
 <5>  Check parent PCI speed to be find where is the problem--> in this case it is 0000:80:03.0
 <6>  Look for the speed
 

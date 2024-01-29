@@ -113,7 +113,7 @@ The format should be *YAML*
 | uint64            |  sub fields of this header                       |  64
 | other class type  | name of other class. for example, "c-mac-addr"; take fields from there, optionally overload them later  | The size taken from that class
 | Payload           |     xref:Payload[Payload]                        | total packet size - all header until now
-| vlen_t            | in case of varible size header this include the size to the end of varible size header see example xref:IpvOption[Ipv4Option] |total size of the object
+| vlen_t            | in case of variable size header this include the size to the end of variable size header see example xref:IpvOption[Ipv4Option] |total size of the object
 |=================
 
 
@@ -189,7 +189,7 @@ The format should be *YAML*
 | next_headers       | string or type  |   a name of class that define the next or just an array                           |  "none"       | xref:Next_headers[Next_headers]  |
 | fields             | array           | array of Field_Type                                                               |   []          |        | fields : [  ]
 | offset             | integer/string  |   offset into the packet in bits, in case of auto add base of prev fields         |   "auto"      |        |
-| option             | string          |   a java code that define a way to calculate varible size                         |   "none"      |        |  |
+| option             | string          |   a java code that define a way to calculate variable size                         |   "none"      |        |  |
 |=================
 
 
@@ -318,7 +318,7 @@ root -> L2 (  Ethernet   , 802.3 , LLC SNAP  )
 * There would be a spare field in the Stream object so GUI could add more metadata for reconstructing the builder types
   for example in this example Ethernet/IP/TCP/IP/TCP  you can't extrac from buffer alone that Payload is IP/TCP only the builder known that in build time.
 * Ip total length need to keep the total_pkt_size - this ip header . this should work for internal header too.
-* When GUI add header ("external") the total size of this header should be calculated ( varible size should be given a default - ipv4)
+* When GUI add header ("external") the total size of this header should be calculated ( variable size should be given a default - ipv4)
 
 
 === Examples
@@ -385,7 +385,7 @@ other : Byte : Length ( +first) |option
 
 ----
 
-* case of varible length field ip_option example
+* case of variable length field ip_option example
 
 
 
@@ -401,7 +401,7 @@ other : Byte : Length ( +first) |option
    default : [0x00, 0x00, 0x01, 0x00, 0x00, 0x00]
    gui_representation:
       data_type  : "mac-addr_t" # format ([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}
-      help  : "Mac addrees"
+      help  : "Mac address"
 
 
  - class : "ethernet"
@@ -560,7 +560,7 @@ other : Byte : Length ( +first) |option
 -  class : "root" # reserve
    gui_representation:
        help  : "Root"
-   next_headers : [ "ethrenet" ,"llc","_802-3"]
+   next_headers : [ "ethernet" ,"llc","_802-3"]
 ---------------------------
 
 
@@ -575,7 +575,7 @@ In this example parent class default value overrides default values of sub-field
    type : "uint8"
    array_size : 6
    gui_representation:
-      help  : "Mac addrees"
+      help  : "Mac address"
       data_type  : "mac-addr_t" # format ([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}
    default : [0x00,0x00,0x01,0x00,0x00,0x00]
 

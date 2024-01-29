@@ -442,7 +442,7 @@ NGINX installed on a 2-socket setup with 8 cores/socket (total of 16 cores/32 th
 The total number of packets was approximately 600KPPS (Tx+Rx). The number of active flows was 12K.
 
 TRex with one core could scale to about 25Gb/sec, 3MPPS of the same HTTP profile.
-The main issue with NGINX and Linux setup is the tunning. It is very hard to let the hardware utilizing the full server resource (half of the server was idel in this case and still experiance a lot of drop)
+The main issue with NGINX and Linux setup is the tunning. It is very hard to let the hardware utilizing the full server resource (half of the server was idel in this case and still experience a lot of drop)
 TRex is not perfect too, we couldn't reach 100% CPU utilization without a drop (CPU was 84%) need to look if we can improve this but at least we are in the right place for optimization.
 
 Back to our question...

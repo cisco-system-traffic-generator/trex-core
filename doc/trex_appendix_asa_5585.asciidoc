@@ -8,7 +8,7 @@ TRex with ASA 5585
 
 include::trex_ga.asciidoc[]
 
-When running TRex aginst ASA 5585, you have to notice following things:
+When running TRex against ASA 5585, you have to notice following things:
 
 * ASA can't forward ipv4 options, so there is a need to use --learn-mode 1 (or 3) in case of NAT. In this mode, bidirectional UDP flows are not supported.
 --learn-mode 1 support TCP sequence number randomization in both sides of the connection (client to server and server client). For this to work, TRex must learn

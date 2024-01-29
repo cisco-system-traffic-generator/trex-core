@@ -66,7 +66,7 @@ supports-priv-flags: yes
 <3> Unbind from DPDK using this command
 <4> Bind to linux to i40e driver
 <5> Show firmware version throw linux driver
-<6> Firmare version
+<6> Firmware version
 <7> More info
 
 

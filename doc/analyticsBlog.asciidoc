@@ -25,7 +25,7 @@ endif::backend-xhtml11[]
 
 = How do we track TRex performance Using ElasticSearch, Grafana and Pandas
 The ability to monitor TRex performance on many setups/configurations on a daily basis may have a large impact on our ability to identify TRex performance degradation.  
-For a long time our monitoring method was based on hard coded boundaries, we have defined maximum and minimum values for each test/'s result and any exeception triggered a notification.
+For a long time our monitoring method was based on hard coded boundaries, we have defined maximum and minimum values for each test/'s result and any exception triggered a notification.
 This monitoring method had a lot of false positives which in turn increased the investigation time. Moreover this method introduced more complexity through the need to maintain the golden results for many test cases on various platforms.
 
 A new method was required which would enable us to:
@@ -104,7 +104,7 @@ image:images/blog/figure5.jpg[title="figure5",align="left",width={p_width}, link
 [small]#Figure 5# +
  
 https://github.com/cisco-system-traffic-generator/trex-core/blob/master/doc/AnalyticsConnect.py/[View this on GitHub] +
-More on: https://developers.google.com/analytics/devguides/reporting/core/v3/quickstart/service-py/[Google API on Documantation] [4]
+More on: https://developers.google.com/analytics/devguides/reporting/core/v3/quickstart/service-py/[Google API on Documentation] [4]
  
 ==	Analysis using python pandas
 ===	A word on Pandas
