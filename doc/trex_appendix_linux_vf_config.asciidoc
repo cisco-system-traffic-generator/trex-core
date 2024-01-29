@@ -17,7 +17,7 @@ The following diagram compares between vSwitch and SR-IOV.
 
 image:images/sr_iov_vswitch.png[title="vSwitch_main",width=850]
 
-One use case which shows the performance gain that can be acheived by using SR-IOV is when a user wants to create a pool of TRex VMs that tests a pool of virtual DUTs (e.g. ASAv,CSR etc.)
+One use case which shows the performance gain that can be achieved by using SR-IOV is when a user wants to create a pool of TRex VMs that tests a pool of virtual DUTs (e.g. ASAv,CSR etc.)
 When using newly supported SR-IOV, compute, storage and networking resources can be controlled dynamically (e.g by using OpenStack)
 
 image:images/sr_iov_trex.png[title="vSwitch_main",width=850]

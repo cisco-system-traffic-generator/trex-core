@@ -1004,7 +1004,7 @@ TRex port 0 ( server VLAN1) <->  | DUT  | <-> TRex port 1 ( client-VLAN1)
 In this case, traffic on vlan0 is sent as before, while for traffic on vlan1, the order is reversed (client traffic sent on port1 and server traffic on port0).
 TRex divides the flows evenly between the vlans. This results in an equal amount of traffic on each port.
 
-*Router configuation:*::
+*Router configuration:*::
 [source,python]
 ----
         !
@@ -1191,7 +1191,7 @@ asr1k(config)#ipv6 route 5000::/64 3001::2
 <2> Add pbr
 <3> Enable IPv6 routing
 <4> MAC address setting. Should be TRex MAC.
-<5> PBR configuraion
+<5> PBR configuration
 
 
 === Client clustering configuration
@@ -1435,7 +1435,7 @@ For example, in this case 16.0.0.1->48.0.0.1 ICMP will be the flow for latency. 
 ==== Clustering example
 
 In this example we have one DUT with four 10gb interfaces and one TRex with two 40Gb/sec interfaces and we want to convert the traffic from 2 TRex interfaces to 4 DUT Interfaces.
-The folowing figure shows the topology
+The following figure shows the topology
 
 .Cluster example
 image:images/cluster_topo1.png[title="Loopback example"]
@@ -1532,14 +1532,14 @@ groups:
 <1> *All* the IPs from client pools and default pool should be maped in this file, it is possible to have wider range  in cluster file
 
 
-The following diagram shows how new flow src_ip/dest_ip/next-hop/vlan is choosen with cluster file
+The following diagram shows how new flow src_ip/dest_ip/next-hop/vlan is chosen with cluster file
 
 .Cluster example
 image:images/new_flow_generation.png[title="Loopback example"]
 
 [NOTE]
 =====================================================================
-Latency stream will check only 12.1.1.1/4050 path (one DUT intertface)  there is no way to check latency on all the ports in current version
+Latency stream will check only 12.1.1.1/4050 path (one DUT interface)  there is no way to check latency on all the ports in current version
 =====================================================================
 
 [NOTE]
@@ -1550,7 +1550,7 @@ DUT should have a static route to move packets from client to server and vice ve
 
 An example of one flow generation
 
-1. next hop resolotion. TRex resolve all the next hop option e.g. 11.10.0.1/4050 11.11.0.1/4051
+1. next hop resolution. TRex resolve all the next hop option e.g. 11.10.0.1/4050 11.11.0.1/4051
 2. Choose template by CPS, 50% probability for each. take template #1
 3. SRC_IP=12.1.1.2, DEST_IP=13.1.1.2
 4. Allocate src_port for 12.1.1.2 ==>src_port=1025 for the first flow of client=12.1.1.2
@@ -1688,7 +1688,7 @@ groups:
 
 
 ----
-<1> We added more clusters beacuse more IPs will be generated (+mask)
+<1> We added more clusters because more IPs will be generated (+mask)
 
 
 
@@ -1827,7 +1827,7 @@ to the command line options, where <sample> is the sample rate. The number of fl
 
 [NOTE]
 ============
-This feature changes the TTL of the sampled flows to 255 and expects to receive packets with TTL 254 or 255 (one routing hop). If you have more than one hop in your setup, use `--hops` to change it to a higher value. More than one hop is possible if there are number of routers betwean TRex client side and TRex server side.
+This feature changes the TTL of the sampled flows to 255 and expects to receive packets with TTL 254 or 255 (one routing hop). If you have more than one hop in your setup, use `--hops` to change it to a higher value. More than one hop is possible if there are number of routers between TRex client side and TRex server side.
 ============
 
 This feature ensures that:

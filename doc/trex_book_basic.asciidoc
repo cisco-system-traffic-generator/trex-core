@@ -3279,7 +3279,7 @@ Send ICMP request packets with a constant 0 sequence number from both sides.
 |=================
 
 
-==== Interpretting Jitter/Latency Output
+==== Interpreting Jitter/Latency Output
 
 The command output of the `t-rex` utility with latency stats enabled looks similar to the following: 
 

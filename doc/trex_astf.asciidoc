@@ -1280,7 +1280,7 @@ We might change the JSON format in the future as this is a first version
 
 *Goal*:: Use the TRex ASTF advanced simulator.
 
-It is like the simple simulator but simulates multiple templates and flows exacly like TRex server would do with one DP core. 
+It is like the simple simulator but simulates multiple templates and flows exactly like TRex server would do with one DP core. 
 
 [source,bash]
 ----
@@ -1552,7 +1552,7 @@ This example will delay the server response by 500 msec.
 
         prog_s = ASTFProgram()
         prog_s.recv(len(http_req))
-        prog_s.delay_rand(100000,500000); # delay random number betwean 100msec-500msec 
+        prog_s.delay_rand(100000,500000); # delay random number between 100msec-500msec 
         prog_s.send(http_response)
         
 ----
@@ -1646,7 +1646,7 @@ Usually in case of very long flows there is need to cap the number of active flo
 
 By default `send()` command waits for the ACK on the last byte. To make it non-blocking, especially in case big BDP (large window is required) it is possible to work in non-blocking mode, this way to achieve full pipeline. 
 
-Have a look at `astf/htttp_eflow2.py` example. 
+Have a look at `astf/http_eflow2.py` example. 
 
 .Non-blocking send 
 [source,python]
@@ -1691,9 +1691,9 @@ Have a look at `astf/htttp_eflow2.py` example.
 See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for more info.
 
 ==== Tutorial: L7 emulation - Elephant flows with non-blocking send with tick var
-Same as the previous example, only instead of using `loop count` we are using time as a measurement. In the prevous example we calculated the received bytes in advance and use the rcv command with the right bytes values. However, sending & receiving data according to time is tricky and errors/dtops might occur (see stats from runnnig example below).
+Same as the previous example, only instead of using `loop count` we are using time as a measurement. In the prevous example we calculated the received bytes in advance and use the rcv command with the right bytes values. However, sending & receiving data according to time is tricky and errors/dtops might occur (see stats from running example below).
 
-Have a look at `astf/htttp_eflow4.py` example.
+Have a look at `astf/http_eflow4.py` example.
 
 .Tick var
 [source,python]
