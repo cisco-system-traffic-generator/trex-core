@@ -1693,7 +1693,7 @@ See link:cp_astf_docs/api/profile_code.html#astfprogram-class[astf-program] for 
 ==== Tutorial: L7 emulation - Elephant flows with non-blocking send with tick var
 Same as the previous example, only instead of using `loop count` we are using time as a measurement. In the prevous example we calculated the received bytes in advance and use the rcv command with the right bytes values. However, sending & receiving data according to time is tricky and errors/dtops might occur (see stats from running example below).
 
-Have a look at `astf/htttp_eflow4.py` example.
+Have a look at `astf/http_eflow4.py` example.
 
 .Tick var
 [source,python]
