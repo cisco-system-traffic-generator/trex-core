@@ -24,6 +24,7 @@
 #include "bp_sim.h"
 #include "dpdk_port_map.h"
 #include "trex_modes.h"
+#include "callbacks.h"
 
 // These are statistics for packets we send, and do not expect to get back (Like ARP)
 // We reduce them from general statistics we report (and report them separately, so we can keep the assumption
@@ -201,6 +202,17 @@ class CPhyEthIF  {
             if (unlikely(m_dev_tx_offload_needed)) {
                 tx_burst_offload_csum(tx_pkts, nb_pkts, m_dev_tx_offload_needed);
             }
+
+            if (trex_callback_funcs.tx_burst != NULL) {
+                uint16_t send_no_pkts = trex_callback_funcs.tx_burst(m_repid, tx_pkts, nb_pkts);
+                uint16_t dropped_pkts = nb_pkts - send_no_pkts;
+
+                if (send_no_pkts < 1) {
+                    return dropped_pkts;
+                }
+                return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, send_no_pkts) + dropped_pkts;
+            }
+
             return rte_eth_tx_burst(m_repid, queue_id, tx_pkts, nb_pkts);
         } else {
             for (int i=0; i<nb_pkts;i++) {

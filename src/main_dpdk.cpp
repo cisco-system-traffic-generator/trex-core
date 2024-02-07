@@ -107,6 +107,7 @@ extern "C" {
 #include "astf/astf_db.h"
 #include "utl_offloads.h"
 #include "trex_defs.h"
+#include "callbacks.h"
 
 #define MAX_PKT_BURST   32
 #define BP_MAX_CORES 48
@@ -1185,6 +1186,8 @@ COLD_FUNC void CPhyEthIgnoreStats::dump(FILE *fd) {
     DP_A4(m_tx_arp);
     DP_A4(m_rx_arp);
 }
+
+TrexCallbackFuncs trex_callback_funcs{NULL};
 
 // Clear the RX queue of an interface, dropping all packets
 void CPhyEthIF::flush_rx_queue(void){
