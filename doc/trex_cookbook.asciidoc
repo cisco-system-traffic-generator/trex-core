@@ -1083,7 +1083,7 @@ try:
     c.add_streams(s2, ports = port_1)
 
     # start traffic with limit of 3 seconds (otherwise it will continue forever)
-    c.start(ports = port_0, duration = 3)
+    c.start(ports = [port_0, port_1], duration = 3)
 
     # hold until traffic ends
     c.wait_on_traffic()
