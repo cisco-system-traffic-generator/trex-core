@@ -37,7 +37,7 @@ Look for OFED matrix for the right version you need (in the next sections)
 
 [IMPORTANT]
 =====================================
-The OFED and Distro version should match, we tested it in this combination but it could work in different 
+The OFED and Distro version should match, we tested it in this combination but it could work in different combination as well
 =====================================
 
 [IMPORTANT]
@@ -249,7 +249,7 @@ To use Cisco optics, you need to disable to power limit by command:
 
 anchor:ofed_upgrade[]
 
-*from v2.87 ro v2.88*:
+*from v2.87 to v2.88*:
 
 * Old version of trex can work on new distro + new ofed but not the opposite (new trex can't work with old ofed) 
 
@@ -257,7 +257,7 @@ anchor:ofed_upgrade[]
 * Install the new OFED and make sure it is 5.2
 
 
-*from v2.56 ro v2.57*:
+*from v2.56 to v2.57*:
 
 TRex v2.32 and lower works with OFED 4.1 and it can't work with OFED 4.2/newer
 
