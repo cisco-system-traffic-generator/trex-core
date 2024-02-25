@@ -43,6 +43,7 @@ void prepend_ipv4_and_compare(char *buf, uint16_t len, uint32_t teid, uint16_t s
     CGtpuMan gtpu(TUNNEL_MODE_TX);
     gtpu.on_tx(0, m);
     create_pcap_and_compare(m, pcap_file);
+    rte_pktmbuf_free(m);
 }
 
 
@@ -56,6 +57,7 @@ void prepend_ipv6_and_compare(char *buf, uint16_t len, uint32_t teid, uint16_t s
     CGtpuMan gtpu(TUNNEL_MODE_TX);
     gtpu.on_tx(0, m);
     create_pcap_and_compare(m, pcap_file);
+    rte_pktmbuf_free(m);
 }
 
 
@@ -64,6 +66,7 @@ void adjust_and_compare(char *buf, uint16_t len, std::string pcap_file) {
     CGtpuMan gtpu(TUNNEL_MODE_RX);
     gtpu.on_rx(0, m);
     create_pcap_and_compare(m, pcap_file);
+    rte_pktmbuf_free(m);
 }
 
 
