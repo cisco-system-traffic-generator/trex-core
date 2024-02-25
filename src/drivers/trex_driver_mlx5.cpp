@@ -82,109 +82,90 @@ int CTRexExtendedDriverBaseMlnx5G::dump_fdir_global_stats(CPhyEthIF * _if, FILE 
 }
 
 bool CTRexExtendedDriverBaseMlnx5G::get_extended_stats(CPhyEthIF * _if, CPhyEthIFStats *stats) {
-    enum {
-        rx_good_packets,
-        tx_good_packets,
-        rx_good_bytes,
-        tx_good_bytes,
-        rx_missed_errors,
-        rx_errors,
-        tx_errors,
-        rx_mbuf_allocation_errors,
-        COUNT
-    };
-
-    enum {
-        rx_wqe_err,
-        rx_port_unicast_packets,
-        rx_port_unicast_bytes,
-        tx_port_unicast_packets,
-        tx_port_unicast_bytes,
-        rx_port_multicast_packets,
-        rx_port_multicast_bytes,
-        tx_port_multicast_packets,
-        tx_port_multicast_bytes,
-        rx_port_broadcast_packets,
-        rx_port_broadcast_bytes,
-        tx_port_broadcast_packets,
-        tx_port_broadcast_bytes,
-        tx_packets_phy,
-        rx_packets_phy,
-        rx_crc_errors_phy,
-        tx_bytes_phy,
-        rx_bytes_phy,
-        rx_in_range_len_errors_phy,
-        rx_symbol_err_phy,
-        rx_discards_phy,
-        tx_discards_phy,
-        tx_errors_phy,
-        rx_out_of_buffer,
-        //tx_pp_missed_interrupt_error,
-        //tx_pp_rearm_queue_errors,
-        //tx_pp_clock_queue_errors,    
-        //tx_pp_timestamp_past_errors,
-        //tx_pp_timestamp_future_error, 
-        //tx_pp_jitter,
-        //tx_pp_wander,
-        //tx_pp_sync_lost,
-        XCOUNT
-    };
-
     uint16_t repid = _if->get_repid();
     xstats_struct* xstats_struct = &m_port_xstats[repid];
 
 
-
-
     if ( !xstats_struct->init ) {
-        // total_count = COUNT + per queue stats count + XCOUNT
+        // Get total count of stats
         xstats_struct->total_count = rte_eth_xstats_get(repid, NULL, 0);
-        assert(xstats_struct->total_count>=COUNT+XCOUNT);
-        struct rte_eth_xstat_name *xstats_names;
+        assert(xstats_struct->total_count>0);
+        const auto xstats_names = new struct rte_eth_xstat_name[xstats_struct->total_count];
+        assert(xstats_names != 0);
+        rte_eth_xstats_get_names(repid, xstats_names, xstats_struct->total_count);
 
-    	xstats_names = (struct rte_eth_xstat_name *)malloc(sizeof(struct rte_eth_xstat_name) * xstats_struct->total_count);
-        assert(xstats_names!= 0);
-        rte_eth_xstats_get_names(repid,xstats_names,xstats_struct->total_count);
-        int i;
-
-        for (i=0; i<xstats_struct->total_count; i++){
-            if (strncmp(xstats_names[i].name,"rx_out_of_buffer",RTE_ETH_XSTATS_NAME_SIZE) == 0) { 
-                xstats_struct->last_offset = xstats_struct->total_count - 1 - i;
-                break;
-            }
+        for (uint16_t i = 0; i < xstats_struct->total_count; i++) {
+            xstats_struct->name_to_id[std::string(xstats_names[i].name)] = i;
         }
-        free(xstats_names);
+
+        // Assert that DPDK name for the required counters haven't changed
+        // opackets
+        assert(xstats_struct->name_to_id.count("tx_unicast_packets") == 1);
+        assert(xstats_struct->name_to_id.count("tx_multicast_packets") == 1);
+        assert(xstats_struct->name_to_id.count("tx_broadcast_packets") == 1);
+
+        // ipackets
+        assert(xstats_struct->name_to_id.count("rx_unicast_packets") == 1);
+        assert(xstats_struct->name_to_id.count("rx_multicast_packets") == 1);
+        assert(xstats_struct->name_to_id.count("rx_broadcast_packets") == 1);
+
+        // obytes
+        assert(xstats_struct->name_to_id.count("tx_unicast_bytes") == 1);
+        assert(xstats_struct->name_to_id.count("tx_multicast_bytes") == 1);
+        assert(xstats_struct->name_to_id.count("tx_broadcast_bytes") == 1);
+
+        // ibytes
+        assert(xstats_struct->name_to_id.count("rx_unicast_bytes") == 1);
+        assert(xstats_struct->name_to_id.count("rx_multicast_bytes") == 1);
+        assert(xstats_struct->name_to_id.count("rx_broadcast_bytes") == 1);
+
+        // imissed
+        assert(xstats_struct->name_to_id.count("rx_missed_errors") == 1);
+
+        // rx_nombuf
+        assert(xstats_struct->name_to_id.count("rx_mbuf_allocation_errors") == 1);
+
+        // ierrors
+        assert(xstats_struct->name_to_id.count("rx_wqe_errors") == 1);
+        assert(xstats_struct->name_to_id.count("rx_phy_crc_errors") == 1);
+        assert(xstats_struct->name_to_id.count("rx_phy_in_range_len_errors") == 1);
+        assert(xstats_struct->name_to_id.count("rx_phy_symbol_errors") == 1);
+        assert(xstats_struct->name_to_id.count("rx_out_of_buffer") == 1);
+
+        // oerrors
+        assert(xstats_struct->name_to_id.count("tx_phy_errors") == 1);
+
+        delete[] xstats_names;
     }
 
-    struct rte_eth_xstat xstats_array[xstats_struct->total_count];
-    struct rte_eth_xstat *xstats = &xstats_array[xstats_struct->total_count - XCOUNT - xstats_struct->last_offset];
-    struct rte_eth_stats *prev_stats = &stats->m_prev_stats;
+    rte_eth_xstat xstats[xstats_struct->total_count];
+    rte_eth_stats *prev_stats = &stats->m_prev_stats;
 
     /* fetch stats */
-    int ret;
-    ret = rte_eth_xstats_get(repid, xstats_array, xstats_struct->total_count);
-    assert(ret==xstats_struct->total_count);
+    const int ret = rte_eth_xstats_get(repid, xstats, xstats_struct->total_count);
+    assert(ret<=xstats_struct->total_count);
 
-    uint32_t opackets = xstats[tx_port_unicast_packets].value +
-                        xstats[tx_port_multicast_packets].value +
-                        xstats[tx_port_broadcast_packets].value;
-    uint32_t ipackets = xstats[rx_port_unicast_packets].value +
-                        xstats[rx_port_multicast_packets].value +
-                        xstats[rx_port_broadcast_packets].value;
-    uint64_t obytes = xstats[tx_port_unicast_bytes].value +
-                      xstats[tx_port_multicast_bytes].value +
-                      xstats[tx_port_broadcast_bytes].value;
-    uint64_t ibytes = xstats[rx_port_unicast_bytes].value +
-                      xstats[rx_port_multicast_bytes].value +
-                      xstats[rx_port_broadcast_bytes].value;
-    uint64_t &imissed = xstats_array[rx_missed_errors].value;
-    uint64_t &rx_nombuf = xstats_array[rx_mbuf_allocation_errors].value;
-    uint64_t ierrors = xstats[rx_wqe_err].value +
-                       xstats[rx_crc_errors_phy].value +
-                       xstats[rx_in_range_len_errors_phy].value +
-                       xstats[rx_symbol_err_phy].value +
-                       xstats[rx_out_of_buffer].value;
-    uint64_t &oerrors = xstats[tx_errors_phy].value;
+
+    uint64_t opackets = xstats[xstats_struct->name_to_id.at("tx_unicast_packets")].value +
+                            xstats[xstats_struct->name_to_id.at("tx_multicast_packets")].value +
+                            xstats[xstats_struct->name_to_id.at("tx_broadcast_packets")].value;
+    uint64_t ipackets = xstats[xstats_struct->name_to_id.at("rx_unicast_packets")].value +
+                            xstats[xstats_struct->name_to_id.at("rx_multicast_packets")].value +
+                            xstats[xstats_struct->name_to_id.at("rx_broadcast_packets")].value;
+    uint64_t obytes = xstats[xstats_struct->name_to_id.at("tx_unicast_bytes")].value +
+                            xstats[xstats_struct->name_to_id.at("tx_multicast_bytes")].value +
+                            xstats[xstats_struct->name_to_id.at("tx_broadcast_bytes")].value;
+    uint64_t ibytes = xstats[xstats_struct->name_to_id.at("rx_unicast_bytes")].value +
+                            xstats[xstats_struct->name_to_id.at("rx_multicast_bytes")].value +
+                            xstats[xstats_struct->name_to_id.at("rx_broadcast_bytes")].value;
+    uint64_t imissed = xstats[xstats_struct->name_to_id.at("rx_missed_errors")].value;
+    uint64_t rx_nombuf = xstats[xstats_struct->name_to_id.at("rx_mbuf_allocation_errors")].value;
+    uint64_t ierrors = xstats[xstats_struct->name_to_id.at("rx_wqe_errors")].value +
+                           xstats[xstats_struct->name_to_id.at("rx_phy_crc_errors")].value +
+                           xstats[xstats_struct->name_to_id.at("rx_phy_in_range_len_errors")].value +
+                           xstats[xstats_struct->name_to_id.at("rx_phy_symbol_errors")].value +
+                           xstats[xstats_struct->name_to_id.at("rx_out_of_buffer")].value;
+    uint64_t oerrors = xstats[xstats_struct->name_to_id.at("tx_phy_errors")].value;
 
     if ( !xstats_struct->init ) {
         xstats_struct->init = true;
