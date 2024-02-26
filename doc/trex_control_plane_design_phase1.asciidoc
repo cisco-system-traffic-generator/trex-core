@@ -261,7 +261,7 @@ These methods are:
 
   - **`is_done_warmup()`** +
     This will return `True` only if TRex has reached its expected transmission bandwidth footnote:[A 3% deviation is allowed.]. +
-    This parameter is important since in most cases, the most relevant test cases are interesting when TRex produces its expected TX, based on which the platform is tested and benchmerked.
+    This parameter is important since in most cases, the most relevant test cases are interesting when TRex produces its expected TX, based on which the platform is tested and benchmarked.
 
   - **`get_latest_dump()`** +
     Fetches the latest polled dump saved in history.

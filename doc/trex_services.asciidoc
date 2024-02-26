@@ -68,7 +68,7 @@ executing services can be used to dynamically acquire data prior to the test and
 
 
 [NOTE]
-An example of using DHCP service to cutomize a test
+An example of using DHCP service to customize a test
 
 
 Let's assume that our topology includes a DHCP server which will allow traffic from previously leased address only.

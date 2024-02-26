@@ -55,7 +55,7 @@ TRex has the following interesting features:
       change HTTP User-Agent field
 
 Although TRex is implemented on top of DPDK, a lot of the issues we had
-to deal with when writting the tool apply equally to scaling Linux networking;
+to deal with when writing the tool apply equally to scaling Linux networking;
 we share our experiences in that regard and hope to inspire some
 of the techniques to be adopted in Linux.
 

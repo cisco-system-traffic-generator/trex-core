@@ -736,7 +736,7 @@ to adapt to the VLAN configuration each time.
 For solving this case we will use a `dynamic packet hook`.
 
 A packet hook is a function that will be called with a packet and
-will expect a (possibily) modified packet.
+will expect a (possibly) modified packet.
 
 
 

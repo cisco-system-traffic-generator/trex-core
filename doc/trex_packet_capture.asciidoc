@@ -16,7 +16,7 @@ Each queue can be defined with the following attributes:
 
 image::images/packet_capture_arch.png[title="Packet Capturing Architecture",align="left",width={p_width}, link="images/packet_capture_arch.png"]
 
-// the image should be saved without the red squiggley underscores (for spell-check) under words like Scapy and Wireshark
+// the image should be saved without the red squiggly underscores (for spell-check) under words like Scapy and Wireshark
 
 The above architecture implies that we can 'capture' at high speed for a short amount of time.
 

@@ -402,22 +402,22 @@ This can be done by following these steps:
 3. Click the play button.
 
 ifdef::backend-docbook[]
-image::images/trex_motinor_config.png[title="TRex viewer start screen",align="center",width=400,link="images/trex_motinor_config.png"]
+image::images/trex_monitor_config.png[title="TRex viewer start screen",align="center",width=400,link="images/trex_monitor_config.png"]
 endif::backend-docbook[]
 
 ifdef::backend-xhtml11[]
-image::images/trex_motinor_config.png[title="TRex viewer start screen",align="center",width=900,link="images/trex_motinor_config.png"]
+image::images/trex_monitor_config.png[title="TRex viewer start screen",align="center",width=900,link="images/trex_monitor_config.png"]
 endif::backend-xhtml11[]
 
 **That's it!** +
      Now the live data from TRex will be displayed on the screen.
 
 ifdef::backend-docbook[]
-image::images/trex_motinor_view.png[title="TRex viewer monitor screen",align="center",width=400,link="images/trex_motinor_view.png"]
+image::images/trex_monitor_view.png[title="TRex viewer monitor screen",align="center",width=400,link="images/trex_monitor_view.png"]
 endif::backend-docbook[]
 
 ifdef::backend-xhtml11[]
-image::images/trex_motinor_view.png[title="TRex viewer monitor screen",align="center",width=900,link="images/trex_motinor_view.png"]
+image::images/trex_monitor_view.png[title="TRex viewer monitor screen",align="center",width=900,link="images/trex_monitor_view.png"]
 endif::backend-xhtml11[]
 
 

@@ -191,7 +191,7 @@ print "Before Running, TRex status is: ", trex.get_running_status()
 
 <3> Data processing. This is fully customizable for the relevant test initiated.
 
-<4> The sampling rate is flexibale and can be configured depending on the desired output.
+<4> The sampling rate is flexiable and can be configured depending on the desired output.
 
 <5> TRex termination.
 

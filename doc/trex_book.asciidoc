@@ -1998,7 +1998,7 @@ see xref:timer_w[Timer Wheel section]
 <9> New in version v2.62. Sets direction of flow(s). If set to 0, has no effect. If set to 1, server will initiate the flow (with its IP) towards client with original dest port. +
  Note: does *not* work with --learn modes.
 <10> New in version v2.66. Keep original TCP/UDP source port from pcap.
-<11> New Client IP header offset in bytes. Useful when multiple IP headers are present in the capture (e.g. tunnelled traffic). Overrides default behaviour of parsing the first IP header found.
+<11> New Client IP header offset in bytes. Useful when multiple IP headers are present in the capture (e.g. tunnelled traffic). Overrides default behavior of parsing the first IP header found.
 <12> New If IP tunneling is present in the template, it configures the maximum number of tunnels. The outer IPs are adjusted by incrementing them by (inner src IP % max_ip_tunnels).
 
 
@@ -2167,7 +2167,7 @@ here (10240) should be good. Increase only if you use NAT and see issues.
 ==== Platform section configuration
 
 The platform section is optional. It is used to tune the performance and allocate the cores to the right NUMA
-a configuration file now has the folowing struct to support multi instance
+a configuration file now has the following struct to support multi instance
 
 [source,python]
 ----

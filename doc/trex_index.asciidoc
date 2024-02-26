@@ -62,7 +62,7 @@ link:trex_cookbook/index.html[TRex API Cookbook]
 | Stateless Python automation API    | 
 link:cp_stl_docs/index.html[stateless_sdk] 
 | Stateful  Python automation API    | 
-link:cp_docs/index.html[statelful_sdk] 
+link:cp_docs/index.html[statefull_sdk] 
 | Advanced Stateful  Python automation API    | 
 link:cp_astf_docs/index.html[astf_sdk] 
 | Emulation Python Automation API    |
