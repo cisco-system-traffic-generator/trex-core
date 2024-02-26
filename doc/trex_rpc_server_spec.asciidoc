@@ -73,7 +73,7 @@ how a client can implement the protocol used to communicate with TRex
 In general, we will describe the following:
 
 * *Transport Layer* - The transport layer used to communicate with TRex server
-* *RPC Reprensentation Protocol* - The format in which remote procedures are carried
+* *RPC Representation Protocol* - The format in which remote procedures are carried
 
 === Transport Layer
 
@@ -92,9 +92,9 @@ for more on ZMQ and implementation please refer to:
 {zwsp} +
 http://zeromq.org/intro:read-the-manual
 
-=== RPC Reprensentation Protocol
+=== RPC Representation Protocol
 
-The RPC reprensentation protocol is JSON RPC v2.0.
+The RPC representation protocol is JSON RPC v2.0.
 Every request and response will be encoded in a JSON RPC v2.0 format.
 
 {zwsp}+
@@ -1490,7 +1490,7 @@ an example of tuple_flow_var variable
 | 10.0.0.1    | 1025        | 1  << back to the first flow 
 |=================
 
-The variable name.port and name.ip could be written to any offset in the packet (usualy to src_ip and src_port as client) 
+The variable name.port and name.ip could be written to any offset in the packet (usually to src_ip and src_port as client) 
 
 ===== write_mask_flow_var
 
@@ -1550,7 +1550,7 @@ an example of tuple_flow_var variable
 | 5    | 0x03        | 0x53
 |=================
 
-The use cases of this instruction is to write to a bit field (valn/mpls)
+The use cases of this instruction is to write to a bit field (vlan/mpls)
 
 
 TIP: For more information and examples on VM objects please refer to:
@@ -1569,7 +1569,7 @@ please also consider the following constraints:
 
 ===== Constrains
 * *performance* - this will have performance impact as rx packets will be examined
-* *override* - up to 10 bytes at the end of the packet will be overidden by the meta data required
+* *override* - up to 10 bytes at the end of the packet will be overridden by the meta data required
 
 ===== The bytes needed for activating rx_stats
 
@@ -1821,7 +1821,7 @@ In case rx_stats feature is enabled, rx_object **must include** all rx_stats obj
 * *Name* - 'get_stream_list'
 * *API Class* - 'core'
 * *Valid States* - 'unowned', 'owned', 'active'
-* *Description* - fetch all the assoicated streams for a port
+* *Description* - fetch all the associated streams for a port
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 ** *port_id* ['int'] - port to query for registered profiles
@@ -2544,7 +2544,7 @@ The string type 'profile_id' anchor:astf_profile_id[]
 | Field           | Type    | Description 
 | duration        | double  | Stop producing new flows after duration
 | mult            | double  | CPS Multiplier
-| nc              | bool    | If set, will terminate exacly at the end of the specified duration. This provides faster, more accurate TRex termination. By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong.
+| nc              | bool    | If set, will terminate exactly at the end of the specified duration. This provides faster, more accurate TRex termination. By default (without this option), TRex waits for all flows to terminate gracefully. In case of a very long flow, termination might prolong.
 | ipv6            | bool    | convert the profile to ipv6
 | latency         | uint32_t| rate of the latency packets. 0 means disable
 | client_mask     | uint32_t| mask of client ports. bit is 0 => client is disabled.
@@ -2762,7 +2762,7 @@ The string type 'profile_id' anchor:astf_profile_id[]
 
 * *Result* ['object'] - {}
 
-List of counters descriptions, each have the folowing metadata:
+List of counters descriptions, each have the following metadata:
 
 .Counter description
 [options="header",cols="1,1,3"]
@@ -2772,7 +2772,7 @@ List of counters descriptions, each have the folowing metadata:
 | name            | string  | the name of the counters 
 | help            | string  | help string 
 | zero            | bool    | show zero counters
-| info            | string  | short string for desribing 
+| info            | string  | short string for describing 
 | real            | bool    | does this counter actually represent some value and not just graphical separator
 | abs             | bool    | absolute (non-relative) counters, should not be cleared by clear stats.
 |=================
@@ -3095,7 +3095,7 @@ array of id and value
 * *Name* - 'start_latency'
 * *API Class* - 'core'
 * *Valid States* - 'active'
-* *Description* - start latency ICMP streams in Rx core. used for debug. usualy those stream could start using 'start' command using '-l'
+* *Description* - start latency ICMP streams in Rx core. used for debug. usually those stream could start using 'start' command using '-l'
 * *Parameters*
 ** *handler* ['string'] - unique connection handler
 
@@ -3187,8 +3187,8 @@ add or edit one or more streams to one or more ports
 * *['repeat previous']* - 'repeat' the above for how many ports and streams desired 
 * *get_stream_list* ['optional'] - sanity - verify the server is synced with the GUI 
 * *start_traffic* - start traffic on the specific port / all the ports
-* *get_global_stats* ['optional'] - make sure the machine is transmiting traffic
-* *['perfrom test']* - perform the required test
+* *get_global_stats* ['optional'] - make sure the machine is transmitting traffic
+* *['perform test']* - perform the required test
 * *stop_traffic* - when done, stop the traffic on the specific port / all the ports
 * *get_global_stats* ['optional'] - make sure the machine has stopped
 
@@ -3329,7 +3329,7 @@ On the following example, a **batch request** is being issued to the server, con
 
 [underline]#First request# +
 The first client request is similar to the previous example. +
-However, in this case the rx_stats object is enbaled and set to monitor ancestor's `stream_id` (which is 0 in this case).
+However, in this case the rx_stats object is enabled and set to monitor ancestor's `stream_id` (which is 0 in this case).
 
 Ontop, this stream points to the next stream as the one to follow, as described under `next_stream_id` of `stream` object.
 
@@ -3506,7 +3506,7 @@ Another Example of tuple generator
                {
                   "type" : "write_flow_var", # command name 
 
-                  "name" : "tuple_gen.ip",  # varible to write     
+                  "name" : "tuple_gen.ip",  # variable to write     
                   
                   "add_value" : 0,          # no need to add value     
                   
@@ -3525,7 +3525,7 @@ Another Example of tuple generator
                {
                   "type" : "write_flow_var", # command name 
 
-                  "name" : "tuple_gen.port",  # varible to write     
+                  "name" : "tuple_gen.port",  # variable to write     
                   
                   "add_value" : 0,          # no need to add value     
                   

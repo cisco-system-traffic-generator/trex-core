@@ -326,5 +326,5 @@ csi-mcp-asr1k-40(config)#ipv6 route 5000::/64 3001::2
 <3> Add pbr 
 <4> Enable ipv6 routing 
 <5> Mac-addr setting should be like TRex
-<6> PBR configuraion
+<6> PBR configuration
 

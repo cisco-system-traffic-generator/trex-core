@@ -210,13 +210,13 @@ $more cap2/dns_test.yaml
        cps : 1.0                         <2>
 ----
 <1> the pcap file that include DNS cap file that will be replicate 
-<2> how many connection per second to generate, 1.0 means 1 connection per secod 
+<2> how many connection per second to generate, 1.0 means 1 connection per second 
 
 image:images/dns_wireshark.png[title="generator"]
 
 == DNS simple profile output
 
-.Formated results
+.Formatted results
 [format="csv",cols="1^,2^,1^,1^,2^,1^,2^,1^", options="header"]
 |=================
  pkt,time sec,fid,flow-pkt-id,client_ip,client_port,server_ip ,direction
@@ -288,7 +288,7 @@ chart("#chart1",dns_data,["dns"],"time-sec","flow-id");
      - name: avl/delay_10_http_browsing_0.pcap
        cps : 2.0                         <1>
 ----
-<1> Diffrent CPS  
+<1> Different CPS  
 
 * Inter packet Gap (IPG) is taken from pcap file 
 * IPG can be manually set  
