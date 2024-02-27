@@ -852,6 +852,8 @@ def setParserOptions():
                         action="store_true", help="Starts with all outputs suppressed",
                         default = False)
 
+    parser.add_argument("-m", "--max-ports", default=4, help="Set maximum amount of ports to show, any value below 1 is unlimited", type=int)
+
     return parser
 
 # a simple info printed on log on
@@ -896,6 +898,7 @@ def probe_server_mode (options):
                         server = options.server,
                         sync_port = options.port,
                         async_port = options.pub,
+                        max_ports = options.max_ports,
                         logger = ConsoleLogger(),
                         verbose_level = 'error')
 
@@ -992,6 +995,7 @@ def main():
                            server = options.server,
                            sync_port = options.port,
                            async_port = options.pub,
+                           max_ports = options.max_ports,
                            logger = logger,
                            verbose_level = verbose_level,
                            sync_timeout = sync_timeout,
@@ -1005,6 +1009,7 @@ def main():
                             server = options.server,
                             sync_port = options.port,
                             async_port = options.pub,
+                            max_ports = options.max_ports,
                             logger = logger,
                             verbose_level = verbose_level,
                             sync_timeout = sync_timeout,

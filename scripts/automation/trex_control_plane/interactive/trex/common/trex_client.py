@@ -94,6 +94,7 @@ class TRexClient(object):
                  server = "localhost",
                  sync_port = 4501,
                  async_port = 4500,
+                 max_ports = 4,
                  verbose_level = "error",
                  logger = None,
                  sync_timeout = None,
@@ -132,6 +133,8 @@ class TRexClient(object):
 
         # server version check for dynamic port addition
         self.is_dynamic = False
+
+        self.max_ports = max_ports
 
 
     def get_mode (self):
@@ -3622,7 +3625,10 @@ class TRexClient(object):
             self.logger.warning(format_text('Empty set of ports\n', 'bold'))
             return
 
-        port_stats = [self.ports[port_id].get_port_stats() for port_id in ports[:4]]
+        if self.max_ports < 1:
+            port_stats = [self.ports[port_id].get_port_stats() for port_id in ports]
+        else:
+            port_stats = [self.ports[port_id].get_port_stats() for port_id in ports[:self.max_ports]]
 
         # update in a batch
         StatsBatch.update(port_stats, self.conn.rpc)
@@ -3649,7 +3655,11 @@ class TRexClient(object):
             self.logger.warning(format_text('Empty set of ports\n', 'bold'))
             return
 
-        port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports[:4]]
+        if self.max_ports < 1:
+            port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports]
+        else:
+            port_xstats = [self.ports[port_id].get_port_xstats() for port_id in ports[:self.max_ports]]
+
 
         # update in a batch
         StatsBatch.update(port_xstats, self.conn.rpc)
