@@ -183,7 +183,7 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, client, verbose = False, dummy_client = False):
+    def __init__(self, client, verbose = False, dummy_client = False, max_ports = 4):
 
         # cmd lock is used to make sure background job
         # of the console is not done while the user excutes commands
@@ -202,7 +202,7 @@ class TRexConsole(TRexGeneralCmd):
 
         self.terminal = None
 
-        self.tui = trex_tui.TrexTUI(self)
+        self.tui = trex_tui.TrexTUI(self, max_ports)
         self.cap_mngr = CaptureManager(client, self.cmd_lock)
         self.load_client_console_functions()
         self.postcmd(False, "")
@@ -915,7 +915,7 @@ def run_console(client, logger, options):
             if not cont:
                 return
 
-        console = TRexConsole(client = client, verbose = options.verbose, dummy_client = options.emu_only_server is not None)
+        console = TRexConsole(client = client, verbose = options.verbose, dummy_client = options.emu_only_server is not None, max_ports = options.max_ports)
         console.server = options.server # set server in console so plugins can use it
 
         # run emu if needed

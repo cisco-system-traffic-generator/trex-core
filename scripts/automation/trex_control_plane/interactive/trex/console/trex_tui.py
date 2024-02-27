@@ -707,7 +707,10 @@ class TrexTUI():
             super(TrexTUI.ScreenSizeException, self).__init__(msg)
 
 
-    def __init__ (self, console):
+    def __init__ (self, console, max_ports = 4):
+        if max_ports > 2:
+            # Showing one port takes about 20 columns
+            TrexTUI.MIN_COLS += 20 * (max_ports - 4)
         self.console = console
         self.client  = console.client
 
