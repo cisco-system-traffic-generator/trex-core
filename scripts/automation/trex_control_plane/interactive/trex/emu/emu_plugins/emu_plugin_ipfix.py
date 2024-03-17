@@ -516,6 +516,7 @@ class IPFIXPlugin(EMUPluginBase):
                                         parsing_opts.IPFIX_HTTP_REPEATS_WAIT_TIME,
                                         parsing_opts.IPFIX_HTTP_SITES_PER_TENANT,
                                         parsing_opts.IPFIX_HTTP_DEVICES_PER_SITE,
+                                        parsing_opts.IPFIX_HTTP_HEADER_FIELDS_JSON_FILE,
                                         parsing_opts.IPFIX_UDP_PACKETS_WAIT_TIME,
                                         )
         opts = parser.parse_args(line.split())
@@ -523,6 +524,15 @@ class IPFIXPlugin(EMUPluginBase):
         exporter_params = IpfixExporterParamsFactory().create_obj_from_dst_url(opts.dst_url)
         if exporter_params is None:
             raise TRexError("Failed to create ipfix exporter")
+
+        header_fields_json = None
+
+        if opts.header_fields_json_file:
+            try:
+                with open(opts.header_fields_json_file, 'r') as file:
+                    header_fields_json = file.read()
+            except FileNotFoundError:
+                raise TRexError("Header fields JSON file doesn't exist")
 
         exporter_params.set_export_from_dir(True)
         if exporter_params.get_type() == "http":
@@ -532,6 +542,7 @@ class IPFIXPlugin(EMUPluginBase):
                                                        dir_scans_num = opts.dir_scans_num,
                                                        files_wait_time = opts.files_wait_time,
                                                        files_wait_time_speedup = opts.files_wait_time_speedup)
+            exporter_params.set_header_fields(header_fields_json)
 
         if exporter_params.get_type() == "udp":
             exporter_params.set_export_from_dir_params(dir = opts.dir,

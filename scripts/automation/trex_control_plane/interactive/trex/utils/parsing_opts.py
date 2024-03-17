@@ -1543,6 +1543,13 @@ class OPTIONS_DB_ARGS:
          'dest': "http_devices_per_site",
          'help': "Number of devices per site to be used in dst url"})
 
+    IPFIX_HTTP_HEADER_FIELDS_JSON_FILE = ArgumentPack(
+        ['--header-fields-json-file'],
+        {'type': str,
+         'default': None,
+         'dest': "header_fields_json_file",
+         'help': "JSON file defining custom HTTP header fields to add to the post requests created by EMU"})
+
     IPFIX_UDP_PACKETS_WAIT_TIME = ArgumentPack(
         ['--udp-packets-wait-time'],
         {'type': str,

@@ -154,16 +154,17 @@ class IpfixExporterParamsFactory():
         return obj
 
     def _create_http_obj(self, dst_url):
-        re_pattern = r"^/api/ipfixfilecollector/([%\w-]+)/([%\w-]+)/([%\w-]+)/post_file$"
+        re_pattern = r"([/\w]+)/([%\w-]+)/([%\w-]+)/([%\w-]+)/post_file$"
         match = re.search(re_pattern, dst_url.path)
         if not match:
             return None
 
-        tenant_id = match.groups()[0]
-        site_id = match.groups()[1]
-        device_id = match.groups()[2]
+        dst_url_path = match.groups()[0]
+        tenant_id = match.groups()[1]
+        site_id = match.groups()[2]
+        device_id = match.groups()[3]
 
-        obj = IpfixHttpExporterParams(dst_url.scheme, dst_url.hostname, dst_url.port, tenant_id, site_id, device_id)
+        obj = IpfixHttpExporterParams(dst_url.scheme, dst_url.hostname, dst_url.port, tenant_id, site_id, device_id, dst_url_path)
         return obj
 
 
@@ -279,13 +280,14 @@ class IpfixFileExporterParams(IpfixExporterParams):
 
 
 class IpfixHttpExporterParams(IpfixFileExporterParams):
-    def __init__(self, scheme, dst_ip_addr, dst_port, tenant_id, site_id, device_id):
+    def __init__(self, scheme, dst_ip_addr, dst_port, tenant_id, site_id, device_id, dst_url_path):
         super(IpfixHttpExporterParams, self).__init__(None, None)
         self._dst_ip_addr = dst_ip_addr
         self._dst_port = dst_port   # urlparse can return dst_port None
         self._tenant_id = tenant_id
         self._site_id = site_id
         self._device_id = device_id
+        self._dst_url_path = dst_url_path
         self._max_posts = None
         self._tls_cert_file = None
         self._tls_key_file = None
@@ -295,6 +297,7 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         self._repeats_wait_time = None
         self._export_from_dir = None
         self._export_from_dir_params = None
+        self._header_fields = None
         if scheme not in ["http", "https"]:
             raise ValueError("invalid scheme {}, scheme should be http/s".format(scheme))
         self._type = scheme
@@ -313,16 +316,22 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
         add_to_json_if_not_none(exporter_params, "repeats_wait_time", self._repeats_wait_time)
         add_to_json_if_not_none(exporter_params, "export_from_dir", self._export_from_dir)
         add_to_json_if_not_none(exporter_params, "export_from_dir_params", self._export_from_dir_params)
+        add_to_json_if_not_none(exporter_params, "header_fields", self._header_fields)
 
         return None if len(exporter_params) == 0 else exporter_params
 
     def get_dst_url(self):
-        if self._dst_port is None:
-            return "{0}://{1}/api/ipfixfilecollector/{2}/{3}/{4}/post_file".format(
-                self._type, self._dst_ip_addr, self._tenant_id, self._site_id, self._device_id)
+        dst_url_path = "/api/ipfixfilecollector"
+        if self._dst_url_path:
+            dst_url_path = self._dst_url_path
+
+        if not self._dst_port:
+            return "{0}://{1}{2}/{3}/{4}/{5}/post_file".format(
+                self._type, self._dst_ip_addr, dst_url_path, self._tenant_id, self._site_id, self._device_id)
         else:
-            return "{0}://{1}:{2}/api/ipfixfilecollector/{3}/{4}/{5}/post_file".format(
-                self._type, self._dst_ip_addr, self._dst_port, self._tenant_id, self._site_id, self._device_id)
+            return "{0}://{1}:{2}{3}/{4}/{5}/{6}/post_file".format(
+                self._type, self._dst_ip_addr, self._dst_port, 
+                dst_url_path, self._tenant_id, self._site_id, self._device_id)
 
     def set_max_posts(self, max_posts):
         self._max_posts = max_posts
@@ -363,6 +372,15 @@ class IpfixHttpExporterParams(IpfixFileExporterParams):
 
         self._export_from_dir_params = json
 
+    def set_header_fields(self, header_fields_json):
+        # This function is used to add custom header fields to the post requests created by EMU.
+        # The JSON should have the following format:
+        # {
+        #     "header_1": "value 1", 
+        #     "header_2": "value_2"
+        # }
+        if header_fields_json:
+            self._header_fields = json.loads(header_fields_json)
 
 ###############################################################
                         # Plugin
