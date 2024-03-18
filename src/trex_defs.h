@@ -27,16 +27,12 @@ limitations under the License.
 
 #define TREX_MAX_PORTS 32
 
-#ifdef __PPC64__
+// Nobody tested trex with more sockets and threads, at least now
 #define MAX_SOCKETS_SUPPORTED   (16)
 #define MAX_THREADS_SUPPORTED   (1536)
-#else
-#define MAX_SOCKETS_SUPPORTED   (4)
-#define MAX_THREADS_SUPPORTED   (120)
-#endif
 
-// 64 cores, each two digits, + 63 commas < 192
-#define MAX_CORES_LIST_STRLEN	192
+// 1536 cores, each two digits, + 1536 commas < 8192
+#define MAX_CORES_LIST_STRLEN	8192
 
 // maximum number of IP ID type flow stats we support. Must be in the form 2^x - 1
 #define MAX_FLOW_STATS 1023

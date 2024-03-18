@@ -62,11 +62,6 @@ class ConfigCreator(object):
     _2hex_re = '[\da-fA-F]{2}'
     mac_re = re.compile('^({0}:){{5}}{0}$'.format(_2hex_re))
 
-    if march == 'ppc64le':
-        MAX_LCORE_NUM = 159
-    else:
-        MAX_LCORE_NUM = 63
-
     # cpu_topology - dict: physical processor -> physical core -> logical processing unit (thread)
     # interfaces - array of dicts per interface, should include "mandatory_interface_fields" values
     def __init__(self, cpu_topology, interfaces, include_lcores = [], exclude_lcores = [], only_first_thread = False, zmq_rpc_port = None, zmq_pub_port = None, prefix = None, ignore_numa = False, stack=None):
@@ -100,8 +95,6 @@ class ConfigCreator(object):
                     if include_lcores and lcore not in include_lcores:
                         cores[core].remove(lcore)
                     elif exclude_lcores and lcore in exclude_lcores:
-                        cores[core].remove(lcore)
-                    elif lcore > self.MAX_LCORE_NUM:
                         cores[core].remove(lcore)
                 if 0 in lcores:
                     self.has_zero_lcore = True
@@ -1165,44 +1158,53 @@ Other network devices
     def split_pci_key(self, pci_id):
         return pci_id.split('/')[0]
 
-    def _get_cpu_topology(self):
-        cpu_topology = OrderedDict()
-        base_path = "/sys/devices/system/cpu"
-        cpus = []
-       
+
+    def _list_cpus(self, base_path):
         file_re = re.compile(base_path + '/cpu([0-9]+)$')
+        cpus = list()
         for cpu_dir in glob.glob('{}/cpu*'.format(base_path)):
             cpu_obj = file_re.match(cpu_dir)
             if cpu_obj:
                 cpus.append(int(cpu_obj.group(1)))
         cpus.sort()
 
+        cores = OrderedDict()
+
         for cpu in cpus:
-
-            # Find the socket ID of the current CPU
-            try:
-                with open("{}/cpu{}/topology/physical_package_id".format(base_path, cpu)) as f:
-                    socket = int(f.read())
-            except IOError:
-                continue
-            except:
-                break
-            if socket not in cpu_topology:
-                cpu_topology[socket] = OrderedDict()
-
             # Find the core ID of the current CPU
             try:
-                with open("{}/cpu{}/topology/core_id".format(base_path, cpu)) as f:
-                   core = int(f.read())
+                with open("{}/cpu{}/topology/thread_siblings_list".format(base_path, cpu)) as f:
+                    threads_list = [int(t) for t in f.read().split(",")]
             except IOError:
                 continue
             except:
                 break
-            if core not in cpu_topology[socket]:
-                cpu_topology[socket][core] = []
+            threads_list.sort()
+            main_tid = threads_list[0]
+            if main_tid not in cores:
+                cores[main_tid] = []
 
             # Capture the socket/core of the current CPU
-            cpu_topology[socket][core].append(cpu)
+            for tid in threads_list:
+                if tid not in cores[main_tid]:
+                    cores[main_tid].append(tid)
+        return cores
+
+
+    def _get_cpu_topology(self):
+        cpu_topology = OrderedDict()
+        base_path = "/sys/devices/system/node"
+
+        numa_nodes = list()
+        node_re = re.compile(base_path + '/node([0-9]+)$')
+        for node_dir in glob.glob('{}/node*'.format(base_path)):
+            numa_node = node_re.match(node_dir)
+            if numa_node:
+                numa_nodes.append(int(numa_node.group(1)))
+        numa_nodes.sort()
+
+        for numa_node in numa_nodes:
+            cpu_topology[numa_node] = self._list_cpus("{}/node{}".format(base_path, numa_node))
 
         if not cpu_topology:
             raise DpdkSetup('Could not determine CPU topology from %s' % base_path)
