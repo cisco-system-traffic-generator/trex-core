@@ -172,11 +172,13 @@ exit:
 }
 
 static int
-nix_inl_cpt_setup(struct nix_inl_dev *inl_dev)
+nix_inl_cpt_setup(struct nix_inl_dev *inl_dev, bool inl_dev_sso)
 {
-	struct roc_cpt_lf *lf = &inl_dev->cpt_lf;
 	struct dev *dev = &inl_dev->dev;
+	bool ctx_ilen_valid = false;
+	struct roc_cpt_lf *lf;
 	uint8_t eng_grpmask;
+	uint8_t ctx_ilen = 0;
 	int rc;
 
 	if (!inl_dev->attach_cptlf)
@@ -186,27 +188,35 @@ nix_inl_cpt_setup(struct nix_inl_dev *inl_dev)
 	eng_grpmask = (1ULL << ROC_CPT_DFLT_ENG_GRP_SE |
 		       1ULL << ROC_CPT_DFLT_ENG_GRP_SE_IE |
 		       1ULL << ROC_CPT_DFLT_ENG_GRP_AE);
-	rc = cpt_lfs_alloc(dev, eng_grpmask, RVU_BLOCK_ADDR_CPT0, false);
+	if (roc_errata_cpt_has_ctx_fetch_issue()) {
+		ctx_ilen = (ROC_NIX_INL_OT_IPSEC_INB_HW_SZ / 128) - 1;
+		ctx_ilen_valid = true;
+	}
+
+	rc = cpt_lfs_alloc(dev, eng_grpmask, RVU_BLOCK_ADDR_CPT0, inl_dev_sso, ctx_ilen_valid,
+			   ctx_ilen, inl_dev->rx_inj_ena, inl_dev->nb_cptlf - 1);
 	if (rc) {
 		plt_err("Failed to alloc CPT LF resources, rc=%d", rc);
 		return rc;
 	}
 
-	/* Setup CPT LF for submitting control opcode */
-	lf = &inl_dev->cpt_lf;
-	lf->lf_id = 0;
-	lf->nb_desc = 0; /* Set to default */
-	lf->dev = &inl_dev->dev;
-	lf->msixoff = inl_dev->cpt_msixoff;
-	lf->pci_dev = inl_dev->pci_dev;
+	for (int i = 0; i < inl_dev->nb_cptlf; i++) {
+		/* Setup CPT LF for submitting control opcode */
+		lf = &inl_dev->cpt_lf[i];
+		lf->lf_id = i;
+		lf->nb_desc = 0; /* Set to default */
+		lf->dev = &inl_dev->dev;
+		lf->msixoff = inl_dev->cpt_msixoff[i];
+		lf->pci_dev = inl_dev->pci_dev;
 
-	rc = cpt_lf_init(lf);
-	if (rc) {
-		plt_err("Failed to initialize CPT LF, rc=%d", rc);
-		goto lf_free;
+		rc = cpt_lf_init(lf);
+		if (rc) {
+			plt_err("Failed to initialize CPT LF, rc=%d", rc);
+			goto lf_free;
+		}
+
+		roc_cpt_iq_enable(lf);
 	}
-
-	roc_cpt_iq_enable(lf);
 	return 0;
 lf_free:
 	rc |= cpt_lfs_free(dev);
@@ -216,29 +226,24 @@ lf_free:
 static int
 nix_inl_cpt_release(struct nix_inl_dev *inl_dev)
 {
-	struct roc_cpt_lf *lf = &inl_dev->cpt_lf;
 	struct dev *dev = &inl_dev->dev;
-	int rc, ret = 0;
+	int rc, i;
 
 	if (!inl_dev->attach_cptlf)
 		return 0;
 
 	/* Cleanup CPT LF queue */
-	cpt_lf_fini(lf);
+	for (i = 0; i < inl_dev->nb_cptlf; i++)
+		cpt_lf_fini(&inl_dev->cpt_lf[i]);
 
 	/* Free LF resources */
 	rc = cpt_lfs_free(dev);
-	if (rc)
+	if (!rc) {
+		for (i = 0; i < inl_dev->nb_cptlf; i++)
+			inl_dev->cpt_lf[i].dev = NULL;
+	} else
 		plt_err("Failed to free CPT LF resources, rc=%d", rc);
-	ret |= rc;
-
-	/* Detach LF */
-	rc = cpt_lfs_detach(dev);
-	if (rc)
-		plt_err("Failed to detach CPT LF, rc=%d", rc);
-	ret |= rc;
-
-	return ret;
+	return rc;
 }
 
 static int
@@ -291,7 +296,7 @@ nix_inl_sso_setup(struct nix_inl_dev *inl_dev)
 	}
 
 	/* Setup hwgrp->hws link */
-	sso_hws_link_modify(0, inl_dev->ssow_base, NULL, hwgrp, 1, true);
+	sso_hws_link_modify(0, inl_dev->ssow_base, NULL, hwgrp, 1, 0, true);
 
 	/* Enable HWGRP */
 	plt_write64(0x1, inl_dev->sso_base + SSO_LF_GGRP_QCTL);
@@ -321,7 +326,7 @@ nix_inl_sso_release(struct nix_inl_dev *inl_dev)
 	nix_inl_sso_unregister_irqs(inl_dev);
 
 	/* Unlink hws */
-	sso_hws_link_modify(0, inl_dev->ssow_base, NULL, hwgrp, 1, false);
+	sso_hws_link_modify(0, inl_dev->ssow_base, NULL, hwgrp, 1, 0, false);
 
 	/* Release XAQ aura */
 	sso_hwgrp_release_xaq(&inl_dev->dev, 1);
@@ -531,7 +536,7 @@ nix_inl_lf_attach(struct nix_inl_dev *inl_dev)
 	req->ssow = 1;
 	req->sso = 1;
 	if (inl_dev->attach_cptlf) {
-		req->cptlfs = 1;
+		req->cptlfs = inl_dev->nb_cptlf;
 		req->cpt_blkaddr = RVU_BLOCK_ADDR_CPT0;
 	}
 
@@ -548,7 +553,9 @@ nix_inl_lf_attach(struct nix_inl_dev *inl_dev)
 	inl_dev->nix_msixoff = msix_rsp->nix_msixoff;
 	inl_dev->ssow_msixoff = msix_rsp->ssow_msixoff[0];
 	inl_dev->sso_msixoff = msix_rsp->sso_msixoff[0];
-	inl_dev->cpt_msixoff = msix_rsp->cptlf_msixoff[0];
+
+	for (int i = 0; i < inl_dev->nb_cptlf; i++)
+		inl_dev->cpt_msixoff[i] = msix_rsp->cptlf_msixoff[i];
 
 	nix_blkaddr = nix_get_blkaddr(dev);
 	inl_dev->is_nix1 = (nix_blkaddr == RVU_BLOCK_ADDR_NIX1);
@@ -676,7 +683,8 @@ no_pool:
 	}
 
 	/* Setup xaq for hwgrps */
-	rc = sso_hwgrp_alloc_xaq(&inl_dev->dev, inl_dev->xaq.aura_handle, 1);
+	rc = sso_hwgrp_alloc_xaq(&inl_dev->dev,
+				 roc_npa_aura_handle_to_aura(inl_dev->xaq.aura_handle), 1);
 	if (rc) {
 		plt_err("Failed to setup hwgrp xaq aura, rc=%d", rc);
 		return rc;
@@ -743,7 +751,7 @@ inl_outb_soft_exp_poll(struct nix_inl_dev *inl_dev, uint32_t ring_idx)
 			inl_dev->work_cb(&tmp, sa, (port_id << 8) | 0x1);
 			__atomic_store_n(ring_base + tail_l + 1, 0ULL,
 					 __ATOMIC_RELAXED);
-			__atomic_add_fetch((uint32_t *)ring_base, 1,
+			__atomic_fetch_add((uint32_t *)ring_base, 1,
 					   __ATOMIC_ACQ_REL);
 		} else
 			plt_err("Invalid SA");
@@ -752,7 +760,7 @@ inl_outb_soft_exp_poll(struct nix_inl_dev *inl_dev, uint32_t ring_idx)
 	}
 }
 
-static void *
+static uint32_t
 nix_inl_outb_poll_thread(void *args)
 {
 	struct nix_inl_dev *inl_dev = args;
@@ -822,9 +830,8 @@ nix_inl_outb_poll_thread_setup(struct nix_inl_dev *inl_dev)
 
 	soft_exp_consumer_cnt = 0;
 	soft_exp_poll_thread_exit = false;
-	rc = plt_ctrl_thread_create(&inl_dev->soft_exp_poll_thread,
-				    "OUTB_SOFT_EXP_POLL_THREAD", NULL,
-				    nix_inl_outb_poll_thread, inl_dev);
+	rc = plt_thread_create_control(&inl_dev->soft_exp_poll_thread,
+			"outb-poll", nix_inl_outb_poll_thread, inl_dev);
 	if (rc) {
 		plt_bitmap_free(inl_dev->soft_exp_ring_bmap);
 		plt_free(inl_dev->soft_exp_ring_bmap_mem);
@@ -843,7 +850,7 @@ roc_nix_inl_dev_stats_get(struct roc_nix_stats *stats)
 	if (stats == NULL)
 		return NIX_ERR_PARAM;
 
-	if (!idev && idev->nix_inl_dev)
+	if (idev && idev->nix_inl_dev)
 		inl_dev = idev->nix_inl_dev;
 
 	if (!inl_dev)
@@ -910,6 +917,12 @@ roc_nix_inl_dev_init(struct roc_nix_inl_dev *roc_inl_dev)
 	inl_dev->meta_buf_sz = roc_inl_dev->meta_buf_sz;
 	inl_dev->soft_exp_poll_freq = roc_inl_dev->soft_exp_poll_freq;
 
+	if (roc_inl_dev->rx_inj_ena) {
+		inl_dev->rx_inj_ena = 1;
+		inl_dev->nb_cptlf = NIX_INL_CPT_LF;
+	} else
+		inl_dev->nb_cptlf = 1;
+
 	if (roc_inl_dev->spb_drop_pc)
 		inl_dev->spb_drop_pc = roc_inl_dev->spb_drop_pc;
 	if (roc_inl_dev->lpb_drop_pc)
@@ -940,7 +953,7 @@ roc_nix_inl_dev_init(struct roc_nix_inl_dev *roc_inl_dev)
 		goto nix_release;
 
 	/* Setup CPT LF */
-	rc = nix_inl_cpt_setup(inl_dev);
+	rc = nix_inl_cpt_setup(inl_dev, false);
 	if (rc)
 		goto sso_release;
 
@@ -1026,7 +1039,7 @@ roc_nix_inl_dev_fini(struct roc_nix_inl_dev *roc_inl_dev)
 
 	if (inl_dev->set_soft_exp_poll) {
 		soft_exp_poll_thread_exit = true;
-		pthread_join(inl_dev->soft_exp_poll_thread, NULL);
+		plt_thread_join(inl_dev->soft_exp_poll_thread, NULL);
 		plt_bitmap_free(inl_dev->soft_exp_ring_bmap);
 		plt_free(inl_dev->soft_exp_ring_bmap_mem);
 		plt_free(inl_dev->sa_soft_exp_ring);
@@ -1035,8 +1048,11 @@ roc_nix_inl_dev_fini(struct roc_nix_inl_dev *roc_inl_dev)
 	/* Flush Inbound CTX cache entries */
 	nix_inl_cpt_ctx_cache_sync(inl_dev);
 
+	/* Release CPT */
+	rc = nix_inl_cpt_release(inl_dev);
+
 	/* Release SSO */
-	rc = nix_inl_sso_release(inl_dev);
+	rc |= nix_inl_sso_release(inl_dev);
 
 	/* Release NIX */
 	rc |= nix_inl_nix_release(inl_dev);
@@ -1051,4 +1067,36 @@ roc_nix_inl_dev_fini(struct roc_nix_inl_dev *roc_inl_dev)
 
 	idev->nix_inl_dev = NULL;
 	return 0;
+}
+
+int
+roc_nix_inl_dev_cpt_setup(bool use_inl_dev_sso)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct nix_inl_dev *inl_dev = NULL;
+
+	if (!idev || !idev->nix_inl_dev)
+		return -ENOENT;
+	inl_dev = idev->nix_inl_dev;
+
+	if (inl_dev->cpt_lf[0].dev != NULL)
+		return -EBUSY;
+
+	return nix_inl_cpt_setup(inl_dev, use_inl_dev_sso);
+}
+
+int
+roc_nix_inl_dev_cpt_release(void)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct nix_inl_dev *inl_dev = NULL;
+
+	if (!idev || !idev->nix_inl_dev)
+		return -ENOENT;
+	inl_dev = idev->nix_inl_dev;
+
+	if (inl_dev->cpt_lf[0].dev == NULL)
+		return 0;
+
+	return nix_inl_cpt_release(inl_dev);
 }

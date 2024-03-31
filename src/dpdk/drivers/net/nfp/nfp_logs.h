@@ -3,8 +3,8 @@
  * All rights reserved.
  */
 
-#ifndef _NFP_LOGS_H_
-#define _NFP_LOGS_H_
+#ifndef __NFP_LOGS_H__
+#define __NFP_LOGS_H__
 
 #include <rte_log.h>
 
@@ -12,7 +12,6 @@ extern int nfp_logtype_init;
 #define PMD_INIT_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, nfp_logtype_init, \
 		"%s(): " fmt "\n", __func__, ## args)
-#define PMD_INIT_FUNC_TRACE() PMD_INIT_LOG(DEBUG, " >>")
 
 #ifdef RTE_ETHDEV_DEBUG_RX
 extern int nfp_logtype_rx;
@@ -42,4 +41,4 @@ extern int nfp_logtype_driver;
 	rte_log(RTE_LOG_ ## level, nfp_logtype_driver, \
 		"%s(): " fmt "\n", __func__, ## args)
 
-#endif /* _NFP_LOGS_H_ */
+#endif /* __NFP_LOGS_H__ */

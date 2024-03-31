@@ -4,6 +4,7 @@
 #ifndef __CNXK_ETHDEV_DP_H__
 #define __CNXK_ETHDEV_DP_H__
 
+#include <rte_security_driver.h>
 #include <rte_mbuf.h>
 
 /* If PTP is enabled additional SEND MEM DESC is required which
@@ -82,9 +83,16 @@ struct cnxk_timesync_info {
 	uint64_t *tx_tstamp;
 } __plt_cache_aligned;
 
+struct cnxk_ethdev_inj_cfg {
+	uintptr_t lmt_base;
+	uint64_t io_addr;
+	uint64_t sa_base;
+	uint64_t cmd_w0;
+} __plt_cache_aligned;
+
 /* Inlines */
 static __rte_always_inline uint64_t
-cnxk_pktmbuf_detach(struct rte_mbuf *m)
+cnxk_pktmbuf_detach(struct rte_mbuf *m, uint64_t *aura)
 {
 	struct rte_mempool *mp = m->pool;
 	uint32_t mbuf_size, buf_len;
@@ -94,6 +102,8 @@ cnxk_pktmbuf_detach(struct rte_mbuf *m)
 
 	/* Update refcount of direct mbuf */
 	md = rte_mbuf_from_indirect(m);
+	if (aura)
+		*aura = roc_npa_aura_handle_to_aura(md->pool->pool_id);
 	refcount = rte_mbuf_refcnt_update(md, -1);
 
 	priv_size = rte_pktmbuf_priv_size(mp);
@@ -126,18 +136,18 @@ cnxk_pktmbuf_detach(struct rte_mbuf *m)
 }
 
 static __rte_always_inline uint64_t
-cnxk_nix_prefree_seg(struct rte_mbuf *m)
+cnxk_nix_prefree_seg(struct rte_mbuf *m, uint64_t *aura)
 {
 	if (likely(rte_mbuf_refcnt_read(m) == 1)) {
 		if (!RTE_MBUF_DIRECT(m))
-			return cnxk_pktmbuf_detach(m);
+			return cnxk_pktmbuf_detach(m, aura);
 
 		m->next = NULL;
 		m->nb_segs = 1;
 		return 0;
 	} else if (rte_mbuf_refcnt_update(m, -1) == 0) {
 		if (!RTE_MBUF_DIRECT(m))
-			return cnxk_pktmbuf_detach(m);
+			return cnxk_pktmbuf_detach(m, aura);
 
 		rte_mbuf_refcnt_set(m, 1);
 		m->next = NULL;

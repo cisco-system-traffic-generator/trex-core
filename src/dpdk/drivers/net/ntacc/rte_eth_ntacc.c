@@ -60,6 +60,11 @@
 #include "rte_eth_ntacc.h"
 #include "filter_ntacc.h"
 
+/**
+* Napatech version
+*/
+#define NT_VER "2.10"
+
 int ntacc_logtype;
 
 #define STRINGIZE(x) #x
@@ -353,7 +358,7 @@ static __rte_always_inline uint16_t eth_ntacc_convert_pkt_to_mbuf(NtDyn3Descr_t 
   case 22:
     // We do have a color value defined
     mbuf->hash.fdir.hi = ((dyn3->color_hi << 14) & 0xFFFFC000) | dyn3->color_lo;
-    mbuf->ol_flags |= PKT_RX_FDIR_ID | PKT_RX_FDIR;
+    mbuf->ol_flags |= RTE_MBUF_F_RX_FDIR_ID | RTE_MBUF_F_RX_FDIR;
     break;
   case 24:
     // We do have a colormask set for protocol lookup
@@ -361,13 +366,13 @@ static __rte_always_inline uint16_t eth_ntacc_convert_pkt_to_mbuf(NtDyn3Descr_t 
     if (mbuf->packet_type != 0) {
       mbuf->hash.fdir.lo = dyn3->offset0;
       mbuf->hash.fdir.hi = dyn3->offset1;
-      mbuf->ol_flags |= PKT_RX_FDIR_FLX | PKT_RX_FDIR;
+      mbuf->ol_flags |= RTE_MBUF_F_RX_FDIR_ID | RTE_MBUF_F_RX_FDIR;
     }
     break;
   case 26:
     // We do have a hash value defined
       mbuf->hash.rss = dyn3->color_hi;
-      mbuf->ol_flags |= PKT_RX_RSS_HASH;
+      mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
       break;
   }
 
@@ -556,12 +561,12 @@ static uint16_t eth_ntacc_rx_mode2(void *queue,
     case 20:
       // We do have a hash value defined
       mbuf->hash.rss = dyn3->color_hi;
-      mbuf->ol_flags |= PKT_RX_RSS_HASH;
+      mbuf->ol_flags |= RTE_MBUF_F_RX_RSS_HASH;
       break;
     case 22:
       // We do have a color value defined
       mbuf->hash.fdir.hi = ((dyn3->color_hi << 14) & 0xFFFFC000) | dyn3->color_lo;
-      mbuf->ol_flags |= PKT_RX_FDIR_ID | PKT_RX_FDIR;
+      mbuf->ol_flags |= RTE_MBUF_F_RX_FDIR_ID | RTE_MBUF_F_RX_FDIR;
       break;
     case 24:
       // We do have a colormask set for protocol lookup
@@ -569,7 +574,7 @@ static uint16_t eth_ntacc_rx_mode2(void *queue,
       if (mbuf->packet_type != 0) {
         mbuf->hash.fdir.lo = dyn3->offset0;
         mbuf->hash.fdir.hi = dyn3->offset1;
-        mbuf->ol_flags |= PKT_RX_FDIR_FLX | PKT_RX_FDIR;
+        mbuf->ol_flags |= RTE_MBUF_F_RX_FDIR_ID | RTE_MBUF_F_RX_FDIR;
       }
       break;
     }
@@ -983,15 +988,6 @@ StartError:
  * If not called the dumpers will be flushed within each tx burst.
  */
 
-static void _read_buffer_from_adapter(struct rte_eth_dev *dev)
-{
-  struct pmd_internals *internals = dev->data->dev_private;
-  struct ntacc_rx_queue *rx_q = internals->rxq;
-  struct ntacc_tx_queue *tx_q = internals->txq;
-  struct rte_flow_error error;
-
-}
-
 static int eth_dev_stop(struct rte_eth_dev *dev)
 {
   struct pmd_internals *internals = dev->data->dev_private;
@@ -999,7 +995,6 @@ static int eth_dev_stop(struct rte_eth_dev *dev)
   struct ntacc_tx_queue *tx_q = internals->txq;
   struct rte_flow_error error;
   uint queue;
-  uint i;
 
   PMD_NTACC_LOG(DEBUG, "Stopping port %u (%u) on adapter %u\n", internals->port, deviceCount, internals->adapterNo);
   _dev_flow_isolate(dev, 1, &error);
@@ -1017,35 +1012,36 @@ static int eth_dev_stop(struct rte_eth_dev *dev)
         (*_NT_NetRxRelease)(rx_q[queue].pNetRx, rx_q[queue].pSeg);
         rx_q[queue].pSeg = NULL;
       }
-		}
+    }
   }
-	for (queue = 0; queue < dev->data->nb_rx_queues; queue++) {
-		if (rx_q[queue].enabled) {
-			if (rx_q[queue].pNetRx) {
-				if (!rx_q[queue].stream_assigned) {
-					 char ntpl_buf[50];
-					 uint32_t ntplID;
-					 snprintf(ntpl_buf, 50, "assign[streamid=%u]=all", rx_q[queue].stream_id);
-					 NTACC_LOCK(&internals->configlock);
-					 DoNtpl(ntpl_buf, &ntplID, internals, NULL);
-					 NTACC_UNLOCK(&internals->configlock);
-					 snprintf(ntpl_buf, 50, "delete=%u", ntplID);
-					 NTACC_LOCK(&internals->configlock);
-					 DoNtpl(ntpl_buf, &ntplID, internals, NULL);
-					 NTACC_UNLOCK(&internals->configlock);
-					 rx_q[queue].stream_assigned = 0;
-				 }
-				 (void)(*_NT_NetRxClose)(rx_q[queue].pNetRx);
-				 rx_q[queue].pNetRx = NULL;
-			}
-		}
-	}
-	for (queue = 0; queue < dev->data->nb_rx_queues; queue++) {
-		if (rx_q[queue].enabled) {
-			memset(&rx_q[queue].ringControl, 0, sizeof(rx_q[queue].ringControl));
-			rx_q[queue].enabled = false;
-		}
-	}
+  for (queue = 0; queue < dev->data->nb_rx_queues; queue++) {
+    if (rx_q[queue].enabled) {
+      if (rx_q[queue].pNetRx) {
+        if (!rx_q[queue].stream_assigned) {
+           char ntpl_buf[50];
+           uint32_t ntplID;
+           snprintf(ntpl_buf, 50, "assign[streamid=%u]=all", rx_q[queue].stream_id);
+           NTACC_LOCK(&internals->configlock);
+           DoNtpl(ntpl_buf, &ntplID, internals, NULL);
+           NTACC_UNLOCK(&internals->configlock);
+           snprintf(ntpl_buf, 50, "delete=%u", ntplID);
+           NTACC_LOCK(&internals->configlock);
+           DoNtpl(ntpl_buf, &ntplID, internals, NULL);
+           NTACC_UNLOCK(&internals->configlock);
+           rx_q[queue].stream_assigned = 0;
+         }
+         (void)(*_NT_NetRxClose)(rx_q[queue].pNetRx);
+         rx_q[queue].pNetRx = NULL;
+      }
+    }
+  }
+  for (queue = 0; queue < dev->data->nb_rx_queues; queue++) {
+    if (rx_q[queue].enabled) {
+      memset(&rx_q[queue].ringControl, 0, sizeof(rx_q[queue].ringControl));
+      rx_q[queue].enabled = false;
+    }
+  }
+
   for (queue = 0; queue < dev->data->nb_tx_queues; queue++) {
     if (tx_q[queue].enabled) {
       if (tx_q[queue].pNetTx) {
@@ -1085,7 +1081,7 @@ static int eth_dev_configure(struct rte_eth_dev *dev)
 
   uint i;
 
-  if (dev->data->dev_conf.rxmode.mq_mode == ETH_MQ_RX_RSS) {
+  if (dev->data->dev_conf.rxmode.mq_mode == RTE_ETH_MQ_RX_RSS) {
     internals->rss_hf = dev->data->dev_conf.rx_adv_conf.rss_conf.rss_hf;
   }
   else {
@@ -1139,7 +1135,7 @@ static int eth_dev_configure(struct rte_eth_dev *dev)
     internals->txq[i].maxTxPktSize = internals->maxTxPktSize;
   }
 
-  if (rx_offloads & DEV_RX_OFFLOAD_TIMESTAMP)
+  if (rx_offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP)
   {
     if (internals->tsMultiplier == 0) {
       enable_ts[dev->data->port_id] = false;
@@ -1184,29 +1180,28 @@ static int eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_in
   dev_info->tx_desc_lim.nb_min = 32;
   dev_info->tx_desc_lim.nb_align = 32;
 
-  dev_info->rx_offload_capa = DEV_RX_OFFLOAD_JUMBO_FRAME |
-                              DEV_RX_OFFLOAD_RSS_HASH    |
-                              DEV_RX_OFFLOAD_TIMESTAMP   |
-                              DEV_RX_OFFLOAD_KEEP_CRC    |
-                              DEV_RX_OFFLOAD_SCATTER;
+  dev_info->rx_offload_capa = RTE_ETH_RX_OFFLOAD_RSS_HASH    |
+                              RTE_ETH_RX_OFFLOAD_TIMESTAMP   |
+                              RTE_ETH_RX_OFFLOAD_KEEP_CRC    |
+                              RTE_ETH_RX_OFFLOAD_SCATTER;
 
   dev_info->rx_queue_offload_capa = dev_info->rx_offload_capa;
 
-  dev_info->flow_type_rss_offloads = ETH_RSS_NONFRAG_IPV4_OTHER |
-                                     ETH_RSS_NONFRAG_IPV4_TCP   |
-                                     ETH_RSS_NONFRAG_IPV4_UDP   |
-                                     ETH_RSS_NONFRAG_IPV4_SCTP  |
-                                     ETH_RSS_IPV4               |
-                                     ETH_RSS_FRAG_IPV4          |
-                                     ETH_RSS_NONFRAG_IPV6_OTHER |
-                                     ETH_RSS_NONFRAG_IPV6_TCP   |
-                                     ETH_RSS_IPV6_TCP_EX        |
-                                     ETH_RSS_NONFRAG_IPV6_UDP   |
-                                     ETH_RSS_IPV6_UDP_EX        |
-                                     ETH_RSS_NONFRAG_IPV6_SCTP  |
-                                     ETH_RSS_IPV6               |
-                                     ETH_RSS_FRAG_IPV6          |
-                                     ETH_RSS_IPV6_EX;
+  dev_info->flow_type_rss_offloads = RTE_ETH_RSS_NONFRAG_IPV4_OTHER |
+                                     RTE_ETH_RSS_NONFRAG_IPV4_TCP   |
+                                     RTE_ETH_RSS_NONFRAG_IPV4_UDP   |
+                                     RTE_ETH_RSS_NONFRAG_IPV4_SCTP  |
+                                     RTE_ETH_RSS_IPV4               |
+                                     RTE_ETH_RSS_FRAG_IPV4          |
+                                     RTE_ETH_RSS_NONFRAG_IPV6_OTHER |
+                                     RTE_ETH_RSS_NONFRAG_IPV6_TCP   |
+                                     RTE_ETH_RSS_IPV6_TCP_EX        |
+                                     RTE_ETH_RSS_NONFRAG_IPV6_UDP   |
+                                     RTE_ETH_RSS_IPV6_UDP_EX        |
+                                     RTE_ETH_RSS_NONFRAG_IPV6_SCTP  |
+                                     RTE_ETH_RSS_IPV6               |
+                                     RTE_ETH_RSS_FRAG_IPV6          |
+                                     RTE_ETH_RSS_IPV6_EX;
   dev_info->hash_key_size = 0;
 
   dev_info->tx_offload_capa = RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
@@ -1234,25 +1229,25 @@ static int eth_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_in
   // Update speed capabilities for the port
   dev_info->speed_capa = 0;
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_10M) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_10M;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_10M;
   }
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_100M) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_100M;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_100M;
   }
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_1G) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_1G;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_1G;
   }
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_10G) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_10G;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_10G;
   }
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_40G) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_40G;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_40G;
   }
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_100G) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_100G;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_100G;
   }
   if (pInfo->u.port_v7.data.capabilities.speed & NT_LINK_SPEED_50G) {
-    dev_info->speed_capa |= ETH_LINK_SPEED_50G;
+    dev_info->speed_capa |= RTE_ETH_LINK_SPEED_50G;
   }
   rte_free(pInfo);
   return 0;
@@ -1437,7 +1432,7 @@ static int eth_dev_close(struct rte_eth_dev *dev)
   return 0;
 }
 
-static void eth_queue_release(void *q __rte_unused)
+static void eth_queue_release(struct rte_eth_dev *dev __rte_unused, uint16_t queue_id __rte_unused)
 {
 }
 
@@ -1471,31 +1466,32 @@ static int eth_link_update(struct rte_eth_dev *dev,
   dev->data->dev_link.link_status = pInfo->u.port_v8.data.state == NT_LINK_STATE_UP ? 1 : 0;
   switch (pInfo->u.port_v8.data.speed) {
   case NT_LINK_SPEED_UNKNOWN:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_1G;
+  case NT_LINK_SPEED_END:
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_1G;
     break;
   case NT_LINK_SPEED_10M:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_10M;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_10M;
     break;
   case NT_LINK_SPEED_100M:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_100M;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_100M;
     break;
   case NT_LINK_SPEED_1G:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_1G;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_1G;
     break;
   case NT_LINK_SPEED_10G:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_10G;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_10G;
     break;
   case NT_LINK_SPEED_25G:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_25G;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_25G;
     break;
   case NT_LINK_SPEED_40G:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_40G;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_40G;
     break;
   case NT_LINK_SPEED_50G:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_50G;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_50G;
     break;
   case NT_LINK_SPEED_100G:
-    dev->data->dev_link.link_speed = ETH_SPEED_NUM_100G;
+    dev->data->dev_link.link_speed = RTE_ETH_SPEED_NUM_100G;
     break;
   }
   rte_free(pInfo);
@@ -1787,14 +1783,14 @@ static inline int _handle_actions(struct rte_eth_dev *dev,
       *pAction |= ACTION_DROP;
       *pTypeMask |= DROP_FILTER;
       break;
-    case RTE_FLOW_ACTION_TYPE_PHY_PORT:
+    case RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT:
       // Setup packet forward filter - The forward port must be the physical port number on the adapter
       if (*pAction & (ACTION_RSS | ACTION_QUEUE | ACTION_DROP)) {
         rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ACTION, NULL, "Queue, RSS or drop must not be defined for a forward filter");
         return 1;
       }
       *pAction |= ACTION_FORWARD;
-      *pForwardPort = ((const struct rte_flow_action_phy_port *)actions->conf)->index + internals->local_port_offset;
+      *pForwardPort = ((const struct rte_flow_action_ethdev *)actions->conf)->port_id + internals->local_port_offset;
       if (_checkForwardPort(internals, pForwardPort, false, 0, error)) {
         return 1;
       }
@@ -1846,14 +1842,14 @@ static inline int _handle_items(const struct rte_flow_item items[],
         break;
     case RTE_FLOW_ITEM_TYPE_VOID:
       continue;
-    case RTE_FLOW_ITEM_TYPE_PHY_PORT:
+    case RTE_FLOW_ITEM_TYPE_REPRESENTED_PORT:
       if (*pNb_ports < MAX_NTACC_PORTS) {
-        const struct rte_flow_item_phy_port *spec = (const struct rte_flow_item_phy_port *)items->spec;
-        if (spec->index > internals->nbPortsOnAdapter) {
+        const struct rte_flow_item_ethdev *spec = (const struct rte_flow_item_ethdev *)items->spec;
+        if (spec->port_id > internals->nbPortsOnAdapter) {
           rte_flow_error_set(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM, NULL, "Illegal port number in port flow. All port numbers must be from the same adapter");
           return 1;
         }
-        plist_ports[(*pNb_ports)++] = spec->index + internals->local_port_offset;
+        plist_ports[(*pNb_ports)++] = spec->port_id + internals->local_port_offset;
       }
       break;
     case RTE_FLOW_ITEM_TYPE_ETH:
@@ -2262,7 +2258,7 @@ static struct rte_flow *_dev_flow_create(struct rte_eth_dev *dev,
       break;
     }
 
-    if ((dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC) == 0) {
+    if ((dev->data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_KEEP_CRC) == 0) {
       // Remove FCS
       snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, ";Slice=EndOfFrame[-4]");
     }
@@ -2310,6 +2306,7 @@ static struct rte_flow *_dev_flow_create(struct rte_eth_dev *dev,
 
   if (!reuse) {
     if (DoNtpl(ntpl_buf, &ntplID, internals, NULL) != 0) {
+      NTACC_UNLOCK(&internals->configlock);
       goto FlowError;
     }
     NTACC_LOCK(&internals->lock);
@@ -2490,7 +2487,7 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
       snprintf(ntpl_buf, NTPL_BSIZE, "assign[priority=62;Descriptor=DYN3,length=26,colorbits=14;");
 #endif
 
-      if ((dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_KEEP_CRC) == 0) {
+      if ((dev->data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_KEEP_CRC) == 0) {
         // Remove FCS
         snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1, "Slice=EndOfFrame[-4];");
       }
@@ -2511,7 +2508,6 @@ static int _dev_flow_isolate(struct rte_eth_dev *dev,
         CreateStreamid(&ntpl_buf[strlen(ntpl_buf)], internals, 1, list_queues);
         nb_queues = 1;
       }
-
       // Set the port number
       snprintf(&ntpl_buf[strlen(ntpl_buf)], NTPL_BSIZE - strlen(ntpl_buf) - 1,
                ";tag=%s]=port==%u", internals->tagName, internals->port);
@@ -2567,39 +2563,28 @@ static const struct rte_flow_ops _dev_flow_ops = {
   .isolate = _dev_flow_isolate,
 };
 
-static int _dev_filter_ctrl(struct rte_eth_dev *dev __rte_unused,
-                            enum rte_filter_type filter_type,
-                            enum rte_filter_op filter_op,
-                            void *arg)
+static int _dev_flow_ops_get(struct rte_eth_dev *dev __rte_unused,
+                             const struct rte_flow_ops **ops)
 {
-  if (filter_type == RTE_ETH_FILTER_GENERIC) {
-    if (filter_op == RTE_ETH_FILTER_GET) {
-      *(const void **)arg = &_dev_flow_ops;
-      return 0;
-    }
-    else {
-      PMD_NTACC_LOG(ERR, "NTACC: %s: filter operation (%d) not supported\n", __func__, filter_op);
-      return -EINVAL;
-    }
-  }
-  PMD_NTACC_LOG(ERR, "NTACC: %s: filter type (%d) not supported\n", __func__, filter_type);
-  return -EINVAL;
+  *ops = &_dev_flow_ops;
+  return 0;
 }
 
 static int eth_fw_version_get(struct rte_eth_dev *dev, char *fw_version, size_t fw_size)
 {
-  char buf[51];
+  char buf[71];
   struct pmd_internals *internals = dev->data->dev_private;
   int length1;
 
-  length1 = snprintf(buf, 51, "%d.%d.%d - %03d-%04d-%02d-%02d-%02d", internals->version.major,
-                                                                     internals->version.minor,
-                                                                     internals->version.patch,
-                                                                     internals->fpgaid.s.item,
-                                                                     internals->fpgaid.s.product,
-                                                                     internals->fpgaid.s.ver,
-                                                                     internals->fpgaid.s.rev,
-                                                                     internals->fpgaid.s.build);
+  length1 = snprintf(buf, 71, "PMD %s - %d.%d.%d - %03d-%04d-%02d-%02d-%02d", NT_VER,
+                                                                              internals->version.major,
+                                                                              internals->version.minor,
+                                                                              internals->version.patch,
+                                                                              internals->fpgaid.s.item,
+                                                                              internals->fpgaid.s.product,
+                                                                              internals->fpgaid.s.ver,
+                                                                              internals->fpgaid.s.rev,
+                                                                              internals->fpgaid.s.build);
   snprintf(fw_version, fw_size, "%s", buf);
 
   if ((size_t)length1 < fw_size) {
@@ -2704,12 +2689,12 @@ static struct eth_dev_ops ops = {
     .stats_reset = eth_stats_reset,
     .flow_ctrl_get = _dev_get_flow_ctrl,
     .flow_ctrl_set = _dev_set_flow_ctrl,
-    .filter_ctrl = _dev_filter_ctrl,
     .fw_version_get = eth_fw_version_get,
     .rss_hash_update = eth_rss_hash_update,
     .dev_supported_ptypes_get = _dev_supported_ptypes_get,
     .promiscuous_enable = eth_promiscuous_enable,
-    .promiscuous_disable = eth_promiscuous_disable
+    .promiscuous_disable = eth_promiscuous_disable,
+    .flow_ops_get = _dev_flow_ops_get,
 };
 
 enum property_type_s {
@@ -2945,37 +2930,38 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
 
     switch (pInfo->u.port_v7.data.speed) {
     case NT_LINK_SPEED_UNKNOWN:
-      pmd_link.link_speed = ETH_SPEED_NUM_1G;
+    case NT_LINK_SPEED_END:
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_1G;
       break;
     case NT_LINK_SPEED_10M:
-      pmd_link.link_speed = ETH_SPEED_NUM_10M;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_10M;
       break;
     case NT_LINK_SPEED_100M:
-      pmd_link.link_speed = ETH_SPEED_NUM_100M;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_100M;
       break;
     case NT_LINK_SPEED_1G:
-      pmd_link.link_speed = ETH_SPEED_NUM_1G;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_1G;
       break;
     case NT_LINK_SPEED_10G:
-      pmd_link.link_speed = ETH_SPEED_NUM_10G;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_10G;
       break;
     case NT_LINK_SPEED_25G:
-      pmd_link.link_speed = ETH_SPEED_NUM_25G;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_25G;
       break;
     case NT_LINK_SPEED_40G:
-      pmd_link.link_speed = ETH_SPEED_NUM_40G;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_40G;
       break;
     case NT_LINK_SPEED_50G:
-      pmd_link.link_speed = ETH_SPEED_NUM_50G;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_50G;
       break;
     case NT_LINK_SPEED_100G:
-      pmd_link.link_speed = ETH_SPEED_NUM_100G;
+      pmd_link.link_speed = RTE_ETH_SPEED_NUM_100G;
       break;
     }
 
     memcpy(&eth_addr[internals->port].addr_bytes, &pInfo->u.port_v7.data.macAddress, sizeof(eth_addr[internals->port].addr_bytes));
 
-    pmd_link.link_duplex = ETH_LINK_FULL_DUPLEX;
+    pmd_link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
     pmd_link.link_status = 0;
 
     internals->if_index = internals->port;
@@ -3010,11 +2996,9 @@ static int rte_pmd_init_internals(struct rte_pci_device *dev,
       }
       if (value == 0) {
         internals->keyMatcher = 0;
-        PMD_NTACC_LOG(WARNING, "keyMatcher is not supported\n");
-      } 
-      else {
+        PMD_NTACC_LOG(INFO, "keyMatcher is not supported\n");
+      } else
         internals->keyMatcher = 1;
-      }
 
       // Do we have 4GA zero copy
       if ((status = _readProperty(pInfo->u.port_v7.data.adapterNo, ZERO_COPY_TX, &value)) != 0) {
@@ -3269,8 +3253,6 @@ static int rte_pmd_ntacc_dev_probe(struct rte_pci_driver *drv __rte_unused, stru
 
   char ntplStr[MAX_NTPL_NAME] = { 0 };
 
-
-
   switch (dev->id.device_id) {
   case PCI_DEVICE_ID_NT20E3:
   case PCI_DEVICE_ID_NT40E3:
@@ -3287,7 +3269,7 @@ static int rte_pmd_ntacc_dev_probe(struct rte_pci_driver *drv __rte_unused, stru
     break;
   }
 
-  PMD_NTACC_LOG(DEBUG, "Initializing net_ntacc %s for %s on numa %d\n", rte_version(),
+  PMD_NTACC_LOG(DEBUG, "Initializing net_ntacc_%s %s for %s on numa %d\n", NT_VER, rte_version(),
                                                                        dev->device.name,
                                                                        dev->device.numa_node);
 
@@ -3368,12 +3350,12 @@ static const struct rte_pci_id ntacc_pci_id_map[] = {
   {
     RTE_PCI_DEVICE(PCI_VENDOR_ID_NAPATECH,PCI_DEVICE_ID_NT100E3)
   },
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_NAPATECH,PCI_DEVICE_ID_NT100A01)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_NAPATECH,PCI_DEVICE_ID_NT50B01)
-	},
+  {
+    RTE_PCI_DEVICE(PCI_VENDOR_ID_NAPATECH,PCI_DEVICE_ID_NT100A01)
+  },
+  {
+    RTE_PCI_DEVICE(PCI_VENDOR_ID_NAPATECH,PCI_DEVICE_ID_NT50B01)
+  },
   {
     RTE_PCI_DEVICE(PCI_VENDOR_ID_INTEL,PCIE_DEVICE_ID_PF_DSC_1_X) // Intel AFU adapter
   },
@@ -3400,7 +3382,6 @@ static void rte_ntacc_pmd_init(void)
   if (ntacc_logtype >= 0)
     rte_log_set_level(ntacc_logtype, RTE_LOG_NOTICE);
 }
-
 
 RTE_PMD_REGISTER_PCI(net_ntacc, ntacc_driver);
 RTE_PMD_REGISTER_PCI_TABLE(net_ntacc, ntacc_pci_id_map);

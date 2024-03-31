@@ -18,14 +18,22 @@ extern "C" {
 
 #endif
 
-#ifndef RTE_THASH_GFNI_DEFINED
+/**
+ * @internal
+ * Stubs only used when GFNI is not available.
+ */
+__rte_internal
+uint32_t
+rte_thash_gfni_stub(const uint64_t *mtrx, const uint8_t *key, int len);
 
+__rte_internal
+void
+rte_thash_gfni_bulk_stub(const uint64_t *mtrx, int len, uint8_t *tuple[],
+	uint32_t val[], uint32_t num);
+
+#ifndef RTE_THASH_GFNI_DEFINED
 /**
  * Calculate Toeplitz hash.
- * Dummy implementation.
- *
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
  *
  * @param m
  *  Pointer to the matrices generated from the corresponding
@@ -37,21 +45,14 @@ extern "C" {
  * @return
  *  Calculated Toeplitz hash value.
  */
-__rte_experimental
 static inline uint32_t
-rte_thash_gfni(const uint64_t *mtrx __rte_unused,
-	const uint8_t *key __rte_unused, int len __rte_unused)
+rte_thash_gfni(const uint64_t *mtrx, const uint8_t *key, int len)
 {
-	RTE_LOG(ERR, HASH, "%s is undefined under given arch\n", __func__);
-	return 0;
+	return rte_thash_gfni_stub(mtrx, key, len);
 }
 
 /**
  * Bulk implementation for Toeplitz hash.
- * Dummy implementation.
- *
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
  *
  * @param m
  *  Pointer to the matrices generated from the corresponding
@@ -66,17 +67,11 @@ rte_thash_gfni(const uint64_t *mtrx __rte_unused,
  * @param num
  *  Number of tuples to hash.
  */
-__rte_experimental
 static inline void
-rte_thash_gfni_bulk(const uint64_t *mtrx __rte_unused,
-	int len __rte_unused, uint8_t *tuple[] __rte_unused,
+rte_thash_gfni_bulk(const uint64_t *mtrx, int len, uint8_t *tuple[],
 	uint32_t val[], uint32_t num)
 {
-	unsigned int i;
-
-	RTE_LOG(ERR, HASH, "%s is undefined under given arch\n", __func__);
-	for (i = 0; i < num; i++)
-		val[i] = 0;
+	return rte_thash_gfni_bulk_stub(mtrx, len, tuple, val, num);
 }
 
 #endif /* RTE_THASH_GFNI_DEFINED */

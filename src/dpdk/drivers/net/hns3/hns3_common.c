@@ -59,6 +59,7 @@ hns3_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 	info->max_tx_queues = hw->tqps_num;
 	info->max_rx_pktlen = HNS3_MAX_FRAME_LEN; /* CRC included */
 	info->min_rx_bufsize = HNS3_MIN_BD_BUF_SIZE;
+	info->max_rx_bufsize = HNS3_MAX_BD_BUF_SIZE;
 	info->max_mtu = info->max_rx_pktlen - HNS3_ETH_OVERHEAD;
 	info->max_lro_pkt_size = HNS3_MAX_LRO_SIZE;
 	info->rx_offload_capa = (RTE_ETH_RX_OFFLOAD_IPV4_CKSUM |
@@ -70,8 +71,7 @@ hns3_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 				 RTE_ETH_RX_OFFLOAD_SCATTER |
 				 RTE_ETH_RX_OFFLOAD_VLAN_STRIP |
 				 RTE_ETH_RX_OFFLOAD_VLAN_FILTER |
-				 RTE_ETH_RX_OFFLOAD_RSS_HASH |
-				 RTE_ETH_RX_OFFLOAD_TCP_LRO);
+				 RTE_ETH_RX_OFFLOAD_RSS_HASH);
 	info->tx_offload_capa = (RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |
 				 RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
 				 RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
@@ -85,7 +85,7 @@ hns3_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 				 RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE |
 				 RTE_ETH_TX_OFFLOAD_VLAN_INSERT);
 
-	if (!hw->port_base_vlan_cfg.state)
+	if (!hns->is_vf && !hw->port_base_vlan_cfg.state)
 		info->tx_offload_capa |= RTE_ETH_TX_OFFLOAD_QINQ_INSERT;
 
 	if (hns3_dev_get_support(hw, OUTER_UDP_CKSUM))
@@ -99,6 +99,8 @@ hns3_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 
 	if (hns3_dev_get_support(hw, PTP))
 		info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_TIMESTAMP;
+	if (hns3_dev_get_support(hw, GRO))
+		info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_TCP_LRO;
 
 	info->rx_desc_lim = (struct rte_eth_desc_lim) {
 		.nb_max = HNS3_MAX_RING_DESC,
@@ -132,6 +134,10 @@ hns3_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 	info->reta_size = hw->rss_ind_tbl_size;
 	info->hash_key_size = hw->rss_key_size;
 	info->flow_type_rss_offloads = HNS3_ETH_RSS_SUPPORT;
+	info->rss_algo_capa = RTE_ETH_HASH_ALGO_CAPA_MASK(DEFAULT) |
+			      RTE_ETH_HASH_ALGO_CAPA_MASK(TOEPLITZ) |
+			      RTE_ETH_HASH_ALGO_CAPA_MASK(SIMPLE_XOR) |
+			      RTE_ETH_HASH_ALGO_CAPA_MASK(SYMMETRIC_TOEPLITZ);
 
 	info->default_rxportconf.burst_size = HNS3_DEFAULT_PORT_CONF_BURST_SIZE;
 	info->default_txportconf.burst_size = HNS3_DEFAULT_PORT_CONF_BURST_SIZE;
@@ -238,6 +244,34 @@ hns3_parse_mbx_time_limit(const char *key, const char *value, void *extra_args)
 	return 0;
 }
 
+static int
+hns3_parse_vlan_match_mode(const char *key, const char *value, void *args)
+{
+	uint8_t mode;
+
+	RTE_SET_USED(key);
+
+	if (value == NULL) {
+		PMD_INIT_LOG(WARNING, "no value for key:\"%s\"", key);
+		return -1;
+	}
+
+	if (strcmp(value, "strict") == 0) {
+		mode = HNS3_FDIR_VLAN_STRICT_MATCH;
+	} else if (strcmp(value, "nostrict") == 0) {
+		mode = HNS3_FDIR_VLAN_NOSTRICT_MATCH;
+	} else {
+		PMD_INIT_LOG(WARNING, "invalid value:\"%s\" for key:\"%s\", "
+			"value must be 'strict' or 'nostrict'",
+			value, key);
+		return -1;
+	}
+
+	*(uint8_t *)args = mode;
+
+	return 0;
+}
+
 void
 hns3_parse_devargs(struct rte_eth_dev *dev)
 {
@@ -254,6 +288,8 @@ hns3_parse_devargs(struct rte_eth_dev *dev)
 	hns->tx_func_hint = HNS3_IO_FUNC_HINT_NONE;
 	hns->dev_caps_mask = 0;
 	hns->mbx_time_limit_ms = HNS3_MBX_DEF_TIME_LIMIT_MS;
+	if (!hns->is_vf)
+		hns->pf.fdir.vlan_match_mode = HNS3_FDIR_VLAN_STRICT_MATCH;
 
 	if (dev->device->devargs == NULL)
 		return;
@@ -270,6 +306,11 @@ hns3_parse_devargs(struct rte_eth_dev *dev)
 			   &hns3_parse_dev_caps_mask, &dev_caps_mask);
 	(void)rte_kvargs_process(kvlist, HNS3_DEVARG_MBX_TIME_LIMIT_MS,
 			   &hns3_parse_mbx_time_limit, &mbx_time_limit_ms);
+	if (!hns->is_vf)
+		(void)rte_kvargs_process(kvlist,
+					 HNS3_DEVARG_FDIR_VALN_MATCH_MODE,
+					 &hns3_parse_vlan_match_mode,
+					 &hns->pf.fdir.vlan_match_mode);
 
 	rte_kvargs_free(kvlist);
 
@@ -351,7 +392,7 @@ hns3_set_mc_addr_chk_param(struct hns3_hw *hw,
 		hns3_err(hw, "failed to set mc mac addr, nb_mc_addr(%u) "
 			 "invalid. valid range: 0~%d",
 			 nb_mc_addr, HNS3_MC_MACADDR_NUM);
-		return -EINVAL;
+		return -ENOSPC;
 	}
 
 	/* Check if input mac addresses are valid */
@@ -409,12 +450,22 @@ hns3_set_mc_mac_addr_list(struct rte_eth_dev *dev,
 			  uint32_t nb_mc_addr)
 {
 	struct hns3_hw *hw = HNS3_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
 	struct rte_ether_addr *addr;
 	int cur_addr_num;
 	int set_addr_num;
 	int num;
 	int ret;
 	int i;
+
+	if (mc_addr_set == NULL || nb_mc_addr == 0) {
+		rte_spinlock_lock(&hw->lock);
+		ret = hns3_configure_all_mc_mac_addr(hns, true);
+		if (ret == 0)
+			hw->mc_addrs_num = 0;
+		rte_spinlock_unlock(&hw->lock);
+		return ret;
+	}
 
 	/* Check if input parameters are valid */
 	ret = hns3_set_mc_addr_chk_param(hw, mc_addr_set, nb_mc_addr);

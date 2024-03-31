@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include <dirent.h>
+#include <stdalign.h>
 #include <stdbool.h>
 
 #include <rte_log.h>
@@ -395,7 +396,7 @@ rte_fslmc_probe(void)
 	static const struct rte_mbuf_dynfield dpaa2_seqn_dynfield_desc = {
 		.name = DPAA2_SEQN_DYNFIELD_NAME,
 		.size = sizeof(dpaa2_seqn_t),
-		.align = __alignof__(dpaa2_seqn_t),
+		.align = alignof(dpaa2_seqn_t),
 	};
 
 	if (TAILQ_EMPTY(&rte_fslmc_bus.device_list))
@@ -634,6 +635,10 @@ fslmc_bus_dev_iterate(const void *start, const char *str,
 
 	/* Now that name=device_name format is available, split */
 	dup = strdup(str);
+	if (dup == NULL) {
+		DPAA2_BUS_DEBUG("Dup string (%s) failed!\n", str);
+		return NULL;
+	}
 	dev_name = dup + strlen("name=");
 
 	if (start != NULL) {

@@ -35,7 +35,7 @@
 #include "hn_rndis.h"
 #include "ndis.h"
 
-#define RNDIS_TIMEOUT_SEC 5
+#define RNDIS_TIMEOUT_SEC 60
 #define RNDIS_DELAY_MS    10
 
 #define HN_RNDIS_XFER_SIZE		0x4000
@@ -329,7 +329,8 @@ void hn_rndis_receive_response(struct hn_data *hv,
 
 	hn_rndis_dump(data);
 
-	if (len < sizeof(3 * sizeof(uint32_t))) {
+	/* Check we can read first three data fields from RNDIS header */
+	if (len < 3 * sizeof(uint32_t)) {
 		PMD_DRV_LOG(ERR,
 			    "missing RNDIS header %u", len);
 		return;
@@ -1108,6 +1109,13 @@ hn_rndis_get_eaddr(struct hn_data *hv, uint8_t *eaddr)
 		    eaddr[0], eaddr[1], eaddr[2],
 		    eaddr[3], eaddr[4], eaddr[5]);
 	return 0;
+}
+
+int
+hn_rndis_get_mtu(struct hn_data *hv, uint32_t *mtu)
+{
+	return hn_rndis_query(hv, OID_GEN_MAXIMUM_FRAME_SIZE, NULL, 0,
+			       mtu, sizeof(uint32_t));
 }
 
 int

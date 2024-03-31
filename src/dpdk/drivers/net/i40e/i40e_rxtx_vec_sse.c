@@ -77,13 +77,14 @@ i40e_rxq_rearm(struct i40e_rx_queue *rxq)
 	}
 
 	rxq->rxrearm_start += RTE_I40E_RXQ_REARM_THRESH;
-	if (rxq->rxrearm_start >= rxq->nb_rx_desc)
+	rx_id = rxq->rxrearm_start - 1;
+
+	if (unlikely(rxq->rxrearm_start >= rxq->nb_rx_desc)) {
 		rxq->rxrearm_start = 0;
+		rx_id = rxq->nb_rx_desc - 1;
+	}
 
 	rxq->rxrearm_nb -= RTE_I40E_RXQ_REARM_THRESH;
-
-	rx_id = (uint16_t)((rxq->rxrearm_start == 0) ?
-			     (rxq->nb_rx_desc - 1) : (rxq->rxrearm_start - 1));
 
 	/* Update the tail pointer on the NIC */
 	I40E_PCI_REG_WC_WRITE(rxq->qrx_tail, rx_id);
@@ -142,10 +143,9 @@ descs_to_fdir_32b(volatile union i40e_rx_desc *rxdp, struct rte_mbuf **rx_pkt)
 	/* convert fdir_id_mask into a single bit, then shift as required for
 	 * correct location in the mbuf->olflags
 	 */
-	const uint32_t FDIR_ID_BIT_SHIFT = 13;
-	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << FDIR_ID_BIT_SHIFT));
+	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << I40E_FDIR_ID_BIT_SHIFT));
 	v_fd_id_mask = _mm_srli_epi32(v_fd_id_mask, 31);
-	v_fd_id_mask = _mm_slli_epi32(v_fd_id_mask, FDIR_ID_BIT_SHIFT);
+	v_fd_id_mask = _mm_slli_epi32(v_fd_id_mask, I40E_FDIR_ID_BIT_SHIFT);
 
 	/* The returned value must be combined into each mbuf. This is already
 	 * being done for RSS and VLAN mbuf olflags, so return bits to OR in.
@@ -204,10 +204,9 @@ descs_to_fdir_16b(__m128i fltstat, __m128i descs[4], struct rte_mbuf **rx_pkt)
 	descs[0] = _mm_blendv_epi8(descs[0], _mm_setzero_si128(), v_desc0_mask);
 
 	/* Shift to 1 or 0 bit per u32 lane, then to RTE_MBUF_F_RX_FDIR_ID offset */
-	const uint32_t FDIR_ID_BIT_SHIFT = 13;
-	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << FDIR_ID_BIT_SHIFT));
+	RTE_BUILD_BUG_ON(RTE_MBUF_F_RX_FDIR_ID != (1 << I40E_FDIR_ID_BIT_SHIFT));
 	__m128i v_mask_one_bit = _mm_srli_epi32(v_fdir_id_mask, 31);
-	return _mm_slli_epi32(v_mask_one_bit, FDIR_ID_BIT_SHIFT);
+	return _mm_slli_epi32(v_mask_one_bit, I40E_FDIR_ID_BIT_SHIFT);
 }
 #endif
 
@@ -578,7 +577,7 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 				 pkt_mb1);
 		desc_to_ptype_v(descs, &rx_pkts[pos], ptype_tbl);
 		/* C.4 calc available number of desc */
-		var = __builtin_popcountll(_mm_cvtsi128_si64(staterr));
+		var = rte_popcount64(_mm_cvtsi128_si64(staterr));
 		nb_pkts_recd += var;
 		if (likely(var != RTE_I40E_DESCS_PER_LOOP))
 			break;
@@ -595,8 +594,6 @@ _recv_raw_pkts_vec(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
  /*
  * Notice:
  * - nb_pkts < RTE_I40E_DESCS_PER_LOOP, just return no packet
- * - nb_pkts > RTE_I40E_VPMD_RX_BURST, only scan RTE_I40E_VPMD_RX_BURST
- *   numbers of DD bits
  */
 uint16_t
 i40e_recv_pkts_vec(void *rx_queue, struct rte_mbuf **rx_pkts,

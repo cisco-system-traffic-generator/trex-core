@@ -803,7 +803,8 @@ static void
 mlx5_devx_tir_attr_set(struct rte_eth_dev *dev, const uint8_t *rss_key,
 		       uint64_t hash_fields,
 		       const struct mlx5_ind_table_obj *ind_tbl,
-		       int tunnel, struct mlx5_devx_tir_attr *tir_attr)
+		       int tunnel, bool symmetric_hash_function,
+		       struct mlx5_devx_tir_attr *tir_attr)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
 	bool is_hairpin;
@@ -834,6 +835,7 @@ mlx5_devx_tir_attr_set(struct rte_eth_dev *dev, const uint8_t *rss_key,
 	tir_attr->disp_type = MLX5_TIRC_DISP_TYPE_INDIRECT;
 	tir_attr->rx_hash_fn = MLX5_RX_HASH_FN_TOEPLITZ;
 	tir_attr->tunneled_offload_en = !!tunnel;
+	tir_attr->rx_hash_symmetric = symmetric_hash_function;
 	/* If needed, translate hash_fields bitmap to PRM format. */
 	if (hash_fields) {
 		struct mlx5_rx_hash_field_select *rx_hash_field_select =
@@ -902,7 +904,8 @@ mlx5_devx_hrxq_new(struct rte_eth_dev *dev, struct mlx5_hrxq *hrxq,
 	int err;
 
 	mlx5_devx_tir_attr_set(dev, hrxq->rss_key, hrxq->hash_fields,
-			       hrxq->ind_table, tunnel, &tir_attr);
+			       hrxq->ind_table, tunnel, hrxq->symmetric_hash_function,
+			       &tir_attr);
 	hrxq->tir = mlx5_devx_cmd_create_tir(priv->sh->cdev->ctx, &tir_attr);
 	if (!hrxq->tir) {
 		DRV_LOG(ERR, "Port %u cannot create DevX TIR.",
@@ -969,13 +972,13 @@ static int
 mlx5_devx_hrxq_modify(struct rte_eth_dev *dev, struct mlx5_hrxq *hrxq,
 		       const uint8_t *rss_key,
 		       uint64_t hash_fields,
+		       bool symmetric_hash_function,
 		       const struct mlx5_ind_table_obj *ind_tbl)
 {
 	struct mlx5_devx_modify_tir_attr modify_tir = {0};
 
 	/*
 	 * untested for modification fields:
-	 * - rx_hash_symmetric not set in hrxq_new(),
 	 * - rx_hash_fn set hard-coded in hrxq_new(),
 	 * - lro_xxx not set after rxq setup
 	 */
@@ -983,11 +986,13 @@ mlx5_devx_hrxq_modify(struct rte_eth_dev *dev, struct mlx5_hrxq *hrxq,
 		modify_tir.modify_bitmask |=
 			MLX5_MODIFY_TIR_IN_MODIFY_BITMASK_INDIRECT_TABLE;
 	if (hash_fields != hrxq->hash_fields ||
+			symmetric_hash_function != hrxq->symmetric_hash_function ||
 			memcmp(hrxq->rss_key, rss_key, MLX5_RSS_HASH_KEY_LEN))
 		modify_tir.modify_bitmask |=
 			MLX5_MODIFY_TIR_IN_MODIFY_BITMASK_HASH;
 	mlx5_devx_tir_attr_set(dev, rss_key, hash_fields, ind_tbl,
 			       0, /* N/A - tunnel modification unsupported */
+			       symmetric_hash_function,
 			       &modify_tir.tir);
 	modify_tir.tirn = hrxq->tir->id;
 	if (mlx5_devx_cmd_modify_tir(hrxq->tir, &modify_tir)) {
@@ -1129,6 +1134,10 @@ mlx5_devx_drop_action_destroy(struct rte_eth_dev *dev)
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_hrxq *hrxq = priv->drop_queue.hrxq;
 
+#if defined(HAVE_IBV_FLOW_DV_SUPPORT) || !defined(HAVE_INFINIBAND_VERBS_H)
+	if (hrxq->action != NULL)
+		mlx5_flow_os_destroy_flow_action(hrxq->action);
+#endif
 	if (hrxq->tir != NULL)
 		mlx5_devx_tir_destroy(hrxq);
 	if (hrxq->ind_table->ind_table != NULL)
@@ -1465,8 +1474,12 @@ mlx5_txq_devx_obj_new(struct rte_eth_dev *dev, uint16_t idx)
 	MLX5_ASSERT(ppriv);
 	txq_obj->txq_ctrl = txq_ctrl;
 	txq_obj->dev = dev;
-	cqe_n = (1UL << txq_data->elts_n) / MLX5_TX_COMP_THRESH +
-		1 + MLX5_TX_COMP_THRESH_INLINE_DIV;
+	if (__rte_trace_point_fp_is_enabled() &&
+	    txq_data->offloads & RTE_ETH_TX_OFFLOAD_SEND_ON_TIMESTAMP)
+		cqe_n = UINT16_MAX / 2 - 1;
+	else
+		cqe_n = (1UL << txq_data->elts_n) / MLX5_TX_COMP_THRESH +
+			1 + MLX5_TX_COMP_THRESH_INLINE_DIV;
 	log_desc_n = log2above(cqe_n);
 	cqe_n = 1UL << log_desc_n;
 	if (cqe_n > UINT16_MAX) {

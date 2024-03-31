@@ -9,7 +9,7 @@
 
 #define IOCP_KEY_SHUTDOWN UINT32_MAX
 
-static pthread_t intr_thread;
+static rte_thread_t intr_thread;
 
 static HANDLE intr_iocp;
 static HANDLE intr_thread_handle;
@@ -33,13 +33,13 @@ eal_intr_thread_handle_init(void)
 	return 0;
 }
 
-static void *
+static uint32_t
 eal_intr_thread_main(LPVOID arg __rte_unused)
 {
 	bool finished = false;
 
 	if (eal_intr_thread_handle_init() < 0) {
-		RTE_LOG(ERR, EAL, "Cannot open interrupt thread handle\n");
+		EAL_LOG(ERR, "Cannot open interrupt thread handle");
 		goto cleanup;
 	}
 
@@ -57,7 +57,7 @@ eal_intr_thread_main(LPVOID arg __rte_unused)
 			DWORD error = GetLastError();
 			if (error != WAIT_IO_COMPLETION) {
 				RTE_LOG_WIN32_ERR("GetQueuedCompletionStatusEx()");
-				RTE_LOG(ERR, EAL, "Failed waiting for interrupts\n");
+				EAL_LOG(ERR, "Failed waiting for interrupts");
 				break;
 			}
 
@@ -78,12 +78,12 @@ eal_intr_thread_main(LPVOID arg __rte_unused)
 	intr_thread_handle = NULL;
 
 cleanup:
-	intr_thread = 0;
+	intr_thread.opaque_id = 0;
 
 	CloseHandle(intr_iocp);
 	intr_iocp = NULL;
 
-	return NULL;
+	return 0;
 }
 
 int
@@ -94,15 +94,15 @@ rte_eal_intr_init(void)
 	intr_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
 	if (intr_iocp == NULL) {
 		RTE_LOG_WIN32_ERR("CreateIoCompletionPort()");
-		RTE_LOG(ERR, EAL, "Cannot create interrupt IOCP\n");
+		EAL_LOG(ERR, "Cannot create interrupt IOCP");
 		return -1;
 	}
 
-	ret = rte_ctrl_thread_create(&intr_thread, "eal-intr-thread", NULL,
+	ret = rte_thread_create_internal_control(&intr_thread, "intr",
 			eal_intr_thread_main, NULL);
 	if (ret != 0) {
 		rte_errno = -ret;
-		RTE_LOG(ERR, EAL, "Cannot create interrupt thread\n");
+		EAL_LOG(ERR, "Cannot create interrupt thread");
 	}
 
 	return ret;
@@ -111,7 +111,7 @@ rte_eal_intr_init(void)
 int
 rte_thread_is_intr(void)
 {
-	return pthread_equal(intr_thread, pthread_self());
+	return rte_thread_equal(intr_thread, rte_thread_self());
 }
 
 int
@@ -140,7 +140,7 @@ eal_intr_thread_cancel(void)
 	if (!PostQueuedCompletionStatus(
 			intr_iocp, 0, IOCP_KEY_SHUTDOWN, NULL)) {
 		RTE_LOG_WIN32_ERR("PostQueuedCompletionStatus()");
-		RTE_LOG(ERR, EAL, "Cannot cancel interrupt thread\n");
+		EAL_LOG(ERR, "Cannot cancel interrupt thread");
 		return;
 	}
 

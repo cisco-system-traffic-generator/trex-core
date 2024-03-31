@@ -613,7 +613,8 @@ mlx5_rx_err_handle(struct mlx5_rxq_data *rxq, uint8_t vec,
  * @param mprq
  *   Indication if it is called from MPRQ.
  * @return
- *   0 in case of empty CQE, MLX5_REGULAR_ERROR_CQE_RET in case of error CQE,
+ *   0 in case of empty CQE,
+ *   MLX5_REGULAR_ERROR_CQE_RET in case of error CQE,
  *   MLX5_CRITICAL_ERROR_CQE_RET in case of error CQE lead to Rx queue reset,
  *   otherwise the packet size in regular RxQ,
  *   and striding byte count format in mprq case.
@@ -697,6 +698,11 @@ mlx5_rx_poll_len(struct mlx5_rxq_data *rxq, volatile struct mlx5_cqe *cqe,
 					if (ret == MLX5_RECOVERY_ERROR_RET ||
 						ret == MLX5_RECOVERY_COMPLETED_RET)
 						return MLX5_CRITICAL_ERROR_CQE_RET;
+					if (!mprq && ret == MLX5_RECOVERY_IGNORE_RET) {
+						*skip_cnt = 1;
+						++rxq->cq_ci;
+						return MLX5_ERROR_CQE_MASK;
+					}
 				} else {
 					return 0;
 				}
@@ -857,7 +863,7 @@ rxq_cq_to_mbuf(struct mlx5_rxq_data *rxq, struct rte_mbuf *pkt,
 		if (MLX5_FLOW_MARK_IS_VALID(mark)) {
 			pkt->ol_flags |= RTE_MBUF_F_RX_FDIR;
 			if (mark != RTE_BE32(MLX5_FLOW_MARK_DEFAULT)) {
-				pkt->ol_flags |= RTE_MBUF_F_RX_FDIR_ID;
+				pkt->ol_flags |= rxq->mark_flag;
 				pkt->hash.fdir.hi = mlx5_flow_mark_get(mark);
 			}
 		}
@@ -971,19 +977,18 @@ mlx5_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			cqe = &(*rxq->cqes)[rxq->cq_ci & cqe_mask];
 			len = mlx5_rx_poll_len(rxq, cqe, cqe_n, cqe_mask, &mcqe, &skip_cnt, false);
 			if (unlikely(len & MLX5_ERROR_CQE_MASK)) {
+				/* We drop packets with non-critical errors */
+				rte_mbuf_raw_free(rep);
 				if (len == MLX5_CRITICAL_ERROR_CQE_RET) {
-					rte_mbuf_raw_free(rep);
 					rq_ci = rxq->rq_ci << sges_n;
 					break;
 				}
+				/* Skip specified amount of error CQEs packets */
 				rq_ci >>= sges_n;
 				rq_ci += skip_cnt;
 				rq_ci <<= sges_n;
-				idx = rq_ci & wqe_mask;
-				wqe = &((volatile struct mlx5_wqe_data_seg *)rxq->wqes)[idx];
-				seg = (*rxq->elts)[idx];
-				cqe = &(*rxq->cqes)[rxq->cq_ci & cqe_mask];
-				len = len & ~MLX5_ERROR_CQE_MASK;
+				MLX5_ASSERT(!pkt);
+				continue;
 			}
 			if (len == 0) {
 				rte_mbuf_raw_free(rep);
@@ -1089,6 +1094,7 @@ mlx5_lro_update_tcp_hdr(struct rte_tcp_hdr *__rte_restrict tcp,
 		tcp->tcp_flags |= RTE_TCP_PSH_FLAG;
 	tcp->cksum = 0;
 	csum += rte_raw_cksum(tcp, (tcp->data_off >> 4) * 4);
+	csum = ((csum & 0xffff0000) >> 16) + (csum & 0xffff);
 	csum = ((csum & 0xffff0000) >> 16) + (csum & 0xffff);
 	csum = (~csum) & 0xffff;
 	if (csum == 0)
@@ -1559,7 +1565,7 @@ int rte_pmd_mlx5_host_shaper_config(int port_id, uint8_t rate,
 	struct rte_eth_dev *dev = &rte_eth_devices[port_id];
 	struct mlx5_priv *priv = dev->data->dev_private;
 	bool lwm_triggered =
-	     !!(flags & RTE_BIT32(MLX5_HOST_SHAPER_FLAG_AVAIL_THRESH_TRIGGERED));
+	     !!(flags & RTE_BIT32(RTE_PMD_MLX5_HOST_SHAPER_FLAG_AVAIL_THRESH_TRIGGERED));
 
 	if (!lwm_triggered) {
 		priv->sh->host_shaper_rate = rate;

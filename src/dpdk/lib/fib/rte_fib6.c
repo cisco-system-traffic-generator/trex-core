@@ -10,6 +10,7 @@
 #include <rte_eal_memconfig.h>
 #include <rte_tailq.h>
 #include <rte_errno.h>
+#include <rte_log.h>
 #include <rte_malloc.h>
 #include <rte_string_fns.h>
 
@@ -17,6 +18,7 @@
 #include <rte_fib6.h>
 
 #include "trie.h"
+#include "fib_log.h"
 
 TAILQ_HEAD(rte_fib6_list, rte_tailq_entry);
 static struct rte_tailq_elem rte_fib6_tailq = {
@@ -169,8 +171,8 @@ rte_fib6_create(const char *name, int socket_id, struct rte_fib6_conf *conf)
 
 	rib = rte_rib6_create(name, socket_id, &rib_conf);
 	if (rib == NULL) {
-		RTE_LOG(ERR, LPM,
-			"Can not allocate RIB %s\n", name);
+		FIB_LOG(ERR,
+			"Can not allocate RIB %s", name);
 		return NULL;
 	}
 
@@ -194,8 +196,8 @@ rte_fib6_create(const char *name, int socket_id, struct rte_fib6_conf *conf)
 	/* allocate tailq entry */
 	te = rte_zmalloc("FIB_TAILQ_ENTRY", sizeof(*te), 0);
 	if (te == NULL) {
-		RTE_LOG(ERR, LPM,
-			"Can not allocate tailq entry for FIB %s\n", name);
+		FIB_LOG(ERR,
+			"Can not allocate tailq entry for FIB %s", name);
 		rte_errno = ENOMEM;
 		goto exit;
 	}
@@ -204,7 +206,7 @@ rte_fib6_create(const char *name, int socket_id, struct rte_fib6_conf *conf)
 	fib = rte_zmalloc_socket(mem_name,
 		sizeof(struct rte_fib6), RTE_CACHE_LINE_SIZE, socket_id);
 	if (fib == NULL) {
-		RTE_LOG(ERR, LPM, "FIB %s memory allocation failed\n", name);
+		FIB_LOG(ERR, "FIB %s memory allocation failed", name);
 		rte_errno = ENOMEM;
 		goto free_te;
 	}
@@ -215,8 +217,8 @@ rte_fib6_create(const char *name, int socket_id, struct rte_fib6_conf *conf)
 	fib->def_nh = conf->default_nh;
 	ret = init_dataplane(fib, socket_id, conf);
 	if (ret < 0) {
-		RTE_LOG(ERR, LPM,
-			"FIB dataplane struct %s memory allocation failed\n",
+		FIB_LOG(ERR,
+			"FIB dataplane struct %s memory allocation failed",
 			name);
 		rte_errno = -ret;
 		goto free_fib;

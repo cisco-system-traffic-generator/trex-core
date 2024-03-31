@@ -2,13 +2,17 @@
  * Copyright(c) 2022 Intel Corporation
  */
 
+#include <ctype.h>
+#include <stdalign.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include <rte_kvargs.h>
 #include <rte_malloc.h>
 
 #include "ethdev_driver.h"
 #include "ethdev_private.h"
+#include "rte_flow_driver.h"
 
 /**
  * A set of values to describe the possible states of a switch domain.
@@ -44,6 +48,7 @@ eth_dev_allocated(const char *name)
 
 static uint16_t
 eth_dev_find_free_port(void)
+	__rte_exclusive_locks_required(rte_mcfg_ethdev_get_lock())
 {
 	uint16_t i;
 
@@ -60,6 +65,7 @@ eth_dev_find_free_port(void)
 
 static struct rte_eth_dev *
 eth_dev_get(uint16_t port_id)
+	__rte_exclusive_locks_required(rte_mcfg_ethdev_get_lock())
 {
 	struct rte_eth_dev *eth_dev = &rte_eth_devices[port_id];
 
@@ -77,43 +83,47 @@ rte_eth_dev_allocate(const char *name)
 
 	name_len = strnlen(name, RTE_ETH_NAME_MAX_LEN);
 	if (name_len == 0) {
-		RTE_ETHDEV_LOG(ERR, "Zero length Ethernet device name\n");
+		RTE_ETHDEV_LOG_LINE(ERR, "Zero length Ethernet device name");
 		return NULL;
 	}
 
 	if (name_len >= RTE_ETH_NAME_MAX_LEN) {
-		RTE_ETHDEV_LOG(ERR, "Ethernet device name is too long\n");
+		RTE_ETHDEV_LOG_LINE(ERR, "Ethernet device name is too long");
 		return NULL;
 	}
 
-	eth_dev_shared_data_prepare();
+	/* Synchronize port creation between primary and secondary processes. */
+	rte_spinlock_lock(rte_mcfg_ethdev_get_lock());
 
-	/* Synchronize port creation between primary and secondary threads. */
-	rte_spinlock_lock(&eth_dev_shared_data->ownership_lock);
+	if (eth_dev_shared_data_prepare() == NULL)
+		goto unlock;
 
 	if (eth_dev_allocated(name) != NULL) {
-		RTE_ETHDEV_LOG(ERR,
-			"Ethernet device with name %s already allocated\n",
+		RTE_ETHDEV_LOG_LINE(ERR,
+			"Ethernet device with name %s already allocated",
 			name);
 		goto unlock;
 	}
 
 	port_id = eth_dev_find_free_port();
 	if (port_id == RTE_MAX_ETHPORTS) {
-		RTE_ETHDEV_LOG(ERR,
-			"Reached maximum number of Ethernet ports\n");
+		RTE_ETHDEV_LOG_LINE(ERR,
+			"Reached maximum number of Ethernet ports");
 		goto unlock;
 	}
 
 	eth_dev = eth_dev_get(port_id);
+	eth_dev->flow_fp_ops = &rte_flow_fp_default_ops;
 	strlcpy(eth_dev->data->name, name, sizeof(eth_dev->data->name));
 	eth_dev->data->port_id = port_id;
 	eth_dev->data->backer_port_id = RTE_MAX_ETHPORTS;
 	eth_dev->data->mtu = RTE_ETHER_MTU;
 	pthread_mutex_init(&eth_dev->data->flow_ops_mutex, NULL);
+	RTE_ASSERT(rte_eal_process_type() == RTE_PROC_PRIMARY);
+	eth_dev_shared_data->allocated_ports++;
 
 unlock:
-	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+	rte_spinlock_unlock(rte_mcfg_ethdev_get_lock());
 
 	return eth_dev;
 }
@@ -123,13 +133,14 @@ rte_eth_dev_allocated(const char *name)
 {
 	struct rte_eth_dev *ethdev;
 
-	eth_dev_shared_data_prepare();
+	rte_spinlock_lock(rte_mcfg_ethdev_get_lock());
 
-	rte_spinlock_lock(&eth_dev_shared_data->ownership_lock);
+	if (eth_dev_shared_data_prepare() != NULL)
+		ethdev = eth_dev_allocated(name);
+	else
+		ethdev = NULL;
 
-	ethdev = eth_dev_allocated(name);
-
-	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+	rte_spinlock_unlock(rte_mcfg_ethdev_get_lock());
 
 	return ethdev;
 }
@@ -145,25 +156,27 @@ rte_eth_dev_attach_secondary(const char *name)
 	uint16_t i;
 	struct rte_eth_dev *eth_dev = NULL;
 
-	eth_dev_shared_data_prepare();
-
 	/* Synchronize port attachment to primary port creation and release. */
-	rte_spinlock_lock(&eth_dev_shared_data->ownership_lock);
+	rte_spinlock_lock(rte_mcfg_ethdev_get_lock());
+
+	if (eth_dev_shared_data_prepare() == NULL)
+		goto unlock;
 
 	for (i = 0; i < RTE_MAX_ETHPORTS; i++) {
 		if (strcmp(eth_dev_shared_data->data[i].name, name) == 0)
 			break;
 	}
 	if (i == RTE_MAX_ETHPORTS) {
-		RTE_ETHDEV_LOG(ERR,
-			"Device %s is not driven by the primary process\n",
+		RTE_ETHDEV_LOG_LINE(ERR,
+			"Device %s is not driven by the primary process",
 			name);
 	} else {
 		eth_dev = eth_dev_get(i);
 		RTE_ASSERT(eth_dev->data->port_id == i);
 	}
 
-	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+unlock:
+	rte_spinlock_unlock(rte_mcfg_ethdev_get_lock());
 	return eth_dev;
 }
 
@@ -216,10 +229,19 @@ rte_eth_dev_probing_finish(struct rte_eth_dev *dev)
 int
 rte_eth_dev_release_port(struct rte_eth_dev *eth_dev)
 {
+	int ret;
+
 	if (eth_dev == NULL)
 		return -EINVAL;
 
-	eth_dev_shared_data_prepare();
+	rte_spinlock_lock(rte_mcfg_ethdev_get_lock());
+	if (eth_dev_shared_data_prepare() == NULL)
+		ret = -EINVAL;
+	else
+		ret = 0;
+	rte_spinlock_unlock(rte_mcfg_ethdev_get_lock());
+	if (ret != 0)
+		return ret;
 
 	if (eth_dev->state != RTE_ETH_DEV_UNUSED)
 		rte_eth_dev_callback_process(eth_dev,
@@ -227,7 +249,9 @@ rte_eth_dev_release_port(struct rte_eth_dev *eth_dev)
 
 	eth_dev_fp_ops_reset(rte_eth_fp_ops + eth_dev->data->port_id);
 
-	rte_spinlock_lock(&eth_dev_shared_data->ownership_lock);
+	eth_dev->flow_fp_ops = &rte_flow_fp_default_ops;
+
+	rte_spinlock_lock(rte_mcfg_ethdev_get_lock());
 
 	eth_dev->state = RTE_ETH_DEV_UNUSED;
 	eth_dev->device = NULL;
@@ -249,9 +273,13 @@ rte_eth_dev_release_port(struct rte_eth_dev *eth_dev)
 		rte_free(eth_dev->data->dev_private);
 		pthread_mutex_destroy(&eth_dev->data->flow_ops_mutex);
 		memset(eth_dev->data, 0, sizeof(struct rte_eth_dev_data));
+		eth_dev->data = NULL;
+
+		eth_dev_shared_data->allocated_ports--;
+		eth_dev_shared_data_release();
 	}
 
-	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+	rte_spinlock_unlock(rte_mcfg_ethdev_get_lock());
 
 	return 0;
 }
@@ -280,8 +308,8 @@ rte_eth_dev_create(struct rte_device *device, const char *name,
 				device->numa_node);
 
 			if (!ethdev->data->dev_private) {
-				RTE_ETHDEV_LOG(ERR,
-					"failed to allocate private data\n");
+				RTE_ETHDEV_LOG_LINE(ERR,
+					"failed to allocate private data");
 				retval = -ENOMEM;
 				goto probe_failed;
 			}
@@ -289,8 +317,8 @@ rte_eth_dev_create(struct rte_device *device, const char *name,
 	} else {
 		ethdev = rte_eth_dev_attach_secondary(name);
 		if (!ethdev) {
-			RTE_ETHDEV_LOG(ERR,
-				"secondary process attach failed, ethdev doesn't exist\n");
+			RTE_ETHDEV_LOG_LINE(ERR,
+				"secondary process attach failed, ethdev doesn't exist");
 			return  -ENODEV;
 		}
 	}
@@ -300,15 +328,15 @@ rte_eth_dev_create(struct rte_device *device, const char *name,
 	if (ethdev_bus_specific_init) {
 		retval = ethdev_bus_specific_init(ethdev, bus_init_params);
 		if (retval) {
-			RTE_ETHDEV_LOG(ERR,
-				"ethdev bus specific initialisation failed\n");
+			RTE_ETHDEV_LOG_LINE(ERR,
+				"ethdev bus specific initialisation failed");
 			goto probe_failed;
 		}
 	}
 
 	retval = ethdev_init(ethdev, init_params);
 	if (retval) {
-		RTE_ETHDEV_LOG(ERR, "ethdev initialisation failed\n");
+		RTE_ETHDEV_LOG_LINE(ERR, "ethdev initialisation failed");
 		goto probe_failed;
 	}
 
@@ -372,7 +400,7 @@ void
 rte_eth_dev_internal_reset(struct rte_eth_dev *dev)
 {
 	if (dev->data->dev_started) {
-		RTE_ETHDEV_LOG(ERR, "Port %u must be stopped to allow reset\n",
+		RTE_ETHDEV_LOG_LINE(ERR, "Port %u must be stopped to allow reset",
 			dev->data->port_id);
 		return;
 	}
@@ -437,25 +465,159 @@ eth_dev_devargs_tokenise(struct rte_kvargs *arglist, const char *str_in)
 			break;
 
 		case 3: /* Parsing list */
-			if (*letter == ']')
-				state = 2;
-			else if (*letter == '\0')
+			if (*letter == ']') {
+				/* For devargs having singles lists move to state 2 once letter
+				 * becomes ']' so each can be considered as different pair key
+				 * value. But in nested lists case e.g. multiple representors
+				 * case i.e. [pf[0-3],pfvf[3,4-6]], complete nested list should
+				 * be considered as one pair value, hence checking if end of outer
+				 * list ']' is reached else stay on state 3.
+				 */
+				if ((strcmp("representor", pair->key) == 0) &&
+				    (*(letter + 1) != '\0' && *(letter + 2) != '\0' &&
+				     *(letter + 3) != '\0')			    &&
+				    ((*(letter + 2) == 'p' && *(letter + 3) == 'f')   ||
+				     (*(letter + 2) == 'v' && *(letter + 3) == 'f')   ||
+				     (*(letter + 2) == 's' && *(letter + 3) == 'f')   ||
+				     (*(letter + 2) == 'c' && isdigit(*(letter + 3))) ||
+				     (*(letter + 2) == '[' && isdigit(*(letter + 3))) ||
+				     (isdigit(*(letter + 2)))))
+					state = 3;
+				else
+					state = 2;
+			} else if (*letter == '\0') {
 				return -EINVAL;
+			}
 			break;
 		}
 		letter++;
 	}
 }
 
-int
-rte_eth_devargs_parse(const char *dargs, struct rte_eth_devargs *eth_da)
+static int
+devargs_parse_representor_ports(struct rte_eth_devargs *eth_devargs, char
+				*da_val, unsigned int da_idx, unsigned int nb_da)
 {
-	struct rte_kvargs args;
+	struct rte_eth_devargs *eth_da;
+	int result = 0;
+
+	if (da_idx + 1 > nb_da) {
+		RTE_ETHDEV_LOG_LINE(ERR, "Devargs parsed %d > max array size %d",
+			       da_idx + 1, nb_da);
+		result = -1;
+		goto parse_cleanup;
+	}
+	eth_da = &eth_devargs[da_idx];
+	memset(eth_da, 0, sizeof(*eth_da));
+	RTE_ETHDEV_LOG_LINE(DEBUG, "	  Devargs idx %d value %s", da_idx, da_val);
+	result = rte_eth_devargs_parse_representor_ports(da_val, eth_da);
+
+parse_cleanup:
+	return result;
+}
+
+static int
+eth_dev_tokenise_representor_list(char *p_val, struct rte_eth_devargs *eth_devargs,
+				  unsigned int nb_da)
+{
+	char da_val[BUFSIZ], str[BUFSIZ];
+	bool is_rep_portid_list = true;
+	unsigned int devargs = 0;
+	int result = 0, len = 0;
+	int i = 0, j = 0;
+	char *pos;
+
+	pos = p_val;
+	/* Length of consolidated list */
+	while (*pos++ != '\0') {
+		len++;
+		if (isalpha(*pos))
+			is_rep_portid_list = false;
+	}
+
+	/* List of representor portIDs i.e.[1,2,3] should be considered as single representor case*/
+	if (is_rep_portid_list) {
+		result = devargs_parse_representor_ports(eth_devargs, p_val, 0, 1);
+		if (result < 0)
+			return result;
+
+		devargs++;
+		return devargs;
+	}
+
+	memset(str, 0, BUFSIZ);
+	memset(da_val, 0, BUFSIZ);
+	/* Remove the exterior [] of the consolidated list */
+	strncpy(str, &p_val[1], len - 2);
+	while (1) {
+		if (str[i] == '\0') {
+			if (da_val[0] != '\0') {
+				result = devargs_parse_representor_ports(eth_devargs, da_val,
+									 devargs, nb_da);
+				if (result < 0)
+					goto parse_cleanup;
+
+				devargs++;
+			}
+			break;
+		}
+		if (str[i] == ',' || str[i] == '[') {
+			if (str[i] == ',') {
+				if (da_val[0] != '\0') {
+					da_val[j + 1] = '\0';
+					result = devargs_parse_representor_ports(eth_devargs,
+										 da_val, devargs,
+										 nb_da);
+					if (result < 0)
+						goto parse_cleanup;
+
+					devargs++;
+					j = 0;
+					memset(da_val, 0, BUFSIZ);
+				}
+			}
+
+			if (str[i] == '[') {
+				while (str[i] != ']' || isalpha(str[i + 1])) {
+					da_val[j] = str[i];
+					j++;
+					i++;
+				}
+				da_val[j] = ']';
+				da_val[j + 1] = '\0';
+				result = devargs_parse_representor_ports(eth_devargs, da_val,
+									 devargs, nb_da);
+				if (result < 0)
+					goto parse_cleanup;
+
+				devargs++;
+				j = 0;
+				memset(da_val, 0, BUFSIZ);
+			}
+		} else {
+			da_val[j] = str[i];
+			j++;
+		}
+		i++;
+	}
+	result = devargs;
+
+parse_cleanup:
+	return result;
+}
+
+int
+rte_eth_devargs_parse(const char *dargs, struct rte_eth_devargs *eth_devargs,
+		      unsigned int nb_da)
+{
 	struct rte_kvargs_pair *pair;
+	struct rte_kvargs args;
+	bool dup_rep = false;
+	int devargs = 0;
 	unsigned int i;
 	int result = 0;
 
-	memset(eth_da, 0, sizeof(*eth_da));
+	memset(eth_devargs, 0, nb_da * sizeof(*eth_devargs));
 
 	result = eth_dev_devargs_tokenise(&args, dargs);
 	if (result < 0)
@@ -464,18 +626,33 @@ rte_eth_devargs_parse(const char *dargs, struct rte_eth_devargs *eth_da)
 	for (i = 0; i < args.count; i++) {
 		pair = &args.pairs[i];
 		if (strcmp("representor", pair->key) == 0) {
-			if (eth_da->type != RTE_ETH_REPRESENTOR_NONE) {
-				RTE_LOG(ERR, EAL, "duplicated representor key: %s\n",
-					dargs);
+			if (dup_rep) {
+				RTE_ETHDEV_LOG_LINE(ERR, "Duplicated representor key: %s",
+						    pair->value);
 				result = -1;
 				goto parse_cleanup;
 			}
-			result = rte_eth_devargs_parse_representor_ports(
-					pair->value, eth_da);
-			if (result < 0)
-				goto parse_cleanup;
+
+			RTE_ETHDEV_LOG_LINE(DEBUG, "Devarg pattern: %s", pair->value);
+			if (pair->value[0] == '[') {
+				/* Multiple representor list case */
+				devargs = eth_dev_tokenise_representor_list(pair->value,
+									    eth_devargs, nb_da);
+				if (devargs < 0)
+					goto parse_cleanup;
+			} else {
+				/* Single representor case */
+				devargs = devargs_parse_representor_ports(eth_devargs, pair->value,
+									  0, 1);
+				if (devargs < 0)
+					goto parse_cleanup;
+				devargs++;
+			}
+			dup_rep = true;
 		}
 	}
+	RTE_ETHDEV_LOG_LINE(DEBUG, "Total devargs parsed %d", devargs);
+	result = devargs;
 
 parse_cleanup:
 	free(args.str);
@@ -502,7 +679,7 @@ rte_eth_dma_zone_free(const struct rte_eth_dev *dev, const char *ring_name,
 	rc = eth_dev_dma_mzone_name(z_name, sizeof(z_name), dev->data->port_id,
 			queue_id, ring_name);
 	if (rc >= RTE_MEMZONE_NAMESIZE) {
-		RTE_ETHDEV_LOG(ERR, "ring name too long\n");
+		RTE_ETHDEV_LOG_LINE(ERR, "ring name too long");
 		return -ENAMETOOLONG;
 	}
 
@@ -527,7 +704,7 @@ rte_eth_dma_zone_reserve(const struct rte_eth_dev *dev, const char *ring_name,
 	rc = eth_dev_dma_mzone_name(z_name, sizeof(z_name), dev->data->port_id,
 			queue_id, ring_name);
 	if (rc >= RTE_MEMZONE_NAMESIZE) {
-		RTE_ETHDEV_LOG(ERR, "ring name too long\n");
+		RTE_ETHDEV_LOG_LINE(ERR, "ring name too long");
 		rte_errno = ENAMETOOLONG;
 		return NULL;
 	}
@@ -537,8 +714,8 @@ rte_eth_dma_zone_reserve(const struct rte_eth_dev *dev, const char *ring_name,
 		if ((socket_id != SOCKET_ID_ANY && socket_id != mz->socket_id) ||
 				size > mz->len ||
 				((uintptr_t)mz->addr & (align - 1)) != 0) {
-			RTE_ETHDEV_LOG(ERR,
-				"memzone %s does not justify the requested attributes\n",
+			RTE_ETHDEV_LOG_LINE(ERR,
+				"memzone %s does not justify the requested attributes",
 				mz->name);
 			return NULL;
 		}
@@ -611,7 +788,7 @@ rte_eth_ip_reassembly_dynfield_register(int *field_offset, int *flag_offset)
 	static const struct rte_mbuf_dynfield field_desc = {
 		.name = RTE_MBUF_DYNFIELD_IP_REASSEMBLY_NAME,
 		.size = sizeof(rte_eth_ip_reassembly_dynfield_t),
-		.align = __alignof__(rte_eth_ip_reassembly_dynfield_t),
+		.align = alignof(rte_eth_ip_reassembly_dynfield_t),
 	};
 	static const struct rte_mbuf_dynflag ip_reassembly_dynflag = {
 		.name = RTE_MBUF_DYNFLAG_IP_REASSEMBLY_INCOMPLETE_NAME,
@@ -691,7 +868,7 @@ rte_eth_representor_id_get(uint16_t port_id,
 		if (info->ranges[i].controller != controller)
 			continue;
 		if (info->ranges[i].id_end < info->ranges[i].id_base) {
-			RTE_LOG(WARNING, EAL, "Port %hu invalid representor ID Range %u - %u, entry %d\n",
+			RTE_ETHDEV_LOG_LINE(WARNING, "Port %hu invalid representor ID Range %u - %u, entry %d",
 				port_id, info->ranges[i].id_base,
 				info->ranges[i].id_end, i);
 			continue;

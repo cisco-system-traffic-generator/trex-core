@@ -265,8 +265,6 @@ memif_free_stored_mbufs(struct pmd_process_private *proc_private, struct memif_q
 	cur_tail = __atomic_load_n(&ring->tail, __ATOMIC_ACQUIRE);
 	while (mq->last_tail != cur_tail) {
 		RTE_MBUF_PREFETCH_TO_FREE(mq->buffers[(mq->last_tail + 1) & mask]);
-		/* Decrement refcnt and free mbuf. (current segment) */
-		rte_mbuf_refcnt_update(mq->buffers[mq->last_tail & mask], -1);
 		rte_pktmbuf_free_seg(mq->buffers[mq->last_tail & mask]);
 		mq->last_tail++;
 	}
@@ -356,7 +354,7 @@ next_bulk:
 		rx_pkts = 0;
 		pkts = nb_pkts < MAX_PKT_BURST ? nb_pkts : MAX_PKT_BURST;
 		while (n_slots && rx_pkts < pkts) {
-			mbuf_head = mbufs[n_rx_pkts];
+			mbuf_head = mbufs[rx_pkts];
 			mbuf = mbuf_head;
 
 next_slot1:
@@ -684,7 +682,7 @@ eth_memif_tx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 		n_free = __atomic_load_n(&ring->head, __ATOMIC_ACQUIRE) - slot;
 	}
 
-	uint8_t i;
+	uint16_t i;
 	struct rte_mbuf **buf_tmp = bufs;
 	mbuf_head = *buf_tmp++;
 	struct rte_mempool *mp = mbuf_head->pool;
@@ -825,10 +823,6 @@ memif_tx_one_zc(struct pmd_process_private *proc_private, struct memif_queue *mq
 next_in_chain:
 	/* store pointer to mbuf to free it later */
 	mq->buffers[slot & mask] = mbuf;
-	/* Increment refcnt to make sure the buffer is not freed before server
-	 * receives it. (current segment)
-	 */
-	rte_mbuf_refcnt_update(mbuf, 1);
 	/* populate descriptor */
 	d0 = &ring->desc[slot & mask];
 	d0->length = rte_pktmbuf_data_len(mbuf);
@@ -1358,6 +1352,7 @@ memif_dev_start(struct rte_eth_dev *dev)
 {
 	struct pmd_internals *pmd = dev->data->dev_private;
 	int ret = 0;
+	uint16_t i;
 
 	switch (pmd->role) {
 	case MEMIF_ROLE_CLIENT:
@@ -1372,13 +1367,28 @@ memif_dev_start(struct rte_eth_dev *dev)
 		break;
 	}
 
+	if (ret == 0) {
+		for (i = 0; i < dev->data->nb_rx_queues; i++)
+			dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+		for (i = 0; i < dev->data->nb_tx_queues; i++)
+			dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+	}
+
 	return ret;
 }
 
 static int
 memif_dev_stop(struct rte_eth_dev *dev)
 {
+	uint16_t i;
+
 	memif_disconnect(dev);
+
+	for (i = 0; i < dev->data->nb_rx_queues; i++)
+		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+	for (i = 0; i < dev->data->nb_tx_queues; i++)
+		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+
 	return 0;
 }
 

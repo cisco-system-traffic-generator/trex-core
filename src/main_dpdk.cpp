@@ -5315,7 +5315,7 @@ COLD_FUNC int CGlobalTRex::run_in_rx_core(void){
 
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
 
-    rte_thread_setname(pthread_self(), "TRex RX");
+    rte_thread_set_name(rte_thread_self(), "TRex RX");
 
     /* set RT mode if set */
     if (lp->get_rt_prio_mode()) {
@@ -5338,7 +5338,7 @@ COLD_FUNC int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
 
     ss << "Trex DP core " << int(virt_core_id);
-    rte_thread_setname(pthread_self(), ss.str().c_str());
+    rte_thread_set_name(rte_thread_self(), ss.str().c_str());
 
     /* set RT mode if set */
     if (lp->get_rt_prio_mode()) {

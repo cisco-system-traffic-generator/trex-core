@@ -2,6 +2,7 @@
  * Copyright(c) 2020 Intel Corporation
  */
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -9,7 +10,6 @@
 #undef RTE_USE_LIBBSD
 #include <stdbool.h>
 
-#include <rte_function_versioning.h>
 #include <rte_string_fns.h>
 
 #include "telemetry_data.h"
@@ -62,8 +62,8 @@ rte_tel_data_add_array_string(struct rte_tel_data *d, const char *str)
 	return bytes < RTE_TEL_MAX_STRING_LEN ? 0 : E2BIG;
 }
 
-int __vsym
-rte_tel_data_add_array_int_v24(struct rte_tel_data *d, int64_t x)
+int
+rte_tel_data_add_array_int(struct rte_tel_data *d, int64_t x)
 {
 	if (d->type != TEL_ARRAY_INT)
 		return -EINVAL;
@@ -72,18 +72,6 @@ rte_tel_data_add_array_int_v24(struct rte_tel_data *d, int64_t x)
 	d->data.array[d->data_len++].ival = x;
 	return 0;
 }
-
-int __vsym
-rte_tel_data_add_array_int_v23(struct rte_tel_data *d, int x)
-{
-	return rte_tel_data_add_array_int_v24(d, x);
-}
-
-/* mark the v23 function as the older version, and v24 as the default version */
-VERSION_SYMBOL(rte_tel_data_add_array_int, _v23, 23);
-BIND_DEFAULT_SYMBOL(rte_tel_data_add_array_int, _v24, 24);
-MAP_STATIC_SYMBOL(int rte_tel_data_add_array_int(struct rte_tel_data *d,
-		int64_t x), rte_tel_data_add_array_int_v24);
 
 int
 rte_tel_data_add_array_uint(struct rte_tel_data *d, uint64_t x)
@@ -152,17 +140,14 @@ rte_tel_data_add_array_uint_hex(struct rte_tel_data *d, uint64_t val,
 static bool
 valid_name(const char *name)
 {
-	char allowed[128] = {
-			['0' ... '9'] = 1,
-			['A' ... 'Z'] = 1,
-			['a' ... 'z'] = 1,
-			['_'] = 1,
-			['/'] = 1,
-	};
-	while (*name != '\0') {
+	/* non-alphanumeric characters allowed in names */
+	static const char allowed[128] = { ['_'] = 1, ['/'] = 1 };
+
+	for (; *name != '\0'; name++) {
+		if (isalnum(*name))
+			continue;
 		if ((size_t)*name >= RTE_DIM(allowed) || allowed[(int)*name] == 0)
 			return false;
-		name++;
 	}
 	return true;
 }
@@ -192,8 +177,8 @@ rte_tel_data_add_dict_string(struct rte_tel_data *d, const char *name,
 	return 0;
 }
 
-int __vsym
-rte_tel_data_add_dict_int_v24(struct rte_tel_data *d, const char *name, int64_t val)
+int
+rte_tel_data_add_dict_int(struct rte_tel_data *d, const char *name, int64_t val)
 {
 	struct tel_dict_entry *e = &d->data.dict[d->data_len];
 	if (d->type != TEL_DICT)
@@ -210,18 +195,6 @@ rte_tel_data_add_dict_int_v24(struct rte_tel_data *d, const char *name, int64_t 
 	const size_t bytes = strlcpy(e->name, name, RTE_TEL_MAX_STRING_LEN);
 	return bytes < RTE_TEL_MAX_STRING_LEN ? 0 : E2BIG;
 }
-
-int __vsym
-rte_tel_data_add_dict_int_v23(struct rte_tel_data *d, const char *name, int val)
-{
-	return rte_tel_data_add_dict_int_v24(d, name, val);
-}
-
-/* mark the v23 function as the older version, and v24 as the default version */
-VERSION_SYMBOL(rte_tel_data_add_dict_int, _v23, 23);
-BIND_DEFAULT_SYMBOL(rte_tel_data_add_dict_int, _v24, 24);
-MAP_STATIC_SYMBOL(int rte_tel_data_add_dict_int(struct rte_tel_data *d,
-		const char *name, int64_t val), rte_tel_data_add_dict_int_v24);
 
 int
 rte_tel_data_add_dict_uint(struct rte_tel_data *d,

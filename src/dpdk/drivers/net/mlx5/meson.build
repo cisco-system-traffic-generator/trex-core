@@ -31,6 +31,7 @@ sources = files(
         'mlx5_rxtx.c',
         'mlx5_stats.c',
         'mlx5_trigger.c',
+        'mlx5_trace.c',
         'mlx5_tx.c',
         'mlx5_tx_empw.c',
         'mlx5_tx_mpw.c',
@@ -45,8 +46,10 @@ sources = files(
 
 if is_linux
     sources += files(
+            'mlx5_flow_geneve.c',
             'mlx5_flow_hw.c',
             'mlx5_hws_cnt.c',
+            'mlx5_flow_quota.c',
             'mlx5_flow_verbs.c',
     )
 endif
@@ -77,8 +80,12 @@ else
     cflags += [ '-UPEDANTIC' ]
 endif
 
+require_iova_in_mbuf = false
+
 testpmd_sources += files('mlx5_testpmd.c')
 
 subdir(exec_env)
 
 subdir('hws')
+
+annotate_locks = false

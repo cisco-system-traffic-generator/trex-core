@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright(c) 2010-2017 Intel Corporation
  */
-#include <string.h>
+
+#include <stdalign.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <rte_common.h>
 #include <rte_malloc.h>
@@ -10,6 +12,8 @@
 
 #include "rte_table_hash.h"
 #include "rte_lru.h"
+
+#include "table_log.h"
 
 #define KEY_SIZE						16
 
@@ -81,7 +85,7 @@ struct rte_table_hash {
 	uint32_t *stack;
 
 	/* Lookup table */
-	uint8_t memory[0] __rte_cache_aligned;
+	alignas(RTE_CACHE_LINE_SIZE) uint8_t memory[0];
 };
 
 static int
@@ -107,32 +111,32 @@ check_params_create(struct rte_table_hash_params *params)
 {
 	/* name */
 	if (params->name == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: name invalid value\n", __func__);
+		TABLE_LOG(ERR, "%s: name invalid value", __func__);
 		return -EINVAL;
 	}
 
 	/* key_size */
 	if (params->key_size != KEY_SIZE) {
-		RTE_LOG(ERR, TABLE, "%s: key_size invalid value\n", __func__);
+		TABLE_LOG(ERR, "%s: key_size invalid value", __func__);
 		return -EINVAL;
 	}
 
 	/* n_keys */
 	if (params->n_keys == 0) {
-		RTE_LOG(ERR, TABLE, "%s: n_keys is zero\n", __func__);
+		TABLE_LOG(ERR, "%s: n_keys is zero", __func__);
 		return -EINVAL;
 	}
 
 	/* n_buckets */
 	if ((params->n_buckets == 0) ||
 		(!rte_is_power_of_2(params->n_buckets))) {
-		RTE_LOG(ERR, TABLE, "%s: n_buckets invalid value\n", __func__);
+		TABLE_LOG(ERR, "%s: n_buckets invalid value", __func__);
 		return -EINVAL;
 	}
 
 	/* f_hash */
 	if (params->f_hash == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: f_hash function pointer is NULL\n",
+		TABLE_LOG(ERR, "%s: f_hash function pointer is NULL",
 			__func__);
 		return -EINVAL;
 	}
@@ -181,8 +185,8 @@ rte_table_hash_create_key16_lru(void *params,
 	total_size = sizeof(struct rte_table_hash) + n_buckets * bucket_size;
 
 	if (total_size > SIZE_MAX) {
-		RTE_LOG(ERR, TABLE, "%s: Cannot allocate %" PRIu64 " bytes "
-		"for hash table %s\n",
+		TABLE_LOG(ERR, "%s: Cannot allocate %" PRIu64 " bytes "
+		"for hash table %s",
 		__func__, total_size, p->name);
 		return NULL;
 	}
@@ -192,13 +196,13 @@ rte_table_hash_create_key16_lru(void *params,
 		RTE_CACHE_LINE_SIZE,
 		socket_id);
 	if (f == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: Cannot allocate %" PRIu64 " bytes "
-		"for hash table %s\n",
+		TABLE_LOG(ERR, "%s: Cannot allocate %" PRIu64 " bytes "
+		"for hash table %s",
 		__func__, total_size, p->name);
 		return NULL;
 	}
-	RTE_LOG(INFO, TABLE, "%s: Hash table %s memory footprint "
-		"is %" PRIu64 " bytes\n",
+	TABLE_LOG(INFO, "%s: Hash table %s memory footprint "
+		"is %" PRIu64 " bytes",
 		__func__, p->name, total_size);
 
 	/* Memory initialization */
@@ -236,7 +240,7 @@ rte_table_hash_free_key16_lru(void *table)
 
 	/* Check input parameters */
 	if (f == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: table parameter is NULL\n", __func__);
+		TABLE_LOG(ERR, "%s: table parameter is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -391,8 +395,8 @@ rte_table_hash_create_key16_ext(void *params,
 	total_size = sizeof(struct rte_table_hash) +
 		(p->n_buckets + n_buckets_ext) * bucket_size + stack_size;
 	if (total_size > SIZE_MAX) {
-		RTE_LOG(ERR, TABLE, "%s: Cannot allocate %" PRIu64 " bytes "
-			"for hash table %s\n",
+		TABLE_LOG(ERR, "%s: Cannot allocate %" PRIu64 " bytes "
+			"for hash table %s",
 			__func__, total_size, p->name);
 		return NULL;
 	}
@@ -402,13 +406,13 @@ rte_table_hash_create_key16_ext(void *params,
 		RTE_CACHE_LINE_SIZE,
 		socket_id);
 	if (f == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: Cannot allocate %" PRIu64 " bytes "
-			"for hash table %s\n",
+		TABLE_LOG(ERR, "%s: Cannot allocate %" PRIu64 " bytes "
+			"for hash table %s",
 			__func__, total_size, p->name);
 		return NULL;
 	}
-	RTE_LOG(INFO, TABLE, "%s: Hash table %s memory footprint "
-		"is %" PRIu64 " bytes\n",
+	TABLE_LOG(INFO, "%s: Hash table %s memory footprint "
+		"is %" PRIu64 " bytes",
 		__func__, p->name, total_size);
 
 	/* Memory initialization */
@@ -446,7 +450,7 @@ rte_table_hash_free_key16_ext(void *table)
 
 	/* Check input parameters */
 	if (f == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: table parameter is NULL\n", __func__);
+		TABLE_LOG(ERR, "%s: table parameter is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -636,7 +640,7 @@ rte_table_hash_entry_delete_key16_ext(
 	uint64_t pkt_mask;					\
 	uint32_t key_offset = f->key_offset;\
 								\
-	pkt0_index = __builtin_ctzll(pkts_mask);		\
+	pkt0_index = rte_ctz64(pkts_mask);		\
 	pkt_mask = 1LLU << pkt0_index;				\
 	pkts_mask &= ~pkt_mask;					\
 								\
@@ -741,14 +745,14 @@ rte_table_hash_entry_delete_key16_ext(
 	uint64_t pkt00_mask, pkt01_mask;			\
 	uint32_t key_offset = f->key_offset;		\
 								\
-	pkt00_index = __builtin_ctzll(pkts_mask);		\
+	pkt00_index = rte_ctz64(pkts_mask);		\
 	pkt00_mask = 1LLU << pkt00_index;			\
 	pkts_mask &= ~pkt00_mask;				\
 								\
 	mbuf00 = pkts[pkt00_index];				\
 	rte_prefetch0(RTE_MBUF_METADATA_UINT8_PTR(mbuf00, key_offset));\
 								\
-	pkt01_index = __builtin_ctzll(pkts_mask);		\
+	pkt01_index = rte_ctz64(pkts_mask);		\
 	pkt01_mask = 1LLU << pkt01_index;			\
 	pkts_mask &= ~pkt01_mask;				\
 								\
@@ -762,14 +766,14 @@ rte_table_hash_entry_delete_key16_ext(
 	uint64_t pkt00_mask, pkt01_mask;			\
 	uint32_t key_offset = f->key_offset;		\
 								\
-	pkt00_index = __builtin_ctzll(pkts_mask);		\
+	pkt00_index = rte_ctz64(pkts_mask);		\
 	pkt00_mask = 1LLU << pkt00_index;			\
 	pkts_mask &= ~pkt00_mask;				\
 								\
 	mbuf00 = pkts[pkt00_index];				\
 	rte_prefetch0(RTE_MBUF_METADATA_UINT8_PTR(mbuf00, key_offset));	\
 								\
-	pkt01_index = __builtin_ctzll(pkts_mask);		\
+	pkt01_index = rte_ctz64(pkts_mask);		\
 	if (pkts_mask == 0)					\
 		pkt01_index = pkt00_index;			\
 	pkt01_mask = 1LLU << pkt01_index;			\
@@ -882,12 +886,12 @@ rte_table_hash_lookup_key16_lru(
 	uint32_t pkt11_index, pkt20_index, pkt21_index;
 	uint64_t pkts_mask_out = 0;
 
-	__rte_unused uint32_t n_pkts_in = __builtin_popcountll(pkts_mask);
+	__rte_unused uint32_t n_pkts_in = rte_popcount64(pkts_mask);
 
 	RTE_TABLE_HASH_KEY16_STATS_PKTS_IN_ADD(f, n_pkts_in);
 
 	/* Cannot run the pipeline with less than 5 packets */
-	if (__builtin_popcountll(pkts_mask) < 5) {
+	if (rte_popcount64(pkts_mask) < 5) {
 		for ( ; pkts_mask; ) {
 			struct rte_bucket_4_16 *bucket;
 			struct rte_mbuf *mbuf;
@@ -901,7 +905,7 @@ rte_table_hash_lookup_key16_lru(
 
 		*lookup_hit_mask = pkts_mask_out;
 		RTE_TABLE_HASH_KEY16_STATS_PKTS_LOOKUP_MISS(f, n_pkts_in -
-			__builtin_popcountll(pkts_mask_out));
+			rte_popcount64(pkts_mask_out));
 		return 0;
 	}
 
@@ -992,7 +996,7 @@ rte_table_hash_lookup_key16_lru(
 
 	*lookup_hit_mask = pkts_mask_out;
 	RTE_TABLE_HASH_KEY16_STATS_PKTS_LOOKUP_MISS(f, n_pkts_in -
-		__builtin_popcountll(pkts_mask_out));
+		rte_popcount64(pkts_mask_out));
 	return 0;
 } /* lookup LRU */
 
@@ -1013,12 +1017,12 @@ rte_table_hash_lookup_key16_ext(
 	struct rte_bucket_4_16 *buckets[RTE_PORT_IN_BURST_SIZE_MAX];
 	uint64_t *keys[RTE_PORT_IN_BURST_SIZE_MAX];
 
-	__rte_unused uint32_t n_pkts_in = __builtin_popcountll(pkts_mask);
+	__rte_unused uint32_t n_pkts_in = rte_popcount64(pkts_mask);
 
 	RTE_TABLE_HASH_KEY16_STATS_PKTS_IN_ADD(f, n_pkts_in);
 
 	/* Cannot run the pipeline with less than 5 packets */
-	if (__builtin_popcountll(pkts_mask) < 5) {
+	if (rte_popcount64(pkts_mask) < 5) {
 		for ( ; pkts_mask; ) {
 			struct rte_bucket_4_16 *bucket;
 			struct rte_mbuf *mbuf;
@@ -1131,7 +1135,7 @@ grind_next_buckets:
 			uint64_t pkt_mask;
 			uint32_t pkt_index;
 
-			pkt_index = __builtin_ctzll(buckets_mask);
+			pkt_index = rte_ctz64(buckets_mask);
 			pkt_mask = 1LLU << pkt_index;
 			buckets_mask &= ~pkt_mask;
 
@@ -1144,7 +1148,7 @@ grind_next_buckets:
 
 	*lookup_hit_mask = pkts_mask_out;
 	RTE_TABLE_HASH_KEY16_STATS_PKTS_LOOKUP_MISS(f, n_pkts_in -
-		__builtin_popcountll(pkts_mask_out));
+		rte_popcount64(pkts_mask_out));
 	return 0;
 } /* lookup EXT */
 

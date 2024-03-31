@@ -5,7 +5,9 @@
 #include "roc_api.h"
 #include "roc_priv.h"
 
-#define SSO_XAQ_CACHE_CNT (0x7)
+#define SSO_XAQ_CACHE_CNT (0x3)
+#define SSO_XAQ_RSVD_CNT  (0x4)
+#define SSO_XAQ_SLACK	  (16)
 
 /* Private functions. */
 int
@@ -14,6 +16,11 @@ sso_lf_alloc(struct dev *dev, enum sso_lf_type lf_type, uint16_t nb_lf,
 {
 	struct mbox *mbox = mbox_get(dev->mbox);
 	int rc = -ENOSPC;
+
+	if (!nb_lf) {
+		mbox_put(mbox);
+		return 0;
+	}
 
 	switch (lf_type) {
 	case SSO_LF_TYPE_HWS: {
@@ -53,6 +60,11 @@ sso_lf_free(struct dev *dev, enum sso_lf_type lf_type, uint16_t nb_lf)
 {
 	struct mbox *mbox = mbox_get(dev->mbox);
 	int rc = -ENOSPC;
+
+	if (!nb_lf) {
+		mbox_put(mbox);
+		return 0;
+	}
 
 	switch (lf_type) {
 	case SSO_LF_TYPE_HWS: {
@@ -95,6 +107,11 @@ sso_rsrc_attach(struct roc_sso *roc_sso, enum sso_lf_type lf_type,
 	struct mbox *mbox = mbox_get(dev->mbox);
 	struct rsrc_attach_req *req;
 	int rc = -ENOSPC;
+
+	if (!nb_lf) {
+		mbox_put(mbox);
+		return 0;
+	}
 
 	req = mbox_alloc_msg_attach_resources(mbox);
 	if (req == NULL)
@@ -184,8 +201,8 @@ exit:
 }
 
 void
-sso_hws_link_modify(uint8_t hws, uintptr_t base, struct plt_bitmap *bmp,
-		    uint16_t hwgrp[], uint16_t n, uint16_t enable)
+sso_hws_link_modify(uint8_t hws, uintptr_t base, struct plt_bitmap *bmp, uint16_t hwgrp[],
+		    uint16_t n, uint8_t set, uint16_t enable)
 {
 	uint64_t reg;
 	int i, j, k;
@@ -202,7 +219,7 @@ sso_hws_link_modify(uint8_t hws, uintptr_t base, struct plt_bitmap *bmp,
 		k = n % 4;
 		k = k ? k : 4;
 		for (j = 0; j < k; j++) {
-			mask[j] = hwgrp[i + j] | enable << 14;
+			mask[j] = hwgrp[i + j] | (uint32_t)set << 12 | enable << 14;
 			if (bmp) {
 				enable ? plt_bitmap_set(bmp, hwgrp[i + j]) :
 					 plt_bitmap_clear(bmp, hwgrp[i + j]);
@@ -216,6 +233,47 @@ sso_hws_link_modify(uint8_t hws, uintptr_t base, struct plt_bitmap *bmp,
 		reg = mask[0] | mask[1] << 16 | mask[2] << 32 | mask[3] << 48;
 		plt_write64(reg, base + SSOW_LF_GWS_GRPMSK_CHG);
 	}
+}
+
+static int
+sso_hws_link_modify_af(struct dev *dev, uint8_t hws, struct plt_bitmap *bmp, uint16_t hwgrp[],
+		       uint16_t n, uint8_t set, uint16_t enable)
+{
+	struct mbox *mbox = mbox_get(dev->mbox);
+	struct ssow_chng_mship *req;
+	int rc, i;
+
+	req = mbox_alloc_msg_ssow_chng_mship(mbox);
+	if (req == NULL) {
+		rc = mbox_process(mbox);
+		if (rc) {
+			mbox_put(mbox);
+			return -EIO;
+		}
+		req = mbox_alloc_msg_ssow_chng_mship(mbox);
+		if (req == NULL) {
+			mbox_put(mbox);
+			return -ENOSPC;
+		}
+	}
+	req->enable = enable;
+	req->set = set;
+	req->hws = hws;
+	req->nb_hwgrps = n;
+	for (i = 0; i < n; i++)
+		req->hwgrps[i] = hwgrp[i];
+	rc = mbox_process(mbox);
+	mbox_put(mbox);
+	if (rc == MBOX_MSG_INVALID)
+		return rc;
+	if (rc)
+		return -EIO;
+
+	for (i = 0; i < n; i++)
+		enable ? plt_bitmap_set(bmp, hwgrp[i]) :
+			 plt_bitmap_clear(bmp, hwgrp[i]);
+
+	return 0;
 }
 
 static int
@@ -262,13 +320,10 @@ roc_sso_hwgrp_base_get(struct roc_sso *roc_sso, uint16_t hwgrp)
 }
 
 uint64_t
-roc_sso_ns_to_gw(struct roc_sso *roc_sso, uint64_t ns)
+roc_sso_ns_to_gw(uint64_t base, uint64_t ns)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_sso)->dev;
-	uint64_t current_us, current_ns, new_ns;
-	uintptr_t base;
+	uint64_t current_us;
 
-	base = dev->bar2 + (RVU_BLOCK_ADDR_SSOW << 20);
 	current_us = plt_read64(base + SSOW_LF_GWS_NW_TIM);
 	/* From HRM, table 14-19:
 	 * The SSOW_LF_GWS_NW_TIM[NW_TIM] period is specified in n-1 notation.
@@ -277,43 +332,64 @@ roc_sso_ns_to_gw(struct roc_sso *roc_sso, uint64_t ns)
 
 	/* From HRM, table 14-1:
 	 * SSOW_LF_GWS_NW_TIM[NW_TIM] specifies the minimum timeout. The SSO
-	 * hardware times out a GET_WORK request within 2 usec of the minimum
+	 * hardware times out a GET_WORK request within 1 usec of the minimum
 	 * timeout specified by SSOW_LF_GWS_NW_TIM[NW_TIM].
 	 */
-	current_us += 2;
-	current_ns = current_us * 1E3;
-	new_ns = (ns - PLT_MIN(ns, current_ns));
-	new_ns = !new_ns ? 1 : new_ns;
-	return (new_ns * plt_tsc_hz()) / 1E9;
+	current_us += 1;
+	return PLT_MAX(1UL, (uint64_t)PLT_DIV_CEIL(ns, (current_us * 1E3)));
 }
 
 int
-roc_sso_hws_link(struct roc_sso *roc_sso, uint8_t hws, uint16_t hwgrp[],
-		 uint16_t nb_hwgrp)
+roc_sso_hws_link(struct roc_sso *roc_sso, uint8_t hws, uint16_t hwgrp[], uint16_t nb_hwgrp,
+		 uint8_t set, bool use_mbox)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_sso)->dev;
-	struct sso *sso;
+	struct sso *sso = roc_sso_to_sso_priv(roc_sso);
+	struct dev *dev = &sso->dev;
 	uintptr_t base;
+	int rc;
 
-	sso = roc_sso_to_sso_priv(roc_sso);
+	if (!nb_hwgrp)
+		return 0;
+
+	if (use_mbox && roc_model_is_cn10k()) {
+		rc = sso_hws_link_modify_af(dev, hws, sso->link_map[hws], hwgrp, nb_hwgrp, set, 1);
+		if (rc == MBOX_MSG_INVALID)
+			goto lf_access;
+		if (rc < 0)
+			return 0;
+		goto done;
+	}
+lf_access:
 	base = dev->bar2 + (RVU_BLOCK_ADDR_SSOW << 20 | hws << 12);
-	sso_hws_link_modify(hws, base, sso->link_map[hws], hwgrp, nb_hwgrp, 1);
-
+	sso_hws_link_modify(hws, base, sso->link_map[hws], hwgrp, nb_hwgrp, set, 1);
+done:
 	return nb_hwgrp;
 }
 
 int
 roc_sso_hws_unlink(struct roc_sso *roc_sso, uint8_t hws, uint16_t hwgrp[],
-		   uint16_t nb_hwgrp)
+		   uint16_t nb_hwgrp, uint8_t set, bool use_mbox)
 {
-	struct dev *dev = &roc_sso_to_sso_priv(roc_sso)->dev;
-	struct sso *sso;
+	struct sso *sso = roc_sso_to_sso_priv(roc_sso);
+	struct dev *dev = &sso->dev;
 	uintptr_t base;
+	int rc;
 
-	sso = roc_sso_to_sso_priv(roc_sso);
+	if (!nb_hwgrp)
+		return 0;
+
+	if (use_mbox && roc_model_is_cn10k()) {
+		rc = sso_hws_link_modify_af(dev, hws, sso->link_map[hws], hwgrp, nb_hwgrp, set, 0);
+		if (rc == MBOX_MSG_INVALID)
+			goto lf_access;
+		if (rc < 0)
+			return 0;
+		goto done;
+	}
+lf_access:
 	base = dev->bar2 + (RVU_BLOCK_ADDR_SSOW << 20 | hws << 12);
-	sso_hws_link_modify(hws, base, sso->link_map[hws], hwgrp, nb_hwgrp, 0);
-
+	sso_hws_link_modify(hws, base, sso->link_map[hws], hwgrp, nb_hwgrp, set, 0);
+done:
 	return nb_hwgrp;
 }
 
@@ -354,6 +430,37 @@ roc_sso_hws_stats_get(struct roc_sso *roc_sso, uint8_t hws,
 fail:
 	mbox_put(mbox);
 	return rc;
+}
+
+void
+roc_sso_hws_gwc_invalidate(struct roc_sso *roc_sso, uint8_t *hws,
+			   uint8_t nb_hws)
+{
+	struct sso *sso = roc_sso_to_sso_priv(roc_sso);
+	struct ssow_lf_inv_req *req;
+	struct dev *dev = &sso->dev;
+	struct mbox *mbox;
+	int i;
+
+	if (!nb_hws)
+		return;
+
+	mbox = mbox_get(dev->mbox);
+	req = mbox_alloc_msg_sso_ws_cache_inv(mbox);
+	if (req == NULL) {
+		mbox_process(mbox);
+		req = mbox_alloc_msg_sso_ws_cache_inv(mbox);
+		if (req == NULL) {
+			mbox_put(mbox);
+			return;
+		}
+	}
+	req->hdr.ver = SSOW_INVAL_SELECTIVE_VER;
+	req->nb_hws = nb_hws;
+	for (i = 0; i < nb_hws; i++)
+		req->hws[i] = hws[i];
+	mbox_process(mbox);
+	mbox_put(mbox);
 }
 
 int
@@ -493,9 +600,14 @@ sso_hwgrp_init_xaq_aura(struct dev *dev, struct roc_sso_xaq_data *xaq,
 
 	xaq->nb_xae = nb_xae;
 
-	/* Taken from HRM 14.3.3(4) */
+	/** SSO will reserve up to 0x4 XAQ buffers per group when GetWork engine
+	 * is inactive and it might prefetch an additional 0x3 buffers due to
+	 * pipelining.
+	 */
 	xaq->nb_xaq = (SSO_XAQ_CACHE_CNT * nb_hwgrp);
+	xaq->nb_xaq += (SSO_XAQ_RSVD_CNT * nb_hwgrp);
 	xaq->nb_xaq += PLT_MAX(1 + ((xaq->nb_xae - 1) / xae_waes), xaq->nb_xaq);
+	xaq->nb_xaq += SSO_XAQ_SLACK;
 
 	xaq->mem = plt_zmalloc(xaq_buf_size * xaq->nb_xaq, xaq_buf_size);
 	if (xaq->mem == NULL) {
@@ -523,7 +635,7 @@ sso_hwgrp_init_xaq_aura(struct dev *dev, struct roc_sso_xaq_data *xaq,
 		roc_npa_aura_op_free(xaq->aura_handle, 0, iova);
 		iova += xaq_buf_size;
 	}
-	roc_npa_aura_op_range_set(xaq->aura_handle, (uint64_t)xaq->mem, iova);
+	roc_npa_pool_op_range_set(xaq->aura_handle, (uint64_t)xaq->mem, iova);
 
 	if (roc_npa_aura_op_available_wait(xaq->aura_handle, xaq->nb_xaq, 0) !=
 	    xaq->nb_xaq) {
@@ -537,7 +649,7 @@ sso_hwgrp_init_xaq_aura(struct dev *dev, struct roc_sso_xaq_data *xaq,
 	 * There should be a minimum headroom of 7 XAQs per HWGRP for SSO
 	 * to request XAQ to cache them even before enqueue is called.
 	 */
-	xaq->xaq_lmt = xaq->nb_xaq - (nb_hwgrp * SSO_XAQ_CACHE_CNT);
+	xaq->xaq_lmt = xaq->nb_xaq - (nb_hwgrp * SSO_XAQ_CACHE_CNT) - SSO_XAQ_SLACK;
 
 	return 0;
 npa_fill_fail:
@@ -666,6 +778,9 @@ roc_sso_hwgrp_release_xaq(struct roc_sso *roc_sso, uint16_t hwgrps)
 	struct sso *sso = roc_sso_to_sso_priv(roc_sso);
 	struct dev *dev = &sso->dev;
 	int rc;
+
+	if (!hwgrps)
+		return 0;
 
 	rc = sso_hwgrp_release_xaq(dev, hwgrps);
 	return rc;
@@ -853,7 +968,7 @@ roc_sso_rsrc_init(struct roc_sso *roc_sso, uint8_t nb_hws, uint16_t nb_hwgrp, ui
 			goto sso_msix_fail;
 		}
 
-		nb_tim_lfs = nb_tim_lfs ? PLT_MIN(nb_tim_lfs, free_tim_lfs) : free_tim_lfs;
+		nb_tim_lfs = PLT_MIN(nb_tim_lfs, free_tim_lfs);
 	}
 
 	/* 2 error interrupt per TIM LF */

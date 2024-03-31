@@ -296,15 +296,15 @@ cycle:
 				const __vector unsigned char fdir_all_flags =
 					(__vector unsigned char)
 					(__vector unsigned int){
-					RTE_MBUF_F_RX_FDIR | RTE_MBUF_F_RX_FDIR_ID,
-					RTE_MBUF_F_RX_FDIR | RTE_MBUF_F_RX_FDIR_ID,
-					RTE_MBUF_F_RX_FDIR | RTE_MBUF_F_RX_FDIR_ID,
-					RTE_MBUF_F_RX_FDIR | RTE_MBUF_F_RX_FDIR_ID};
+					RTE_MBUF_F_RX_FDIR | rxq->mark_flag,
+					RTE_MBUF_F_RX_FDIR | rxq->mark_flag,
+					RTE_MBUF_F_RX_FDIR | rxq->mark_flag,
+					RTE_MBUF_F_RX_FDIR | rxq->mark_flag};
 				__vector unsigned char fdir_id_flags =
 					(__vector unsigned char)
 					(__vector unsigned int){
-					RTE_MBUF_F_RX_FDIR_ID, RTE_MBUF_F_RX_FDIR_ID,
-					RTE_MBUF_F_RX_FDIR_ID, RTE_MBUF_F_RX_FDIR_ID};
+					rxq->mark_flag, rxq->mark_flag,
+					rxq->mark_flag, rxq->mark_flag};
 				/* Extract flow_tag field. */
 				__vector unsigned char ftag0 = vec_perm(mcqe1,
 							zero, flow_mark_shuf);
@@ -632,8 +632,8 @@ rxq_cq_to_ptype_oflags_v(struct mlx5_rxq_data *rxq,
 			RTE_MBUF_F_RX_FDIR, RTE_MBUF_F_RX_FDIR};
 		__vector unsigned char fdir_id_flags =
 			(__vector unsigned char)(__vector unsigned int){
-			RTE_MBUF_F_RX_FDIR_ID, RTE_MBUF_F_RX_FDIR_ID,
-			RTE_MBUF_F_RX_FDIR_ID, RTE_MBUF_F_RX_FDIR_ID};
+			rxq->mark_flag, rxq->mark_flag,
+			rxq->mark_flag, rxq->mark_flag};
 		__vector unsigned char flow_tag, invalid_mask;
 
 		flow_tag = (__vector unsigned char)
@@ -1183,7 +1183,7 @@ rxq_cq_process_v(struct mlx5_rxq_data *rxq, volatile struct mlx5_cqe *cq,
 		comp_idx = ((__vector unsigned long)comp_mask)[0];
 
 		/* F.3 get the first compressed CQE. */
-		comp_idx = comp_idx ? __builtin_ctzll(comp_idx) /
+		comp_idx = comp_idx ? rte_ctz64(comp_idx) /
 			(sizeof(uint16_t) * 8) : MLX5_VPMD_DESCS_PER_LOOP;
 
 		/* E.6 mask out entries after the compressed CQE. */
@@ -1202,7 +1202,7 @@ rxq_cq_process_v(struct mlx5_rxq_data *rxq, volatile struct mlx5_cqe *cq,
 
 		/* E.7 count non-compressed valid CQEs. */
 		n = ((__vector unsigned long)invalid_mask)[0];
-		n = n ? __builtin_ctzll(n) / (sizeof(uint16_t) * 8) :
+		n = n ? rte_ctz64(n) / (sizeof(uint16_t) * 8) :
 			MLX5_VPMD_DESCS_PER_LOOP;
 		nocmp_n += n;
 

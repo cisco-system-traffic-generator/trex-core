@@ -386,7 +386,7 @@ tm_apply(struct tm_data *data,
 
 	/* Apply */
 	data->queue_id = p->subport_id <<
-				(__builtin_ctz(cfg->n_pipes_per_subport) + 4) |
+				(rte_ctz32(cfg->n_pipes_per_subport) + 4) |
 				p->pipe_id << 4;
 
 	return 0;
@@ -429,7 +429,7 @@ static int
 encap_cfg_check(struct rte_table_action_encap_config *encap)
 {
 	if ((encap->encap_mask == 0) ||
-		(__builtin_popcountll(encap->encap_mask) != 1))
+		(rte_popcount64(encap->encap_mask) != 1))
 		return -ENOTSUP;
 
 	return 0;
@@ -465,11 +465,11 @@ struct encap_qinq_data {
 	((((uint64_t)(s)) & 0x1LLU) << 8) |                \
 	(((uint64_t)(ttl)) & 0xFFLLU)))
 
-struct encap_mpls_data {
+struct __rte_aligned(2) encap_mpls_data {
 	struct rte_ether_hdr ether;
 	uint32_t mpls[RTE_TABLE_ACTION_MPLS_LABELS_MAX];
 	uint32_t mpls_count;
-} __rte_packed __rte_aligned(2);
+} __rte_packed;
 
 #define PPP_PROTOCOL_IP                                    0x0021
 
@@ -487,42 +487,42 @@ struct encap_pppoe_data {
 
 #define IP_PROTO_UDP                                       17
 
-struct encap_vxlan_ipv4_data {
+struct __rte_aligned(2) encap_vxlan_ipv4_data {
 	struct rte_ether_hdr ether;
 	struct rte_ipv4_hdr ipv4;
 	struct rte_udp_hdr udp;
 	struct rte_vxlan_hdr vxlan;
-} __rte_packed __rte_aligned(2);
+} __rte_packed;
 
-struct encap_vxlan_ipv4_vlan_data {
+struct __rte_aligned(2) encap_vxlan_ipv4_vlan_data {
 	struct rte_ether_hdr ether;
 	struct rte_vlan_hdr vlan;
 	struct rte_ipv4_hdr ipv4;
 	struct rte_udp_hdr udp;
 	struct rte_vxlan_hdr vxlan;
-} __rte_packed __rte_aligned(2);
+} __rte_packed;
 
-struct encap_vxlan_ipv6_data {
+struct __rte_aligned(2) encap_vxlan_ipv6_data {
 	struct rte_ether_hdr ether;
 	struct rte_ipv6_hdr ipv6;
 	struct rte_udp_hdr udp;
 	struct rte_vxlan_hdr vxlan;
-} __rte_packed __rte_aligned(2);
+} __rte_packed;
 
-struct encap_vxlan_ipv6_vlan_data {
+struct __rte_aligned(2) encap_vxlan_ipv6_vlan_data {
 	struct rte_ether_hdr ether;
 	struct rte_vlan_hdr vlan;
 	struct rte_ipv6_hdr ipv6;
 	struct rte_udp_hdr udp;
 	struct rte_vxlan_hdr vxlan;
-} __rte_packed __rte_aligned(2);
+} __rte_packed;
 
-struct encap_qinq_pppoe_data {
+struct __rte_aligned(2) encap_qinq_pppoe_data {
 	struct rte_ether_hdr ether;
 	struct rte_vlan_hdr svlan;
 	struct rte_vlan_hdr cvlan;
 	struct pppoe_ppp_hdr pppoe_ppp;
-} __rte_packed __rte_aligned(2);
+} __rte_packed;
 
 static size_t
 encap_data_size(struct rte_table_action_encap_config *encap)
@@ -1956,7 +1956,7 @@ pkt_work_sym_crypto(struct rte_mbuf *mbuf, struct sym_crypto_data *data,
 
 			/** For encryption, update the pkt iv field, otherwise
 			 *  update the iv_aad_field
-			 **/
+			 */
 			if (data->direction == RTE_CRYPTO_CIPHER_OP_ENCRYPT)
 				rte_memcpy(pkt_iv, data->iv_aad_data,
 					data->cipher_auth.cipher_iv_update_len);
@@ -3364,7 +3364,7 @@ ah(struct rte_pipeline *p,
 		time = rte_rdtsc();
 
 	if ((pkts_mask & (pkts_mask + 1)) == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 		uint32_t i;
 
 		for (i = 0; i < (n_pkts & (~0x3LLU)); i += 4) {
@@ -3392,7 +3392,7 @@ ah(struct rte_pipeline *p,
 		}
 	} else
 		for ( ; pkts_mask; ) {
-			uint32_t pos = __builtin_ctzll(pkts_mask);
+			uint32_t pos = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pos;
 			uint64_t drop_mask;
 

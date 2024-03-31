@@ -1,12 +1,15 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright(c) 2022 Intel Corporation
  */
+
+#include <stdalign.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <arpa/inet.h>
 
 #include <rte_common.h>
+#include <rte_random.h>
 #include <rte_ip.h>
 #include <rte_tailq.h>
 #include <rte_eal_memconfig.h>
@@ -154,7 +157,7 @@ struct rte_swx_ipsec {
 	/*
 	 * Table memory.
 	 */
-	uint8_t memory[] __rte_cache_aligned;
+	alignas(RTE_CACHE_LINE_SIZE) uint8_t memory[];
 };
 
 static inline struct ipsec_sa *
@@ -1453,7 +1456,7 @@ crypto_xform_get(struct rte_swx_ipsec_sa_params *p,
 		switch (p->crypto.cipher_auth.cipher.alg) {
 		case RTE_CRYPTO_CIPHER_AES_CBC:
 		case RTE_CRYPTO_CIPHER_3DES_CBC:
-			salt = (uint32_t)rand();
+			salt = rte_rand();
 			break;
 
 		case RTE_CRYPTO_CIPHER_AES_CTR:
@@ -1555,7 +1558,6 @@ ipsec_xform_get(struct rte_swx_ipsec_sa_params *p,
 	ipsec_xform->options.ip_csum_enable = 0;
 	ipsec_xform->options.l4_csum_enable = 0;
 	ipsec_xform->options.ip_reassembly_en = 0;
-	ipsec_xform->options.reserved_opts = 0;
 
 	ipsec_xform->direction = p->encrypt ?
 		RTE_SECURITY_IPSEC_SA_DIR_EGRESS :

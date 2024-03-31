@@ -104,6 +104,7 @@ skeleton_eventdev_info_get(struct rte_eventdev *dev,
 					RTE_EVENT_DEV_CAP_EVENT_QOS |
 					RTE_EVENT_DEV_CAP_CARRY_FLOW_ID |
 					RTE_EVENT_DEV_CAP_MAINTENANCE_FREE;
+	dev_info->max_profiles_per_port = 1;
 }
 
 static int
@@ -372,7 +373,7 @@ skeleton_eventdev_init(struct rte_eventdev *eventdev)
 	skel->subsystem_device_id = pci_dev->id.subsystem_device_id;
 	skel->subsystem_vendor_id = pci_dev->id.subsystem_vendor_id;
 
-	PMD_DRV_LOG(DEBUG, "pci device (%x:%x) %u:%u:%u:%u",
+	PMD_DRV_LOG(DEBUG, "PCI device (%x:%x) " PCI_PRI_FMT,
 			pci_dev->id.vendor_id, pci_dev->id.device_id,
 			pci_dev->addr.domain, pci_dev->addr.bus,
 			pci_dev->addr.devid, pci_dev->addr.function);
@@ -427,12 +428,12 @@ RTE_PMD_REGISTER_PCI_TABLE(event_skeleton_pci, pci_id_skeleton_map);
 /* VDEV based event device */
 
 static int
-skeleton_eventdev_create(const char *name, int socket_id)
+skeleton_eventdev_create(const char *name, int socket_id, struct rte_vdev_device *vdev)
 {
 	struct rte_eventdev *eventdev;
 
 	eventdev = rte_event_pmd_vdev_init(name,
-			sizeof(struct skeleton_eventdev), socket_id);
+			sizeof(struct skeleton_eventdev), socket_id, vdev);
 	if (eventdev == NULL) {
 		PMD_DRV_ERR("Failed to create eventdev vdev %s", name);
 		goto fail;
@@ -456,9 +457,8 @@ skeleton_eventdev_probe(struct rte_vdev_device *vdev)
 	const char *name;
 
 	name = rte_vdev_device_name(vdev);
-	RTE_LOG(INFO, PMD, "Initializing %s on NUMA node %d\n", name,
-			rte_socket_id());
-	return skeleton_eventdev_create(name, rte_socket_id());
+	PMD_DRV_LOG(INFO, "Initializing %s on NUMA node %d", name, rte_socket_id());
+	return skeleton_eventdev_create(name, rte_socket_id(), vdev);
 }
 
 static int
@@ -478,3 +478,4 @@ static struct rte_vdev_driver vdev_eventdev_skeleton_pmd = {
 };
 
 RTE_PMD_REGISTER_VDEV(EVENTDEV_NAME_SKELETON_PMD, vdev_eventdev_skeleton_pmd);
+RTE_LOG_REGISTER_DEFAULT(skeleton_eventdev_logtype, INFO);

@@ -980,7 +980,7 @@ ngbe_rx_scan_hw_ring(struct ngbe_rx_queue *rxq)
 		for (j = 0; j < LOOK_AHEAD; j++)
 			s[j] = rte_le_to_cpu_32(rxdp[j].qw1.lo.status);
 
-		rte_atomic_thread_fence(__ATOMIC_ACQUIRE);
+		rte_atomic_thread_fence(rte_memory_order_acquire);
 
 		/* Compute how many status bits were set */
 		for (nb_dd = 0; nb_dd < LOOK_AHEAD &&
@@ -1223,11 +1223,22 @@ ngbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		 * of accesses cannot be reordered by the compiler. If they were
 		 * not volatile, they could be reordered which could lead to
 		 * using invalid descriptor fields when read from rxd.
+		 *
+		 * Meanwhile, to prevent the CPU from executing out of order, we
+		 * need to use a proper memory barrier to ensure the memory
+		 * ordering below.
 		 */
 		rxdp = &rx_ring[rx_id];
 		staterr = rxdp->qw1.lo.status;
 		if (!(staterr & rte_cpu_to_le_32(NGBE_RXD_STAT_DD)))
 			break;
+
+		/*
+		 * Use acquire fence to ensure that status_error which includes
+		 * DD bit is loaded before loading of other descriptor words.
+		 */
+		rte_atomic_thread_fence(rte_memory_order_acquire);
+
 		rxd = *rxdp;
 
 		/*
@@ -1453,6 +1464,12 @@ next_desc:
 
 		if (!(staterr & NGBE_RXD_STAT_DD))
 			break;
+
+		/*
+		 * Use acquire fence to ensure that status_error which includes
+		 * DD bit is loaded before loading of other descriptor words.
+		 */
+		rte_atomic_thread_fence(rte_memory_order_acquire);
 
 		rxd = *rxdp;
 
@@ -2191,6 +2208,7 @@ ngbe_get_rx_port_offloads(struct rte_eth_dev *dev)
 		   RTE_ETH_RX_OFFLOAD_TCP_CKSUM   |
 		   RTE_ETH_RX_OFFLOAD_KEEP_CRC    |
 		   RTE_ETH_RX_OFFLOAD_VLAN_FILTER |
+		   RTE_ETH_RX_OFFLOAD_RSS_HASH    |
 		   RTE_ETH_RX_OFFLOAD_SCATTER;
 
 	if (hw->is_pf)
@@ -2414,6 +2432,7 @@ ngbe_dev_clear_queues(struct rte_eth_dev *dev)
 		if (txq != NULL) {
 			txq->ops->release_mbufs(txq);
 			txq->ops->reset(txq);
+			dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 		}
 	}
 
@@ -2423,6 +2442,7 @@ ngbe_dev_clear_queues(struct rte_eth_dev *dev)
 		if (rxq != NULL) {
 			ngbe_rx_queue_release_mbufs(rxq);
 			ngbe_reset_rx_queue(adapter, rxq);
+			dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 		}
 	}
 }

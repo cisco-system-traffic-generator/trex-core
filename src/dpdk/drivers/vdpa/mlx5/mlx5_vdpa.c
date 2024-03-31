@@ -282,6 +282,7 @@ _internal_mlx5_vdpa_dev_close(struct mlx5_vdpa_priv *priv,
 	int ret = 0;
 	int vid = priv->vid;
 
+	mlx5_vdpa_virtq_unreg_intr_handle_all(priv);
 	mlx5_vdpa_cqe_event_unset(priv);
 	if (priv->state == MLX5_VDPA_STATE_CONFIGURED) {
 		ret |= mlx5_vdpa_lm_log(priv);
@@ -844,7 +845,7 @@ mlx5_vdpa_dev_probe(struct mlx5_common_device *cdev,
 	mlx5_vdpa_config_get(mkvlist, priv);
 	if (priv->use_c_thread) {
 		if (conf_thread_mng.initializer_priv == priv)
-			if (mlx5_vdpa_mult_threads_create(priv->event_core))
+			if (mlx5_vdpa_mult_threads_create())
 				goto error;
 		__atomic_fetch_add(&conf_thread_mng.refcnt, 1,
 			__ATOMIC_RELAXED);

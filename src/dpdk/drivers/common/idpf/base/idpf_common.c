@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2022 Intel Corporation
+ * Copyright(c) 2001-2023 Intel Corporation
  */
 
 #include "idpf_type.h"
 #include "idpf_prototype.h"
-#include "virtchnl.h"
+#include <virtchnl.h>
 
 
 /**
@@ -130,6 +130,8 @@ int idpf_init_hw(struct idpf_hw *hw, struct idpf_ctlq_size ctlq_size)
 	hw->mac.addr[4] = 0x03;
 	hw->mac.addr[5] = 0x14;
 
+	idpf_free(hw, q_info);
+
 	return 0;
 }
 
@@ -146,7 +148,7 @@ int idpf_init_hw(struct idpf_hw *hw, struct idpf_ctlq_size ctlq_size)
  * is sent asynchronously, i.e. idpf_asq_send_command() does not wait for
  * completion before returning.
  */
-int idpf_send_msg_to_cp(struct idpf_hw *hw, enum virtchnl_ops v_opcode,
+int idpf_send_msg_to_cp(struct idpf_hw *hw, int v_opcode,
 			int v_retval, u8 *msg, u16 msglen)
 {
 	struct idpf_ctlq_msg ctlq_msg = { 0 };
@@ -219,6 +221,7 @@ bool idpf_check_asq_alive(struct idpf_hw *hw)
 int idpf_clean_arq_element(struct idpf_hw *hw,
 			   struct idpf_arq_event_info *e, u16 *pending)
 {
+	struct idpf_dma_mem *dma_mem = NULL;
 	struct idpf_ctlq_msg msg = { 0 };
 	int status;
 	u16 msg_data_len;
@@ -226,6 +229,8 @@ int idpf_clean_arq_element(struct idpf_hw *hw,
 	*pending = 1;
 
 	status = idpf_ctlq_recv(hw->arq, pending, &msg);
+	if (status == -ENOMSG)
+		goto exit;
 
 	/* ctlq_msg does not align to ctlq_desc, so copy relevant data here */
 	e->desc.opcode = msg.opcode;
@@ -234,13 +239,22 @@ int idpf_clean_arq_element(struct idpf_hw *hw,
 	e->desc.ret_val = msg.status;
 	e->desc.datalen = msg.data_len;
 	if (msg.data_len > 0) {
-		if (!msg.ctx.indirect.payload)
-			return -EINVAL;
+		if (!msg.ctx.indirect.payload || !msg.ctx.indirect.payload->va ||
+		    !e->msg_buf) {
+			return -EFAULT;
+		}
 		e->buf_len = msg.data_len;
 		msg_data_len = msg.data_len;
 		idpf_memcpy(e->msg_buf, msg.ctx.indirect.payload->va, msg_data_len,
 			    IDPF_DMA_TO_NONDMA);
+		dma_mem = msg.ctx.indirect.payload;
+	} else {
+		*pending = 0;
 	}
+
+	status = idpf_ctlq_post_rx_buffs(hw, hw->arq, pending, &dma_mem);
+
+exit:
 	return status;
 }
 
@@ -248,12 +262,12 @@ int idpf_clean_arq_element(struct idpf_hw *hw,
  *  idpf_deinit_hw - shutdown routine
  *  @hw: pointer to the hardware structure
  */
-int idpf_deinit_hw(struct idpf_hw *hw)
+void idpf_deinit_hw(struct idpf_hw *hw)
 {
 	hw->asq = NULL;
 	hw->arq = NULL;
 
-	return idpf_ctlq_deinit(hw);
+	idpf_ctlq_deinit(hw);
 }
 
 /**

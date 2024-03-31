@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2021 Broadcom
+ * Copyright(c) 2014-2023 Broadcom
  * All rights reserved.
  */
 
@@ -41,6 +41,7 @@ struct bnxt_rx_queue {
 	struct bnxt_cp_ring_info	*cp_ring;
 	struct rte_mbuf			fake_mbuf;
 	uint64_t			rx_mbuf_alloc_fail;
+	uint8_t				need_realloc;
 	const struct rte_memzone *mz;
 };
 

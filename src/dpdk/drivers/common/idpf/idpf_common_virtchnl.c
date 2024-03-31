@@ -2,8 +2,8 @@
  * Copyright(c) 2023 Intel Corporation
  */
 
-#include <idpf_common_virtchnl.h>
-#include <idpf_common_logs.h>
+#include "idpf_common_virtchnl.h"
+#include "idpf_common_logs.h"
 
 static int
 idpf_vc_clean(struct idpf_adapter *adapter)
@@ -202,14 +202,10 @@ idpf_vc_cmd_execute(struct idpf_adapter *adapter, struct idpf_cmd_info *args)
 	switch (args->ops) {
 	case VIRTCHNL_OP_VERSION:
 	case VIRTCHNL2_OP_GET_CAPS:
+	case VIRTCHNL2_OP_GET_PTYPE_INFO:
 		/* for init virtchnl ops, need to poll the response */
 		err = idpf_vc_one_msg_read(adapter, args->ops, args->out_size, args->out_buffer);
 		clear_cmd(adapter);
-		break;
-	case VIRTCHNL2_OP_GET_PTYPE_INFO:
-		/* for multuple response message,
-		 * do not handle the response here.
-		 */
 		break;
 	default:
 		/* For other virtchnl ops in running time,
@@ -278,51 +274,12 @@ idpf_vc_api_version_check(struct idpf_adapter *adapter)
 int
 idpf_vc_caps_get(struct idpf_adapter *adapter)
 {
-	struct virtchnl2_get_capabilities caps_msg;
 	struct idpf_cmd_info args;
 	int err;
 
-	memset(&caps_msg, 0, sizeof(struct virtchnl2_get_capabilities));
-
-	caps_msg.csum_caps =
-		VIRTCHNL2_CAP_TX_CSUM_L3_IPV4          |
-		VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_TCP      |
-		VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_UDP      |
-		VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_SCTP     |
-		VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_TCP      |
-		VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_UDP      |
-		VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_SCTP     |
-		VIRTCHNL2_CAP_TX_CSUM_GENERIC          |
-		VIRTCHNL2_CAP_RX_CSUM_L3_IPV4          |
-		VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_TCP      |
-		VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_UDP      |
-		VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_SCTP     |
-		VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_TCP      |
-		VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_UDP      |
-		VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_SCTP     |
-		VIRTCHNL2_CAP_RX_CSUM_GENERIC;
-
-	caps_msg.rss_caps =
-		VIRTCHNL2_CAP_RSS_IPV4_TCP             |
-		VIRTCHNL2_CAP_RSS_IPV4_UDP             |
-		VIRTCHNL2_CAP_RSS_IPV4_SCTP            |
-		VIRTCHNL2_CAP_RSS_IPV4_OTHER           |
-		VIRTCHNL2_CAP_RSS_IPV6_TCP             |
-		VIRTCHNL2_CAP_RSS_IPV6_UDP             |
-		VIRTCHNL2_CAP_RSS_IPV6_SCTP            |
-		VIRTCHNL2_CAP_RSS_IPV6_OTHER           |
-		VIRTCHNL2_CAP_RSS_IPV4_AH              |
-		VIRTCHNL2_CAP_RSS_IPV4_ESP             |
-		VIRTCHNL2_CAP_RSS_IPV4_AH_ESP          |
-		VIRTCHNL2_CAP_RSS_IPV6_AH              |
-		VIRTCHNL2_CAP_RSS_IPV6_ESP             |
-		VIRTCHNL2_CAP_RSS_IPV6_AH_ESP;
-
-	caps_msg.other_caps = VIRTCHNL2_CAP_WB_ON_ITR;
-
 	args.ops = VIRTCHNL2_OP_GET_CAPS;
-	args.in_args = (uint8_t *)&caps_msg;
-	args.in_args_size = sizeof(caps_msg);
+	args.in_args = (uint8_t *)&adapter->caps;
+	args.in_args_size = sizeof(struct virtchnl2_get_capabilities);
 	args.out_buffer = adapter->mbx_resp;
 	args.out_size = IDPF_DFLT_MBX_BUF_SIZE;
 
@@ -333,7 +290,7 @@ idpf_vc_caps_get(struct idpf_adapter *adapter)
 		return err;
 	}
 
-	rte_memcpy(&adapter->caps, args.out_buffer, sizeof(caps_msg));
+	rte_memcpy(&adapter->caps, args.out_buffer, sizeof(struct virtchnl2_get_capabilities));
 
 	return 0;
 }
@@ -395,6 +352,72 @@ idpf_vc_vport_destroy(struct idpf_vport *vport)
 	if (err != 0)
 		DRV_LOG(ERR, "Failed to execute command of VIRTCHNL2_OP_DESTROY_VPORT");
 
+	return err;
+}
+
+int
+idpf_vc_queue_grps_add(struct idpf_vport *vport,
+		       struct virtchnl2_add_queue_groups *p2p_queue_grps_info,
+		       uint8_t *p2p_queue_grps_out)
+{
+	struct idpf_adapter *adapter = vport->adapter;
+	struct idpf_cmd_info args;
+	int size, qg_info_size;
+	int err = -1;
+
+	size = sizeof(*p2p_queue_grps_info) +
+	       (p2p_queue_grps_info->qg_info.num_queue_groups - 1) *
+		   sizeof(struct virtchnl2_queue_group_info);
+
+	memset(&args, 0, sizeof(args));
+	args.ops = VIRTCHNL2_OP_ADD_QUEUE_GROUPS;
+	args.in_args = (uint8_t *)p2p_queue_grps_info;
+	args.in_args_size = size;
+	args.out_buffer = adapter->mbx_resp;
+	args.out_size = IDPF_DFLT_MBX_BUF_SIZE;
+
+	err = idpf_vc_cmd_execute(adapter, &args);
+	if (err != 0) {
+		DRV_LOG(ERR,
+			"Failed to execute command of VIRTCHNL2_OP_ADD_QUEUE_GROUPS");
+		return err;
+	}
+
+	rte_memcpy(p2p_queue_grps_out, args.out_buffer, IDPF_DFLT_MBX_BUF_SIZE);
+	return 0;
+}
+
+int idpf_vc_queue_grps_del(struct idpf_vport *vport,
+			  uint16_t num_q_grps,
+			  struct virtchnl2_queue_group_id *qg_ids)
+{
+	struct idpf_adapter *adapter = vport->adapter;
+	struct virtchnl2_delete_queue_groups *vc_del_q_grps;
+	struct idpf_cmd_info args;
+	int size;
+	int err;
+
+	size = sizeof(*vc_del_q_grps) +
+	       (num_q_grps - 1) * sizeof(struct virtchnl2_queue_group_id);
+	vc_del_q_grps = rte_zmalloc("vc_del_q_grps", size, 0);
+
+	vc_del_q_grps->vport_id = vport->vport_id;
+	vc_del_q_grps->num_queue_groups = num_q_grps;
+	memcpy(vc_del_q_grps->qg_ids, qg_ids,
+	       num_q_grps * sizeof(struct virtchnl2_queue_group_id));
+
+	memset(&args, 0, sizeof(args));
+	args.ops = VIRTCHNL2_OP_DEL_QUEUE_GROUPS;
+	args.in_args = (uint8_t *)vc_del_q_grps;
+	args.in_args_size = size;
+	args.out_buffer = adapter->mbx_resp;
+	args.out_size = IDPF_DFLT_MBX_BUF_SIZE;
+
+	err = idpf_vc_cmd_execute(adapter, &args);
+	if (err != 0)
+		DRV_LOG(ERR, "Failed to execute command of VIRTCHNL2_OP_DEL_QUEUE_GROUPS");
+
+	rte_free(vc_del_q_grps);
 	return err;
 }
 
@@ -706,7 +729,7 @@ idpf_vc_vectors_dealloc(struct idpf_vport *vport)
 	return err;
 }
 
-static int
+int
 idpf_vc_ena_dis_one_queue(struct idpf_vport *vport, uint16_t qid,
 			  uint32_t type, bool on)
 {
@@ -882,28 +905,24 @@ idpf_vc_vport_ena_dis(struct idpf_vport *vport, bool enable)
 }
 
 int
-idpf_vc_ptype_info_query(struct idpf_adapter *adapter)
+idpf_vc_ptype_info_query(struct idpf_adapter *adapter,
+			 struct virtchnl2_get_ptype_info *req_ptype_info,
+			 struct virtchnl2_get_ptype_info *recv_ptype_info)
 {
-	struct virtchnl2_get_ptype_info *ptype_info;
 	struct idpf_cmd_info args;
-	int len, err;
+	int err;
 
-	len = sizeof(struct virtchnl2_get_ptype_info);
-	ptype_info = rte_zmalloc("ptype_info", len, 0);
-	if (ptype_info == NULL)
-		return -ENOMEM;
-
-	ptype_info->start_ptype_id = 0;
-	ptype_info->num_ptypes = IDPF_MAX_PKT_TYPE;
 	args.ops = VIRTCHNL2_OP_GET_PTYPE_INFO;
-	args.in_args = (uint8_t *)ptype_info;
-	args.in_args_size = len;
+	args.in_args = (uint8_t *)req_ptype_info;
+	args.in_args_size = sizeof(struct virtchnl2_get_ptype_info);
+	args.out_buffer = adapter->mbx_resp;
+	args.out_size = IDPF_DFLT_MBX_BUF_SIZE;
 
 	err = idpf_vc_cmd_execute(adapter, &args);
 	if (err != 0)
 		DRV_LOG(ERR, "Failed to execute command of VIRTCHNL2_OP_GET_PTYPE_INFO");
 
-	rte_free(ptype_info);
+	rte_memcpy(recv_ptype_info, args.out_buffer, IDPF_DFLT_MBX_BUF_SIZE);
 	return err;
 }
 
@@ -1023,6 +1042,41 @@ idpf_vc_rxq_config(struct idpf_vport *vport, struct idpf_rx_queue *rxq)
 	return err;
 }
 
+int idpf_vc_rxq_config_by_info(struct idpf_vport *vport, struct virtchnl2_rxq_info *rxq_info,
+			       uint16_t num_qs)
+{
+	struct idpf_adapter *adapter = vport->adapter;
+	struct virtchnl2_config_rx_queues *vc_rxqs = NULL;
+	struct idpf_cmd_info args;
+	int size, err, i;
+
+	size = sizeof(*vc_rxqs) + (num_qs - 1) *
+		sizeof(struct virtchnl2_rxq_info);
+	vc_rxqs = rte_zmalloc("cfg_rxqs", size, 0);
+	if (vc_rxqs == NULL) {
+		DRV_LOG(ERR, "Failed to allocate virtchnl2_config_rx_queues");
+		err = -ENOMEM;
+		return err;
+	}
+	vc_rxqs->vport_id = vport->vport_id;
+	vc_rxqs->num_qinfo = num_qs;
+	memcpy(vc_rxqs->qinfo, rxq_info, num_qs * sizeof(struct virtchnl2_rxq_info));
+
+	memset(&args, 0, sizeof(args));
+	args.ops = VIRTCHNL2_OP_CONFIG_RX_QUEUES;
+	args.in_args = (uint8_t *)vc_rxqs;
+	args.in_args_size = size;
+	args.out_buffer = adapter->mbx_resp;
+	args.out_size = IDPF_DFLT_MBX_BUF_SIZE;
+
+	err = idpf_vc_cmd_execute(adapter, &args);
+	rte_free(vc_rxqs);
+	if (err != 0)
+		DRV_LOG(ERR, "Failed to execute command of VIRTCHNL2_OP_CONFIG_RX_QUEUES");
+
+	return err;
+}
+
 int
 idpf_vc_txq_config(struct idpf_vport *vport, struct idpf_tx_queue *txq)
 {
@@ -1078,6 +1132,41 @@ idpf_vc_txq_config(struct idpf_vport *vport, struct idpf_tx_queue *txq)
 		txq_info->sched_mode = VIRTCHNL2_TXQ_SCHED_MODE_FLOW;
 		txq_info->ring_len = txq->complq->nb_tx_desc;
 	}
+
+	memset(&args, 0, sizeof(args));
+	args.ops = VIRTCHNL2_OP_CONFIG_TX_QUEUES;
+	args.in_args = (uint8_t *)vc_txqs;
+	args.in_args_size = size;
+	args.out_buffer = adapter->mbx_resp;
+	args.out_size = IDPF_DFLT_MBX_BUF_SIZE;
+
+	err = idpf_vc_cmd_execute(adapter, &args);
+	rte_free(vc_txqs);
+	if (err != 0)
+		DRV_LOG(ERR, "Failed to execute command of VIRTCHNL2_OP_CONFIG_TX_QUEUES");
+
+	return err;
+}
+
+int
+idpf_vc_txq_config_by_info(struct idpf_vport *vport, struct virtchnl2_txq_info *txq_info,
+		       uint16_t num_qs)
+{
+	struct idpf_adapter *adapter = vport->adapter;
+	struct virtchnl2_config_tx_queues *vc_txqs = NULL;
+	struct idpf_cmd_info args;
+	int size, err;
+
+	size = sizeof(*vc_txqs) + (num_qs - 1) * sizeof(struct virtchnl2_txq_info);
+	vc_txqs = rte_zmalloc("cfg_txqs", size, 0);
+	if (vc_txqs == NULL) {
+		DRV_LOG(ERR, "Failed to allocate virtchnl2_config_tx_queues");
+		err = -ENOMEM;
+		return err;
+	}
+	vc_txqs->vport_id = vport->vport_id;
+	vc_txqs->num_qinfo = num_qs;
+	memcpy(vc_txqs->qinfo, txq_info, num_qs * sizeof(struct virtchnl2_txq_info));
 
 	memset(&args, 0, sizeof(args));
 	args.ops = VIRTCHNL2_OP_CONFIG_TX_QUEUES;

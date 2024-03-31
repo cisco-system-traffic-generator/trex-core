@@ -7,6 +7,9 @@
 
 #include "hw/ssow.h"
 
+#define ROC_SSO_AW_PER_LMT_LINE_LOG2 3
+#define ROC_SSO_XAE_PER_XAQ	     352
+
 struct roc_sso_hwgrp_qos {
 	uint16_t hwgrp;
 	uint8_t xaq_prcnt;
@@ -80,11 +83,11 @@ int __roc_api roc_sso_hwgrp_release_xaq(struct roc_sso *roc_sso,
 int __roc_api roc_sso_hwgrp_set_priority(struct roc_sso *roc_sso,
 					 uint16_t hwgrp, uint8_t weight,
 					 uint8_t affinity, uint8_t priority);
-uint64_t __roc_api roc_sso_ns_to_gw(struct roc_sso *roc_sso, uint64_t ns);
-int __roc_api roc_sso_hws_link(struct roc_sso *roc_sso, uint8_t hws,
-			       uint16_t hwgrp[], uint16_t nb_hwgrp);
-int __roc_api roc_sso_hws_unlink(struct roc_sso *roc_sso, uint8_t hws,
-				 uint16_t hwgrp[], uint16_t nb_hwgrp);
+uint64_t __roc_api roc_sso_ns_to_gw(uint64_t base, uint64_t ns);
+int __roc_api roc_sso_hws_link(struct roc_sso *roc_sso, uint8_t hws, uint16_t hwgrp[],
+			       uint16_t nb_hwgrp, uint8_t set, bool use_mbox);
+int __roc_api roc_sso_hws_unlink(struct roc_sso *roc_sso, uint8_t hws, uint16_t hwgrp[],
+				 uint16_t nb_hwgrp, uint8_t set, bool use_mbox);
 int __roc_api roc_sso_hwgrp_hws_link_status(struct roc_sso *roc_sso,
 					    uint8_t hws, uint16_t hwgrp);
 uintptr_t __roc_api roc_sso_hws_base_get(struct roc_sso *roc_sso, uint8_t hws);
@@ -97,6 +100,8 @@ int __roc_api roc_sso_hwgrp_free_xaq_aura(struct roc_sso *roc_sso,
 int __roc_api roc_sso_hwgrp_stash_config(struct roc_sso *roc_sso,
 					 struct roc_sso_hwgrp_stash *stash,
 					 uint16_t nb_stash);
+void __roc_api roc_sso_hws_gwc_invalidate(struct roc_sso *roc_sso, uint8_t *hws,
+					  uint8_t nb_hws);
 
 /* Debug */
 void __roc_api roc_sso_dump(struct roc_sso *roc_sso, uint8_t nb_hws,

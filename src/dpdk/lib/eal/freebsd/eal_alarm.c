@@ -4,6 +4,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,7 +59,7 @@ rte_eal_alarm_init(void)
 
 	intr_handle = rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_PRIVATE);
 	if (intr_handle == NULL) {
-		RTE_LOG(ERR, EAL, "Fail to allocate intr_handle\n");
+		EAL_LOG(ERR, "Fail to allocate intr_handle");
 		goto error;
 	}
 

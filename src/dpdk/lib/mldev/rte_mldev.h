@@ -144,9 +144,10 @@ extern "C" {
 
 /* Logging Macro */
 extern int rte_ml_dev_logtype;
+#define RTE_LOGTYPE_MLDEV rte_ml_dev_logtype
 
-#define RTE_MLDEV_LOG(level, fmt, args...)                                                         \
-	rte_log(RTE_LOG_##level, rte_ml_dev_logtype, "%s(): " fmt "\n", __func__, ##args)
+#define RTE_MLDEV_LOG(level, ...) \
+	RTE_LOG_LINE_PREFIX(level, MLDEV, "%s(): ", __func__, __VA_ARGS__)
 
 #define RTE_ML_STR_MAX 128
 /**< Maximum length of name string */
@@ -228,12 +229,14 @@ struct rte_ml_dev_info {
 	/**< Maximum allowed number of descriptors for queue pair by the device.
 	 * @see struct rte_ml_dev_qp_conf::nb_desc
 	 */
+	uint16_t max_io;
+	/**< Maximum number of inputs/outputs supported per model. */
 	uint16_t max_segments;
 	/**< Maximum number of scatter-gather entries supported by the device.
 	 * @see struct rte_ml_buff_seg  struct rte_ml_buff_seg::next
 	 */
-	uint16_t min_align_size;
-	/**< Minimum alignment size of IO buffers used by the device. */
+	uint16_t align_size;
+	/**< Alignment size of IO buffers used by the device. */
 };
 
 /**
@@ -418,7 +421,7 @@ struct rte_ml_buff_seg {
  * This structure contains data related to performing an ML operation on the buffers using
  * the model specified through model_id.
  */
-struct rte_ml_op {
+struct __rte_cache_aligned rte_ml_op {
 	uint16_t model_id;
 	/**< Model ID to be used for the operation. */
 	uint16_t nb_batches;
@@ -429,11 +432,28 @@ struct rte_ml_op {
 	/**< Reserved for future use. */
 	struct rte_mempool *mempool;
 	/**< Pool from which operation is allocated. */
-	struct rte_ml_buff_seg input;
-	/**< Input buffer to hold the inference data. */
-	struct rte_ml_buff_seg output;
-	/**< Output buffer to hold the inference output by the driver. */
-	RTE_STD_C11
+	struct rte_ml_buff_seg **input;
+	/**< Array of buffer segments to hold the inference input data.
+	 *
+	 * When the model supports IO layout RTE_ML_IO_LAYOUT_PACKED, size of
+	 * the array is 1.
+	 *
+	 * When the model supports IO layout RTE_ML_IO_LAYOUT_SPLIT, size of
+	 * the array is rte_ml_model_info::nb_inputs.
+	 *
+	 * @see struct rte_ml_dev_info::io_layout
+	 */
+	struct rte_ml_buff_seg **output;
+	/**< Array of buffer segments to hold the inference output data.
+	 *
+	 * When the model supports IO layout RTE_ML_IO_LAYOUT_PACKED, size of
+	 * the array is 1.
+	 *
+	 * When the model supports IO layout RTE_ML_IO_LAYOUT_SPLIT, size of
+	 * the array is rte_ml_model_info::nb_outputs.
+	 *
+	 * @see struct rte_ml_dev_info::io_layout
+	 */
 	union {
 		uint64_t user_u64;
 		/**< User data as uint64_t.*/
@@ -449,7 +469,7 @@ struct rte_ml_op {
 	 * dequeue and enqueue operation.
 	 * The application should not modify this field.
 	 */
-} __rte_cache_aligned;
+};
 
 /* Enqueue/Dequeue operations */
 
@@ -594,6 +614,16 @@ void
 rte_ml_dev_stats_reset(int16_t dev_id);
 
 /**
+ * Selects the component of the mldev to retrieve statistics from.
+ */
+enum rte_ml_dev_xstats_mode {
+	RTE_ML_DEV_XSTATS_DEVICE,
+	/**< Device xstats */
+	RTE_ML_DEV_XSTATS_MODEL,
+	/**< Model xstats */
+};
+
+/**
  * A name-key lookup element for extended statistics.
  *
  * This structure is used to map between names and ID numbers for extended ML device statistics.
@@ -610,24 +640,31 @@ struct rte_ml_dev_xstats_map {
  *
  * @param dev_id
  *   The identifier of the device.
+ * @param mode
+ *   Mode of statistics to retrieve. Choices include the device statistics and model statistics.
+ * @param model_id
+ *   Used to specify the model number in model mode, and is ignored in device mode.
  * @param[out] xstats_map
- *   Block of memory to insert id and names into. Must be at least size in capacity.
- * If set to NULL, function returns required capacity.
+ *   Block of memory to insert names and ids into. Must be at least size in capacity. If set to
+ * NULL, function returns required capacity. The id values returned can be passed to
+ * *rte_ml_dev_xstats_get* to select statistics.
  * @param size
- *   Capacity of xstats_map (number of name-id maps).
- *
+ *   Capacity of xstats_names (number of xstats_map).
  * @return
- *   - Positive value on success:
- *      - The return value is the number of entries filled in the stats map.
- *      - If xstats_map set to NULL then required capacity for xstats_map.
+ *   - Positive value lower or equal to size: success. The return value is the number of entries
+ * filled in the stats table.
+ *   - Positive value higher than size: error, the given statistics table is too small. The return
+ * value corresponds to the size that should be given to succeed. The entries in the table are not
+ * valid and shall not be used by the caller.
  *   - Negative value on error:
- *      - -ENODEV: for invalid *dev_id*.
- *      - -ENOTSUP: if the device doesn't support this function.
+ *        -ENODEV for invalid *dev_id*.
+ *        -EINVAL for invalid mode, model parameters.
+ *        -ENOTSUP if the device doesn't support this function.
  */
 __rte_experimental
 int
-rte_ml_dev_xstats_names_get(int16_t dev_id, struct rte_ml_dev_xstats_map *xstats_map,
-			    uint32_t size);
+rte_ml_dev_xstats_names_get(int16_t dev_id, enum rte_ml_dev_xstats_mode mode, int32_t model_id,
+			    struct rte_ml_dev_xstats_map *xstats_map, uint32_t size);
 
 /**
  * Retrieve the value of a single stat by requesting it by name.
@@ -635,18 +672,16 @@ rte_ml_dev_xstats_names_get(int16_t dev_id, struct rte_ml_dev_xstats_map *xstats
  * @param dev_id
  *   The identifier of the device.
  * @param name
- *   The stat name to retrieve.
- * @param stat_id
- *   If non-NULL, the numerical id of the stat will be returned, so that further requests for
- * the stat can be got using rte_ml_dev_xstats_get, which will be faster as it doesn't need to
- * scan a list of names for the stat.
+ *   Name of stat name to retrieve.
+ * @param[out] stat_id
+ *   If non-NULL, the numerical id of the stat will be returned, so that further requests for the
+ * stat can be got using rte_ml_dev_xstats_get, which will be faster as it doesn't need to scan a
+ * list of names for the stat. If the stat cannot be found, the id returned will be (unsigned)-1.
  * @param[out] value
- *   Must be non-NULL, retrieved xstat value will be stored in this address.
- *
+ *   Value of the stat to be returned.
  * @return
- *   - 0: Successfully retrieved xstat value.
- *   - -EINVAL: invalid parameters.
- *   - -ENOTSUP: if not supported.
+ *   - Zero: No error.
+ *   - Negative value: -EINVAL if stat not found, -ENOTSUP if not supported.
  */
 __rte_experimental
 int
@@ -657,43 +692,51 @@ rte_ml_dev_xstats_by_name_get(int16_t dev_id, const char *name, uint16_t *stat_i
  *
  * @param dev_id
  *   The identifier of the device.
+ * @param mode
+ *  Mode of statistics to retrieve. Choices include the device statistics and model statistics.
+ * @param model_id
+ *   Used to specify the model id in model mode, and is ignored in device mode.
  * @param stat_ids
- *   The id numbers of the stats to get. The ids can be fetched from the stat position in the
- * stat list from rte_ml_dev_xstats_names_get(), or by using rte_ml_dev_xstats_by_name_get().
- * @param values
- *   The values for each stats request by ID.
+ *   ID numbers of the stats to get. The ids can be got from the stat position in the stat list from
+ * rte_ml_dev_xstats_names_get(), or by using rte_ml_dev_xstats_by_name_get().
+ * @param[out] values
+ *   Values for each stats request by ID.
  * @param nb_ids
- *   The number of stats requested.
+ *   Number of stats requested.
  * @return
  *   - Positive value: number of stat entries filled into the values array
  *   - Negative value on error:
- *      - -ENODEV: for invalid *dev_id*.
- *      - -ENOTSUP: if the device doesn't support this function.
+ *        -ENODEV for invalid *dev_id*.
+ *        -EINVAL for invalid mode, model id or stat id parameters.
+ *        -ENOTSUP if the device doesn't support this function.
  */
 __rte_experimental
 int
-rte_ml_dev_xstats_get(int16_t dev_id, const uint16_t *stat_ids, uint64_t *values, uint16_t nb_ids);
+rte_ml_dev_xstats_get(int16_t dev_id, enum rte_ml_dev_xstats_mode mode, int32_t model_id,
+		      const uint16_t stat_ids[], uint64_t values[], uint16_t nb_ids);
 
 /**
  * Reset the values of the xstats of the selected component in the device.
  *
  * @param dev_id
  *   The identifier of the device.
+ * @param mode
+ *   Mode of the statistics to reset. Choose from device or model.
+ * @param model_id
+ *   Model stats to reset. 0 and positive values select models, while -1 indicates all models.
  * @param stat_ids
- *   Selects specific statistics to be reset. When NULL, all statistics will be reset.
- * If non-NULL, must point to array of at least *nb_ids* size.
+ *   Selects specific statistics to be reset. When NULL, all statistics selected by *mode* will be
+ * reset. If non-NULL, must point to array of at least *nb_ids* size.
  * @param nb_ids
  *   The number of ids available from the *ids* array. Ignored when ids is NULL.
  * @return
- *   - 0: Successfully reset the statistics to zero.
- *   - -EINVAL: invalid parameters.
- *   - -ENOTSUP: if not supported.
+ *   - Zero: successfully reset the statistics.
+ *   - Negative value: -EINVAL invalid parameters, -ENOTSUP if not supported.
  */
 __rte_experimental
 int
-rte_ml_dev_xstats_reset(int16_t dev_id, const uint16_t *stat_ids, uint16_t nb_ids);
-
-/* Utility operations */
+rte_ml_dev_xstats_reset(int16_t dev_id, enum rte_ml_dev_xstats_mode mode, int32_t model_id,
+			const uint16_t stat_ids[], uint16_t nb_ids);
 
 /**
  * Dump internal information about *dev_id* to the FILE* provided in *fd*.
@@ -831,6 +874,10 @@ enum rte_ml_io_type {
 	/**< 32-bit integer */
 	RTE_ML_IO_TYPE_UINT32,
 	/**< 32-bit unsigned integer */
+	RTE_ML_IO_TYPE_INT64,
+	/**< 32-bit integer */
+	RTE_ML_IO_TYPE_UINT64,
+	/**< 32-bit unsigned integer */
 	RTE_ML_IO_TYPE_FP8,
 	/**< 8-bit floating point number */
 	RTE_ML_IO_TYPE_FP16,
@@ -841,60 +888,55 @@ enum rte_ml_io_type {
 	/**< 16-bit brain floating point number. */
 };
 
-/**
- * Input and output format. This is used to represent the encoding type of multi-dimensional
- * used by ML models.
- */
-enum rte_ml_io_format {
-	RTE_ML_IO_FORMAT_NCHW = 1,
-	/**< Batch size (N) x channels (C) x height (H) x width (W) */
-	RTE_ML_IO_FORMAT_NHWC,
-	/**< Batch size (N) x height (H) x width (W) x channels (C) */
-	RTE_ML_IO_FORMAT_CHWN,
-	/**< Channels (C) x height (H) x width (W) x batch size (N) */
-	RTE_ML_IO_FORMAT_3D,
-	/**< Format to represent a 3 dimensional data */
-	RTE_ML_IO_FORMAT_2D,
-	/**< Format to represent matrix data */
-	RTE_ML_IO_FORMAT_1D,
-	/**< Format to represent vector data */
-	RTE_ML_IO_FORMAT_SCALAR,
-	/**< Format to represent scalar data */
+/** ML I/O buffer layout */
+enum rte_ml_io_layout {
+	RTE_ML_IO_LAYOUT_PACKED,
+	/**< All inputs for the model should packed in a single buffer with
+	 * no padding between individual inputs. The buffer is expected to
+	 * be aligned to rte_ml_dev_info::align_size.
+	 *
+	 * When I/O segmentation is supported by the device, the packed
+	 * data can be split into multiple segments. In this case, each
+	 * segment is expected to be aligned to rte_ml_dev_info::align_size
+	 *
+	 * Same applies to output.
+	 *
+	 * @see struct rte_ml_dev_info::max_segments
+	 */
+	RTE_ML_IO_LAYOUT_SPLIT
+	/**< Each input for the model should be stored as separate buffers
+	 * and each input should be aligned to rte_ml_dev_info::align_size.
+	 *
+	 * When I/O segmentation is supported, each input can be split into
+	 * multiple segments. In this case, each segment is expected to be
+	 * aligned to rte_ml_dev_info::align_size
+	 *
+	 * Same applies to output.
+	 *
+	 * @see struct rte_ml_dev_info::max_segments
+	 */
 };
 
 /**
- * Input and output shape. This structure represents the encoding format and dimensions
- * of the tensor or vector.
- *
- * The data can be a 4D / 3D tensor, matrix, vector or a scalar. Number of dimensions used
- * for the data would depend on the format. Unused dimensions to be set to 1.
- */
-struct rte_ml_io_shape {
-	enum rte_ml_io_format format;
-	/**< Format of the data */
-	uint32_t w;
-	/**< First dimension */
-	uint32_t x;
-	/**< Second dimension */
-	uint32_t y;
-	/**< Third dimension */
-	uint32_t z;
-	/**< Fourth dimension */
-};
-
-/** Input and output data information structure
+ * Input and output data information structure
  *
  * Specifies the type and shape of input and output data.
  */
 struct rte_ml_io_info {
 	char name[RTE_ML_STR_MAX];
 	/**< Name of data */
-	struct rte_ml_io_shape shape;
-	/**< Shape of data */
-	enum rte_ml_io_type qtype;
-	/**< Type of quantized data */
-	enum rte_ml_io_type dtype;
-	/**< Type of de-quantized data */
+	uint32_t nb_dims;
+	/**< Number of dimensions in shape */
+	uint32_t *shape;
+	/**< Shape of the tensor for rte_ml_model_info::min_batches of the model. */
+	enum rte_ml_io_type type;
+	/**< Type of data
+	 * @see enum rte_ml_io_type
+	 */
+	uint64_t nb_elements;
+	/** Number of elements in tensor */
+	uint64_t size;
+	/** Size of tensor in bytes */
 };
 
 /** Model information structure */
@@ -907,8 +949,16 @@ struct rte_ml_model_info {
 	/**< Model ID */
 	uint16_t device_id;
 	/**< Device ID */
-	uint16_t batch_size;
-	/**< Maximum number of batches that the model can process simultaneously */
+	enum rte_ml_io_layout io_layout;
+	/**< I/O buffer layout for the model */
+	uint16_t min_batches;
+	/**< Minimum number of batches that the model can process
+	 * in one inference request
+	 */
+	uint16_t max_batches;
+	/**< Maximum number of batches that the model can process
+	 * in one inference request
+	 */
 	uint32_t nb_inputs;
 	/**< Number of inputs */
 	const struct rte_ml_io_info *input_info;
@@ -964,66 +1014,6 @@ rte_ml_model_params_update(int16_t dev_id, uint16_t model_id, void *buffer);
 /* IO operations */
 
 /**
- * Get size of quantized and dequantized input buffers.
- *
- * Calculate the size of buffers required for quantized and dequantized input data.
- * This API would return the buffer sizes for the number of batches provided and would
- * consider the alignment requirements as per the PMD. Input sizes computed by this API can
- * be used by the application to allocate buffers.
- *
- * @param[in] dev_id
- *   The identifier of the device.
- * @param[in] model_id
- *   Identifier for the model created
- * @param[in] nb_batches
- *   Number of batches of input to be processed in a single inference job
- * @param[out] input_qsize
- *   Quantized input size pointer.
- * NULL value is allowed, in which case input_qsize is not calculated by the driver.
- * @param[out] input_dsize
- *   Dequantized input size pointer.
- * NULL value is allowed, in which case input_dsize is not calculated by the driver.
- *
- * @return
- *   - Returns 0 on success
- *   - Returns negative value on failure
- */
-__rte_experimental
-int
-rte_ml_io_input_size_get(int16_t dev_id, uint16_t model_id, uint32_t nb_batches,
-			 uint64_t *input_qsize, uint64_t *input_dsize);
-
-/**
- * Get size of quantized and dequantized output buffers.
- *
- * Calculate the size of buffers required for quantized and dequantized output data.
- * This API would return the buffer sizes for the number of batches provided and would consider
- * the alignment requirements as per the PMD. Output sizes computed by this API can be used by the
- * application to allocate buffers.
- *
- * @param[in] dev_id
- *   The identifier of the device.
- * @param[in] model_id
- *   Identifier for the model created
- * @param[in] nb_batches
- *   Number of batches of input to be processed in a single inference job
- * @param[out] output_qsize
- *   Quantized output size pointer.
- * NULL value is allowed, in which case output_qsize is not calculated by the driver.
- * @param[out] output_dsize
- *   Dequantized output size pointer.
- * NULL value is allowed, in which case output_dsize is not calculated by the driver.
- *
- * @return
- *   - Returns 0 on success
- *   - Returns negative value on failure
- */
-__rte_experimental
-int
-rte_ml_io_output_size_get(int16_t dev_id, uint16_t model_id, uint32_t nb_batches,
-			  uint64_t *output_qsize, uint64_t *output_dsize);
-
-/**
  * Quantize input data.
  *
  * Quantization converts data from a higher precision types to a lower precision types to improve
@@ -1034,8 +1024,6 @@ rte_ml_io_output_size_get(int16_t dev_id, uint16_t model_id, uint32_t nb_batches
  *   The identifier of the device.
  * @param[in] model_id
  *   Identifier for the model
- * @param[in] nb_batches
- *   Number of batches in the dequantized input buffer
  * @param[in] dbuffer
  *   Address of dequantized input data
  * @param[in] qbuffer
@@ -1047,8 +1035,8 @@ rte_ml_io_output_size_get(int16_t dev_id, uint16_t model_id, uint32_t nb_batches
  */
 __rte_experimental
 int
-rte_ml_io_quantize(int16_t dev_id, uint16_t model_id, uint16_t nb_batches, void *dbuffer,
-		   void *qbuffer);
+rte_ml_io_quantize(int16_t dev_id, uint16_t model_id, struct rte_ml_buff_seg **dbuffer,
+		   struct rte_ml_buff_seg **qbuffer);
 
 /**
  * Dequantize output data.
@@ -1060,8 +1048,6 @@ rte_ml_io_quantize(int16_t dev_id, uint16_t model_id, uint16_t nb_batches, void 
  *   The identifier of the device.
  * @param[in] model_id
  *   Identifier for the model
- * @param[in] nb_batches
- *   Number of batches in the dequantized output buffer
  * @param[in] qbuffer
  *   Address of quantized output data
  * @param[in] dbuffer
@@ -1073,8 +1059,8 @@ rte_ml_io_quantize(int16_t dev_id, uint16_t model_id, uint16_t nb_batches, void 
  */
 __rte_experimental
 int
-rte_ml_io_dequantize(int16_t dev_id, uint16_t model_id, uint16_t nb_batches, void *qbuffer,
-		     void *dbuffer);
+rte_ml_io_dequantize(int16_t dev_id, uint16_t model_id, struct rte_ml_buff_seg **qbuffer,
+		     struct rte_ml_buff_seg **dbuffer);
 
 /* ML op pool operations */
 

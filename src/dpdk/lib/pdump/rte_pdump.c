@@ -16,11 +16,10 @@
 #include "rte_pdump.h"
 
 RTE_LOG_REGISTER_DEFAULT(pdump_logtype, NOTICE);
+#define RTE_LOGTYPE_PDUMP pdump_logtype
 
-/* Macro for printing using RTE_LOG */
-#define PDUMP_LOG(level, fmt, args...)				\
-	rte_log(RTE_LOG_ ## level, pdump_logtype, "%s(): " fmt,	\
-		__func__, ## args)
+#define PDUMP_LOG_LINE(level, ...) \
+	RTE_LOG_LINE_PREFIX(level, PDUMP, "%s(): ", __func__, __VA_ARGS__)
 
 /* Used for the multi-process communication */
 #define PDUMP_MP	"mp_pdump"
@@ -90,7 +89,6 @@ pdump_copy(uint16_t port_id, uint16_t queue,
 	int ring_enq;
 	uint16_t d_pkts = 0;
 	struct rte_mbuf *dup_bufs[nb_pkts];
-	uint64_t ts;
 	struct rte_ring *ring;
 	struct rte_mempool *mp;
 	struct rte_mbuf *p;
@@ -99,7 +97,6 @@ pdump_copy(uint16_t port_id, uint16_t queue,
 	if (cbs->filter)
 		rte_bpf_exec_burst(cbs->filter, (void **)pkts, rcs, nb_pkts);
 
-	ts = rte_get_tsc_cycles();
 	ring = cbs->ring;
 	mp = cbs->mp;
 	for (i = 0; i < nb_pkts; i++) {
@@ -110,8 +107,8 @@ pdump_copy(uint16_t port_id, uint16_t queue,
 		 * then packet doesn't match the filter (will be ignored).
 		 */
 		if (cbs->filter && rcs[i] == 0) {
-			__atomic_fetch_add(&stats->filtered,
-					   1, __ATOMIC_RELAXED);
+			rte_atomic_fetch_add_explicit(&stats->filtered,
+					   1, rte_memory_order_relaxed);
 			continue;
 		}
 
@@ -122,23 +119,23 @@ pdump_copy(uint16_t port_id, uint16_t queue,
 		if (cbs->ver == V2)
 			p = rte_pcapng_copy(port_id, queue,
 					    pkts[i], mp, cbs->snaplen,
-					    ts, direction, NULL);
+					    direction, NULL);
 		else
 			p = rte_pktmbuf_copy(pkts[i], mp, 0, cbs->snaplen);
 
 		if (unlikely(p == NULL))
-			__atomic_fetch_add(&stats->nombuf, 1, __ATOMIC_RELAXED);
+			rte_atomic_fetch_add_explicit(&stats->nombuf, 1, rte_memory_order_relaxed);
 		else
 			dup_bufs[d_pkts++] = p;
 	}
 
-	__atomic_fetch_add(&stats->accepted, d_pkts, __ATOMIC_RELAXED);
+	rte_atomic_fetch_add_explicit(&stats->accepted, d_pkts, rte_memory_order_relaxed);
 
 	ring_enq = rte_ring_enqueue_burst(ring, (void *)&dup_bufs[0], d_pkts, NULL);
 	if (unlikely(ring_enq < d_pkts)) {
 		unsigned int drops = d_pkts - ring_enq;
 
-		__atomic_fetch_add(&stats->ringfull, drops, __ATOMIC_RELAXED);
+		rte_atomic_fetch_add_explicit(&stats->ringfull, drops, rte_memory_order_relaxed);
 		rte_pktmbuf_free_bulk(&dup_bufs[ring_enq], drops);
 	}
 }
@@ -183,8 +180,8 @@ pdump_register_rx_callbacks(enum pdump_version ver,
 
 		if (operation == ENABLE) {
 			if (cbs->cb) {
-				PDUMP_LOG(ERR,
-					"rx callback for port=%d queue=%d, already exists\n",
+				PDUMP_LOG_LINE(ERR,
+					"rx callback for port=%d queue=%d, already exists",
 					port, qid);
 				return -EEXIST;
 			}
@@ -197,8 +194,8 @@ pdump_register_rx_callbacks(enum pdump_version ver,
 			cbs->cb = rte_eth_add_first_rx_callback(port, qid,
 								pdump_rx, cbs);
 			if (cbs->cb == NULL) {
-				PDUMP_LOG(ERR,
-					"failed to add rx callback, errno=%d\n",
+				PDUMP_LOG_LINE(ERR,
+					"failed to add rx callback, errno=%d",
 					rte_errno);
 				return rte_errno;
 			}
@@ -206,15 +203,15 @@ pdump_register_rx_callbacks(enum pdump_version ver,
 			int ret;
 
 			if (cbs->cb == NULL) {
-				PDUMP_LOG(ERR,
-					"no existing rx callback for port=%d queue=%d\n",
+				PDUMP_LOG_LINE(ERR,
+					"no existing rx callback for port=%d queue=%d",
 					port, qid);
 				return -EINVAL;
 			}
 			ret = rte_eth_remove_rx_callback(port, qid, cbs->cb);
 			if (ret < 0) {
-				PDUMP_LOG(ERR,
-					"failed to remove rx callback, errno=%d\n",
+				PDUMP_LOG_LINE(ERR,
+					"failed to remove rx callback, errno=%d",
 					-ret);
 				return ret;
 			}
@@ -241,8 +238,8 @@ pdump_register_tx_callbacks(enum pdump_version ver,
 
 		if (operation == ENABLE) {
 			if (cbs->cb) {
-				PDUMP_LOG(ERR,
-					"tx callback for port=%d queue=%d, already exists\n",
+				PDUMP_LOG_LINE(ERR,
+					"tx callback for port=%d queue=%d, already exists",
 					port, qid);
 				return -EEXIST;
 			}
@@ -255,8 +252,8 @@ pdump_register_tx_callbacks(enum pdump_version ver,
 			cbs->cb = rte_eth_add_tx_callback(port, qid, pdump_tx,
 								cbs);
 			if (cbs->cb == NULL) {
-				PDUMP_LOG(ERR,
-					"failed to add tx callback, errno=%d\n",
+				PDUMP_LOG_LINE(ERR,
+					"failed to add tx callback, errno=%d",
 					rte_errno);
 				return rte_errno;
 			}
@@ -264,15 +261,15 @@ pdump_register_tx_callbacks(enum pdump_version ver,
 			int ret;
 
 			if (cbs->cb == NULL) {
-				PDUMP_LOG(ERR,
-					"no existing tx callback for port=%d queue=%d\n",
+				PDUMP_LOG_LINE(ERR,
+					"no existing tx callback for port=%d queue=%d",
 					port, qid);
 				return -EINVAL;
 			}
 			ret = rte_eth_remove_tx_callback(port, qid, cbs->cb);
 			if (ret < 0) {
-				PDUMP_LOG(ERR,
-					"failed to remove tx callback, errno=%d\n",
+				PDUMP_LOG_LINE(ERR,
+					"failed to remove tx callback, errno=%d",
 					-ret);
 				return ret;
 			}
@@ -297,22 +294,22 @@ set_pdump_rxtx_cbs(const struct pdump_request *p)
 
 	/* Check for possible DPDK version mismatch */
 	if (!(p->ver == V1 || p->ver == V2)) {
-		PDUMP_LOG(ERR,
-			  "incorrect client version %u\n", p->ver);
+		PDUMP_LOG_LINE(ERR,
+			  "incorrect client version %u", p->ver);
 		return -EINVAL;
 	}
 
 	if (p->prm) {
 		if (p->prm->prog_arg.type != RTE_BPF_ARG_PTR_MBUF) {
-			PDUMP_LOG(ERR,
-				  "invalid BPF program type: %u\n",
+			PDUMP_LOG_LINE(ERR,
+				  "invalid BPF program type: %u",
 				  p->prm->prog_arg.type);
 			return -EINVAL;
 		}
 
 		filter = rte_bpf_load(p->prm);
 		if (filter == NULL) {
-			PDUMP_LOG(ERR, "cannot load BPF filter: %s\n",
+			PDUMP_LOG_LINE(ERR, "cannot load BPF filter: %s",
 				  rte_strerror(rte_errno));
 			return -rte_errno;
 		}
@@ -326,8 +323,8 @@ set_pdump_rxtx_cbs(const struct pdump_request *p)
 
 	ret = rte_eth_dev_get_port_by_name(p->device, &port);
 	if (ret < 0) {
-		PDUMP_LOG(ERR,
-			  "failed to get port id for device id=%s\n",
+		PDUMP_LOG_LINE(ERR,
+			  "failed to get port id for device id=%s",
 			  p->device);
 		return -EINVAL;
 	}
@@ -338,8 +335,8 @@ set_pdump_rxtx_cbs(const struct pdump_request *p)
 
 		ret = rte_eth_dev_info_get(port, &dev_info);
 		if (ret != 0) {
-			PDUMP_LOG(ERR,
-				"Error during getting device (port %u) info: %s\n",
+			PDUMP_LOG_LINE(ERR,
+				"Error during getting device (port %u) info: %s",
 				port, strerror(-ret));
 			return ret;
 		}
@@ -347,19 +344,19 @@ set_pdump_rxtx_cbs(const struct pdump_request *p)
 		nb_rx_q = dev_info.nb_rx_queues;
 		nb_tx_q = dev_info.nb_tx_queues;
 		if (nb_rx_q == 0 && flags & RTE_PDUMP_FLAG_RX) {
-			PDUMP_LOG(ERR,
-				"number of rx queues cannot be 0\n");
+			PDUMP_LOG_LINE(ERR,
+				"number of rx queues cannot be 0");
 			return -EINVAL;
 		}
 		if (nb_tx_q == 0 && flags & RTE_PDUMP_FLAG_TX) {
-			PDUMP_LOG(ERR,
-				"number of tx queues cannot be 0\n");
+			PDUMP_LOG_LINE(ERR,
+				"number of tx queues cannot be 0");
 			return -EINVAL;
 		}
 		if ((nb_tx_q == 0 || nb_rx_q == 0) &&
 			flags == RTE_PDUMP_FLAG_RXTX) {
-			PDUMP_LOG(ERR,
-				"both tx&rx queues must be non zero\n");
+			PDUMP_LOG_LINE(ERR,
+				"both tx&rx queues must be non zero");
 			return -EINVAL;
 		}
 	}
@@ -396,7 +393,7 @@ pdump_server(const struct rte_mp_msg *mp_msg, const void *peer)
 
 	/* recv client requests */
 	if (mp_msg->len_param != sizeof(*cli_req)) {
-		PDUMP_LOG(ERR, "failed to recv from client\n");
+		PDUMP_LOG_LINE(ERR, "failed to recv from client");
 		resp->err_value = -EINVAL;
 	} else {
 		cli_req = (const struct pdump_request *)mp_msg->param;
@@ -409,7 +406,7 @@ pdump_server(const struct rte_mp_msg *mp_msg, const void *peer)
 	mp_resp.len_param = sizeof(*resp);
 	mp_resp.num_fds = 0;
 	if (rte_mp_reply(&mp_resp, peer) < 0) {
-		PDUMP_LOG(ERR, "failed to send to client:%s\n",
+		PDUMP_LOG_LINE(ERR, "failed to send to client:%s",
 			  strerror(rte_errno));
 		return -1;
 	}
@@ -426,7 +423,7 @@ rte_pdump_init(void)
 	mz = rte_memzone_reserve(MZ_RTE_PDUMP_STATS, sizeof(*pdump_stats),
 				 rte_socket_id(), 0);
 	if (mz == NULL) {
-		PDUMP_LOG(ERR, "cannot allocate pdump statistics\n");
+		PDUMP_LOG_LINE(ERR, "cannot allocate pdump statistics");
 		rte_errno = ENOMEM;
 		return -1;
 	}
@@ -456,22 +453,22 @@ static int
 pdump_validate_ring_mp(struct rte_ring *ring, struct rte_mempool *mp)
 {
 	if (ring == NULL || mp == NULL) {
-		PDUMP_LOG(ERR, "NULL ring or mempool\n");
+		PDUMP_LOG_LINE(ERR, "NULL ring or mempool");
 		rte_errno = EINVAL;
 		return -1;
 	}
 	if (mp->flags & RTE_MEMPOOL_F_SP_PUT ||
 	    mp->flags & RTE_MEMPOOL_F_SC_GET) {
-		PDUMP_LOG(ERR,
+		PDUMP_LOG_LINE(ERR,
 			  "mempool with SP or SC set not valid for pdump,"
-			  "must have MP and MC set\n");
+			  "must have MP and MC set");
 		rte_errno = EINVAL;
 		return -1;
 	}
 	if (rte_ring_is_prod_single(ring) || rte_ring_is_cons_single(ring)) {
-		PDUMP_LOG(ERR,
+		PDUMP_LOG_LINE(ERR,
 			  "ring with SP or SC set is not valid for pdump,"
-			  "must have MP and MC set\n");
+			  "must have MP and MC set");
 		rte_errno = EINVAL;
 		return -1;
 	}
@@ -483,16 +480,16 @@ static int
 pdump_validate_flags(uint32_t flags)
 {
 	if ((flags & RTE_PDUMP_FLAG_RXTX) == 0) {
-		PDUMP_LOG(ERR,
-			"invalid flags, should be either rx/tx/rxtx\n");
+		PDUMP_LOG_LINE(ERR,
+			"invalid flags, should be either rx/tx/rxtx");
 		rte_errno = EINVAL;
 		return -1;
 	}
 
 	/* mask off the flags we know about */
 	if (flags & ~(RTE_PDUMP_FLAG_RXTX | RTE_PDUMP_FLAG_PCAPNG)) {
-		PDUMP_LOG(ERR,
-			  "unknown flags: %#x\n", flags);
+		PDUMP_LOG_LINE(ERR,
+			  "unknown flags: %#x", flags);
 		rte_errno = ENOTSUP;
 		return -1;
 	}
@@ -506,14 +503,14 @@ pdump_validate_port(uint16_t port, char *name)
 	int ret = 0;
 
 	if (port >= RTE_MAX_ETHPORTS) {
-		PDUMP_LOG(ERR, "Invalid port id %u\n", port);
+		PDUMP_LOG_LINE(ERR, "Invalid port id %u", port);
 		rte_errno = EINVAL;
 		return -1;
 	}
 
 	ret = rte_eth_dev_get_name_by_port(port, name);
 	if (ret < 0) {
-		PDUMP_LOG(ERR, "port %u to name mapping failed\n",
+		PDUMP_LOG_LINE(ERR, "port %u to name mapping failed",
 			  port);
 		rte_errno = EINVAL;
 		return -1;
@@ -538,8 +535,8 @@ pdump_prepare_client_request(const char *device, uint16_t queue,
 	struct pdump_response *resp;
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
-		PDUMP_LOG(ERR,
-			  "pdump enable/disable not allowed in primary process\n");
+		PDUMP_LOG_LINE(ERR,
+			  "pdump enable/disable not allowed in primary process");
 		return -EINVAL;
 	}
 
@@ -564,15 +561,16 @@ pdump_prepare_client_request(const char *device, uint16_t queue,
 	if (rte_mp_request_sync(&mp_req, &mp_reply, &ts) == 0) {
 		mp_rep = &mp_reply.msgs[0];
 		resp = (struct pdump_response *)mp_rep->param;
-		rte_errno = resp->err_value;
-		if (!resp->err_value)
+		if (resp->err_value == 0)
 			ret = 0;
+		else
+			rte_errno = -resp->err_value;
 		free(mp_reply.msgs);
 	}
 
 	if (ret < 0)
-		PDUMP_LOG(ERR,
-			"client request for pdump enable/disable failed\n");
+		PDUMP_LOG_LINE(ERR,
+			"client request for pdump enable/disable failed");
 	return ret;
 }
 
@@ -720,10 +718,10 @@ pdump_sum_stats(uint16_t port, uint16_t nq,
 	uint16_t qid;
 
 	for (qid = 0; qid < nq; qid++) {
-		const uint64_t *perq = (const uint64_t *)&stats[port][qid];
+		const RTE_ATOMIC(uint64_t) *perq = (const uint64_t __rte_atomic *)&stats[port][qid];
 
 		for (i = 0; i < sizeof(*total) / sizeof(uint64_t); i++) {
-			val = __atomic_load_n(&perq[i], __ATOMIC_RELAXED);
+			val = rte_atomic_load_explicit(&perq[i], rte_memory_order_relaxed);
 			sum[i] += val;
 		}
 	}
@@ -739,8 +737,8 @@ rte_pdump_stats(uint16_t port, struct rte_pdump_stats *stats)
 	memset(stats, 0, sizeof(*stats));
 	ret = rte_eth_dev_info_get(port, &dev_info);
 	if (ret != 0) {
-		PDUMP_LOG(ERR,
-			  "Error during getting device (port %u) info: %s\n",
+		PDUMP_LOG_LINE(ERR,
+			  "Error during getting device (port %u) info: %s",
 			  port, strerror(-ret));
 		return ret;
 	}
@@ -748,7 +746,7 @@ rte_pdump_stats(uint16_t port, struct rte_pdump_stats *stats)
 	if (pdump_stats == NULL) {
 		if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
 			/* rte_pdump_init was not called */
-			PDUMP_LOG(ERR, "pdump stats not initialized\n");
+			PDUMP_LOG_LINE(ERR, "pdump stats not initialized");
 			rte_errno = EINVAL;
 			return -1;
 		}
@@ -757,7 +755,7 @@ rte_pdump_stats(uint16_t port, struct rte_pdump_stats *stats)
 		mz = rte_memzone_lookup(MZ_RTE_PDUMP_STATS);
 		if (mz == NULL) {
 			/* rte_pdump_init was not called in primary process?? */
-			PDUMP_LOG(ERR, "can not find pdump stats\n");
+			PDUMP_LOG_LINE(ERR, "can not find pdump stats");
 			rte_errno = EINVAL;
 			return -1;
 		}

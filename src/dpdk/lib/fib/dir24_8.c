@@ -155,7 +155,7 @@ tbl8_get_idx(struct dir24_8_tbl *dp)
 			(dp->tbl8_idxes[i] == UINT64_MAX); i++)
 		;
 	if (i < (dp->number_tbl8s >> BITMAP_SLAB_BIT_SIZE_LOG2)) {
-		bit_idx = __builtin_ctzll(~dp->tbl8_idxes[i]);
+		bit_idx = rte_ctz64(~dp->tbl8_idxes[i]);
 		dp->tbl8_idxes[i] |= (1ULL << bit_idx);
 		return (i << BITMAP_SLAB_BIT_SIZE_LOG2) + bit_idx;
 	}
@@ -388,9 +388,15 @@ modify_fib(struct dir24_8_tbl *dp, struct rte_rib *rib, uint32_t ip,
 				return ret;
 			ledge = redge +
 				(uint32_t)(1ULL << (32 - tmp_depth));
+			/*
+			 * we got to the end of address space
+			 * and wrapped around
+			 */
+			if (ledge == 0)
+				break;
 		} else {
 			redge = ip + (uint32_t)(1ULL << (32 - depth));
-			if (ledge == redge)
+			if (ledge == redge && ledge != 0)
 				break;
 			ret = install_to_fib(dp, ledge, redge,
 				next_hop);

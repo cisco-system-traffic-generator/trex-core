@@ -22,6 +22,42 @@
 #include "eal_private.h"
 #include "eal_memcfg.h"
 
+/* Default count used until rte_memzone_max_set() is called */
+#define DEFAULT_MAX_MEMZONE_COUNT 2560
+
+int
+rte_memzone_max_set(size_t max)
+{
+	struct rte_mem_config *mcfg;
+
+	if (eal_get_internal_configuration()->init_complete > 0) {
+		EAL_LOG(ERR, "Max memzone cannot be set after EAL init");
+		return -1;
+	}
+
+	mcfg = rte_eal_get_configuration()->mem_config;
+	if (mcfg == NULL) {
+		EAL_LOG(ERR, "Failed to set max memzone count");
+		return -1;
+	}
+
+	mcfg->max_memzone = max;
+
+	return 0;
+}
+
+size_t
+rte_memzone_max_get(void)
+{
+	struct rte_mem_config *mcfg;
+
+	mcfg = rte_eal_get_configuration()->mem_config;
+	if (mcfg == NULL || mcfg->max_memzone == 0)
+		return DEFAULT_MAX_MEMZONE_COUNT;
+
+	return mcfg->max_memzone;
+}
+
 static inline const struct rte_memzone *
 memzone_lookup_thread_unsafe(const char *name)
 {
@@ -80,15 +116,16 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 
 	/* no more room in config */
 	if (arr->count >= arr->len) {
-		RTE_LOG(ERR, EAL,
-		"%s(): Number of requested memzone segments exceeds RTE_MAX_MEMZONE\n",
-			__func__);
+		EAL_LOG(ERR,
+		"%s(): Number of requested memzone segments exceeds maximum "
+		"%u", __func__, arr->len);
+
 		rte_errno = ENOSPC;
 		return NULL;
 	}
 
 	if (strlen(name) > sizeof(mz->name) - 1) {
-		RTE_LOG(DEBUG, EAL, "%s(): memzone <%s>: name too long\n",
+		EAL_LOG(DEBUG, "%s(): memzone <%s>: name too long",
 			__func__, name);
 		rte_errno = ENAMETOOLONG;
 		return NULL;
@@ -96,7 +133,7 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 
 	/* zone already exist */
 	if ((memzone_lookup_thread_unsafe(name)) != NULL) {
-		RTE_LOG(DEBUG, EAL, "%s(): memzone <%s> already exists\n",
+		EAL_LOG(DEBUG, "%s(): memzone <%s> already exists",
 			__func__, name);
 		rte_errno = EEXIST;
 		return NULL;
@@ -104,7 +141,7 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 
 	/* if alignment is not a power of two */
 	if (align && !rte_is_power_of_2(align)) {
-		RTE_LOG(ERR, EAL, "%s(): Invalid alignment: %u\n", __func__,
+		EAL_LOG(ERR, "%s(): Invalid alignment: %u", __func__,
 				align);
 		rte_errno = EINVAL;
 		return NULL;
@@ -181,7 +218,7 @@ memzone_reserve_aligned_thread_unsafe(const char *name, size_t len,
 	}
 
 	if (mz == NULL) {
-		RTE_LOG(ERR, EAL, "%s(): Cannot find free memzone\n", __func__);
+		EAL_LOG(ERR, "%s(): Cannot find free memzone", __func__);
 		malloc_heap_free(elem);
 		rte_errno = ENOSPC;
 		return NULL;
@@ -286,7 +323,7 @@ rte_memzone_free(const struct rte_memzone *mz)
 	if (found_mz == NULL) {
 		ret = -EINVAL;
 	} else if (found_mz->addr == NULL) {
-		RTE_LOG(ERR, EAL, "Memzone is not allocated\n");
+		EAL_LOG(ERR, "Memzone is not allocated");
 		ret = -EINVAL;
 	} else {
 		addr = found_mz->addr;
@@ -348,7 +385,7 @@ dump_memzone(const struct rte_memzone *mz, void *arg)
 	/* go through each page occupied by this memzone */
 	msl = rte_mem_virt2memseg_list(mz->addr);
 	if (!msl) {
-		RTE_LOG(DEBUG, EAL, "Skipping bad memzone\n");
+		EAL_LOG(DEBUG, "Skipping bad memzone");
 		return;
 	}
 	page_sz = (size_t)mz->hugepage_sz;
@@ -396,12 +433,12 @@ rte_eal_memzone_init(void)
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY &&
 			rte_fbarray_init(&mcfg->memzones, "memzone",
-			RTE_MAX_MEMZONE, sizeof(struct rte_memzone))) {
-		RTE_LOG(ERR, EAL, "Cannot allocate memzone list\n");
+			rte_memzone_max_get(), sizeof(struct rte_memzone))) {
+		EAL_LOG(ERR, "Cannot allocate memzone list");
 		ret = -1;
 	} else if (rte_eal_process_type() == RTE_PROC_SECONDARY &&
 			rte_fbarray_attach(&mcfg->memzones)) {
-		RTE_LOG(ERR, EAL, "Cannot attach to memzone list\n");
+		EAL_LOG(ERR, "Cannot attach to memzone list");
 		ret = -1;
 	}
 

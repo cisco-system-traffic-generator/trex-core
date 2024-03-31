@@ -8,7 +8,6 @@ if not is_linux or not dpdk_conf.get('RTE_ARCH_64')
     subdir_done()
 endif
 
-config_flag_fmt = 'RTE_LIBRTE_@0@_COMMON'
 deps = ['eal', 'pci', 'bus_pci', 'mbuf', 'security']
 sources = files(
         'roc_ae.c',
@@ -21,11 +20,15 @@ sources = files(
         'roc_cpt_debug.c',
         'roc_dev.c',
         'roc_dpi.c',
+        'roc_eswitch.c',
         'roc_hash.c',
         'roc_idev.c',
         'roc_irq.c',
         'roc_ie_ot.c',
         'roc_mbox.c',
+        'roc_mcs.c',
+        'roc_mcs_sec_cfg.c',
+        'roc_mcs_stats.c',
         'roc_ml.c',
         'roc_model.c',
         'roc_nix.c',
@@ -54,6 +57,7 @@ sources = files(
         'roc_npa_irq.c',
         'roc_npa_type.c',
         'roc_npc.c',
+        'roc_npc_aging.c',
         'roc_npc_mcam.c',
         'roc_npc_mcam_dump.c',
         'roc_npc_parse.c',
@@ -88,4 +92,7 @@ sources += files('cnxk_telemetry_bphy.c',
 )
 
 deps += ['bus_pci', 'net', 'telemetry']
+
 require_iova_in_mbuf = false
+
+annotate_locks = false

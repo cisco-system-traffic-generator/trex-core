@@ -174,8 +174,8 @@ rte_eal_cpu_init(void)
 		lcore_config[lcore_id].core_role = ROLE_RTE;
 		lcore_config[lcore_id].core_id = eal_cpu_core_id(lcore_id);
 		lcore_config[lcore_id].socket_id = socket_id;
-		RTE_LOG(DEBUG, EAL, "Detected lcore %u as "
-				"core %u on socket %u\n",
+		EAL_LOG(DEBUG, "Detected lcore %u as "
+				"core %u on socket %u",
 				lcore_id, lcore_config[lcore_id].core_id,
 				lcore_config[lcore_id].socket_id);
 		count++;
@@ -183,17 +183,17 @@ rte_eal_cpu_init(void)
 	for (; lcore_id < CPU_SETSIZE; lcore_id++) {
 		if (eal_cpu_detected(lcore_id) == 0)
 			continue;
-		RTE_LOG(DEBUG, EAL, "Skipped lcore %u as core %u on socket %u\n",
+		EAL_LOG(DEBUG, "Skipped lcore %u as core %u on socket %u",
 			lcore_id, eal_cpu_core_id(lcore_id),
 			eal_cpu_socket_id(lcore_id));
 	}
 
 	/* Set the count of enabled logical cores of the EAL configuration */
 	config->lcore_count = count;
-	RTE_LOG(DEBUG, EAL,
-			"Maximum logical cores by configuration: %u\n",
+	EAL_LOG(DEBUG,
+			"Maximum logical cores by configuration: %u",
 			RTE_MAX_LCORE);
-	RTE_LOG(INFO, EAL, "Detected CPU lcores: %u\n", config->lcore_count);
+	EAL_LOG(INFO, "Detected CPU lcores: %u", config->lcore_count);
 
 	/* sort all socket id's in ascending order */
 	qsort(lcore_to_socket_id, RTE_DIM(lcore_to_socket_id),
@@ -208,7 +208,7 @@ rte_eal_cpu_init(void)
 					socket_id;
 		prev_socket_id = socket_id;
 	}
-	RTE_LOG(INFO, EAL, "Detected NUMA nodes: %u\n", config->numa_node_count);
+	EAL_LOG(INFO, "Detected NUMA nodes: %u", config->numa_node_count);
 
 	return 0;
 }
@@ -247,7 +247,7 @@ callback_init(struct lcore_callback *callback, unsigned int lcore_id)
 {
 	if (callback->init == NULL)
 		return 0;
-	RTE_LOG(DEBUG, EAL, "Call init for lcore callback %s, lcore_id %u\n",
+	EAL_LOG(DEBUG, "Call init for lcore callback %s, lcore_id %u",
 		callback->name, lcore_id);
 	return callback->init(lcore_id, callback->arg);
 }
@@ -257,7 +257,7 @@ callback_uninit(struct lcore_callback *callback, unsigned int lcore_id)
 {
 	if (callback->uninit == NULL)
 		return;
-	RTE_LOG(DEBUG, EAL, "Call uninit for lcore callback %s, lcore_id %u\n",
+	EAL_LOG(DEBUG, "Call uninit for lcore callback %s, lcore_id %u",
 		callback->name, lcore_id);
 	callback->uninit(lcore_id, callback->arg);
 }
@@ -311,7 +311,7 @@ rte_lcore_callback_register(const char *name, rte_lcore_init_cb init,
 	}
 no_init:
 	TAILQ_INSERT_TAIL(&lcore_callbacks, callback, next);
-	RTE_LOG(DEBUG, EAL, "Registered new lcore callback %s (%sinit, %suninit).\n",
+	EAL_LOG(DEBUG, "Registered new lcore callback %s (%sinit, %suninit).",
 		callback->name, callback->init == NULL ? "NO " : "",
 		callback->uninit == NULL ? "NO " : "");
 out:
@@ -339,7 +339,7 @@ rte_lcore_callback_unregister(void *handle)
 no_uninit:
 	TAILQ_REMOVE(&lcore_callbacks, callback, next);
 	rte_rwlock_write_unlock(&lcore_lock);
-	RTE_LOG(DEBUG, EAL, "Unregistered lcore callback %s-%p.\n",
+	EAL_LOG(DEBUG, "Unregistered lcore callback %s-%p.",
 		callback->name, callback->arg);
 	free_callback(callback);
 }
@@ -361,7 +361,7 @@ eal_lcore_non_eal_allocate(void)
 		break;
 	}
 	if (lcore_id == RTE_MAX_LCORE) {
-		RTE_LOG(DEBUG, EAL, "No lcore available.\n");
+		EAL_LOG(DEBUG, "No lcore available.");
 		goto out;
 	}
 	TAILQ_FOREACH(callback, &lcore_callbacks, next) {
@@ -375,7 +375,7 @@ eal_lcore_non_eal_allocate(void)
 			callback_uninit(prev, lcore_id);
 			prev = TAILQ_PREV(prev, lcore_callbacks_head, next);
 		}
-		RTE_LOG(DEBUG, EAL, "Initialization refused for lcore %u.\n",
+		EAL_LOG(DEBUG, "Initialization refused for lcore %u.",
 			lcore_id);
 		cfg->lcore_role[lcore_id] = ROLE_OFF;
 		cfg->lcore_count--;
@@ -446,6 +446,13 @@ rte_lcore_register_usage_cb(rte_lcore_usage_cb cb)
 	lcore_usage_cb = cb;
 }
 
+static float
+calc_usage_ratio(const struct rte_lcore_usage *usage)
+{
+	return usage->total_cycles != 0 ?
+		(usage->busy_cycles * 100.0) / usage->total_cycles : (float)0;
+}
+
 static int
 lcore_dump_cb(unsigned int lcore_id, void *arg)
 {
@@ -462,8 +469,9 @@ lcore_dump_cb(unsigned int lcore_id, void *arg)
 	/* Guard against concurrent modification of lcore_usage_cb. */
 	usage_cb = lcore_usage_cb;
 	if (usage_cb != NULL && usage_cb(lcore_id, &usage) == 0) {
-		if (asprintf(&usage_str, ", busy cycles %"PRIu64"/%"PRIu64,
-				usage.busy_cycles, usage.total_cycles) < 0) {
+		if (asprintf(&usage_str, ", busy cycles %"PRIu64"/%"PRIu64" (ratio %.02f%%)",
+				usage.busy_cycles, usage.total_cycles,
+				calc_usage_ratio(&usage)) < 0) {
 			return -ENOMEM;
 		}
 	}
@@ -511,11 +519,19 @@ struct lcore_telemetry_info {
 	struct rte_tel_data *d;
 };
 
+static void
+format_usage_ratio(char *buf, uint16_t size, const struct rte_lcore_usage *usage)
+{
+	float ratio = calc_usage_ratio(usage);
+	snprintf(buf, size, "%.02f%%", ratio);
+}
+
 static int
 lcore_telemetry_info_cb(unsigned int lcore_id, void *arg)
 {
 	struct rte_config *cfg = rte_eal_get_configuration();
 	struct lcore_telemetry_info *info = arg;
+	char ratio_str[RTE_TEL_MAX_STRING_LEN];
 	struct rte_lcore_usage usage;
 	struct rte_tel_data *cpuset;
 	rte_lcore_usage_cb usage_cb;
@@ -544,9 +560,12 @@ lcore_telemetry_info_cb(unsigned int lcore_id, void *arg)
 	if (usage_cb != NULL && usage_cb(lcore_id, &usage) == 0) {
 		rte_tel_data_add_dict_uint(info->d, "total_cycles", usage.total_cycles);
 		rte_tel_data_add_dict_uint(info->d, "busy_cycles", usage.busy_cycles);
+		format_usage_ratio(ratio_str, sizeof(ratio_str), &usage);
+		rte_tel_data_add_dict_string(info->d, "usage_ratio", ratio_str);
 	}
 
-	return 0;
+	/* Return non-zero positive value to stop iterating over lcore_id. */
+	return 1;
 }
 
 static int
@@ -574,11 +593,13 @@ struct lcore_telemetry_usage {
 	struct rte_tel_data *lcore_ids;
 	struct rte_tel_data *total_cycles;
 	struct rte_tel_data *busy_cycles;
+	struct rte_tel_data *usage_ratio;
 };
 
 static int
 lcore_telemetry_usage_cb(unsigned int lcore_id, void *arg)
 {
+	char ratio_str[RTE_TEL_MAX_STRING_LEN];
 	struct lcore_telemetry_usage *u = arg;
 	struct rte_lcore_usage usage;
 	rte_lcore_usage_cb usage_cb;
@@ -591,6 +612,8 @@ lcore_telemetry_usage_cb(unsigned int lcore_id, void *arg)
 		rte_tel_data_add_array_uint(u->lcore_ids, lcore_id);
 		rte_tel_data_add_array_uint(u->total_cycles, usage.total_cycles);
 		rte_tel_data_add_array_uint(u->busy_cycles, usage.busy_cycles);
+		format_usage_ratio(ratio_str, sizeof(ratio_str), &usage);
+		rte_tel_data_add_array_string(u->usage_ratio, ratio_str);
 	}
 
 	return 0;
@@ -603,15 +626,19 @@ handle_lcore_usage(const char *cmd __rte_unused, const char *params __rte_unused
 	struct lcore_telemetry_usage usage;
 	struct rte_tel_data *total_cycles;
 	struct rte_tel_data *busy_cycles;
+	struct rte_tel_data *usage_ratio;
 	struct rte_tel_data *lcore_ids;
 
 	lcore_ids = rte_tel_data_alloc();
 	total_cycles = rte_tel_data_alloc();
 	busy_cycles = rte_tel_data_alloc();
-	if (lcore_ids == NULL || total_cycles == NULL || busy_cycles == NULL) {
+	usage_ratio = rte_tel_data_alloc();
+	if (lcore_ids == NULL || total_cycles == NULL || busy_cycles == NULL ||
+	    usage_ratio == NULL) {
 		rte_tel_data_free(lcore_ids);
 		rte_tel_data_free(total_cycles);
 		rte_tel_data_free(busy_cycles);
+		rte_tel_data_free(usage_ratio);
 		return -ENOMEM;
 	}
 
@@ -619,12 +646,15 @@ handle_lcore_usage(const char *cmd __rte_unused, const char *params __rte_unused
 	rte_tel_data_start_array(lcore_ids, RTE_TEL_UINT_VAL);
 	rte_tel_data_start_array(total_cycles, RTE_TEL_UINT_VAL);
 	rte_tel_data_start_array(busy_cycles, RTE_TEL_UINT_VAL);
+	rte_tel_data_start_array(usage_ratio, RTE_TEL_STRING_VAL);
 	rte_tel_data_add_dict_container(d, "lcore_ids", lcore_ids, 0);
 	rte_tel_data_add_dict_container(d, "total_cycles", total_cycles, 0);
 	rte_tel_data_add_dict_container(d, "busy_cycles", busy_cycles, 0);
+	rte_tel_data_add_dict_container(d, "usage_ratio", usage_ratio, 0);
 	usage.lcore_ids = lcore_ids;
 	usage.total_cycles = total_cycles;
 	usage.busy_cycles = busy_cycles;
+	usage.usage_ratio = usage_ratio;
 
 	return rte_lcore_iterate(lcore_telemetry_usage_cb, &usage);
 }

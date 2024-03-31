@@ -75,7 +75,7 @@ enum sa_algo_type	{
 	ALGO_TYPE_MAX
 };
 
-struct rte_ipsec_sa {
+struct __rte_cache_aligned rte_ipsec_sa {
 
 	uint64_t type;     /* type of given SA */
 	uint64_t udata;    /* user defined */
@@ -124,7 +124,7 @@ struct rte_ipsec_sa {
 	 * place from other frequently accessed data.
 	 */
 	union {
-		uint64_t outb;
+		RTE_ATOMIC(uint64_t) outb;
 		struct {
 			uint32_t rdidx; /* read index */
 			uint32_t wridx; /* write index */
@@ -141,7 +141,7 @@ struct rte_ipsec_sa {
 		} errors;
 	} statistics;
 
-} __rte_cache_aligned;
+};
 
 int
 ipsec_sa_pkt_func_select(const struct rte_ipsec_session *ss,

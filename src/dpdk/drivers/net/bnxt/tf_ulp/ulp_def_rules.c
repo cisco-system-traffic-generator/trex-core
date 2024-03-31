@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2019-2021 Broadcom
+ * Copyright(c) 2019-2023 Broadcom
  * All rights reserved.
  */
 
@@ -296,6 +296,7 @@ int32_t
 ulp_default_flow_create(struct rte_eth_dev *eth_dev,
 			struct ulp_tlv_param *param_list,
 			uint32_t ulp_class_tid,
+			uint16_t port_id,
 			uint32_t *flow_id)
 {
 	struct ulp_rte_hdr_field	hdr_field[BNXT_ULP_PROTO_HDR_MAX];
@@ -355,11 +356,15 @@ ulp_default_flow_create(struct rte_eth_dev *eth_dev,
 
 	/* Get the function id */
 	if (ulp_port_db_port_func_id_get(ulp_ctx,
-					 eth_dev->data->port_id,
+					 port_id,
 					 &mapper_params.func_id)) {
 		BNXT_TF_DBG(ERR, "conversion of port to func id failed\n");
 		goto err1;
 	}
+
+	/* update the VF meta function id  */
+	ULP_COMP_FLD_IDX_WR(&mapper_params, BNXT_ULP_CF_IDX_VF_META_FID,
+			    BNXT_ULP_META_VF_FLAG | mapper_params.func_id);
 
 	BNXT_TF_DBG(DEBUG, "Creating default flow with template id: %u\n",
 		    ulp_class_tid);
@@ -444,7 +449,7 @@ bnxt_ulp_destroy_df_rules(struct bnxt *bp, bool global)
 	uint16_t port_id;
 
 	if (!BNXT_TRUFLOW_EN(bp) ||
-	    BNXT_ETH_DEV_IS_REPRESENTOR(bp->eth_dev))
+	    rte_eth_dev_is_repr(bp->eth_dev))
 		return;
 
 	if (!bp->ulp_ctx || !bp->ulp_ctx->cfg_data)
@@ -498,7 +503,7 @@ bnxt_create_port_app_df_rule(struct bnxt *bp, uint8_t flow_type,
 		return 0;
 	}
 	return ulp_default_flow_create(bp->eth_dev, param_list, flow_type,
-				       flow_id);
+				       port_id, flow_id);
 }
 
 int32_t
@@ -509,7 +514,7 @@ bnxt_ulp_create_df_rules(struct bnxt *bp)
 	int rc = 0;
 
 	if (!BNXT_TRUFLOW_EN(bp) ||
-	    BNXT_ETH_DEV_IS_REPRESENTOR(bp->eth_dev) || !bp->ulp_ctx)
+	    rte_eth_dev_is_repr(bp->eth_dev) || !bp->ulp_ctx)
 		return 0;
 
 	port_id = bp->eth_dev->data->port_id;
@@ -526,8 +531,10 @@ bnxt_ulp_create_df_rules(struct bnxt *bp)
 	rc = ulp_default_flow_db_cfa_action_get(bp->ulp_ctx,
 						info->def_port_flow_id,
 						&bp->tx_cfa_action);
-	if (rc)
+
+	if (rc || BNXT_TESTPMD_EN(bp))
 		bp->tx_cfa_action = 0;
+
 	info->valid = true;
 	return 0;
 }
@@ -551,6 +558,7 @@ bnxt_create_port_vfr_default_rule(struct bnxt *bp,
 		}
 	};
 	return ulp_default_flow_create(bp->eth_dev, param_list, flow_type,
+				       vfr_port_id,
 				       flow_id);
 }
 

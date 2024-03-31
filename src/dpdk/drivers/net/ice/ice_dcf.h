@@ -105,6 +105,8 @@ struct ice_dcf_hw {
 	void (*vc_event_msg_cb)(struct ice_dcf_hw *dcf_hw,
 				uint8_t *msg, uint16_t msglen);
 
+	int vsi_update_thread_num;
+
 	uint8_t *arq_buf;
 
 	uint16_t num_vfs;
@@ -147,6 +149,10 @@ int ice_dcf_init_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw);
 void ice_dcf_uninit_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw);
 int ice_dcf_configure_rss_key(struct ice_dcf_hw *hw);
 int ice_dcf_configure_rss_lut(struct ice_dcf_hw *hw);
+int ice_dcf_add_del_rss_cfg(struct ice_dcf_hw *hw,
+		     struct virtchnl_rss_cfg *rss_cfg, bool add);
+int ice_dcf_set_hena(struct ice_dcf_hw *hw, uint64_t hena);
+int ice_dcf_rss_hash_set(struct ice_dcf_hw *hw, uint64_t rss_hf, bool add);
 int ice_dcf_init_rss(struct ice_dcf_hw *hw);
 int ice_dcf_configure_queues(struct ice_dcf_hw *hw);
 int ice_dcf_config_irq_map(struct ice_dcf_hw *hw);

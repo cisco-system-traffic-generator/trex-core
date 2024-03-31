@@ -419,6 +419,7 @@ hns3_get_caps_name(uint32_t caps_id)
 	} dev_caps[] = {
 		{ HNS3_CAPS_FD_QUEUE_REGION_B, "fd_queue_region" },
 		{ HNS3_CAPS_PTP_B,             "ptp"             },
+		{ HNS3_CAPS_SIMPLE_BD_B,       "simple_bd"       },
 		{ HNS3_CAPS_TX_PUSH_B,         "tx_push"         },
 		{ HNS3_CAPS_PHY_IMP_B,         "phy_imp"         },
 		{ HNS3_CAPS_TQP_TXRX_INDEP_B,  "tqp_txrx_indep"  },
@@ -427,7 +428,8 @@ hns3_get_caps_name(uint32_t caps_id)
 		{ HNS3_CAPS_UDP_TUNNEL_CSUM_B, "udp_tunnel_csum" },
 		{ HNS3_CAPS_RAS_IMP_B,         "ras_imp"         },
 		{ HNS3_CAPS_RXD_ADV_LAYOUT_B,  "rxd_adv_layout"  },
-		{ HNS3_CAPS_TM_B,              "tm_capability"   }
+		{ HNS3_CAPS_TM_B,              "tm_capability"   },
+		{ HNS3_CAPS_FC_AUTO_B,         "fc_autoneg"      }
 	};
 	uint32_t i;
 
@@ -489,6 +491,8 @@ hns3_parse_capability(struct hns3_hw *hw,
 			hns3_warn(hw, "ignore PTP capability due to lack of "
 				  "rxd advanced layout capability.");
 	}
+	if (hns3_get_bit(caps, HNS3_CAPS_SIMPLE_BD_B))
+		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_SIMPLE_BD_B, 1);
 	if (hns3_get_bit(caps, HNS3_CAPS_TX_PUSH_B))
 		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_TX_PUSH_B, 1);
 	if (hns3_get_bit(caps, HNS3_CAPS_PHY_IMP_B))
@@ -507,6 +511,10 @@ hns3_parse_capability(struct hns3_hw *hw,
 		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_RAS_IMP_B, 1);
 	if (hns3_get_bit(caps, HNS3_CAPS_TM_B))
 		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_TM_B, 1);
+	if (hns3_get_bit(caps, HNS3_CAPS_FC_AUTO_B))
+		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_FC_AUTO_B, 1);
+	if (hns3_get_bit(caps, HNS3_CAPS_GRO_B))
+		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_GRO_B, 1);
 }
 
 static uint32_t
@@ -517,6 +525,43 @@ hns3_build_api_caps(void)
 	hns3_set_bit(api_caps, HNS3_API_CAP_FLEX_RSS_TBL_B, 1);
 
 	return rte_cpu_to_le_32(api_caps);
+}
+
+static void
+hns3_set_dcb_capability(struct hns3_hw *hw)
+{
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
+	struct rte_pci_device *pci_dev;
+	struct rte_eth_dev *eth_dev;
+	uint16_t device_id;
+
+	if (hns->is_vf)
+		return;
+
+	eth_dev = &rte_eth_devices[hw->data->port_id];
+	pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
+	device_id = pci_dev->id.device_id;
+
+	if (device_id == HNS3_DEV_ID_25GE_RDMA ||
+	    device_id == HNS3_DEV_ID_50GE_RDMA ||
+	    device_id == HNS3_DEV_ID_100G_RDMA_MACSEC ||
+	    device_id == HNS3_DEV_ID_200G_RDMA ||
+	    device_id == HNS3_DEV_ID_100G_ROH ||
+	    device_id == HNS3_DEV_ID_200G_ROH)
+		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_DCB_B, 1);
+}
+
+static void
+hns3_set_default_capability(struct hns3_hw *hw)
+{
+	hns3_set_dcb_capability(hw);
+
+	/*
+	 * The firmware of the network engines with HIP08 do not report some
+	 * capabilities, like GRO. Set default capabilities for it.
+	 */
+	if (hw->revision < PCI_REVISION_ID_HIP09_A)
+		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_GRO_B, 1);
 }
 
 static int
@@ -536,6 +581,9 @@ hns3_cmd_query_firmware_version_and_capability(struct hns3_hw *hw)
 		return ret;
 
 	hw->fw_version = rte_le_to_cpu_32(resp->firmware);
+
+	hns3_set_default_capability(hw);
+
 	/*
 	 * Make sure mask the capability before parse capability because it
 	 * may overwrite resp's data.
@@ -610,9 +658,31 @@ hns3_update_dev_lsc_cap(struct hns3_hw *hw, int fw_compact_cmd_result)
 	}
 }
 
+static void
+hns3_set_fc_autoneg_cap(struct hns3_adapter *hns, int fw_compact_cmd_result)
+{
+	struct hns3_hw *hw = &hns->hw;
+	struct hns3_mac *mac = &hw->mac;
+
+	if (mac->media_type == HNS3_MEDIA_TYPE_COPPER) {
+		hns->pf.support_fc_autoneg = true;
+		return;
+	}
+
+	/*
+	 * Flow control auto-negotiation requires the cooperation of the driver
+	 * and firmware.
+	 */
+	hns->pf.support_fc_autoneg = (hns3_dev_get_support(hw, FC_AUTO) &&
+					fw_compact_cmd_result == 0) ?
+					true : false;
+}
+
 static int
 hns3_apply_fw_compat_cmd_result(struct hns3_hw *hw, int result)
 {
+	struct hns3_adapter *hns = HNS3_DEV_HW_TO_ADAPTER(hw);
+
 	if (result != 0 && hns3_dev_get_support(hw, COPPER)) {
 		hns3_err(hw, "firmware fails to initialize the PHY, ret = %d.",
 			 result);
@@ -620,6 +690,7 @@ hns3_apply_fw_compat_cmd_result(struct hns3_hw *hw, int result)
 	}
 
 	hns3_update_dev_lsc_cap(hw, result);
+	hns3_set_fc_autoneg_cap(hns, result);
 
 	return 0;
 }
@@ -637,8 +708,11 @@ hns3_firmware_compat_config(struct hns3_hw *hw, bool is_init)
 	if (is_init) {
 		hns3_set_bit(compat, HNS3_LINK_EVENT_REPORT_EN_B, 1);
 		hns3_set_bit(compat, HNS3_NCSI_ERROR_REPORT_EN_B, 0);
+		hns3_set_bit(compat, HNS3_LLRS_FEC_EN_B, 1);
 		if (hns3_dev_get_support(hw, COPPER))
 			hns3_set_bit(compat, HNS3_FIRMWARE_PHY_DRIVER_EN_B, 1);
+		if (hns3_dev_get_support(hw, FC_AUTO))
+			hns3_set_bit(compat, HNS3_MAC_FC_AUTONEG_EN_B, 1);
 	}
 	req->compat = rte_cpu_to_le_32(compat);
 
@@ -659,9 +733,6 @@ hns3_cmd_init(struct hns3_hw *hw)
 	hw->cmq.csq.next_to_use = 0;
 	hw->cmq.crq.next_to_clean = 0;
 	hw->cmq.crq.next_to_use = 0;
-	hw->mbx_resp.head = 0;
-	hw->mbx_resp.tail = 0;
-	hw->mbx_resp.lost = 0;
 	hns3_cmd_init_regs(hw);
 
 	rte_spinlock_unlock(&hw->cmq.crq.lock);

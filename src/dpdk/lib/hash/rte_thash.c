@@ -2,6 +2,7 @@
  * Copyright(c) 2021 Intel Corporation
  */
 
+#include <stdalign.h>
 #include <sys/queue.h>
 
 #include <rte_thash.h>
@@ -12,6 +13,11 @@
 #include <rte_eal_memconfig.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
+
+RTE_LOG_REGISTER_SUFFIX(thash_logtype, thash, INFO);
+#define RTE_LOGTYPE_HASH thash_logtype
+#define HASH_LOG(level, ...) \
+	RTE_LOG_LINE(level, HASH, "" __VA_ARGS__)
 
 #define THASH_NAME_LEN		64
 #define TOEPLITZ_HASH_LEN	32
@@ -75,7 +81,7 @@ struct rte_thash_subtuple_helper {
 	uint32_t	tuple_offset;	/** < Offset in bits of the subtuple */
 	uint32_t	tuple_len;	/** < Length in bits of the subtuple */
 	uint32_t	lsb_msk;	/** < (1 << reta_sz_log) - 1 */
-	__extension__ uint32_t	compl_table[0] __rte_cache_aligned;
+	__extension__ alignas(RTE_CACHE_LINE_SIZE) uint32_t	compl_table[0];
 	/** < Complementary table */
 };
 
@@ -130,7 +136,7 @@ get_bit_lfsr(struct thash_lfsr *lfsr)
 	 * masking the TAP bits defined by the polynomial and
 	 * calculating parity
 	 */
-	bit = __builtin_popcount(lfsr->state & lfsr->poly) & 0x1;
+	bit = rte_popcount32(lfsr->state & lfsr->poly) & 0x1;
 	ret = lfsr->state & 0x1;
 	lfsr->state = ((lfsr->state >> 1) | (bit << (lfsr->deg - 1))) &
 		((1 << lfsr->deg) - 1);
@@ -144,7 +150,7 @@ get_rev_bit_lfsr(struct thash_lfsr *lfsr)
 {
 	uint32_t bit, ret;
 
-	bit = __builtin_popcount(lfsr->rev_state & lfsr->rev_poly) & 0x1;
+	bit = rte_popcount32(lfsr->rev_state & lfsr->rev_poly) & 0x1;
 	ret = lfsr->rev_state & (1 << (lfsr->deg - 1));
 	lfsr->rev_state = ((lfsr->rev_state << 1) | bit) &
 		((1 << lfsr->deg) - 1);
@@ -240,8 +246,8 @@ rte_thash_init_ctx(const char *name, uint32_t key_len, uint32_t reta_sz,
 	/* allocate tailq entry */
 	te = rte_zmalloc("THASH_TAILQ_ENTRY", sizeof(*te), 0);
 	if (te == NULL) {
-		RTE_LOG(ERR, HASH,
-			"Can not allocate tailq entry for thash context %s\n",
+		HASH_LOG(ERR,
+			"Can not allocate tailq entry for thash context %s",
 			name);
 		rte_errno = ENOMEM;
 		goto exit;
@@ -249,7 +255,7 @@ rte_thash_init_ctx(const char *name, uint32_t key_len, uint32_t reta_sz,
 
 	ctx = rte_zmalloc(NULL, sizeof(struct rte_thash_ctx) + key_len, 0);
 	if (ctx == NULL) {
-		RTE_LOG(ERR, HASH, "thash ctx %s memory allocation failed\n",
+		HASH_LOG(ERR, "thash ctx %s memory allocation failed",
 			name);
 		rte_errno = ENOMEM;
 		goto free_te;
@@ -272,7 +278,7 @@ rte_thash_init_ctx(const char *name, uint32_t key_len, uint32_t reta_sz,
 		ctx->matrices = rte_zmalloc(NULL, key_len * sizeof(uint64_t),
 			RTE_CACHE_LINE_SIZE);
 		if (ctx->matrices == NULL) {
-			RTE_LOG(ERR, HASH, "Cannot allocate matrices\n");
+			HASH_LOG(ERR, "Cannot allocate matrices");
 			rte_errno = ENOMEM;
 			goto free_ctx;
 		}
@@ -387,8 +393,8 @@ generate_subkey(struct rte_thash_ctx *ctx, struct thash_lfsr *lfsr,
 	if (((lfsr->bits_cnt + req_bits) > (1ULL << lfsr->deg) - 1) &&
 			((ctx->flags & RTE_THASH_IGNORE_PERIOD_OVERFLOW) !=
 			RTE_THASH_IGNORE_PERIOD_OVERFLOW)) {
-		RTE_LOG(ERR, HASH,
-			"Can't generate m-sequence due to period overflow\n");
+		HASH_LOG(ERR,
+			"Can't generate m-sequence due to period overflow");
 		return -ENOSPC;
 	}
 
@@ -467,9 +473,9 @@ insert_before(struct rte_thash_ctx *ctx,
 			return ret;
 		}
 	} else if ((next_ent != NULL) && (end > next_ent->offset)) {
-		RTE_LOG(ERR, HASH,
+		HASH_LOG(ERR,
 			"Can't add helper %s due to conflict with existing"
-			" helper %s\n", ent->name, next_ent->name);
+			" helper %s", ent->name, next_ent->name);
 		rte_free(ent);
 		return -ENOSPC;
 	}
@@ -516,9 +522,9 @@ insert_after(struct rte_thash_ctx *ctx,
 	int ret;
 
 	if ((next_ent != NULL) && (end > next_ent->offset)) {
-		RTE_LOG(ERR, HASH,
+		HASH_LOG(ERR,
 			"Can't add helper %s due to conflict with existing"
-			" helper %s\n", ent->name, next_ent->name);
+			" helper %s", ent->name, next_ent->name);
 		rte_free(ent);
 		return -EEXIST;
 	}
@@ -670,7 +676,7 @@ rte_thash_get_gfni_matrices(struct rte_thash_ctx *ctx)
 }
 
 static inline uint8_t
-read_unaligned_byte(uint8_t *ptr, unsigned int len, unsigned int offset)
+read_unaligned_byte(uint8_t *ptr, unsigned int offset)
 {
 	uint8_t ret = 0;
 
@@ -681,13 +687,14 @@ read_unaligned_byte(uint8_t *ptr, unsigned int len, unsigned int offset)
 			(CHAR_BIT - (offset % CHAR_BIT));
 	}
 
-	return ret >> (CHAR_BIT - len);
+	return ret;
 }
 
 static inline uint32_t
 read_unaligned_bits(uint8_t *ptr, int len, int offset)
 {
 	uint32_t ret = 0;
+	int shift;
 
 	len = RTE_MAX(len, 0);
 	len = RTE_MIN(len, (int)(sizeof(uint32_t) * CHAR_BIT));
@@ -695,13 +702,14 @@ read_unaligned_bits(uint8_t *ptr, int len, int offset)
 	while (len > 0) {
 		ret <<= CHAR_BIT;
 
-		ret |= read_unaligned_byte(ptr, RTE_MIN(len, CHAR_BIT),
-			offset);
+		ret |= read_unaligned_byte(ptr, offset);
 		offset += CHAR_BIT;
 		len -= CHAR_BIT;
 	}
 
-	return ret;
+	shift = (len == 0) ? 0 :
+		(CHAR_BIT - ((len + CHAR_BIT) % CHAR_BIT));
+	return ret >> shift;
 }
 
 /* returns mask for len bits with given offset inside byte */

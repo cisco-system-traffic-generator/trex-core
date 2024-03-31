@@ -73,10 +73,15 @@ union cpt_eng_caps {
 		uint64_t __io des : 1;
 		uint64_t __io crc : 1;
 		uint64_t __io mmul : 1;
-		uint64_t __io reserved_15_33 : 19;
-		uint64_t __io pdcp_chain : 1;
+		uint64_t __io reserved_15_20 : 6;
+		uint64_t __io sm3 : 1;
+		uint64_t __io sm4 : 1;
+		uint64_t __io reserved_23_34 : 12;
 		uint64_t __io sg_ver2 : 1;
-		uint64_t __io reserved_36_63 : 28;
+		uint64_t __io sm2 : 1;
+		uint64_t __io pdcp_chain_zuc256 : 1;
+		uint64_t __io tls : 1;
+		uint64_t __io reserved_39_63 : 25;
 	};
 };
 
@@ -233,6 +238,15 @@ struct cpt_inst_s {
 			uint64_t doneint : 1;
 			uint64_t nixtx_addr : 60;
 		} s;
+		struct {
+			uint64_t nixtxl : 3;
+			uint64_t doneint : 1;
+			uint64_t chan : 12;
+			uint64_t l2_len : 8;
+			uint64_t et_offset : 8;
+			uint64_t match_id : 16;
+			uint64_t sso_pf_func : 16;
+		} hw_s;
 		uint64_t u64;
 	} w0;
 

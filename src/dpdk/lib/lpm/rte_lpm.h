@@ -12,8 +12,9 @@
  */
 
 #include <errno.h>
+#include <stdalign.h>
 #include <stdint.h>
-#include <rte_compat.h>
+
 #include <rte_branch_prediction.h>
 #include <rte_byteorder.h>
 #include <rte_common.h>
@@ -118,8 +119,8 @@ struct rte_lpm_config {
 /** @internal LPM structure. */
 struct rte_lpm {
 	/* LPM Tables. */
-	struct rte_lpm_tbl_entry tbl24[RTE_LPM_TBL24_NUM_ENTRIES]
-			__rte_cache_aligned; /**< LPM tbl24 table. */
+	alignas(RTE_CACHE_LINE_SIZE) struct rte_lpm_tbl_entry tbl24[RTE_LPM_TBL24_NUM_ENTRIES];
+			/**< LPM tbl24 table. */
 	struct rte_lpm_tbl_entry *tbl8; /**< LPM tbl8 table. */
 };
 
@@ -186,9 +187,6 @@ void
 rte_lpm_free(struct rte_lpm *lpm);
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice
- *
  * Associate RCU QSBR variable with an LPM object.
  *
  * @param lpm
@@ -203,7 +201,6 @@ rte_lpm_free(struct rte_lpm *lpm);
  *   - EEXIST - already added QSBR
  *   - ENOMEM - memory allocation failure
  */
-__rte_experimental
 int rte_lpm_rcu_qsbr_add(struct rte_lpm *lpm, struct rte_lpm_rcu_config *cfg);
 
 /**

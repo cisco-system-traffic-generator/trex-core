@@ -13,6 +13,15 @@
 
 #define VHOST_MEMORY_MAX_NREGIONS 8
 
+#define VHOST_USER_NET_SUPPORTED_FEATURES \
+	(VIRTIO_NET_SUPPORTED_FEATURES | \
+	 (1ULL << VIRTIO_F_RING_PACKED) | \
+	 (1ULL << VIRTIO_NET_F_MTU) | \
+	 (1ULL << VHOST_F_LOG_ALL) | \
+	 (1ULL << VHOST_USER_F_PROTOCOL_FEATURES) | \
+	 (1ULL << VIRTIO_NET_F_CTRL_RX) | \
+	 (1ULL << VIRTIO_NET_F_GUEST_ANNOUNCE))
+
 #define VHOST_USER_PROTOCOL_FEATURES	((1ULL << VHOST_USER_PROTOCOL_F_MQ) | \
 					 (1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD) |\
 					 (1ULL << VHOST_USER_PROTOCOL_F_RARP) | \
@@ -179,11 +188,11 @@ struct __rte_packed vhu_msg_context {
 
 /* vhost_user.c */
 int vhost_user_msg_handler(int vid, int fd);
-int vhost_user_iotlb_miss(struct virtio_net *dev, uint64_t iova, uint8_t perm);
 
 /* socket.c */
 int read_fd_message(char *ifname, int sockfd, char *buf, int buflen, int *fds, int max_fds,
 		int *fd_num);
 int send_fd_message(char *ifname, int sockfd, char *buf, int buflen, int *fds, int fd_num);
+int vhost_user_new_device(void);
 
 #endif

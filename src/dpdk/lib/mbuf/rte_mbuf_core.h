@@ -16,9 +16,11 @@
  * New fields and flags should fit in the "dynamic space".
  */
 
+#include <stdalign.h>
 #include <stdint.h>
 
 #include <rte_byteorder.h>
+#include <rte_stdatomic.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -462,7 +464,7 @@ enum {
 /**
  * The generic rte_mbuf, containing a packet mbuf.
  */
-struct rte_mbuf {
+struct __rte_cache_aligned rte_mbuf {
 	RTE_MARKER cacheline0;
 
 	void *buf_addr;           /**< Virtual address of segment buffer. */
@@ -475,7 +477,7 @@ struct rte_mbuf {
 	 * same mbuf cacheline0 layout for 32-bit and 64-bit. This makes
 	 * working on vector drivers easier.
 	 */
-	rte_iova_t buf_iova __rte_aligned(sizeof(rte_iova_t));
+	alignas(sizeof(rte_iova_t)) rte_iova_t buf_iova;
 #else
 	/**
 	 * Next segment of scattered packet.
@@ -497,7 +499,7 @@ struct rte_mbuf {
 	 * rte_mbuf_refcnt_set(). The functionality of these functions (atomic,
 	 * or non-atomic) is controlled by the RTE_MBUF_REFCNT_ATOMIC flag.
 	 */
-	uint16_t refcnt;
+	RTE_ATOMIC(uint16_t) refcnt;
 
 	/**
 	 * Number of segments. Only valid for the first segment of an mbuf
@@ -522,7 +524,6 @@ struct rte_mbuf {
 	 * would have RTE_PTYPE_L2_ETHER and not RTE_PTYPE_L2_VLAN because the
 	 * vlan is stripped from the data.
 	 */
-	RTE_STD_C11
 	union {
 		uint32_t packet_type; /**< L2/L3/L4 and tunnel information. */
 		__extension__
@@ -531,7 +532,6 @@ struct rte_mbuf {
 			uint8_t l3_type:4;   /**< (Outer) L3 type. */
 			uint8_t l4_type:4;   /**< (Outer) L4 type. */
 			uint8_t tun_type:4;  /**< Tunnel type. */
-			RTE_STD_C11
 			union {
 				uint8_t inner_esp_next_proto;
 				/**< ESP next protocol type, valid if
@@ -555,7 +555,6 @@ struct rte_mbuf {
 	/** VLAN TCI (CPU order), valid if RTE_MBUF_F_RX_VLAN is set. */
 	uint16_t vlan_tci;
 
-	RTE_STD_C11
 	union {
 		union {
 			uint32_t rss;     /**< RSS hash result if RSS enabled */
@@ -584,8 +583,8 @@ struct rte_mbuf {
 				 * @see rte_event_eth_tx_adapter_txq_set()
 				 */
 			} txadapter; /**< Eventdev ethdev Tx adapter */
-			/**< User defined tags. See rte_distributor_process() */
 			uint32_t usr;
+			/**< User defined tags. See rte_distributor_process() */
 		} hash;                   /**< hash information */
 	};
 
@@ -597,7 +596,7 @@ struct rte_mbuf {
 	struct rte_mempool *pool; /**< Pool from which mbuf was allocated. */
 
 	/* second cache line - fields only used in slow path or on TX */
-	RTE_MARKER cacheline1 __rte_cache_min_aligned;
+	alignas(RTE_CACHE_LINE_MIN_SIZE) RTE_MARKER cacheline1;
 
 #if RTE_IOVA_IN_MBUF
 	/**
@@ -614,7 +613,6 @@ struct rte_mbuf {
 #endif
 
 	/* fields to support TX offloads */
-	RTE_STD_C11
 	union {
 		uint64_t tx_offload;       /**< combined for easy fetch */
 		__extension__
@@ -663,33 +661,33 @@ struct rte_mbuf {
 
 	/** Timesync flags for use with IEEE1588. */
 	uint16_t timesync;
+
 #ifdef TREX_PATCH
-      uint8_t   m_core_locality;
-	  uint8_t   m_dummy1;
-	  uint16_t  m_dummy2;
-	  void *   dynfield_ptr; 
-	  uint32_t dynfield1[6]; /**< Reserved for dynamic fields. */
+	uint8_t   m_core_locality;
+	uint8_t   m_dummy1;
+	uint16_t  m_dummy2;
+	void *   dynfield_ptr;
+	uint32_t dynfield1[6]; /**< Reserved for dynamic fields. */
 #else
 	uint32_t dynfield1[9]; /**< Reserved for dynamic fields. */
 #endif
-} __rte_cache_aligned;
+};
 
 #ifdef TREX_PATCH
-
 /**
- * MBUF core locality type 
- *  
- * if RTE_MBUF_TYPE_CORE_LOCAL then the MBUF should be used with 
+ * MBUF core locality type
+ *
+ * if RTE_MBUF_TYPE_CORE_LOCAL then the MBUF should be used with
  * the allocating core only.
- *  
- * RTE_MBUF_TYPE_CORE_CONST means that the mbuf is shared and there is no need to do ref count 
- * 
- * when RTE_MBUF_TYPE_CORE_MULTI is set, the MBUF can be 
- * used with multiple cores 
- *  
- * having an MBUF set as core-local will allow us to skip 
- * atomic checks 
- * 
+ *
+ * RTE_MBUF_TYPE_CORE_CONST means that the mbuf is shared and there is no need to do ref count
+ *
+ * when RTE_MBUF_TYPE_CORE_MULTI is set, the MBUF can be
+ * used with multiple cores
+ *
+ * having an MBUF set as core-local will allow us to skip
+ * atomic checks
+ *
  * WARNING don't change the NUMBERS orders 0,1,2
  */
 typedef enum {
@@ -726,9 +724,7 @@ rte_mbuf_set_as_core_const(struct rte_mbuf *m) {
 static inline void
 rte_mbuf_set_as_core_multi(struct rte_mbuf *m) {
 }
-
 #endif
-
 
 /**
  * Function typedef of callback to free externally attached buffer.
@@ -741,7 +737,7 @@ typedef void (*rte_mbuf_extbuf_free_callback_t)(void *addr, void *opaque);
 struct rte_mbuf_ext_shared_info {
 	rte_mbuf_extbuf_free_callback_t free_cb; /**< Free callback function */
 	void *fcb_opaque;                        /**< Free callback argument */
-	uint16_t refcnt;
+	RTE_ATOMIC(uint16_t) refcnt;
 };
 
 /** Maximum number of nb_segs allowed. */

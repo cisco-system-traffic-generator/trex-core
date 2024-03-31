@@ -12,6 +12,9 @@
 #define ROC_AE_CPT_BLOCK_TYPE1 0
 #define ROC_AE_CPT_BLOCK_TYPE2 1
 
+#define ROC_LOADFVC_MAJOR_OP 0x01UL
+#define ROC_LOADFVC_MINOR_OP 0x08UL
+
 /* Default engine groups */
 #define ROC_CPT_DFLT_ENG_GRP_SE	   0UL
 #define ROC_CPT_DFLT_ENG_GRP_SE_IE 1UL
@@ -52,6 +55,7 @@
 #define ROC_CPT_AES_CBC_IV_LEN	16
 #define ROC_CPT_SHA1_HMAC_LEN	12
 #define ROC_CPT_SHA2_HMAC_LEN	16
+#define ROC_CPT_DES_IV_LEN	8
 
 #define ROC_CPT_DES3_KEY_LEN	    24
 #define ROC_CPT_AES128_KEY_LEN	    16
@@ -67,9 +71,6 @@
 
 #define ROC_CPT_DES_BLOCK_LENGTH 8
 #define ROC_CPT_AES_BLOCK_LENGTH 16
-
-#define ROC_CPT_AES_GCM_ROUNDUP_BYTE_LEN 4
-#define ROC_CPT_AES_CBC_ROUNDUP_BYTE_LEN 16
 
 /* Salt length for AES-CTR/GCM/CCM and AES-GMAC */
 #define ROC_CPT_SALT_LEN 4
@@ -158,6 +159,8 @@ struct roc_cpt_inline_ipsec_inb_cfg {
 	uint16_t bpid;
 	uint32_t credit_th;
 	uint8_t egrp;
+	uint8_t ctx_ilen_valid : 1;
+	uint8_t ctx_ilen : 7;
 };
 
 int __roc_api roc_cpt_rxc_time_cfg(struct roc_cpt *roc_cpt,
@@ -166,7 +169,8 @@ int __roc_api roc_cpt_dev_init(struct roc_cpt *roc_cpt);
 int __roc_api roc_cpt_dev_fini(struct roc_cpt *roc_cpt);
 int __roc_api roc_cpt_eng_grp_add(struct roc_cpt *roc_cpt,
 				  enum cpt_eng_type eng_type);
-int __roc_api roc_cpt_dev_configure(struct roc_cpt *roc_cpt, int nb_lf);
+int __roc_api roc_cpt_dev_configure(struct roc_cpt *roc_cpt, int nb_lf, bool rxc_ena,
+				    uint16_t rx_inject_qp);
 void __roc_api roc_cpt_dev_clear(struct roc_cpt *roc_cpt);
 int __roc_api roc_cpt_lf_init(struct roc_cpt *roc_cpt, struct roc_cpt_lf *lf);
 void __roc_api roc_cpt_lf_fini(struct roc_cpt_lf *lf);
@@ -178,8 +182,7 @@ int __roc_api roc_cpt_inline_ipsec_cfg(struct dev *dev, uint8_t slot,
 int __roc_api roc_cpt_inline_ipsec_inb_cfg_read(struct roc_cpt *roc_cpt,
 					struct roc_cpt_inline_ipsec_inb_cfg *cfg);
 int __roc_api roc_cpt_inline_ipsec_inb_cfg(struct roc_cpt *roc_cpt,
-					   uint16_t param1, uint16_t param2,
-					   uint16_t opcode);
+					   struct roc_cpt_inline_ipsec_inb_cfg *cfg);
 int __roc_api roc_cpt_afs_print(struct roc_cpt *roc_cpt);
 int __roc_api roc_cpt_lfs_print(struct roc_cpt *roc_cpt);
 void __roc_api roc_cpt_iq_disable(struct roc_cpt_lf *lf);
@@ -187,7 +190,7 @@ void __roc_api roc_cpt_iq_enable(struct roc_cpt_lf *lf);
 int __roc_api roc_cpt_lmtline_init(struct roc_cpt *roc_cpt,
 				   struct roc_cpt_lmtline *lmtline, int lf_id);
 
-void __roc_api roc_cpt_parse_hdr_dump(const struct cpt_parse_hdr_s *cpth);
+void __roc_api roc_cpt_parse_hdr_dump(FILE *file, const struct cpt_parse_hdr_s *cpth);
 int __roc_api roc_cpt_ctx_write(struct roc_cpt_lf *lf, void *sa_dptr,
 				void *sa_cptr, uint16_t sa_len);
 

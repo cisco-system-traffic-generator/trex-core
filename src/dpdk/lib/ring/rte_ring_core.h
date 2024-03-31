@@ -23,6 +23,7 @@
 extern "C" {
 #endif
 
+#include <stdalign.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -66,9 +67,8 @@ enum rte_ring_sync_type {
  * but offset for *sync_type* and *tail* values should remain the same.
  */
 struct rte_ring_headtail {
-	volatile uint32_t head;      /**< prod/consumer head. */
-	volatile uint32_t tail;      /**< prod/consumer tail. */
-	RTE_STD_C11
+	volatile RTE_ATOMIC(uint32_t) head;      /**< prod/consumer head. */
+	volatile RTE_ATOMIC(uint32_t) tail;      /**< prod/consumer tail. */
 	union {
 		/** sync type of prod/cons */
 		enum rte_ring_sync_type sync_type;
@@ -79,7 +79,7 @@ struct rte_ring_headtail {
 
 union __rte_ring_rts_poscnt {
 	/** raw 8B value to read/write *cnt* and *pos* as one atomic op */
-	uint64_t raw __rte_aligned(8);
+	alignas(sizeof(uint64_t)) RTE_ATOMIC(uint64_t) raw;
 	struct {
 		uint32_t cnt; /**< head/tail reference counter */
 		uint32_t pos; /**< head/tail position */
@@ -95,10 +95,10 @@ struct rte_ring_rts_headtail {
 
 union __rte_ring_hts_pos {
 	/** raw 8B value to read/write *head* and *tail* as one atomic op */
-	uint64_t raw __rte_aligned(8);
+	alignas(sizeof(uint64_t)) RTE_ATOMIC(uint64_t) raw;
 	struct {
-		uint32_t head; /**< head position */
-		uint32_t tail; /**< tail position */
+		RTE_ATOMIC(uint32_t) head; /**< head position */
+		RTE_ATOMIC(uint32_t) tail; /**< tail position */
 	} pos;
 };
 
@@ -118,7 +118,7 @@ struct rte_ring_hts_headtail {
  * a problem.
  */
 struct rte_ring {
-	char name[RTE_RING_NAMESIZE] __rte_cache_aligned;
+	alignas(RTE_CACHE_LINE_SIZE) char name[RTE_RING_NAMESIZE];
 	/**< Name of the ring. */
 	int flags;               /**< Flags supplied at creation. */
 	const struct rte_memzone *memzone;
@@ -127,27 +127,25 @@ struct rte_ring {
 	uint32_t mask;           /**< Mask (size-1) of ring. */
 	uint32_t capacity;       /**< Usable size of ring */
 
-	char pad0 __rte_cache_aligned; /**< empty cache line */
+	RTE_CACHE_GUARD;
 
 	/** Ring producer status. */
-	RTE_STD_C11
-	union {
+	union __rte_cache_aligned {
 		struct rte_ring_headtail prod;
 		struct rte_ring_hts_headtail hts_prod;
 		struct rte_ring_rts_headtail rts_prod;
-	}  __rte_cache_aligned;
+	};
 
-	char pad1 __rte_cache_aligned; /**< empty cache line */
+	RTE_CACHE_GUARD;
 
 	/** Ring consumer status. */
-	RTE_STD_C11
-	union {
+	union __rte_cache_aligned {
 		struct rte_ring_headtail cons;
 		struct rte_ring_hts_headtail hts_cons;
 		struct rte_ring_rts_headtail rts_cons;
-	}  __rte_cache_aligned;
+	};
 
-	char pad2 __rte_cache_aligned; /**< empty cache line */
+	RTE_CACHE_GUARD;
 };
 
 #define RING_F_SP_ENQ 0x0001 /**< The default enqueue is "single-producer". */

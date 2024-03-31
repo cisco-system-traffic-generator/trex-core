@@ -144,24 +144,23 @@ dsw_queue_release(struct rte_eventdev *dev __rte_unused,
 static void
 queue_add_port(struct dsw_queue *queue, uint16_t port_id)
 {
-	queue->serving_ports[queue->num_serving_ports] = port_id;
+	uint64_t port_mask = UINT64_C(1) << port_id;
+
+	queue->serving_ports |=	port_mask;
 	queue->num_serving_ports++;
 }
 
 static bool
 queue_remove_port(struct dsw_queue *queue, uint16_t port_id)
 {
-	uint16_t i;
+	uint64_t port_mask = UINT64_C(1) << port_id;
 
-	for (i = 0; i < queue->num_serving_ports; i++)
-		if (queue->serving_ports[i] == port_id) {
-			uint16_t last_idx = queue->num_serving_ports - 1;
-			if (i != last_idx)
-				queue->serving_ports[i] =
-					queue->serving_ports[last_idx];
-			queue->num_serving_ports--;
-			return true;
-		}
+	if (queue->serving_ports & port_mask) {
+		queue->num_serving_ports--;
+		queue->serving_ports ^= port_mask;
+		return true;
+	}
+
 	return false;
 }
 
@@ -218,7 +217,10 @@ dsw_info_get(struct rte_eventdev *dev __rte_unused,
 		.max_event_port_dequeue_depth = DSW_MAX_PORT_DEQUEUE_DEPTH,
 		.max_event_port_enqueue_depth = DSW_MAX_PORT_ENQUEUE_DEPTH,
 		.max_num_events = DSW_MAX_EVENTS,
+		.max_profiles_per_port = 1,
 		.event_dev_cap = RTE_EVENT_DEV_CAP_BURST_MODE|
+		RTE_EVENT_DEV_CAP_ATOMIC |
+		RTE_EVENT_DEV_CAP_PARALLEL |
 		RTE_EVENT_DEV_CAP_DISTRIBUTED_SCHED|
 		RTE_EVENT_DEV_CAP_NONSEQ_MODE|
 		RTE_EVENT_DEV_CAP_MULTIPLE_QUEUE_PORT|
@@ -255,10 +257,20 @@ initial_flow_to_port_assignment(struct dsw_evdev *dsw)
 		struct dsw_queue *queue = &dsw->queues[queue_id];
 		uint16_t flow_hash;
 		for (flow_hash = 0; flow_hash < DSW_MAX_FLOWS; flow_hash++) {
-			uint8_t port_idx =
-				rte_rand() % queue->num_serving_ports;
-			uint8_t port_id =
-				queue->serving_ports[port_idx];
+			uint8_t skip =
+				rte_rand_max(queue->num_serving_ports);
+			uint8_t port_id;
+
+			for (port_id = 0;; port_id++) {
+				uint64_t port_mask = UINT64_C(1) << port_id;
+
+				if (queue->serving_ports & port_mask) {
+					if (skip == 0)
+						break;
+					skip--;
+				}
+			}
+
 			dsw->queues[queue_id].flow_to_port_map[flow_hash] =
 				port_id;
 		}
@@ -363,6 +375,10 @@ static int
 dsw_close(struct rte_eventdev *dev)
 {
 	struct dsw_evdev *dsw = dsw_pmd_priv(dev);
+	uint16_t port_id;
+
+	for (port_id = 0; port_id < dsw->num_ports; port_id++)
+		dsw_port_release(&dsw->ports[port_id]);
 
 	dsw->num_ports = 0;
 	dsw->num_queues = 0;
@@ -430,7 +446,7 @@ dsw_probe(struct rte_vdev_device *vdev)
 	name = rte_vdev_device_name(vdev);
 
 	dev = rte_event_pmd_vdev_init(name, sizeof(struct dsw_evdev),
-				      rte_socket_id());
+				      rte_socket_id(), vdev);
 	if (dev == NULL)
 		return -EFAULT;
 

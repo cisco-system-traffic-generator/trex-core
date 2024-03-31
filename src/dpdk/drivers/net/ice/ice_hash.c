@@ -572,7 +572,7 @@ static struct ice_flow_engine ice_hash_engine = {
 };
 
 /* Register parser for os package. */
-static struct ice_flow_parser ice_hash_parser = {
+struct ice_flow_parser ice_hash_parser = {
 	.engine = &ice_hash_engine,
 	.array = ice_hash_pattern_list,
 	.array_len = RTE_DIM(ice_hash_pattern_list),
@@ -587,16 +587,9 @@ RTE_INIT(ice_hash_engine_init)
 }
 
 static int
-ice_hash_init(struct ice_adapter *ad)
+ice_hash_init(struct ice_adapter *ad __rte_unused)
 {
-	struct ice_flow_parser *parser = NULL;
-
-	if (ad->hw.dcf_enabled)
-		return 0;
-
-	parser = &ice_hash_parser;
-
-	return ice_register_parser(parser, ad);
+	return 0;
 }
 
 static int
@@ -653,8 +646,8 @@ ice_hash_parse_raw_pattern(struct ice_adapter *ad,
 	const struct rte_flow_item_raw *raw_spec, *raw_mask;
 	struct ice_parser_profile prof;
 	struct ice_parser_result rslt;
+	uint16_t spec_len, pkt_len;
 	uint8_t *pkt_buf, *msk_buf;
-	uint8_t spec_len, pkt_len;
 	uint8_t tmp_val = 0;
 	uint8_t tmp_c = 0;
 	int i, j;
@@ -1033,7 +1026,7 @@ ice_any_invalid_rss_type(enum rte_eth_hash_function rss_func,
 
 	/* check invalid combination */
 	for (i = 0; i < RTE_DIM(invalid_rss_comb); i++) {
-		if (__builtin_popcountll(rss_type & invalid_rss_comb[i]) > 1)
+		if (rte_popcount64(rss_type & invalid_rss_comb[i]) > 1)
 			return true;
 	}
 
@@ -1442,12 +1435,8 @@ error:
 }
 
 static void
-ice_hash_uninit(struct ice_adapter *ad)
+ice_hash_uninit(struct ice_adapter *ad __rte_unused)
 {
-	if (ad->hw.dcf_enabled)
-		return;
-
-	ice_unregister_parser(&ice_hash_parser, ad);
 }
 
 static void

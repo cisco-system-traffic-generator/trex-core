@@ -3,8 +3,8 @@
  */
 
 #include <rte_log.h>
-#include <idpf_common_device.h>
-#include <idpf_common_virtchnl.h>
+#include "idpf_common_device.h"
+#include "idpf_common_virtchnl.h"
 
 static void
 idpf_reset_pf(struct idpf_hw *hw)
@@ -16,6 +16,7 @@ idpf_reset_pf(struct idpf_hw *hw)
 }
 
 #define IDPF_RESET_WAIT_CNT 100
+
 static int
 idpf_check_pf_reset_done(struct idpf_hw *hw)
 {
@@ -33,48 +34,105 @@ idpf_check_pf_reset_done(struct idpf_hw *hw)
 	return -EBUSY;
 }
 
-#define CTLQ_NUM 2
+static int
+idpf_check_vf_reset_done(struct idpf_hw *hw)
+{
+	uint32_t reg;
+	int i;
+
+	for (i = 0; i < IDPF_RESET_WAIT_CNT; i++) {
+		reg = IDPF_READ_REG(hw, VFGEN_RSTAT);
+		if (reg != 0xFFFFFFFF && (reg & VFGEN_RSTAT_VFR_STATE_M))
+			return 0;
+		rte_delay_ms(1000);
+	}
+
+	DRV_LOG(ERR, "VF reset timeout");
+	return -EBUSY;
+}
+
+#define IDPF_CTLQ_NUM 2
+
+struct idpf_ctlq_create_info pf_ctlq_info[IDPF_CTLQ_NUM] = {
+	{
+		.type = IDPF_CTLQ_TYPE_MAILBOX_TX,
+		.id = IDPF_CTLQ_ID,
+		.len = IDPF_CTLQ_LEN,
+		.buf_size = IDPF_DFLT_MBX_BUF_SIZE,
+		.reg = {
+			.head = PF_FW_ATQH,
+			.tail = PF_FW_ATQT,
+			.len = PF_FW_ATQLEN,
+			.bah = PF_FW_ATQBAH,
+			.bal = PF_FW_ATQBAL,
+			.len_mask = PF_FW_ATQLEN_ATQLEN_M,
+			.len_ena_mask = PF_FW_ATQLEN_ATQENABLE_M,
+			.head_mask = PF_FW_ATQH_ATQH_M,
+		}
+	},
+	{
+		.type = IDPF_CTLQ_TYPE_MAILBOX_RX,
+		.id = IDPF_CTLQ_ID,
+		.len = IDPF_CTLQ_LEN,
+		.buf_size = IDPF_DFLT_MBX_BUF_SIZE,
+		.reg = {
+			.head = PF_FW_ARQH,
+			.tail = PF_FW_ARQT,
+			.len = PF_FW_ARQLEN,
+			.bah = PF_FW_ARQBAH,
+			.bal = PF_FW_ARQBAL,
+			.len_mask = PF_FW_ARQLEN_ARQLEN_M,
+			.len_ena_mask = PF_FW_ARQLEN_ARQENABLE_M,
+			.head_mask = PF_FW_ARQH_ARQH_M,
+		}
+	}
+};
+
+struct idpf_ctlq_create_info vf_ctlq_info[IDPF_CTLQ_NUM] = {
+	{
+		.type = IDPF_CTLQ_TYPE_MAILBOX_TX,
+		.id = IDPF_CTLQ_ID,
+		.len = IDPF_CTLQ_LEN,
+		.buf_size = IDPF_DFLT_MBX_BUF_SIZE,
+		.reg = {
+			.head = VF_ATQH,
+			.tail = VF_ATQT,
+			.len = VF_ATQLEN,
+			.bah = VF_ATQBAH,
+			.bal = VF_ATQBAL,
+			.len_mask = VF_ATQLEN_ATQLEN_M,
+			.len_ena_mask = VF_ATQLEN_ATQENABLE_M,
+			.head_mask = VF_ATQH_ATQH_M,
+		}
+	},
+	{
+		.type = IDPF_CTLQ_TYPE_MAILBOX_RX,
+		.id = IDPF_CTLQ_ID,
+		.len = IDPF_CTLQ_LEN,
+		.buf_size = IDPF_DFLT_MBX_BUF_SIZE,
+		.reg = {
+			.head = VF_ARQH,
+			.tail = VF_ARQT,
+			.len = VF_ARQLEN,
+			.bah = VF_ARQBAH,
+			.bal = VF_ARQBAL,
+			.len_mask = VF_ARQLEN_ARQLEN_M,
+			.len_ena_mask = VF_ARQLEN_ARQENABLE_M,
+			.head_mask = VF_ARQH_ARQH_M,
+		}
+	}
+};
+
 static int
 idpf_init_mbx(struct idpf_hw *hw)
 {
-	struct idpf_ctlq_create_info ctlq_info[CTLQ_NUM] = {
-		{
-			.type = IDPF_CTLQ_TYPE_MAILBOX_TX,
-			.id = IDPF_CTLQ_ID,
-			.len = IDPF_CTLQ_LEN,
-			.buf_size = IDPF_DFLT_MBX_BUF_SIZE,
-			.reg = {
-				.head = PF_FW_ATQH,
-				.tail = PF_FW_ATQT,
-				.len = PF_FW_ATQLEN,
-				.bah = PF_FW_ATQBAH,
-				.bal = PF_FW_ATQBAL,
-				.len_mask = PF_FW_ATQLEN_ATQLEN_M,
-				.len_ena_mask = PF_FW_ATQLEN_ATQENABLE_M,
-				.head_mask = PF_FW_ATQH_ATQH_M,
-			}
-		},
-		{
-			.type = IDPF_CTLQ_TYPE_MAILBOX_RX,
-			.id = IDPF_CTLQ_ID,
-			.len = IDPF_CTLQ_LEN,
-			.buf_size = IDPF_DFLT_MBX_BUF_SIZE,
-			.reg = {
-				.head = PF_FW_ARQH,
-				.tail = PF_FW_ARQT,
-				.len = PF_FW_ARQLEN,
-				.bah = PF_FW_ARQBAH,
-				.bal = PF_FW_ARQBAL,
-				.len_mask = PF_FW_ARQLEN_ARQLEN_M,
-				.len_ena_mask = PF_FW_ARQLEN_ARQENABLE_M,
-				.head_mask = PF_FW_ARQH_ARQH_M,
-			}
-		}
-	};
 	struct idpf_ctlq_info *ctlq;
-	int ret;
+	int ret = 0;
 
-	ret = idpf_ctlq_init(hw, CTLQ_NUM, ctlq_info);
+	if (hw->device_id == IDPF_DEV_ID_SRIOV)
+		ret = idpf_ctlq_init(hw, IDPF_CTLQ_NUM, vf_ctlq_info);
+	else
+		ret = idpf_ctlq_init(hw, IDPF_CTLQ_NUM, pf_ctlq_info);
 	if (ret != 0)
 		return ret;
 
@@ -99,51 +157,67 @@ idpf_init_mbx(struct idpf_hw *hw)
 static int
 idpf_get_pkt_type(struct idpf_adapter *adapter)
 {
-	struct virtchnl2_get_ptype_info *ptype_info;
+	struct virtchnl2_get_ptype_info *req_ptype_info;
+	struct virtchnl2_get_ptype_info *recv_ptype_info;
+	uint16_t recv_num_ptypes = 0;
 	uint16_t ptype_offset, i, j;
-	uint16_t ptype_recvd = 0;
+	uint16_t start_ptype_id = 0;
 	int ret;
 
-	ret = idpf_vc_ptype_info_query(adapter);
-	if (ret != 0) {
-		DRV_LOG(ERR, "Fail to query packet type information");
-		return ret;
+	req_ptype_info = rte_zmalloc("req_ptype_info", IDPF_DFLT_MBX_BUF_SIZE, 0);
+	if (req_ptype_info == NULL)
+		return -ENOMEM;
+
+	recv_ptype_info = rte_zmalloc("recv_ptype_info", IDPF_DFLT_MBX_BUF_SIZE, 0);
+	if (recv_ptype_info == NULL) {
+		ret = -ENOMEM;
+		goto free_req_ptype_info;
 	}
 
-	ptype_info = rte_zmalloc("ptype_info", IDPF_DFLT_MBX_BUF_SIZE, 0);
-		if (ptype_info == NULL)
-			return -ENOMEM;
+	while (start_ptype_id < IDPF_MAX_PKT_TYPE) {
+		memset(req_ptype_info, 0, sizeof(*req_ptype_info));
+		memset(recv_ptype_info, 0, sizeof(*recv_ptype_info));
 
-	while (ptype_recvd < IDPF_MAX_PKT_TYPE) {
-		ret = idpf_vc_one_msg_read(adapter, VIRTCHNL2_OP_GET_PTYPE_INFO,
-					   IDPF_DFLT_MBX_BUF_SIZE, (uint8_t *)ptype_info);
+		if ((start_ptype_id + IDPF_RX_MAX_PTYPES_PER_BUF) > IDPF_MAX_PKT_TYPE)
+			req_ptype_info->num_ptypes =
+				rte_cpu_to_le_16(IDPF_MAX_PKT_TYPE - start_ptype_id);
+		else
+			req_ptype_info->num_ptypes = rte_cpu_to_le_16(IDPF_RX_MAX_PTYPES_PER_BUF);
+		req_ptype_info->start_ptype_id = start_ptype_id;
+
+		ret = idpf_vc_ptype_info_query(adapter, req_ptype_info, recv_ptype_info);
 		if (ret != 0) {
-			DRV_LOG(ERR, "Fail to get packet type information");
-			goto free_ptype_info;
+			DRV_LOG(ERR, "Fail to query packet type information");
+			goto free_recv_ptype_info;
 		}
 
-		ptype_recvd += ptype_info->num_ptypes;
+		recv_num_ptypes += rte_le_to_cpu_16(recv_ptype_info->num_ptypes);
+		if (recv_num_ptypes > IDPF_MAX_PKT_TYPE) {
+			ret = -EINVAL;
+			goto free_recv_ptype_info;
+		}
+
+		start_ptype_id = rte_le_to_cpu_16(req_ptype_info->start_ptype_id) +
+			rte_le_to_cpu_16(req_ptype_info->num_ptypes);
+
 		ptype_offset = sizeof(struct virtchnl2_get_ptype_info) -
 						sizeof(struct virtchnl2_ptype);
 
-		for (i = 0; i < rte_cpu_to_le_16(ptype_info->num_ptypes); i++) {
+		for (i = 0; i < rte_le_to_cpu_16(recv_ptype_info->num_ptypes); i++) {
 			bool is_inner = false, is_ip = false;
 			struct virtchnl2_ptype *ptype;
 			uint32_t proto_hdr = 0;
 
 			ptype = (struct virtchnl2_ptype *)
-					((uint8_t *)ptype_info + ptype_offset);
+					((uint8_t *)recv_ptype_info + ptype_offset);
 			ptype_offset += IDPF_GET_PTYPE_SIZE(ptype);
 			if (ptype_offset > IDPF_DFLT_MBX_BUF_SIZE) {
 				ret = -EINVAL;
-				goto free_ptype_info;
+				goto free_recv_ptype_info;
 			}
 
-			if (rte_cpu_to_le_16(ptype->ptype_id_10) == 0xFFFF)
-				goto free_ptype_info;
-
 			for (j = 0; j < ptype->proto_id_count; j++) {
-				switch (rte_cpu_to_le_16(ptype->proto_id[j])) {
+				switch (rte_le_to_cpu_16(ptype->proto_id[j])) {
 				case VIRTCHNL2_PROTO_HDR_GRE:
 				case VIRTCHNL2_PROTO_HDR_VXLAN:
 					proto_hdr &= ~RTE_PTYPE_L4_MASK;
@@ -300,8 +374,10 @@ idpf_get_pkt_type(struct idpf_adapter *adapter)
 		}
 	}
 
-free_ptype_info:
-	rte_free(ptype_info);
+free_recv_ptype_info:
+	rte_free(recv_ptype_info);
+free_req_ptype_info:
+	rte_free(req_ptype_info);
 	clear_cmd(adapter);
 	return ret;
 }
@@ -312,8 +388,12 @@ idpf_adapter_init(struct idpf_adapter *adapter)
 	struct idpf_hw *hw = &adapter->hw;
 	int ret;
 
-	idpf_reset_pf(hw);
-	ret = idpf_check_pf_reset_done(hw);
+	if (hw->device_id == IDPF_DEV_ID_SRIOV) {
+		ret = idpf_check_vf_reset_done(hw);
+	} else {
+		idpf_reset_pf(hw);
+		ret = idpf_check_pf_reset_done(hw);
+	}
 	if (ret != 0) {
 		DRV_LOG(ERR, "IDPF is still resetting");
 		goto err_check_reset;
@@ -584,6 +664,81 @@ idpf_vport_irq_map_config(struct idpf_vport *vport, uint16_t nb_rx_queues)
 	for (i = 0; i < nb_rx_queues; i++) {
 		/* map all queues to the same vector */
 		qv_map[i].queue_id = vport->chunks_info.rx_start_qid + i;
+		qv_map[i].vector_id =
+			vport->recv_vectors->vchunks.vchunks->start_vector_id;
+	}
+	vport->qv_map = qv_map;
+
+	ret = idpf_vc_irq_map_unmap_config(vport, nb_rx_queues, true);
+	if (ret != 0) {
+		DRV_LOG(ERR, "config interrupt mapping failed");
+		goto config_irq_map_err;
+	}
+
+	return 0;
+
+config_irq_map_err:
+	rte_free(vport->qv_map);
+	vport->qv_map = NULL;
+
+qv_map_alloc_err:
+	return ret;
+}
+
+int
+idpf_vport_irq_map_config_by_qids(struct idpf_vport *vport, uint32_t *qids, uint16_t nb_rx_queues)
+{
+	struct idpf_adapter *adapter = vport->adapter;
+	struct virtchnl2_queue_vector *qv_map;
+	struct idpf_hw *hw = &adapter->hw;
+	uint32_t dynctl_val, itrn_val;
+	uint32_t dynctl_reg_start;
+	uint32_t itrn_reg_start;
+	uint16_t i;
+	int ret;
+
+	qv_map = rte_zmalloc("qv_map",
+			     nb_rx_queues *
+			     sizeof(struct virtchnl2_queue_vector), 0);
+	if (qv_map == NULL) {
+		DRV_LOG(ERR, "Failed to allocate %d queue-vector map",
+			nb_rx_queues);
+		ret = -ENOMEM;
+		goto qv_map_alloc_err;
+	}
+
+	/* Rx interrupt disabled, Map interrupt only for writeback */
+
+	/* The capability flags adapter->caps.other_caps should be
+	 * compared with bit VIRTCHNL2_CAP_WB_ON_ITR here. The if
+	 * condition should be updated when the FW can return the
+	 * correct flag bits.
+	 */
+	dynctl_reg_start =
+		vport->recv_vectors->vchunks.vchunks->dynctl_reg_start;
+	itrn_reg_start =
+		vport->recv_vectors->vchunks.vchunks->itrn_reg_start;
+	dynctl_val = IDPF_READ_REG(hw, dynctl_reg_start);
+	DRV_LOG(DEBUG, "Value of dynctl_reg_start is 0x%x", dynctl_val);
+	itrn_val = IDPF_READ_REG(hw, itrn_reg_start);
+	DRV_LOG(DEBUG, "Value of itrn_reg_start is 0x%x", itrn_val);
+	/* Force write-backs by setting WB_ON_ITR bit in DYN_CTL
+	 * register. WB_ON_ITR and INTENA are mutually exclusive
+	 * bits. Setting WB_ON_ITR bits means TX and RX Descs
+	 * are written back based on ITR expiration irrespective
+	 * of INTENA setting.
+	 */
+	/* TBD: need to tune INTERVAL value for better performance. */
+	itrn_val = (itrn_val == 0) ? IDPF_DFLT_INTERVAL : itrn_val;
+	dynctl_val = VIRTCHNL2_ITR_IDX_0  <<
+		     PF_GLINT_DYN_CTL_ITR_INDX_S |
+		     PF_GLINT_DYN_CTL_WB_ON_ITR_M |
+		     itrn_val << PF_GLINT_DYN_CTL_INTERVAL_S;
+	IDPF_WRITE_REG(hw, dynctl_reg_start, dynctl_val);
+
+	for (i = 0; i < nb_rx_queues; i++) {
+		/* map all queues to the same vector */
+		qv_map[i].queue_id = qids[i];
 		qv_map[i].vector_id =
 			vport->recv_vectors->vchunks.vchunks->start_vector_id;
 	}

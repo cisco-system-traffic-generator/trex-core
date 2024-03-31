@@ -36,12 +36,15 @@ typedef void (*q_err_cb_t)(void *roc_nix, void *data);
 /* Link status get callback */
 typedef void (*link_status_get_t)(void *roc_nix,
 				  struct cgx_link_user_info *link);
+/* Representee notification callback */
+typedef int (*repte_notify_t)(void *roc_nix, void *notify_msg);
 
 struct dev_ops {
 	link_info_t link_status_update;
 	ptp_info_t ptp_info_update;
 	link_status_get_t link_status_get;
 	q_err_cb_t q_err_cb;
+	repte_notify_t repte_notify;
 };
 
 #define dev_is_vf(dev) ((dev)->hwcap & DEV_HWCAP_F_VF)
@@ -70,6 +73,14 @@ dev_is_afvf(uint16_t pf_func)
 	return !(pf_func & ~RVU_PFVF_FUNC_MASK);
 }
 
+struct mbox_sync {
+	bool start_thread;
+	uint8_t msg_avail;
+	plt_thread_t pfvf_msg_thread;
+	pthread_cond_t pfvf_msg_cond;
+	pthread_mutex_t mutex;
+};
+
 struct dev {
 	uint16_t pf;
 	int16_t vf;
@@ -85,7 +96,7 @@ struct dev {
 	struct mbox mbox_vfpf;
 	struct mbox mbox_vfpf_up;
 	dev_intr_t intr;
-	int timer_set; /* ~0 : no alarm handling */
+	dev_intr_t flr;
 	uint64_t hwcap;
 	struct npa_lf npa;
 	struct mbox *mbox;
@@ -97,6 +108,7 @@ struct dev {
 	void *roc_ml;
 	bool disable_shared_lmt; /* false(default): shared lmt mode enabled */
 	const struct plt_memzone *lmt_mz;
+	struct mbox_sync sync;
 } __plt_cache_aligned;
 
 struct npa {

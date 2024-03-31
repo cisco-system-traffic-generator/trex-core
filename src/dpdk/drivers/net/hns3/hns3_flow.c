@@ -927,7 +927,7 @@ hns3_parse_sctp(const struct rte_flow_item *item, struct hns3_fdir_rule *rule,
 			return rte_flow_error_set(error, EINVAL,
 						  RTE_FLOW_ERROR_TYPE_ITEM_MASK,
 						  item,
-						  "Only support src & dst port in SCTP");
+						  "Only support src & dst port & v-tag in SCTP");
 		if (sctp_mask->hdr.src_port) {
 			hns3_set_bit(rule->input_set, INNER_SRC_PORT, 1);
 			rule->key_conf.mask.src_port =
@@ -1944,8 +1944,9 @@ hns3_flow_set_rss_ptype_tuple(struct hns3_hw *hw,
 	if (ret != 0)
 		return ret;
 
-	hns3_info(hw, "RSS tuple fields changed from 0x%" PRIx64 " to 0x%" PRIx64,
-		  old_tuple_fields, new_tuple_fields);
+	if (!cfg_global_tuple)
+		hns3_info(hw, "RSS tuple fields changed from 0x%" PRIx64 " to 0x%" PRIx64,
+			  old_tuple_fields, new_tuple_fields);
 
 	return 0;
 }

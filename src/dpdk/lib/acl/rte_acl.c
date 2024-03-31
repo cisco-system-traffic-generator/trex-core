@@ -8,6 +8,9 @@
 #include <rte_tailq.h>
 
 #include "acl.h"
+#include "acl_log.h"
+
+RTE_LOG_REGISTER_DEFAULT(acl_logtype, INFO);
 
 TAILQ_HEAD(rte_acl_list, rte_tailq_entry);
 
@@ -42,10 +45,9 @@ rte_acl_classify_avx512x32(__rte_unused const struct rte_acl_ctx *ctx,
 }
 #endif
 
-#ifndef CC_AVX2_SUPPORT
+#ifndef RTE_ARCH_X86
 /*
- * If the compiler doesn't support AVX2 instructions,
- * then the dummy one would be used instead for AVX2 classify method.
+ * If ISA doesn't have AVX2 or SSE, provide dummy fallbacks
  */
 int
 rte_acl_classify_avx2(__rte_unused const struct rte_acl_ctx *ctx,
@@ -56,9 +58,6 @@ rte_acl_classify_avx2(__rte_unused const struct rte_acl_ctx *ctx,
 {
 	return -ENOTSUP;
 }
-#endif
-
-#ifndef RTE_ARCH_X86
 int
 rte_acl_classify_sse(__rte_unused const struct rte_acl_ctx *ctx,
 	__rte_unused const uint8_t **data,
@@ -182,7 +181,7 @@ acl_check_alg_x86(enum rte_acl_classify_alg alg)
 	}
 
 	if (alg == RTE_ACL_CLASSIFY_AVX2) {
-#ifdef CC_AVX2_SUPPORT
+#ifdef RTE_ARCH_X86
 		if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2) &&
 				rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_256)
 			return 0;
@@ -400,15 +399,15 @@ rte_acl_create(const struct rte_acl_param *param)
 		te = rte_zmalloc("ACL_TAILQ_ENTRY", sizeof(*te), 0);
 
 		if (te == NULL) {
-			RTE_LOG(ERR, ACL, "Cannot allocate tailq entry!\n");
+			ACL_LOG(ERR, "Cannot allocate tailq entry!");
 			goto exit;
 		}
 
 		ctx = rte_zmalloc_socket(name, sz, RTE_CACHE_LINE_SIZE, param->socket_id);
 
 		if (ctx == NULL) {
-			RTE_LOG(ERR, ACL,
-				"allocation of %zu bytes on socket %d for %s failed\n",
+			ACL_LOG(ERR,
+				"allocation of %zu bytes on socket %d for %s failed",
 				sz, param->socket_id, name);
 			rte_free(te);
 			goto exit;
@@ -474,7 +473,7 @@ rte_acl_add_rules(struct rte_acl_ctx *ctx, const struct rte_acl_rule *rules,
 			((uintptr_t)rules + i * ctx->rule_sz);
 		rc = acl_check_rule(&rv->data);
 		if (rc != 0) {
-			RTE_LOG(ERR, ACL, "%s(%s): rule #%u is invalid\n",
+			ACL_LOG(ERR, "%s(%s): rule #%u is invalid",
 				__func__, ctx->name, i + 1);
 			return rc;
 		}

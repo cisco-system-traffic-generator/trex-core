@@ -414,6 +414,7 @@ int cxgbe_dev_stop(struct rte_eth_dev *eth_dev)
 {
 	struct port_info *pi = eth_dev->data->dev_private;
 	struct adapter *adapter = pi->adapter;
+	uint16_t i;
 
 	CXGBE_FUNC_TRACE();
 
@@ -428,6 +429,11 @@ int cxgbe_dev_stop(struct rte_eth_dev *eth_dev)
 	 */
 	t4_sge_eth_clear_queues(pi);
 	eth_dev->data->scattered_rx = 0;
+
+	for (i = 0; i < eth_dev->data->nb_rx_queues; i++)
+		eth_dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+	for (i = 0; i < eth_dev->data->nb_tx_queues; i++)
+		eth_dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -1143,16 +1149,18 @@ static int cxgbe_flow_ctrl_set(struct rte_eth_dev *eth_dev,
 }
 
 const uint32_t *
-cxgbe_dev_supported_ptypes_get(struct rte_eth_dev *eth_dev)
+cxgbe_dev_supported_ptypes_get(struct rte_eth_dev *eth_dev,
+			       size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L3_IPV4,
 		RTE_PTYPE_L3_IPV6,
-		RTE_PTYPE_UNKNOWN
 	};
 
-	if (eth_dev->rx_pkt_burst == cxgbe_recv_pkts)
+	if (eth_dev->rx_pkt_burst == cxgbe_recv_pkts) {
+		*no_of_elements = RTE_DIM(ptypes);
 		return ptypes;
+	}
 	return NULL;
 }
 

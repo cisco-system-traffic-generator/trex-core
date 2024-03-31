@@ -830,7 +830,7 @@ int enic_alloc_rq(struct enic *enic, uint16_t queue_idx,
 	 * Representor uses a reserved PF queue. Translate representor
 	 * queue number to PF queue number.
 	 */
-	if (enic_is_vf_rep(enic)) {
+	if (rte_eth_dev_is_repr(enic->rte_dev)) {
 		RTE_ASSERT(queue_idx == 0);
 		vf = VF_ENIC_TO_VF_REP(enic);
 		sop_queue_idx = vf->pf_rq_sop_idx;
@@ -1059,7 +1059,7 @@ int enic_alloc_wq(struct enic *enic, uint16_t queue_idx,
 	 * Representor uses a reserved PF queue. Translate representor
 	 * queue number to PF queue number.
 	 */
-	if (enic_is_vf_rep(enic)) {
+	if (rte_eth_dev_is_repr(enic->rte_dev)) {
 		RTE_ASSERT(queue_idx == 0);
 		vf = VF_ENIC_TO_VF_REP(enic);
 		queue_idx = vf->pf_wq_idx;
@@ -1645,7 +1645,7 @@ int enic_set_mtu(struct enic *enic, uint16_t new_mtu)
 	 * packet length.
 	 */
 	if (!eth_dev->data->dev_started)
-		goto set_mtu_done;
+		return rc;
 
 	/*
 	 * The device has started, re-do RQs on the fly. In the process, we

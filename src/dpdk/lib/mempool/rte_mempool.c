@@ -31,6 +31,8 @@
 #include "mempool_trace.h"
 #include "rte_mempool.h"
 
+RTE_LOG_REGISTER_DEFAULT(rte_mempool_logtype, INFO);
+
 TAILQ_HEAD(rte_mempool_list, rte_tailq_entry);
 
 static struct rte_tailq_elem rte_mempool_tailq = {
@@ -48,14 +50,14 @@ static void
 mempool_event_callback_invoke(enum rte_mempool_event event,
 			      struct rte_mempool *mp);
 
-#define CACHE_FLUSHTHRESH_MULTIPLIER 1.5
-#define CALC_CACHE_FLUSHTHRESH(c)	\
-	((typeof(c))((c) * CACHE_FLUSHTHRESH_MULTIPLIER))
+/* Note: avoid using floating point since that compiler
+ * may not think that is constant.
+ */
+#define CALC_CACHE_FLUSHTHRESH(c) (((c) * 3) / 2)
 
 #if defined(RTE_ARCH_X86)
 /*
  * return the greatest common divisor between a and b (fast algorithm)
- *
  */
 static unsigned get_gcd(unsigned a, unsigned b)
 {
@@ -774,7 +776,7 @@ rte_mempool_cache_create(uint32_t size, int socket_id)
 	cache = rte_zmalloc_socket("MEMPOOL_CACHE", sizeof(*cache),
 				  RTE_CACHE_LINE_SIZE, socket_id);
 	if (cache == NULL) {
-		RTE_LOG(ERR, MEMPOOL, "Cannot allocate mempool cache.\n");
+		RTE_MEMPOOL_LOG(ERR, "Cannot allocate mempool cache.");
 		rte_errno = ENOMEM;
 		return NULL;
 	}
@@ -876,7 +878,7 @@ rte_mempool_create_empty(const char *name, unsigned n, unsigned elt_size,
 	/* try to allocate tailq entry */
 	te = rte_zmalloc("MEMPOOL_TAILQ_ENTRY", sizeof(*te), 0);
 	if (te == NULL) {
-		RTE_LOG(ERR, MEMPOOL, "Cannot allocate tailq entry!\n");
+		RTE_MEMPOOL_LOG(ERR, "Cannot allocate tailq entry!");
 		goto exit_unlock;
 	}
 
@@ -914,6 +916,22 @@ rte_mempool_create_empty(const char *name, unsigned n, unsigned elt_size,
 	mp->private_data_size = private_data_size;
 	STAILQ_INIT(&mp->elt_list);
 	STAILQ_INIT(&mp->mem_list);
+
+	/*
+	 * Since we have 4 combinations of the SP/SC/MP/MC examine the flags to
+	 * set the correct index into the table of ops structs.
+	 */
+	if ((flags & RTE_MEMPOOL_F_SP_PUT) && (flags & RTE_MEMPOOL_F_SC_GET))
+		ret = rte_mempool_set_ops_byname(mp, "ring_sp_sc", NULL);
+	else if (flags & RTE_MEMPOOL_F_SP_PUT)
+		ret = rte_mempool_set_ops_byname(mp, "ring_sp_mc", NULL);
+	else if (flags & RTE_MEMPOOL_F_SC_GET)
+		ret = rte_mempool_set_ops_byname(mp, "ring_mp_sc", NULL);
+	else
+		ret = rte_mempool_set_ops_byname(mp, "ring_mp_mc", NULL);
+
+	if (ret)
+		goto exit_unlock;
 
 	/*
 	 * local_cache pointer is set even if cache_size is zero.
@@ -955,29 +973,12 @@ rte_mempool_create(const char *name, unsigned n, unsigned elt_size,
 	rte_mempool_obj_cb_t *obj_init, void *obj_init_arg,
 	int socket_id, unsigned flags)
 {
-	int ret;
 	struct rte_mempool *mp;
 
 	mp = rte_mempool_create_empty(name, n, elt_size, cache_size,
 		private_data_size, socket_id, flags);
 	if (mp == NULL)
 		return NULL;
-
-	/*
-	 * Since we have 4 combinations of the SP/SC/MP/MC examine the flags to
-	 * set the correct index into the table of ops structs.
-	 */
-	if ((flags & RTE_MEMPOOL_F_SP_PUT) && (flags & RTE_MEMPOOL_F_SC_GET))
-		ret = rte_mempool_set_ops_byname(mp, "ring_sp_sc", NULL);
-	else if (flags & RTE_MEMPOOL_F_SP_PUT)
-		ret = rte_mempool_set_ops_byname(mp, "ring_sp_mc", NULL);
-	else if (flags & RTE_MEMPOOL_F_SC_GET)
-		ret = rte_mempool_set_ops_byname(mp, "ring_mp_sc", NULL);
-	else
-		ret = rte_mempool_set_ops_byname(mp, "ring_mp_mc", NULL);
-
-	if (ret)
-		goto fail;
 
 	/* call the mempool priv initializer */
 	if (mp_init)
@@ -1088,16 +1089,16 @@ void rte_mempool_check_cookies(const struct rte_mempool *mp,
 
 		if (free == 0) {
 			if (cookie != RTE_MEMPOOL_HEADER_COOKIE1) {
-				RTE_LOG(CRIT, MEMPOOL,
-					"obj=%p, mempool=%p, cookie=%" PRIx64 "\n",
+				RTE_MEMPOOL_LOG(CRIT,
+					"obj=%p, mempool=%p, cookie=%" PRIx64,
 					obj, (const void *) mp, cookie);
 				rte_panic("MEMPOOL: bad header cookie (put)\n");
 			}
 			hdr->cookie = RTE_MEMPOOL_HEADER_COOKIE2;
 		} else if (free == 1) {
 			if (cookie != RTE_MEMPOOL_HEADER_COOKIE2) {
-				RTE_LOG(CRIT, MEMPOOL,
-					"obj=%p, mempool=%p, cookie=%" PRIx64 "\n",
+				RTE_MEMPOOL_LOG(CRIT,
+					"obj=%p, mempool=%p, cookie=%" PRIx64,
 					obj, (const void *) mp, cookie);
 				rte_panic("MEMPOOL: bad header cookie (get)\n");
 			}
@@ -1105,8 +1106,8 @@ void rte_mempool_check_cookies(const struct rte_mempool *mp,
 		} else if (free == 2) {
 			if (cookie != RTE_MEMPOOL_HEADER_COOKIE1 &&
 			    cookie != RTE_MEMPOOL_HEADER_COOKIE2) {
-				RTE_LOG(CRIT, MEMPOOL,
-					"obj=%p, mempool=%p, cookie=%" PRIx64 "\n",
+				RTE_MEMPOOL_LOG(CRIT,
+					"obj=%p, mempool=%p, cookie=%" PRIx64,
 					obj, (const void *) mp, cookie);
 				rte_panic("MEMPOOL: bad header cookie (audit)\n");
 			}
@@ -1114,8 +1115,8 @@ void rte_mempool_check_cookies(const struct rte_mempool *mp,
 		tlr = rte_mempool_get_trailer(obj);
 		cookie = tlr->cookie;
 		if (cookie != RTE_MEMPOOL_TRAILER_COOKIE) {
-			RTE_LOG(CRIT, MEMPOOL,
-				"obj=%p, mempool=%p, cookie=%" PRIx64 "\n",
+			RTE_MEMPOOL_LOG(CRIT,
+				"obj=%p, mempool=%p, cookie=%" PRIx64,
 				obj, (const void *) mp, cookie);
 			rte_panic("MEMPOOL: bad trailer cookie\n");
 		}
@@ -1200,7 +1201,7 @@ mempool_audit_cache(const struct rte_mempool *mp)
 		const struct rte_mempool_cache *cache;
 		cache = &mp->local_cache[lcore_id];
 		if (cache->len > RTE_DIM(cache->objs)) {
-			RTE_LOG(CRIT, MEMPOOL, "badness on cache[%u]\n",
+			RTE_MEMPOOL_LOG(CRIT, "badness on cache[%u]",
 				lcore_id);
 			rte_panic("MEMPOOL: invalid cache len\n");
 		}
@@ -1429,7 +1430,7 @@ rte_mempool_event_callback_register(rte_mempool_event_callback *func,
 
 	cb = calloc(1, sizeof(*cb));
 	if (cb == NULL) {
-		RTE_LOG(ERR, MEMPOOL, "Cannot allocate event callback!\n");
+		RTE_MEMPOOL_LOG(ERR, "Cannot allocate event callback!");
 		ret = -ENOMEM;
 		goto exit;
 	}

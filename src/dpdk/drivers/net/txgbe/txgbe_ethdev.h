@@ -41,6 +41,7 @@
 /*Default value of Max Rx Queue*/
 #define TXGBE_MAX_RX_QUEUE_NUM	128
 #define TXGBE_VMDQ_DCB_NB_QUEUES     TXGBE_MAX_RX_QUEUE_NUM
+#define TXGBE_NONE_MODE_TX_NB_QUEUES 64
 
 #ifndef NBBY
 #define NBBY	8	/* number of bits in a byte */
@@ -370,6 +371,9 @@ struct txgbe_adapter {
 
 	/* For RSS reta table update */
 	uint8_t rss_reta_updated;
+
+	uint32_t link_thread_running;
+	rte_thread_t link_thread_tid;
 };
 
 #define TXGBE_DEV_ADAPTER(dev) \
@@ -561,6 +565,9 @@ void txgbe_configure_dcb(struct rte_eth_dev *dev);
 int
 txgbe_dev_link_update_share(struct rte_eth_dev *dev,
 		int wait_to_complete);
+int
+txgbe_dev_wait_setup_link_complete(struct rte_eth_dev *dev,
+		uint32_t timeout_ms);
 int txgbe_pf_host_init(struct rte_eth_dev *eth_dev);
 
 void txgbe_pf_host_uninit(struct rte_eth_dev *eth_dev);
@@ -697,7 +704,8 @@ struct rte_txgbe_xstats_name_off {
 	unsigned int offset;
 };
 
-const uint32_t *txgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev);
+const uint32_t *txgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev,
+					       size_t *no_of_elements);
 int txgbe_dev_set_mc_addr_list(struct rte_eth_dev *dev,
 				      struct rte_ether_addr *mc_addr_set,
 				      uint32_t nb_mc_addr);

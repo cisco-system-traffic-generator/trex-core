@@ -559,7 +559,7 @@ octeontx_dev_close(struct rte_eth_dev *dev)
 		return 0;
 
 	/* Stopping/closing event device once all eth ports are closed. */
-	if (__atomic_sub_fetch(&evdev_refcnt, 1, __ATOMIC_ACQUIRE) == 0) {
+	if (__atomic_fetch_sub(&evdev_refcnt, 1, __ATOMIC_ACQUIRE) - 1 == 0) {
 		rte_event_dev_stop(nic->evdev);
 		rte_event_dev_close(nic->evdev);
 	}
@@ -732,6 +732,11 @@ octeontx_dev_start(struct rte_eth_dev *dev)
 	}
 
 	/* Success */
+	for (i = 0; i < dev->data->nb_rx_queues; i++)
+		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+	for (i = 0; i < dev->data->nb_tx_queues; i++)
+		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+
 	return ret;
 
 pki_port_stop_error:
@@ -746,6 +751,7 @@ static int
 octeontx_dev_stop(struct rte_eth_dev *dev)
 {
 	struct octeontx_nic *nic = octeontx_pmd_priv(dev);
+	uint16_t i;
 	int ret;
 
 	PMD_INIT_FUNC_TRACE();
@@ -771,6 +777,11 @@ octeontx_dev_stop(struct rte_eth_dev *dev)
 			     ret);
 		return ret;
 	}
+
+	for (i = 0; i < dev->data->nb_rx_queues; i++)
+		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+	for (i = 0; i < dev->data->nb_tx_queues; i++)
+		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -1456,7 +1467,8 @@ octeontx_dev_rx_queue_release(struct rte_eth_dev *dev, uint16_t qid)
 }
 
 static const uint32_t *
-octeontx_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+octeontx_dev_supported_ptypes_get(struct rte_eth_dev *dev,
+				  size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L3_IPV4,
@@ -1466,12 +1478,12 @@ octeontx_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_L4_TCP,
 		RTE_PTYPE_L4_UDP,
 		RTE_PTYPE_L4_FRAG,
-		RTE_PTYPE_UNKNOWN
 	};
 
-	if (dev->rx_pkt_burst == octeontx_recv_pkts)
+	if (dev->rx_pkt_burst == octeontx_recv_pkts) {
+		*no_of_elements = RTE_DIM(ptypes);
 		return ptypes;
-
+	}
 	return NULL;
 }
 
@@ -1581,7 +1593,7 @@ octeontx_create(struct rte_vdev_device *dev, int port, uint8_t evdev,
 	nic->pko_vfid = pko_vfid;
 	nic->port_id = port;
 	nic->evdev = evdev;
-	__atomic_add_fetch(&evdev_refcnt, 1, __ATOMIC_ACQUIRE);
+	__atomic_fetch_add(&evdev_refcnt, 1, __ATOMIC_ACQUIRE);
 
 	res = octeontx_port_open(nic);
 	if (res < 0)

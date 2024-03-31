@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
-/* Copyright(c) 2019-2021 Broadcom All rights reserved. */
+/* Copyright(c) 2019-2023 Broadcom All rights reserved. */
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -357,7 +357,7 @@ bnxt_handle_tx_cp_vec(struct bnxt_tx_queue *txq)
 		if (likely(CMP_TYPE(txcmp) == TX_CMPL_TYPE_TX_L2))
 			nb_tx_pkts += txcmp->opaque;
 		else
-			RTE_LOG_DP(ERR, PMD,
+			RTE_LOG_DP(ERR, BNXT,
 				   "Unhandled CMP type %02x\n",
 				   CMP_TYPE(txcmp));
 		raw_cons = NEXT_RAW_CMP(raw_cons);

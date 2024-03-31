@@ -102,19 +102,19 @@ cnxk_tim_bkt_get_nent(uint64_t w1)
 static inline void
 cnxk_tim_bkt_inc_nent(struct cnxk_tim_bkt *bktp)
 {
-	__atomic_add_fetch(&bktp->nb_entry, 1, __ATOMIC_RELAXED);
+	__atomic_fetch_add(&bktp->nb_entry, 1, __ATOMIC_RELAXED);
 }
 
 static inline void
 cnxk_tim_bkt_add_nent_relaxed(struct cnxk_tim_bkt *bktp, uint32_t v)
 {
-	__atomic_add_fetch(&bktp->nb_entry, v, __ATOMIC_RELAXED);
+	__atomic_fetch_add(&bktp->nb_entry, v, __ATOMIC_RELAXED);
 }
 
 static inline void
 cnxk_tim_bkt_add_nent(struct cnxk_tim_bkt *bktp, uint32_t v)
 {
-	__atomic_add_fetch(&bktp->nb_entry, v, __ATOMIC_RELEASE);
+	__atomic_fetch_add(&bktp->nb_entry, v, __ATOMIC_RELEASE);
 }
 
 static inline uint64_t
@@ -123,7 +123,7 @@ cnxk_tim_bkt_clr_nent(struct cnxk_tim_bkt *bktp)
 	const uint64_t v =
 		~(TIM_BUCKET_W1_M_NUM_ENTRIES << TIM_BUCKET_W1_S_NUM_ENTRIES);
 
-	return __atomic_and_fetch(&bktp->w1, v, __ATOMIC_ACQ_REL);
+	return __atomic_fetch_and(&bktp->w1, v, __ATOMIC_ACQ_REL) & v;
 }
 
 static inline uint64_t
@@ -262,12 +262,12 @@ __retry:
 #ifdef RTE_ARCH_ARM64
 			asm volatile(PLT_CPU_FEATURE_PREAMBLE
 				     "		ldxr %[hbt], [%[w1]]	\n"
-				     "		tbz %[hbt], 33, dne%=	\n"
+				     "		tbz %[hbt], 33, .Ldne%=	\n"
 				     "		sevl			\n"
-				     "rty%=:	wfe			\n"
+				     ".Lrty%=:	wfe			\n"
 				     "		ldxr %[hbt], [%[w1]]	\n"
-				     "		tbnz %[hbt], 33, rty%=	\n"
-				     "dne%=:				\n"
+				     "		tbnz %[hbt], 33, .Lrty%=\n"
+				     ".Ldne%=:				\n"
 				     : [hbt] "=&r"(hbt_state)
 				     : [w1] "r"((&bkt->w1))
 				     : "memory");
@@ -314,7 +314,7 @@ __retry:
 
 	tim->impl_opaque[0] = (uintptr_t)chunk;
 	tim->impl_opaque[1] = (uintptr_t)bkt;
-	__atomic_store_n(&tim->state, RTE_EVENT_TIMER_ARMED, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit(&tim->state, RTE_EVENT_TIMER_ARMED, rte_memory_order_release);
 	cnxk_tim_bkt_inc_nent(bkt);
 	cnxk_tim_bkt_dec_lock_relaxed(bkt);
 
@@ -345,12 +345,12 @@ __retry:
 #ifdef RTE_ARCH_ARM64
 			asm volatile(PLT_CPU_FEATURE_PREAMBLE
 				     "		ldxr %[hbt], [%[w1]]	\n"
-				     "		tbz %[hbt], 33, dne%=	\n"
+				     "		tbz %[hbt], 33, .Ldne%=	\n"
 				     "		sevl			\n"
-				     "rty%=:	wfe			\n"
+				     ".Lrty%=:	wfe			\n"
 				     "		ldxr %[hbt], [%[w1]]	\n"
-				     "		tbnz %[hbt], 33, rty%=	\n"
-				     "dne%=:				\n"
+				     "		tbnz %[hbt], 33, .Lrty%=\n"
+				     ".Ldne%=:				\n"
 				     : [hbt] "=&r"(hbt_state)
 				     : [w1] "r"((&bkt->w1))
 				     : "memory");
@@ -374,13 +374,13 @@ __retry:
 		cnxk_tim_bkt_dec_lock(bkt);
 #ifdef RTE_ARCH_ARM64
 		asm volatile(PLT_CPU_FEATURE_PREAMBLE
-			     "		ldxr %[rem], [%[crem]]	\n"
-			     "		tbz %[rem], 63, dne%=		\n"
+			     "		ldxr %[rem], [%[crem]]		\n"
+			     "		tbz %[rem], 63, .Ldne%=		\n"
 			     "		sevl				\n"
-			     "rty%=:	wfe				\n"
-			     "		ldxr %[rem], [%[crem]]	\n"
-			     "		tbnz %[rem], 63, rty%=		\n"
-			     "dne%=:					\n"
+			     ".Lrty%=:	wfe				\n"
+			     "		ldxr %[rem], [%[crem]]		\n"
+			     "		tbnz %[rem], 63, .Lrty%=	\n"
+			     ".Ldne%=:					\n"
 			     : [rem] "=&r"(rem)
 			     : [crem] "r"(&bkt->w1)
 			     : "memory");
@@ -425,7 +425,7 @@ __retry:
 
 	tim->impl_opaque[0] = (uintptr_t)chunk;
 	tim->impl_opaque[1] = (uintptr_t)bkt;
-	__atomic_store_n(&tim->state, RTE_EVENT_TIMER_ARMED, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit(&tim->state, RTE_EVENT_TIMER_ARMED, rte_memory_order_release);
 	cnxk_tim_bkt_inc_nent(bkt);
 	cnxk_tim_bkt_dec_lock_relaxed(bkt);
 
@@ -478,12 +478,12 @@ __retry:
 #ifdef RTE_ARCH_ARM64
 			asm volatile(PLT_CPU_FEATURE_PREAMBLE
 				     "		ldxr %[hbt], [%[w1]]	\n"
-				     "		tbz %[hbt], 33, dne%=	\n"
+				     "		tbz %[hbt], 33, .Ldne%=	\n"
 				     "		sevl			\n"
-				     "rty%=:	wfe			\n"
+				     ".Lrty%=:	wfe			\n"
 				     "		ldxr %[hbt], [%[w1]]	\n"
-				     "		tbnz %[hbt], 33, rty%=	\n"
-				     "dne%=:				\n"
+				     "		tbnz %[hbt], 33, .Lrty%=\n"
+				     ".Ldne%=:				\n"
 				     : [hbt] "=&r"(hbt_state)
 				     : [w1] "r"((&bkt->w1))
 				     : "memory");
@@ -510,13 +510,13 @@ __retry:
 		asm volatile(PLT_CPU_FEATURE_PREAMBLE
 			     "		ldxrb %w[lock_cnt], [%[lock]]	\n"
 			     "		tst %w[lock_cnt], 255		\n"
-			     "		beq dne%=			\n"
+			     "		beq .Ldne%=			\n"
 			     "		sevl				\n"
-			     "rty%=:	wfe				\n"
+			     ".Lrty%=:	wfe				\n"
 			     "		ldxrb %w[lock_cnt], [%[lock]]	\n"
 			     "		tst %w[lock_cnt], 255		\n"
-			     "		bne rty%=			\n"
-			     "dne%=:					\n"
+			     "		bne .Lrty%=			\n"
+			     ".Ldne%=:					\n"
 			     : [lock_cnt] "=&r"(lock_cnt)
 			     : [lock] "r"(&bkt->lock)
 			     : "memory");

@@ -16,11 +16,17 @@
  * from one according to the generation of the device.
  * QAT_GEN* is used as the index to find all devices
  */
+
+extern const char *const *qat_cmdline_defines[];
+
 enum qat_device_gen {
 	QAT_GEN1,
 	QAT_GEN2,
 	QAT_GEN3,
 	QAT_GEN4,
+	QAT_GEN5,
+	QAT_GEN_LCE,
+	QAT_VQAT,
 	QAT_N_GENS
 };
 

@@ -32,7 +32,7 @@
  */
 
 #include <stdint.h>
-#include <rte_compat.h>
+
 #include <rte_common.h>
 #include <rte_config.h>
 #include <rte_mempool.h>
@@ -362,23 +362,23 @@ static inline uint16_t
 rte_mbuf_refcnt_read(const struct rte_mbuf *m)
 {
 #ifdef TREX_PATCH
-     uint16_t res;
-      switch (m->m_core_locality) {
-      case     RTE_MBUF_CORE_LOCALITY_MULTI :
-          res=(uint16_t)__atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
-          break;
-      case     RTE_MBUF_CORE_LOCALITY_LOCAL :
-          res=m->refcnt;
-          break;
-      case     RTE_MBUF_CORE_LOCALITY_CONST :
-          res=7;
-          break;
-      default:
-          res=(uint16_t)__atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
-      };
-      return (res);
+	uint16_t res;
+	switch (m->m_core_locality) {
+	case     RTE_MBUF_CORE_LOCALITY_MULTI :
+		res=(uint16_t)__atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
+		break;
+	case     RTE_MBUF_CORE_LOCALITY_LOCAL :
+		res=m->refcnt;
+		break;
+	case     RTE_MBUF_CORE_LOCALITY_CONST :
+		res=7;
+		break;
+	default:
+		res=(uint16_t)__atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
+	};
+	return (res);
 #else
-	return __atomic_load_n(&m->refcnt, __ATOMIC_RELAXED);
+	return rte_atomic_load_explicit(&m->refcnt, rte_memory_order_relaxed);
 #endif
 }
 
@@ -393,13 +393,13 @@ static inline void
 rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 {
 #ifdef TREX_PATCH
-        if (likely(m->m_core_locality > RTE_MBUF_CORE_LOCALITY_MULTI)) {
-            m->refcnt = new_value;
-        } else {
-          __atomic_store_n(&m->refcnt, new_value, __ATOMIC_RELAXED);
-        }
+	if (likely(m->m_core_locality > RTE_MBUF_CORE_LOCALITY_MULTI)) {
+		m->refcnt = new_value;
+	} else {
+		__atomic_store_n(&m->refcnt, new_value, __ATOMIC_RELAXED);
+	}
 #else
-	__atomic_store_n(&m->refcnt, new_value, __ATOMIC_RELAXED);
+	rte_atomic_store_explicit(&m->refcnt, new_value, rte_memory_order_relaxed);
 #endif
 }
 
@@ -407,8 +407,8 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 __rte_mbuf_refcnt_update(struct rte_mbuf *m, int16_t value)
 {
-	return __atomic_add_fetch(&m->refcnt, (uint16_t)value,
-				 __ATOMIC_ACQ_REL);
+	return rte_atomic_fetch_add_explicit(&m->refcnt, value,
+				 rte_memory_order_acq_rel) + value;
 }
 
 /**
@@ -503,7 +503,7 @@ rte_mbuf_refcnt_set(struct rte_mbuf *m, uint16_t new_value)
 static inline uint16_t
 rte_mbuf_ext_refcnt_read(const struct rte_mbuf_ext_shared_info *shinfo)
 {
-	return __atomic_load_n(&shinfo->refcnt, __ATOMIC_RELAXED);
+	return rte_atomic_load_explicit(&shinfo->refcnt, rte_memory_order_relaxed);
 }
 
 /**
@@ -518,7 +518,7 @@ static inline void
 rte_mbuf_ext_refcnt_set(struct rte_mbuf_ext_shared_info *shinfo,
 	uint16_t new_value)
 {
-	__atomic_store_n(&shinfo->refcnt, new_value, __ATOMIC_RELAXED);
+	rte_atomic_store_explicit(&shinfo->refcnt, new_value, rte_memory_order_relaxed);
 }
 
 /**
@@ -542,8 +542,8 @@ rte_mbuf_ext_refcnt_update(struct rte_mbuf_ext_shared_info *shinfo,
 		return (uint16_t)value;
 	}
 
-	return __atomic_add_fetch(&shinfo->refcnt, (uint16_t)value,
-				 __ATOMIC_ACQ_REL);
+	return rte_atomic_fetch_add_explicit(&shinfo->refcnt, value,
+				 rte_memory_order_acq_rel) + value;
 }
 
 /** Mbuf prefetch */
@@ -846,7 +846,6 @@ struct rte_pktmbuf_extmem {
  *    - EEXIST - a memzone with the same name already exists
  *    - ENOMEM - no appropriate memory area found in which to create memzone
  */
-__rte_experimental
 struct rte_mempool *
 rte_pktmbuf_pool_create_extbuf(const char *name, unsigned int n,
 	unsigned int cache_size, uint16_t priv_size,
@@ -1364,8 +1363,8 @@ static inline int __rte_pktmbuf_pinned_extbuf_decref(struct rte_mbuf *m)
 	 * Direct usage of add primitive to avoid
 	 * duplication of comparing with one.
 	 */
-	if (likely(__atomic_add_fetch(&shinfo->refcnt, (uint16_t)-1,
-				     __ATOMIC_ACQ_REL)))
+	if (likely(rte_atomic_fetch_add_explicit(&shinfo->refcnt, -1,
+				     rte_memory_order_acq_rel) - 1))
 		return 1;
 
 	/* Reinitialize counter before mbuf freeing. */

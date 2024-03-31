@@ -306,7 +306,7 @@ void CTRexExtendedDriverBonding::set_slave_driver(tvpid_t tvpid){
     /* some slave drivers need to be called by bonding driver. */
     if (m_slave_drv == nullptr) {
         uint16_t slaves[RTE_MAX_ETHPORTS];
-        uint8_t slave_cnt = rte_eth_bond_slaves_get(CTVPort(tvpid).get_repid(), slaves, RTE_MAX_ETHPORTS);
+        uint8_t slave_cnt = rte_eth_bond_members_get(CTVPort(tvpid).get_repid(), slaves, RTE_MAX_ETHPORTS);
         if (slave_cnt > 0) {
             struct rte_eth_dev_info dev_info;
             rte_eth_dev_info_get(slaves[0], &dev_info);
@@ -321,7 +321,7 @@ void CTRexExtendedDriverBonding::set_slave_driver(tvpid_t tvpid){
 static std::vector<tvpid_t> get_bond_slave_devs(tvpid_t tvpid){
     std::vector<tvpid_t> slave_devs;
     uint16_t slaves[RTE_MAX_ETHPORTS];
-    uint8_t slave_cnt = rte_eth_bond_slaves_get(CTVPort(tvpid).get_repid(), slaves, RTE_MAX_ETHPORTS);
+    uint8_t slave_cnt = rte_eth_bond_members_get(CTVPort(tvpid).get_repid(), slaves, RTE_MAX_ETHPORTS);
 
     for (int i = 0; i < slave_cnt; i++) {
         slave_devs.push_back(CREPort(slaves[i]).get_tvpid());

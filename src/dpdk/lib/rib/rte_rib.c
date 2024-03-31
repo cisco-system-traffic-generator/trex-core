@@ -16,6 +16,10 @@
 
 #include <rte_rib.h>
 
+#include "rib_log.h"
+
+RTE_LOG_REGISTER_DEFAULT(rib_logtype, INFO);
+
 TAILQ_HEAD(rte_rib_list, rte_tailq_entry);
 static struct rte_tailq_elem rte_rib_tailq = {
 	.name = "RTE_RIB",
@@ -302,7 +306,7 @@ rte_rib_insert(struct rte_rib *rib, uint32_t ip, uint8_t depth)
 	/* closest node found, new_node should be inserted in the middle */
 	common_depth = RTE_MIN(depth, (*tmp)->depth);
 	common_prefix = ip ^ (*tmp)->ip;
-	d = (common_prefix == 0) ? 32 : __builtin_clz(common_prefix);
+	d = (common_prefix == 0) ? 32 : rte_clz32(common_prefix);
 
 	common_depth = RTE_MIN(d, common_depth);
 	common_prefix = ip & rte_rib_depth_to_mask(common_depth);
@@ -413,8 +417,8 @@ rte_rib_create(const char *name, int socket_id, const struct rte_rib_conf *conf)
 		NULL, NULL, NULL, NULL, socket_id, 0);
 
 	if (node_pool == NULL) {
-		RTE_LOG(ERR, LPM,
-			"Can not allocate mempool for RIB %s\n", name);
+		RIB_LOG(ERR,
+			"Can not allocate mempool for RIB %s", name);
 		return NULL;
 	}
 
@@ -438,8 +442,8 @@ rte_rib_create(const char *name, int socket_id, const struct rte_rib_conf *conf)
 	/* allocate tailq entry */
 	te = rte_zmalloc("RIB_TAILQ_ENTRY", sizeof(*te), 0);
 	if (unlikely(te == NULL)) {
-		RTE_LOG(ERR, LPM,
-			"Can not allocate tailq entry for RIB %s\n", name);
+		RIB_LOG(ERR,
+			"Can not allocate tailq entry for RIB %s", name);
 		rte_errno = ENOMEM;
 		goto exit;
 	}
@@ -448,7 +452,7 @@ rte_rib_create(const char *name, int socket_id, const struct rte_rib_conf *conf)
 	rib = rte_zmalloc_socket(mem_name,
 		sizeof(struct rte_rib),	RTE_CACHE_LINE_SIZE, socket_id);
 	if (unlikely(rib == NULL)) {
-		RTE_LOG(ERR, LPM, "RIB %s memory allocation failed\n", name);
+		RIB_LOG(ERR, "RIB %s memory allocation failed", name);
 		rte_errno = ENOMEM;
 		goto free_te;
 	}

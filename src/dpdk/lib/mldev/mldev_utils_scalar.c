@@ -229,6 +229,202 @@ rte_ml_io_uint16_to_float32(float scale, uint64_t nb_elements, void *input, void
 	return 0;
 }
 
+int
+rte_ml_io_float32_to_int32(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	float *input_buffer;
+	int32_t *output_buffer;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (float *)input;
+	output_buffer = (int32_t *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		*output_buffer = (int32_t)round((*input_buffer) * scale);
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_int32_to_float32(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	int32_t *input_buffer;
+	float *output_buffer;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (int32_t *)input;
+	output_buffer = (float *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		*output_buffer = scale * (float)(*input_buffer);
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_float32_to_uint32(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	float *input_buffer;
+	uint32_t *output_buffer;
+	int32_t i32;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (float *)input;
+	output_buffer = (uint32_t *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		i32 = (int32_t)round((*input_buffer) * scale);
+
+		if (i32 < 0)
+			i32 = 0;
+
+		*output_buffer = (uint32_t)i32;
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_uint32_to_float32(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	uint32_t *input_buffer;
+	float *output_buffer;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (uint32_t *)input;
+	output_buffer = (float *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		*output_buffer = scale * (float)(*input_buffer);
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_float32_to_int64(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	float *input_buffer;
+	int64_t *output_buffer;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (float *)input;
+	output_buffer = (int64_t *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		*output_buffer = (int64_t)round((*input_buffer) * scale);
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_int64_to_float32(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	int64_t *input_buffer;
+	float *output_buffer;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (int64_t *)input;
+	output_buffer = (float *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		*output_buffer = scale * (float)(*input_buffer);
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_float32_to_uint64(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	float *input_buffer;
+	uint64_t *output_buffer;
+	int64_t i64;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (float *)input;
+	output_buffer = (uint64_t *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		i64 = (int64_t)round((*input_buffer) * scale);
+
+		if (i64 < 0)
+			i64 = 0;
+
+		*output_buffer = (uint64_t)i64;
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
+int
+rte_ml_io_uint64_to_float32(float scale, uint64_t nb_elements, void *input, void *output)
+{
+	uint64_t *input_buffer;
+	float *output_buffer;
+	uint64_t i;
+
+	if ((scale == 0) || (nb_elements == 0) || (input == NULL) || (output == NULL))
+		return -EINVAL;
+
+	input_buffer = (uint64_t *)input;
+	output_buffer = (float *)output;
+
+	for (i = 0; i < nb_elements; i++) {
+		*output_buffer = scale * (float)(*input_buffer);
+
+		input_buffer++;
+		output_buffer++;
+	}
+
+	return 0;
+}
+
 /* Convert a single precision floating point number (float32) into a half precision
  * floating point number (float16) using round to nearest rounding mode.
  */
@@ -413,7 +609,7 @@ __float16_to_float32_scalar_rtx(uint16_t f16)
 		if (f16_m == 0) { /* zero signed */
 			f32_e = 0;
 		} else { /* subnormal numbers */
-			clz = __builtin_clz((uint32_t)f16_m) - sizeof(uint32_t) * 8 + FP16_LSB_E;
+			clz = rte_clz32((uint32_t)f16_m) - sizeof(uint32_t) * 8 + FP16_LSB_E;
 			e_16 = (int)f16_e - clz;
 			f32_e = FP32_BIAS_E + e_16 - FP16_BIAS_E;
 

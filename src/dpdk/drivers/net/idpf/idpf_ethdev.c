@@ -30,6 +30,23 @@ static const char * const idpf_valid_args[] = {
 	NULL
 };
 
+uint32_t idpf_supported_speeds[] = {
+	RTE_ETH_SPEED_NUM_NONE,
+	RTE_ETH_SPEED_NUM_10M,
+	RTE_ETH_SPEED_NUM_100M,
+	RTE_ETH_SPEED_NUM_1G,
+	RTE_ETH_SPEED_NUM_2_5G,
+	RTE_ETH_SPEED_NUM_5G,
+	RTE_ETH_SPEED_NUM_10G,
+	RTE_ETH_SPEED_NUM_20G,
+	RTE_ETH_SPEED_NUM_25G,
+	RTE_ETH_SPEED_NUM_40G,
+	RTE_ETH_SPEED_NUM_50G,
+	RTE_ETH_SPEED_NUM_56G,
+	RTE_ETH_SPEED_NUM_100G,
+	RTE_ETH_SPEED_NUM_200G
+};
+
 static const uint64_t idpf_map_hena_rss[] = {
 	[IDPF_HASH_NONF_UNICAST_IPV4_UDP] =
 			RTE_ETH_RSS_NONFRAG_IPV4_UDP,
@@ -110,47 +127,23 @@ idpf_dev_link_update(struct rte_eth_dev *dev,
 {
 	struct idpf_vport *vport = dev->data->dev_private;
 	struct rte_eth_link new_link;
+	unsigned int i;
 
 	memset(&new_link, 0, sizeof(new_link));
 
-	switch (vport->link_speed) {
-	case RTE_ETH_SPEED_NUM_10M:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_10M;
-		break;
-	case RTE_ETH_SPEED_NUM_100M:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_100M;
-		break;
-	case RTE_ETH_SPEED_NUM_1G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_1G;
-		break;
-	case RTE_ETH_SPEED_NUM_10G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_10G;
-		break;
-	case RTE_ETH_SPEED_NUM_20G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_20G;
-		break;
-	case RTE_ETH_SPEED_NUM_25G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_25G;
-		break;
-	case RTE_ETH_SPEED_NUM_40G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_40G;
-		break;
-	case RTE_ETH_SPEED_NUM_50G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_50G;
-		break;
-	case RTE_ETH_SPEED_NUM_100G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_100G;
-		break;
-	case RTE_ETH_SPEED_NUM_200G:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_200G;
-		break;
-	default:
-		new_link.link_speed = RTE_ETH_SPEED_NUM_NONE;
+	/* initialize with default value */
+	new_link.link_speed = vport->link_up ? RTE_ETH_SPEED_NUM_UNKNOWN : RTE_ETH_SPEED_NUM_NONE;
+
+	/* update in case a match */
+	for (i = 0; i < RTE_DIM(idpf_supported_speeds); i++) {
+		if (vport->link_speed == idpf_supported_speeds[i]) {
+			new_link.link_speed = vport->link_speed;
+			break;
+		}
 	}
 
 	new_link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
-	new_link.link_status = vport->link_up ? RTE_ETH_LINK_UP :
-		RTE_ETH_LINK_DOWN;
+	new_link.link_status = vport->link_up ? RTE_ETH_LINK_UP : RTE_ETH_LINK_DOWN;
 	new_link.link_autoneg = (dev->data->dev_conf.link_speeds & RTE_ETH_LINK_SPEED_FIXED) ?
 				 RTE_ETH_LINK_FIXED : RTE_ETH_LINK_AUTONEG;
 
@@ -239,7 +232,8 @@ idpf_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 }
 
 static const uint32_t *
-idpf_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused)
+idpf_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused,
+			      size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -250,9 +244,9 @@ idpf_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused)
 		RTE_PTYPE_L4_TCP,
 		RTE_PTYPE_L4_SCTP,
 		RTE_PTYPE_L4_ICMP,
-		RTE_PTYPE_UNKNOWN
 	};
 
+	*no_of_elements = RTE_DIM(ptypes);
 	return ptypes;
 }
 
@@ -288,7 +282,7 @@ idpf_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 
 		idpf_vport_stats_update(&vport->eth_stats_offset, pstats);
 		stats->ipackets = pstats->rx_unicast + pstats->rx_multicast +
-				pstats->rx_broadcast - pstats->rx_discards;
+				pstats->rx_broadcast;
 		stats->opackets = pstats->tx_broadcast + pstats->tx_multicast +
 						pstats->tx_unicast;
 		stats->ierrors = pstats->rx_errors;
@@ -792,8 +786,6 @@ idpf_dev_start(struct rte_eth_dev *dev)
 	if (idpf_dev_stats_reset(dev))
 		PMD_DRV_LOG(ERR, "Failed to reset stats");
 
-	vport->stopped = 0;
-
 	return 0;
 
 err_vport:
@@ -811,7 +803,7 @@ idpf_dev_stop(struct rte_eth_dev *dev)
 {
 	struct idpf_vport *vport = dev->data->dev_private;
 
-	if (vport->stopped == 1)
+	if (dev->data->dev_started == 0)
 		return 0;
 
 	idpf_vc_vport_ena_dis(vport, false);
@@ -821,8 +813,6 @@ idpf_dev_stop(struct rte_eth_dev *dev)
 	idpf_vport_irq_unmap_config(vport, dev->data->nb_rx_queues);
 
 	idpf_vc_vectors_dealloc(vport);
-
-	vport->stopped = 1;
 
 	return 0;
 }
@@ -845,6 +835,34 @@ idpf_dev_close(struct rte_eth_dev *dev)
 
 	return 0;
 }
+
+static const struct eth_dev_ops idpf_eth_dev_ops = {
+	.dev_configure			= idpf_dev_configure,
+	.dev_close			= idpf_dev_close,
+	.rx_queue_setup			= idpf_rx_queue_setup,
+	.tx_queue_setup			= idpf_tx_queue_setup,
+	.dev_infos_get			= idpf_dev_info_get,
+	.dev_start			= idpf_dev_start,
+	.dev_stop			= idpf_dev_stop,
+	.link_update			= idpf_dev_link_update,
+	.rx_queue_start			= idpf_rx_queue_start,
+	.tx_queue_start			= idpf_tx_queue_start,
+	.rx_queue_stop			= idpf_rx_queue_stop,
+	.tx_queue_stop			= idpf_tx_queue_stop,
+	.rx_queue_release		= idpf_dev_rx_queue_release,
+	.tx_queue_release		= idpf_dev_tx_queue_release,
+	.mtu_set			= idpf_dev_mtu_set,
+	.dev_supported_ptypes_get	= idpf_dev_supported_ptypes_get,
+	.stats_get			= idpf_dev_stats_get,
+	.stats_reset			= idpf_dev_stats_reset,
+	.reta_update			= idpf_rss_reta_update,
+	.reta_query			= idpf_rss_reta_query,
+	.rss_hash_update		= idpf_rss_hash_update,
+	.rss_hash_conf_get		= idpf_rss_hash_conf_get,
+	.xstats_get			= idpf_dev_xstats_get,
+	.xstats_get_names		= idpf_dev_xstats_get_names,
+	.xstats_reset			= idpf_dev_xstats_reset,
+};
 
 static int
 insert_value(struct idpf_devargs *devargs, uint16_t id)
@@ -1028,7 +1046,8 @@ static void
 idpf_handle_event_msg(struct idpf_vport *vport, uint8_t *msg, uint16_t msglen)
 {
 	struct virtchnl2_event *vc_event = (struct virtchnl2_event *)msg;
-	struct rte_eth_dev *dev = (struct rte_eth_dev *)vport->dev;
+	struct rte_eth_dev_data *data = vport->dev_data;
+	struct rte_eth_dev *dev = &rte_eth_devices[data->port_id];
 
 	if (msglen < sizeof(struct virtchnl2_event)) {
 		PMD_DRV_LOG(ERR, "Error event");
@@ -1078,6 +1097,7 @@ idpf_handle_virtchnl_msg(struct idpf_adapter_ext *adapter_ex)
 
 		switch (mbx_op) {
 		case idpf_mbq_opc_send_msg_to_peer_pf:
+		case idpf_mbq_opc_send_msg_to_peer_drv:
 			if (vc_op == VIRTCHNL2_OP_EVENT) {
 				if (ctlq_msg.data_len < sizeof(struct virtchnl2_event)) {
 					PMD_DRV_LOG(ERR, "Error event");
@@ -1128,6 +1148,44 @@ idpf_dev_alarm_handler(void *param)
 	rte_eal_alarm_set(IDPF_ALARM_INTERVAL, idpf_dev_alarm_handler, adapter);
 }
 
+static struct virtchnl2_get_capabilities req_caps = {
+	.csum_caps =
+	VIRTCHNL2_CAP_TX_CSUM_L3_IPV4          |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_TCP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_UDP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_SCTP     |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_TCP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_UDP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_SCTP     |
+	VIRTCHNL2_CAP_TX_CSUM_GENERIC          |
+	VIRTCHNL2_CAP_RX_CSUM_L3_IPV4          |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_TCP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_UDP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_SCTP     |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_TCP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_UDP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_SCTP     |
+	VIRTCHNL2_CAP_RX_CSUM_GENERIC,
+
+	.rss_caps =
+	VIRTCHNL2_CAP_RSS_IPV4_TCP             |
+	VIRTCHNL2_CAP_RSS_IPV4_UDP             |
+	VIRTCHNL2_CAP_RSS_IPV4_SCTP            |
+	VIRTCHNL2_CAP_RSS_IPV4_OTHER           |
+	VIRTCHNL2_CAP_RSS_IPV6_TCP             |
+	VIRTCHNL2_CAP_RSS_IPV6_UDP             |
+	VIRTCHNL2_CAP_RSS_IPV6_SCTP            |
+	VIRTCHNL2_CAP_RSS_IPV6_OTHER           |
+	VIRTCHNL2_CAP_RSS_IPV4_AH              |
+	VIRTCHNL2_CAP_RSS_IPV4_ESP             |
+	VIRTCHNL2_CAP_RSS_IPV4_AH_ESP          |
+	VIRTCHNL2_CAP_RSS_IPV6_AH              |
+	VIRTCHNL2_CAP_RSS_IPV6_ESP             |
+	VIRTCHNL2_CAP_RSS_IPV6_AH_ESP,
+
+	.other_caps = VIRTCHNL2_CAP_WB_ON_ITR
+};
+
 static int
 idpf_adapter_ext_init(struct rte_pci_device *pci_dev, struct idpf_adapter_ext *adapter)
 {
@@ -1143,6 +1201,8 @@ idpf_adapter_ext_init(struct rte_pci_device *pci_dev, struct idpf_adapter_ext *a
 	hw->subsystem_vendor_id = pci_dev->id.subsystem_vendor_id;
 
 	strncpy(adapter->name, pci_dev->device.name, PCI_PRI_STR_SIZE);
+
+	rte_memcpy(&base->caps, &req_caps, sizeof(struct virtchnl2_get_capabilities));
 
 	ret = idpf_adapter_init(base);
 	if (ret != 0) {
@@ -1178,34 +1238,6 @@ err_adapter_init:
 	return ret;
 }
 
-static const struct eth_dev_ops idpf_eth_dev_ops = {
-	.dev_configure			= idpf_dev_configure,
-	.dev_close			= idpf_dev_close,
-	.rx_queue_setup			= idpf_rx_queue_setup,
-	.tx_queue_setup			= idpf_tx_queue_setup,
-	.dev_infos_get			= idpf_dev_info_get,
-	.dev_start			= idpf_dev_start,
-	.dev_stop			= idpf_dev_stop,
-	.link_update			= idpf_dev_link_update,
-	.rx_queue_start			= idpf_rx_queue_start,
-	.tx_queue_start			= idpf_tx_queue_start,
-	.rx_queue_stop			= idpf_rx_queue_stop,
-	.tx_queue_stop			= idpf_tx_queue_stop,
-	.rx_queue_release		= idpf_dev_rx_queue_release,
-	.tx_queue_release		= idpf_dev_tx_queue_release,
-	.mtu_set			= idpf_dev_mtu_set,
-	.dev_supported_ptypes_get	= idpf_dev_supported_ptypes_get,
-	.stats_get			= idpf_dev_stats_get,
-	.stats_reset			= idpf_dev_stats_reset,
-	.reta_update			= idpf_rss_reta_update,
-	.reta_query			= idpf_rss_reta_query,
-	.rss_hash_update		= idpf_rss_hash_update,
-	.rss_hash_conf_get		= idpf_rss_hash_conf_get,
-	.xstats_get			= idpf_dev_xstats_get,
-	.xstats_get_names		= idpf_dev_xstats_get_names,
-	.xstats_reset			= idpf_dev_xstats_reset,
-};
-
 static uint16_t
 idpf_vport_idx_alloc(struct idpf_adapter_ext *ad)
 {
@@ -1239,7 +1271,6 @@ idpf_dev_vport_init(struct rte_eth_dev *dev, void *init_params)
 	vport->adapter = &adapter->base;
 	vport->sw_idx = param->idx;
 	vport->devarg_id = param->devarg_id;
-	vport->dev = dev;
 
 	memset(&create_vport_info, 0, sizeof(create_vport_info));
 	ret = idpf_vport_info_init(vport, &create_vport_info);
@@ -1254,10 +1285,6 @@ idpf_dev_vport_init(struct rte_eth_dev *dev, void *init_params)
 		goto err;
 	}
 
-	adapter->vports[param->idx] = vport;
-	adapter->cur_vports |= RTE_BIT32(param->devarg_id);
-	adapter->cur_vport_nb++;
-
 	dev->data->mac_addrs = rte_zmalloc(NULL, RTE_ETHER_ADDR_LEN, 0);
 	if (dev->data->mac_addrs == NULL) {
 		PMD_INIT_LOG(ERR, "Cannot allocate mac_addr memory.");
@@ -1267,6 +1294,10 @@ idpf_dev_vport_init(struct rte_eth_dev *dev, void *init_params)
 
 	rte_ether_addr_copy((struct rte_ether_addr *)vport->default_mac_addr,
 			    &dev->data->mac_addrs[0]);
+
+	adapter->vports[param->idx] = vport;
+	adapter->cur_vports |= RTE_BIT32(param->devarg_id);
+	adapter->cur_vport_nb++;
 
 	return 0;
 
@@ -1279,6 +1310,7 @@ err:
 
 static const struct rte_pci_id pci_id_idpf_map[] = {
 	{ RTE_PCI_DEVICE(IDPF_INTEL_VENDOR_ID, IDPF_DEV_ID_PF) },
+	{ RTE_PCI_DEVICE(IDPF_INTEL_VENDOR_ID, IDPF_DEV_ID_SRIOV) },
 	{ .vendor_id = 0, /* sentinel */ },
 };
 
@@ -1448,9 +1480,9 @@ RTE_PMD_REGISTER_PCI(net_idpf, rte_idpf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_idpf, pci_id_idpf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_idpf, "* igb_uio | vfio-pci");
 RTE_PMD_REGISTER_PARAM_STRING(net_idpf,
-			      IDPF_TX_SINGLE_Q "=<0|1> "
-			      IDPF_RX_SINGLE_Q "=<0|1> "
-			      IDPF_VPORT "=[vport_set0,[vport_set1],...]");
+	IDPF_TX_SINGLE_Q "=<0|1> "
+	IDPF_RX_SINGLE_Q "=<0|1> "
+	IDPF_VPORT "=[<begin>[-<end>][,<begin >[-<end>]][, ... ]]");
 
 RTE_LOG_REGISTER_SUFFIX(idpf_logtype_init, init, NOTICE);
 RTE_LOG_REGISTER_SUFFIX(idpf_logtype_driver, driver, NOTICE);

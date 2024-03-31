@@ -14,6 +14,7 @@
 #include <rte_log.h>
 
 #include "eal_firmware.h"
+#include "eal_private.h"
 
 #ifdef RTE_HAS_LIBARCHIVE
 
@@ -25,19 +26,31 @@ static int
 firmware_open(struct firmware_read_ctx *ctx, const char *name, size_t blocksize)
 {
 	struct archive_entry *e;
+	int err;
 
 	ctx->a = archive_read_new();
 	if (ctx->a == NULL)
 		return -1;
-	if (archive_read_support_format_raw(ctx->a) != ARCHIVE_OK ||
-			archive_read_support_filter_xz(ctx->a) != ARCHIVE_OK ||
-			archive_read_open_filename(ctx->a, name, blocksize) != ARCHIVE_OK ||
-			archive_read_next_header(ctx->a, &e) != ARCHIVE_OK) {
-		archive_read_free(ctx->a);
-		ctx->a = NULL;
-		return -1;
-	}
+
+	if (archive_read_support_format_raw(ctx->a) != ARCHIVE_OK)
+		goto error;
+
+	err = archive_read_support_filter_xz(ctx->a);
+	if (err != ARCHIVE_OK && err != ARCHIVE_WARN)
+		goto error;
+
+	if (archive_read_open_filename(ctx->a, name, blocksize) != ARCHIVE_OK)
+		goto error;
+
+	if (archive_read_next_header(ctx->a, &e) != ARCHIVE_OK)
+		goto error;
+
 	return 0;
+
+error:
+	archive_read_free(ctx->a);
+	ctx->a = NULL;
+	return -1;
 }
 
 static ssize_t
@@ -139,7 +152,7 @@ rte_firmware_read(const char *name, void **buf, size_t *bufsz)
 		path[PATH_MAX - 1] = '\0';
 #ifndef RTE_HAS_LIBARCHIVE
 		if (access(path, F_OK) == 0) {
-			RTE_LOG(WARNING, EAL, "libarchive not linked, %s cannot be decompressed\n",
+			EAL_LOG(WARNING, "libarchive not linked, %s cannot be decompressed",
 				path);
 		}
 #else

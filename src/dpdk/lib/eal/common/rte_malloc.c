@@ -35,19 +35,19 @@ mem_free(void *addr, const bool trace_ena)
 
 	if (addr == NULL) return;
 	if (malloc_heap_free(malloc_elem_from_data(addr)) < 0)
-		RTE_LOG(ERR, EAL, "Error: Invalid memory\n");
+		EAL_LOG(ERR, "Error: Invalid memory");
 }
 
 void
 rte_free(void *addr)
 {
-	return mem_free(addr, true);
+	mem_free(addr, true);
 }
 
 void
 eal_free_no_trace(void *addr)
 {
-	return mem_free(addr, false);
+	mem_free(addr, false);
 }
 
 static void *
@@ -171,7 +171,7 @@ rte_realloc_socket(void *ptr, size_t size, unsigned int align, int socket)
 
 	struct malloc_elem *elem = malloc_elem_from_data(ptr);
 	if (elem == NULL) {
-		RTE_LOG(ERR, EAL, "Error: memory corruption detected\n");
+		EAL_LOG(ERR, "Error: memory corruption detected");
 		return NULL;
 	}
 
@@ -598,7 +598,7 @@ rte_malloc_heap_create(const char *heap_name)
 		/* existing heap */
 		if (strncmp(heap_name, tmp->name,
 				RTE_HEAP_NAME_MAX_LEN) == 0) {
-			RTE_LOG(ERR, EAL, "Heap %s already exists\n",
+			EAL_LOG(ERR, "Heap %s already exists",
 				heap_name);
 			rte_errno = EEXIST;
 			ret = -1;
@@ -611,7 +611,7 @@ rte_malloc_heap_create(const char *heap_name)
 		}
 	}
 	if (heap == NULL) {
-		RTE_LOG(ERR, EAL, "Cannot create new heap: no space\n");
+		EAL_LOG(ERR, "Cannot create new heap: no space");
 		rte_errno = ENOSPC;
 		ret = -1;
 		goto unlock;
@@ -643,7 +643,7 @@ rte_malloc_heap_destroy(const char *heap_name)
 	/* start from non-socket heaps */
 	heap = find_named_heap(heap_name);
 	if (heap == NULL) {
-		RTE_LOG(ERR, EAL, "Heap %s not found\n", heap_name);
+		EAL_LOG(ERR, "Heap %s not found", heap_name);
 		rte_errno = ENOENT;
 		ret = -1;
 		goto unlock;
@@ -657,10 +657,7 @@ rte_malloc_heap_destroy(const char *heap_name)
 	/* sanity checks done, now we can destroy the heap */
 	rte_spinlock_lock(&heap->lock);
 	ret = malloc_heap_destroy(heap);
-
-	/* if we failed, lock is still active */
-	if (ret < 0)
-		rte_spinlock_unlock(&heap->lock);
+	rte_spinlock_unlock(&heap->lock);
 unlock:
 	rte_mcfg_mem_write_unlock();
 

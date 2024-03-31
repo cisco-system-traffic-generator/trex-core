@@ -136,6 +136,7 @@ struct mlx5_rxq_data {
 	struct mlx5_uar_data uar_data; /* CQ doorbell. */
 	uint32_t cqn; /* CQ number. */
 	uint8_t cq_arm_sn; /* CQ arm seq number. */
+	uint64_t mark_flag; /* ol_flags to set with marks. */
 	uint32_t tunnel; /* Tunnel information. */
 	int timestamp_offset; /* Dynamic mbuf field for timestamp. */
 	uint64_t timestamp_rx_flag; /* Dynamic mbuf flag for timestamp. */
@@ -283,7 +284,7 @@ uint64_t mlx5_get_rx_queue_offloads(struct rte_eth_dev *dev);
 void mlx5_rxq_timestamp_set(struct rte_eth_dev *dev);
 int mlx5_hrxq_modify(struct rte_eth_dev *dev, uint32_t hxrq_idx,
 		     const uint8_t *rss_key, uint32_t rss_key_len,
-		     uint64_t hash_fields,
+		     uint64_t hash_fields, bool symmetric_hash_function,
 		     const uint16_t *queues, uint32_t queues_n);
 
 /* mlx5_rx.c */
@@ -374,25 +375,6 @@ mlx5_rx_mb2mr(struct mlx5_rxq_data *rxq, struct rte_mbuf *mb)
 		return lkey;
 	/* Slower search in the mempool database on miss. */
 	return mlx5_mr_mempool2mr_bh(mr_ctrl, mb->pool, addr);
-}
-
-/**
- * Convert timestamp from HW format to linear counter
- * from Packet Pacing Clock Queue CQE timestamp format.
- *
- * @param sh
- *   Pointer to the device shared context. Might be needed
- *   to convert according current device configuration.
- * @param ts
- *   Timestamp from CQE to convert.
- * @return
- *   UTC in nanoseconds
- */
-static __rte_always_inline uint64_t
-mlx5_txpp_convert_rx_ts(struct mlx5_dev_ctx_shared *sh, uint64_t ts)
-{
-	RTE_SET_USED(sh);
-	return (ts & UINT32_MAX) + (ts >> 32) * NS_PER_S;
 }
 
 /**
@@ -542,7 +524,7 @@ mprq_buf_to_pkt(struct mlx5_rxq_data *rxq, struct rte_mbuf *pkt, uint32_t len,
 		void *buf_addr;
 
 		/* Increment the refcnt of the whole chunk. */
-		__atomic_add_fetch(&buf->refcnt, 1, __ATOMIC_RELAXED);
+		__atomic_fetch_add(&buf->refcnt, 1, __ATOMIC_RELAXED);
 		MLX5_ASSERT(__atomic_load_n(&buf->refcnt,
 			    __ATOMIC_RELAXED) <= strd_n + 1);
 		buf_addr = RTE_PTR_SUB(addr, RTE_PKTMBUF_HEADROOM);
@@ -681,9 +663,9 @@ mlx5_is_external_rxq(struct rte_eth_dev *dev, uint16_t queue_idx)
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_external_rxq *rxq;
 
-	if (!priv->ext_rxqs || queue_idx < MLX5_EXTERNAL_RX_QUEUE_ID_MIN)
+	if (!priv->ext_rxqs || queue_idx < RTE_PMD_MLX5_EXTERNAL_RX_QUEUE_ID_MIN)
 		return false;
-	rxq = &priv->ext_rxqs[queue_idx - MLX5_EXTERNAL_RX_QUEUE_ID_MIN];
+	rxq = &priv->ext_rxqs[queue_idx - RTE_PMD_MLX5_EXTERNAL_RX_QUEUE_ID_MIN];
 	return !!__atomic_load_n(&rxq->refcnt, __ATOMIC_RELAXED);
 }
 

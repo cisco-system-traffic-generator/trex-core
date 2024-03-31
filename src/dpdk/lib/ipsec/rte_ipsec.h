@@ -14,7 +14,6 @@
  * processing (ESP/AH).
  */
 
-#include <rte_compat.h>
 #include <rte_ipsec_sa.h>
 #include <rte_mbuf.h>
 
@@ -56,7 +55,7 @@ struct rte_ipsec_sa_pkt_func {
  * - pointer to security/crypto session, plus other related data
  * - session/device specific functions to prepare/process IPsec packets.
  */
-struct rte_ipsec_session {
+struct __rte_cache_aligned rte_ipsec_session {
 	/**
 	 * SA that session belongs to.
 	 * Note that multiple sessions can belong to the same SA.
@@ -78,7 +77,7 @@ struct rte_ipsec_session {
 	};
 	/** functions to prepare/process IPsec packets */
 	struct rte_ipsec_sa_pkt_func pkt_func;
-} __rte_cache_aligned;
+};
 
 /**
  * Checks that inside given rte_ipsec_session crypto/security fields
@@ -168,7 +167,6 @@ rte_ipsec_pkt_process(const struct rte_ipsec_session *ss, struct rte_mbuf *mb[],
  * @return
  *   0 on success, negative value otherwise.
  */
-__rte_experimental
 int
 rte_ipsec_telemetry_sa_add(const struct rte_ipsec_sa *sa);
 
@@ -178,7 +176,6 @@ rte_ipsec_telemetry_sa_add(const struct rte_ipsec_sa *sa);
  * @param sa
  *   Pointer to the *rte_ipsec_sa* object that will have telemetry disabled.
  */
-__rte_experimental
 void
 rte_ipsec_telemetry_sa_del(const struct rte_ipsec_sa *sa);
 

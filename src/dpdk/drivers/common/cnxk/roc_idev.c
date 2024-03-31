@@ -38,7 +38,9 @@ idev_set_defaults(struct idev_cfg *idev)
 	idev->num_lmtlines = 0;
 	idev->bphy = NULL;
 	idev->cpt = NULL;
+	TAILQ_INIT(&idev->mcs_list);
 	idev->nix_inl_dev = NULL;
+	TAILQ_INIT(&idev->roc_nix_list);
 	plt_spinlock_init(&idev->nix_inl_dev_lock);
 	plt_spinlock_init(&idev->npa_dev_lock);
 	__atomic_store_n(&idev->npa_refcnt, 0, __ATOMIC_RELEASE);
@@ -186,6 +188,51 @@ roc_idev_cpt_get(void)
 	return NULL;
 }
 
+struct roc_mcs *
+roc_idev_mcs_get(uint8_t mcs_idx)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct roc_mcs *mcs = NULL;
+
+	if (idev != NULL) {
+		TAILQ_FOREACH(mcs, &idev->mcs_list, next) {
+			if (mcs->idx == mcs_idx)
+				return mcs;
+		}
+	}
+
+	return NULL;
+}
+
+void
+roc_idev_mcs_set(struct roc_mcs *mcs)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct roc_mcs *mcs_iter = NULL;
+
+	if (idev != NULL) {
+		TAILQ_FOREACH(mcs_iter, &idev->mcs_list, next) {
+			if (mcs_iter->idx == mcs->idx)
+				return;
+		}
+		TAILQ_INSERT_TAIL(&idev->mcs_list, mcs, next);
+	}
+}
+
+void
+roc_idev_mcs_free(struct roc_mcs *mcs)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct roc_mcs *mcs_iter = NULL;
+
+	if (idev != NULL) {
+		TAILQ_FOREACH(mcs_iter, &idev->mcs_list, next) {
+			if (mcs_iter->idx == mcs->idx)
+				TAILQ_REMOVE(&idev->mcs_list, mcs, next);
+		}
+	}
+}
+
 uint64_t *
 roc_nix_inl_outb_ring_base_get(struct roc_nix *roc_nix)
 {
@@ -199,6 +246,17 @@ roc_nix_inl_outb_ring_base_get(struct roc_nix *roc_nix)
 	inl_dev = idev->nix_inl_dev;
 
 	return (uint64_t *)&inl_dev->sa_soft_exp_ring[nix->outb_se_ring_base];
+}
+
+struct roc_nix_list *
+roc_idev_nix_list_get(void)
+{
+	struct idev_cfg *idev;
+
+	idev = idev_get_cfg();
+	if (idev != NULL)
+		return &idev->roc_nix_list;
+	return NULL;
 }
 
 void
@@ -243,6 +301,26 @@ idev_sso_set(struct roc_sso *sso)
 		__atomic_store_n(&idev->sso, sso, __ATOMIC_RELEASE);
 }
 
+void
+idev_dma_cs_offset_set(uint8_t offset)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+
+	if (idev != NULL)
+		idev->dma_cs_offset = offset;
+}
+
+uint8_t
+idev_dma_cs_offset_get(void)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+
+	if (idev != NULL)
+		return idev->dma_cs_offset;
+
+	return 0;
+}
+
 uint64_t
 roc_idev_nix_inl_meta_aura_get(void)
 {
@@ -251,4 +329,48 @@ roc_idev_nix_inl_meta_aura_get(void)
 	if (idev != NULL)
 		return idev->inl_cfg.meta_aura;
 	return 0;
+}
+
+uint8_t
+roc_idev_nix_rx_inject_get(uint16_t port)
+{
+	struct idev_cfg *idev;
+
+	idev = idev_get_cfg();
+	if (idev != NULL && port < PLT_MAX_ETHPORTS)
+		return idev->inl_rx_inj_cfg.rx_inject_en[port];
+
+	return 0;
+}
+
+void
+roc_idev_nix_rx_inject_set(uint16_t port, uint8_t enable)
+{
+	struct idev_cfg *idev;
+
+	idev = idev_get_cfg();
+	if (idev != NULL && port < PLT_MAX_ETHPORTS)
+		__atomic_store_n(&idev->inl_rx_inj_cfg.rx_inject_en[port], enable,
+				 __ATOMIC_RELEASE);
+}
+
+uint16_t *
+roc_idev_nix_rx_chan_base_get(void)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+
+	if (idev != NULL)
+		return (uint16_t *)&idev->inl_rx_inj_cfg.chan;
+
+	return NULL;
+}
+
+void
+roc_idev_nix_rx_chan_set(uint16_t port, uint16_t chan)
+{
+	struct idev_cfg *idev;
+
+	idev = idev_get_cfg();
+	if (idev != NULL && port < PLT_MAX_ETHPORTS)
+		__atomic_store_n(&idev->inl_rx_inj_cfg.chan[port], chan, __ATOMIC_RELEASE);
 }

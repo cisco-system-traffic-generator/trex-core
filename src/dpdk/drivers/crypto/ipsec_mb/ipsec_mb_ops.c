@@ -7,6 +7,7 @@
 
 #include <rte_common.h>
 #include <rte_malloc.h>
+#include <rte_log.h>
 
 #include "ipsec_mb_private.h"
 
@@ -125,7 +126,7 @@ ipsec_mb_secondary_qp_op(int dev_id, int qp_id,
 	qp_req_msg.num_fds = 0;
 	ret = rte_mp_request_sync(&qp_req_msg, &qp_resp, &ts);
 	if (ret) {
-		RTE_LOG(ERR, USER1, "Create MR request to primary process failed.");
+		IPSEC_MB_LOG(ERR, "Create MR request to primary process failed.");
 		return -1;
 	}
 	qp_resp_msg = &qp_resp.msgs[0];
@@ -406,7 +407,7 @@ ipsec_mb_ipc_request(const struct rte_mp_msg *mp_msg, const void *peer)
 		resp_param->result = ipsec_mb_qp_release(dev, qp_id);
 		break;
 	default:
-		CDEV_LOG_ERR("invalid mp request type\n");
+		CDEV_LOG_ERR("invalid mp request type");
 	}
 
 out:
@@ -434,15 +435,22 @@ ipsec_mb_sym_session_configure(
 	struct ipsec_mb_dev_private *internals = dev->data->dev_private;
 	struct ipsec_mb_internals *pmd_data =
 		&ipsec_mb_pmds[internals->pmd_type];
-	IMB_MGR *mb_mgr = alloc_init_mb_mgr();
+	struct ipsec_mb_qp *qp = dev->data->queue_pairs[0];
+	IMB_MGR *mb_mgr;
 	int ret = 0;
+
+	if (qp != NULL)
+		mb_mgr = qp->mb_mgr;
+	else
+		mb_mgr = alloc_init_mb_mgr();
 
 	if (!mb_mgr)
 		return -ENOMEM;
 
 	if (unlikely(sess == NULL)) {
 		IPSEC_MB_LOG(ERR, "invalid session struct");
-		free_mb_mgr(mb_mgr);
+		if (qp == NULL)
+			free_mb_mgr(mb_mgr);
 		return -EINVAL;
 	}
 
@@ -452,11 +460,13 @@ ipsec_mb_sym_session_configure(
 		IPSEC_MB_LOG(ERR, "failed configure session parameters");
 
 		/* Return session to mempool */
-		free_mb_mgr(mb_mgr);
+		if (qp == NULL)
+			free_mb_mgr(mb_mgr);
 		return ret;
 	}
 
-	free_mb_mgr(mb_mgr);
+	if (qp == NULL)
+		free_mb_mgr(mb_mgr);
 	return 0;
 }
 

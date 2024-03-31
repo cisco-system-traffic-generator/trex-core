@@ -7,6 +7,9 @@
 #include "roc_api.h"
 #include "roc_priv.h"
 
+/* Default SQB slack per SQ */
+#define ROC_NIX_SQB_SLACK_DFLT 24
+
 static inline uint32_t
 nix_qsize_to_val(enum nix_q_size qsize)
 {
@@ -86,6 +89,20 @@ nix_rq_ena_dis(struct dev *dev, struct roc_nix_rq *rq, bool enable)
 	rc = mbox_process(mbox);
 exit:
 	mbox_put(mbox);
+	return rc;
+}
+
+int
+roc_nix_sq_ena_dis(struct roc_nix_sq *sq, bool enable)
+{
+	int rc = 0;
+
+	rc = roc_nix_tm_sq_aura_fc(sq, enable);
+	if (rc)
+		goto done;
+
+	sq->enable = enable;
+done:
 	return rc;
 }
 
@@ -473,6 +490,9 @@ nix_rq_cfg(struct dev *dev, struct roc_nix_rq *rq, uint16_t qints, bool cfg,
 	if (rq->ipsech_ena) {
 		aq->rq.ipsech_ena = 1;
 		aq->rq.ipsecd_drop_en = 1;
+		aq->rq.ena_wqwd = 1;
+		aq->rq.wqe_skip = rq->wqe_skip;
+		aq->rq.wqe_caching = 1;
 	}
 
 	aq->rq.lpb_aura = roc_npa_aura_handle_to_aura(rq->aura_handle);
@@ -902,6 +922,13 @@ roc_nix_cq_init(struct roc_nix *roc_nix, struct roc_nix_cq *cq)
 	}
 	cq_ctx->bp = cq->drop_thresh;
 
+	if (roc_feature_nix_has_cqe_stash()) {
+		if (cq_ctx->caching) {
+			cq_ctx->stashing = 1;
+			cq_ctx->stash_thresh = cq->stash_thresh;
+		}
+	}
+
 	rc = mbox_process(mbox);
 	mbox_put(mbox);
 	if (rc)
@@ -982,7 +1009,7 @@ static int
 sqb_pool_populate(struct roc_nix *roc_nix, struct roc_nix_sq *sq)
 {
 	struct nix *nix = roc_nix_to_nix_priv(roc_nix);
-	uint16_t sqes_per_sqb, count, nb_sqb_bufs;
+	uint16_t sqes_per_sqb, count, nb_sqb_bufs, thr;
 	struct npa_pool_s pool;
 	struct npa_aura_s aura;
 	uint64_t blk_sz;
@@ -995,22 +1022,24 @@ sqb_pool_populate(struct roc_nix *roc_nix, struct roc_nix_sq *sq)
 	else
 		sqes_per_sqb = (blk_sz / 8) / 8;
 
+	/* Reserve One SQE in each SQB to hold pointer for next SQB */
+	sqes_per_sqb -= 1;
+
 	sq->nb_desc = PLT_MAX(512U, sq->nb_desc);
-	nb_sqb_bufs = sq->nb_desc / sqes_per_sqb;
-	nb_sqb_bufs += NIX_SQB_LIST_SPACE;
+	nb_sqb_bufs = PLT_DIV_CEIL(sq->nb_desc, sqes_per_sqb);
+	thr = PLT_DIV_CEIL((nb_sqb_bufs * ROC_NIX_SQB_THRESH), 100);
+	nb_sqb_bufs += NIX_SQB_PREFETCH;
 	/* Clamp up the SQB count */
-	nb_sqb_bufs = PLT_MIN(roc_nix->max_sqb_count,
-			      (uint16_t)PLT_MAX(NIX_DEF_SQB, nb_sqb_bufs));
+	nb_sqb_bufs = PLT_MIN(roc_nix->max_sqb_count, (uint16_t)PLT_MAX(NIX_DEF_SQB, nb_sqb_bufs));
 
 	sq->nb_sqb_bufs = nb_sqb_bufs;
 	sq->sqes_per_sqb_log2 = (uint16_t)plt_log2_u32(sqes_per_sqb);
-	sq->nb_sqb_bufs_adj =
-		nb_sqb_bufs -
-		(PLT_ALIGN_MUL_CEIL(nb_sqb_bufs, sqes_per_sqb) / sqes_per_sqb);
-	sq->nb_sqb_bufs_adj =
-		(sq->nb_sqb_bufs_adj * ROC_NIX_SQB_LOWER_THRESH) / 100;
+	sq->nb_sqb_bufs_adj = nb_sqb_bufs;
 
-	nb_sqb_bufs += roc_nix->sqb_slack;
+	if (roc_nix->sqb_slack)
+		nb_sqb_bufs += roc_nix->sqb_slack;
+	else
+		nb_sqb_bufs += PLT_MAX((int)thr, (int)ROC_NIX_SQB_SLACK_DFLT);
 	/* Explicitly set nat_align alone as by default pool is with both
 	 * nat_align and buf_offset = 1 which we don't want for SQB.
 	 */
@@ -1050,7 +1079,7 @@ sqb_pool_populate(struct roc_nix *roc_nix, struct roc_nix_sq *sq)
 		goto npa_fail;
 	}
 
-	roc_npa_aura_op_range_set(sq->aura_handle, (uint64_t)sq->sqe_mem, iova);
+	roc_npa_pool_op_range_set(sq->aura_handle, (uint64_t)sq->sqe_mem, iova);
 	roc_npa_aura_limit_modify(sq->aura_handle, nb_sqb_bufs);
 	sq->aura_sqb_bufs = nb_sqb_bufs;
 
@@ -1394,6 +1423,7 @@ roc_nix_sq_init(struct roc_nix *roc_nix, struct roc_nix_sq *sq)
 	}
 	mbox_put(mbox);
 
+	sq->enable = true;
 	nix->sqs[qid] = sq;
 	sq->io_addr = nix->base + NIX_LF_OP_SENDX(0);
 	/* Evenly distribute LMT slot for each sq */
