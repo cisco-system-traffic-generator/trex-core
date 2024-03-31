@@ -12,8 +12,6 @@ extern "C" {
 #include <stdint.h>
 #include <sys/types.h>
 
-#define __rte_aligned_16 __rte_aligned(16)
-
 #if 0
 static inline uint32_t
 rte_min_pos_4_u16(uint16_t *x)
@@ -49,7 +47,6 @@ rte_min_pos_4_u16(uint16_t *x)
  * This implementation uses Euclid's algorithm:
  *    gcd(a, 0) = a
  *    gcd(a, b) = gcd(b, a mod b)
- *
  */
 static inline uint64_t
 rte_get_gcd64(uint64_t a, uint64_t b)
@@ -89,7 +86,6 @@ rte_get_gcd(uint32_t a, uint32_t b)
  * Compute the Lowest Common Denominator (LCD) of two numbers.
  * This implementation computes GCD first:
  *    LCD(a, b) = (a * b) / GCD(a, b)
- *
  */
 static inline uint32_t
 rte_get_lcd(uint32_t a, uint32_t b)

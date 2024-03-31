@@ -25,7 +25,14 @@
 #define CRYPTO_ADAPTER_MEM_NAME_LEN 32
 #define CRYPTO_ADAPTER_MAX_EV_ENQ_RETRIES 100
 
-#define CRYPTO_ADAPTER_OPS_BUFFER_SZ (BATCH_SIZE + BATCH_SIZE)
+/* MAX_OPS_IN_BUFFER contains size for  batch of dequeued events */
+#define MAX_OPS_IN_BUFFER BATCH_SIZE
+
+/* CRYPTO_ADAPTER_OPS_BUFFER_SZ to accommodate MAX_OPS_IN_BUFFER +
+ * additional space for one batch
+ */
+#define CRYPTO_ADAPTER_OPS_BUFFER_SZ (MAX_OPS_IN_BUFFER + BATCH_SIZE)
+
 #define CRYPTO_ADAPTER_BUFFER_SZ 1024
 
 /* Flush an instance's enqueue buffers every CRYPTO_ENQ_FLUSH_THRESHOLD
@@ -35,7 +42,7 @@
 
 #define ECA_ADAPTER_ARRAY "crypto_adapter_array"
 
-struct crypto_ops_circular_buffer {
+struct __rte_cache_aligned crypto_ops_circular_buffer {
 	/* index of head element in circular buffer */
 	uint16_t head;
 	/* index of tail element in circular buffer */
@@ -46,9 +53,9 @@ struct crypto_ops_circular_buffer {
 	uint16_t size;
 	/* Pointer to hold rte_crypto_ops for batching */
 	struct rte_crypto_op **op_buffer;
-} __rte_cache_aligned;
+};
 
-struct event_crypto_adapter {
+struct __rte_cache_aligned event_crypto_adapter {
 	/* Event device identifier */
 	uint8_t eventdev_id;
 	/* Event port identifier */
@@ -91,10 +98,10 @@ struct event_crypto_adapter {
 	uint16_t nb_qps;
 	/* Adapter mode */
 	enum rte_event_crypto_adapter_mode mode;
-} __rte_cache_aligned;
+};
 
 /* Per crypto device information */
-struct crypto_device_info {
+struct __rte_cache_aligned crypto_device_info {
 	/* Pointer to cryptodev */
 	struct rte_cryptodev *dev;
 	/* Pointer to queue pair info */
@@ -111,22 +118,22 @@ struct crypto_device_info {
 	 * be invoked if not already invoked
 	 */
 	uint16_t num_qpairs;
-} __rte_cache_aligned;
+};
 
 /* Per queue pair information */
-struct crypto_queue_pair_info {
+struct __rte_cache_aligned crypto_queue_pair_info {
 	/* Set to indicate queue pair is enabled */
 	bool qp_enabled;
 	/* Circular buffer for batching crypto ops to cdev */
 	struct crypto_ops_circular_buffer cbuf;
-} __rte_cache_aligned;
+};
 
 static struct event_crypto_adapter **event_crypto_adapter;
 
 /* Macros to check for valid adapter */
 #define EVENT_CRYPTO_ADAPTER_ID_VALID_OR_ERR_RET(id, retval) do { \
 	if (!eca_valid_id(id)) { \
-		RTE_EDEV_LOG_ERR("Invalid crypto adapter id = %d\n", id); \
+		RTE_EDEV_LOG_ERR("Invalid crypto adapter id = %d", id); \
 		return retval; \
 	} \
 } while (0)
@@ -188,7 +195,8 @@ eca_circular_buffer_batch_ready(struct crypto_ops_circular_buffer *bufp)
 static inline bool
 eca_circular_buffer_space_for_batch(struct crypto_ops_circular_buffer *bufp)
 {
-	return (bufp->size - bufp->count) >= BATCH_SIZE;
+	/* circular buffer can have atmost MAX_OPS_IN_BUFFER */
+	return (bufp->size - bufp->count) >= MAX_OPS_IN_BUFFER;
 }
 
 static inline void
@@ -237,12 +245,29 @@ eca_circular_buffer_flush_to_cdev(struct crypto_ops_circular_buffer *bufp,
 	struct rte_crypto_op **ops = bufp->op_buffer;
 
 	if (*tailp > *headp)
+		/* Flush ops from head pointer to (tail - head) OPs */
 		n = *tailp - *headp;
 	else if (*tailp < *headp)
+		/* Circ buffer - Rollover.
+		 * Flush OPs from head to max size of buffer.
+		 * Rest of the OPs will be flushed in next iteration.
+		 */
 		n = bufp->size - *headp;
-	else {
-		*nb_ops_flushed = 0;
-		return 0;  /* buffer empty */
+	else { /* head == tail case */
+		/* when head == tail,
+		 * circ buff is either full(tail pointer roll over) or empty
+		 */
+		if (bufp->count != 0) {
+			/* Circ buffer - FULL.
+			 * Flush OPs from head to max size of buffer.
+			 * Rest of the OPS will be flushed in next iteration.
+			 */
+			n = bufp->size - *headp;
+		} else {
+			/* Circ buffer - Empty */
+			*nb_ops_flushed = 0;
+			return 0;
+		}
 	}
 
 	*nb_ops_flushed = rte_cryptodev_enqueue_burst(cdev_id, qp_id,
@@ -292,7 +317,7 @@ eca_default_config_cb(uint8_t id, uint8_t dev_id,
 
 	ret = rte_event_dev_configure(dev_id, &dev_conf);
 	if (ret) {
-		RTE_EDEV_LOG_ERR("failed to configure event dev %u\n", dev_id);
+		RTE_EDEV_LOG_ERR("failed to configure event dev %u", dev_id);
 		if (started) {
 			if (rte_event_dev_start(dev_id))
 				return -EIO;
@@ -302,7 +327,7 @@ eca_default_config_cb(uint8_t id, uint8_t dev_id,
 
 	ret = rte_event_port_setup(dev_id, port_id, port_conf);
 	if (ret) {
-		RTE_EDEV_LOG_ERR("failed to setup event port %u\n", port_id);
+		RTE_EDEV_LOG_ERR("failed to setup event port %u", port_id);
 		return ret;
 	}
 
@@ -374,7 +399,7 @@ rte_event_crypto_adapter_create_ext(uint8_t id, uint8_t dev_id,
 					sizeof(struct crypto_device_info), 0,
 					socket_id);
 	if (adapter->cdevs == NULL) {
-		RTE_EDEV_LOG_ERR("Failed to get mem for crypto devices\n");
+		RTE_EDEV_LOG_ERR("Failed to get mem for crypto devices");
 		eca_circular_buffer_free(&adapter->ebuf);
 		rte_free(adapter);
 		return -ENOMEM;
@@ -1386,7 +1411,7 @@ rte_event_crypto_adapter_runtime_params_set(uint8_t id,
 	EVENT_CRYPTO_ADAPTER_ID_VALID_OR_ERR_RET(id, -EINVAL);
 
 	if (params == NULL) {
-		RTE_EDEV_LOG_ERR("params pointer is NULL\n");
+		RTE_EDEV_LOG_ERR("params pointer is NULL");
 		return -EINVAL;
 	}
 
@@ -1419,7 +1444,7 @@ rte_event_crypto_adapter_runtime_params_get(uint8_t id,
 	EVENT_CRYPTO_ADAPTER_ID_VALID_OR_ERR_RET(id, -EINVAL);
 
 	if (params == NULL) {
-		RTE_EDEV_LOG_ERR("params pointer is NULL\n");
+		RTE_EDEV_LOG_ERR("params pointer is NULL");
 		return -EINVAL;
 	}
 

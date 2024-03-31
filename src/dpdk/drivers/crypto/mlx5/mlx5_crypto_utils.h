@@ -7,7 +7,9 @@
 
 #include <mlx5_common.h>
 
+#ifdef RTE_LIB_SECURITY
 extern int mlx5_crypto_logtype;
+#endif
 
 #define MLX5_CRYPTO_LOG_PREFIX "mlx5_crypto"
 /* Generic printf()-like logging macro with automatic line feed. */

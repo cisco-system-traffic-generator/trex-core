@@ -6,9 +6,11 @@
 #define _IDPF_COMMON_DEVICE_H_
 
 #include <rte_mbuf_ptype.h>
-#include <base/idpf_prototype.h>
-#include <base/virtchnl2.h>
-#include <idpf_common_logs.h>
+#include "base/idpf_prototype.h"
+#include "base/virtchnl2.h"
+#include "idpf_common_logs.h"
+
+#define IDPF_DEV_ID_SRIOV	0x145C
 
 #define IDPF_RSS_KEY_LEN	52
 
@@ -29,6 +31,15 @@
 
 #define IDPF_DFLT_INTERVAL	16
 
+#define IDPF_RX_MAX_PTYPE_PROTO_IDS	32
+#define IDPF_RX_MAX_PTYPE_SZ	(sizeof(struct virtchnl2_ptype) +	\
+				 (sizeof(uint16_t) *			\
+				  (IDPF_RX_MAX_PTYPE_PROTO_IDS - 1)))
+#define IDPF_RX_PTYPE_HDR_SZ	(sizeof(struct virtchnl2_get_ptype_info) - \
+				 sizeof(struct virtchnl2_ptype))
+#define IDPF_RX_MAX_PTYPES_PER_BUF				\
+	((IDPF_DFLT_MBX_BUF_SIZE - IDPF_RX_PTYPE_HDR_SZ)/	\
+	 IDPF_RX_MAX_PTYPE_SZ)
 #define IDPF_GET_PTYPE_SIZE(p)						\
 	(sizeof(struct virtchnl2_ptype) +				\
 	 (((p)->proto_id_count ? ((p)->proto_id_count - 1) : 0) * sizeof((p)->proto_id[0])))
@@ -110,8 +121,6 @@ struct idpf_vport {
 
 	uint16_t devarg_id;
 
-	bool stopped;
-
 	bool rx_vec_allowed;
 	bool tx_vec_allowed;
 	bool rx_use_avx512;
@@ -119,7 +128,6 @@ struct idpf_vport {
 
 	struct virtchnl2_vport_stats eth_stats_offset;
 
-	void *dev;
 	/* Event from ipf */
 	bool link_up;
 	uint32_t link_speed;
@@ -201,5 +209,9 @@ int idpf_vport_info_init(struct idpf_vport *vport,
 			 struct virtchnl2_create_vport *vport_info);
 __rte_internal
 void idpf_vport_stats_update(struct virtchnl2_vport_stats *oes, struct virtchnl2_vport_stats *nes);
+__rte_internal
+int idpf_vport_irq_map_config_by_qids(struct idpf_vport *vport,
+				      uint32_t *qids,
+				      uint16_t nb_rx_queues);
 
 #endif /* _IDPF_COMMON_DEVICE_H_ */

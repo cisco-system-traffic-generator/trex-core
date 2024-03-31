@@ -34,6 +34,9 @@
 #define IDPF_MAX_TSO_FRAME_SIZE	262143
 #define IDPF_TX_MAX_MTU_SEG     10
 
+#define IDPF_RLAN_CTX_DBUF_S	7
+#define IDPF_RX_MAX_DATA_BUF_SIZE	(16 * 1024 - 128)
+
 #define IDPF_TX_CKSUM_OFFLOAD_MASK (		\
 		RTE_MBUF_F_TX_IP_CKSUM |	\
 		RTE_MBUF_F_TX_L4_MASK |		\
@@ -154,7 +157,7 @@ struct idpf_tx_entry {
 /* Structure associated with each TX queue. */
 struct idpf_tx_queue {
 	const struct rte_memzone *mz;		/* memzone for Tx ring */
-	volatile struct idpf_flex_tx_desc *tx_ring;	/* Tx ring virtual address */
+	volatile struct idpf_base_tx_desc *tx_ring;	/* Tx ring virtual address */
 	volatile union {
 		struct idpf_flex_tx_sched_desc *desc_ring;
 		struct idpf_splitq_tx_compl_desc *compl_ring;

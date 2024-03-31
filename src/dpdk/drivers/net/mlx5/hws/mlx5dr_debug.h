@@ -24,7 +24,14 @@ enum mlx5dr_debug_res_type {
 	MLX5DR_DEBUG_RES_TYPE_MATCHER_ACTION_TEMPLATE = 4204,
 	MLX5DR_DEBUG_RES_TYPE_MATCHER_TEMPLATE_HASH_DEFINER = 4205,
 	MLX5DR_DEBUG_RES_TYPE_MATCHER_TEMPLATE_RANGE_DEFINER = 4206,
+	MLX5DR_DEBUG_RES_TYPE_MATCHER_TEMPLATE_COMPARE_MATCH_DEFINER = 4207,
 };
+
+static inline uint64_t
+mlx5dr_debug_icm_to_idx(uint64_t icm_addr)
+{
+	return (icm_addr >> 6) & 0xffffffff;
+}
 
 const char *mlx5dr_debug_action_type_to_str(enum mlx5dr_action_type action_type);
 

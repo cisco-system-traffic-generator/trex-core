@@ -129,11 +129,11 @@ mlx5_dev_configure(struct rte_eth_dev *dev)
 		rte_errno = EINVAL;
 		return -rte_errno;
 	}
-	if (priv->ext_rxqs && rxqs_n >= MLX5_EXTERNAL_RX_QUEUE_ID_MIN) {
+	if (priv->ext_rxqs && rxqs_n >= RTE_PMD_MLX5_EXTERNAL_RX_QUEUE_ID_MIN) {
 		DRV_LOG(ERR, "port %u cannot handle this many Rx queues (%u), "
 			"the maximal number of internal Rx queues is %u",
 			dev->data->port_id, rxqs_n,
-			MLX5_EXTERNAL_RX_QUEUE_ID_MIN - 1);
+			RTE_PMD_MLX5_EXTERNAL_RX_QUEUE_ID_MIN - 1);
 		rte_errno = EINVAL;
 		return -rte_errno;
 	}
@@ -246,8 +246,8 @@ mlx5_set_default_params(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 	info->default_txportconf.ring_size = 256;
 	info->default_rxportconf.burst_size = MLX5_RX_DEFAULT_BURST;
 	info->default_txportconf.burst_size = MLX5_TX_DEFAULT_BURST;
-	if ((priv->link_speed_capa & RTE_ETH_LINK_SPEED_200G) |
-		(priv->link_speed_capa & RTE_ETH_LINK_SPEED_100G)) {
+	if (priv->link_speed_capa >> rte_bsf32(RTE_ETH_LINK_SPEED_100G)) {
+		/* if supports at least 100G */
 		info->default_rxportconf.nb_queues = 16;
 		info->default_txportconf.nb_queues = 16;
 		if (dev->data->nb_rx_queues > 2 ||
@@ -399,18 +399,30 @@ uint16_t
 mlx5_representor_id_encode(const struct mlx5_switch_info *info,
 			   enum rte_eth_representor_type hpf_type)
 {
-	enum rte_eth_representor_type type = RTE_ETH_REPRESENTOR_VF;
+	enum rte_eth_representor_type type;
 	uint16_t repr = info->port_name;
+	int32_t pf = info->pf_num;
 
-	if (info->representor == 0)
-		return UINT16_MAX;
-	if (info->name_type == MLX5_PHYS_PORT_NAME_TYPE_PFSF)
+	switch (info->name_type) {
+	case MLX5_PHYS_PORT_NAME_TYPE_UPLINK:
+		if (!info->representor)
+			return UINT16_MAX;
+		type = RTE_ETH_REPRESENTOR_PF;
+		pf = info->mpesw_owner;
+		break;
+	case MLX5_PHYS_PORT_NAME_TYPE_PFSF:
 		type = RTE_ETH_REPRESENTOR_SF;
-	if (info->name_type == MLX5_PHYS_PORT_NAME_TYPE_PFHPF) {
+		break;
+	case MLX5_PHYS_PORT_NAME_TYPE_PFHPF:
 		type = hpf_type;
 		repr = UINT16_MAX;
+		break;
+	case MLX5_PHYS_PORT_NAME_TYPE_PFVF:
+	default:
+		type = RTE_ETH_REPRESENTOR_VF;
+		break;
 	}
-	return MLX5_REPRESENTOR_ID(info->pf_num, type, repr);
+	return MLX5_REPRESENTOR_ID(pf, type, repr);
 }
 
 /**
@@ -434,7 +446,7 @@ mlx5_representor_info_get(struct rte_eth_dev *dev,
 			  struct rte_eth_representor_info *info)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
-	int n_type = 4; /* Representor types, VF, HPF@VF, SF and HPF@SF. */
+	int n_type = 5; /* Representor types: PF, VF, HPF@VF, SF and HPF@SF. */
 	int n_pf = 2; /* Number of PFs. */
 	int i = 0, pf;
 	int n_entries;
@@ -447,7 +459,30 @@ mlx5_representor_info_get(struct rte_eth_dev *dev,
 		n_entries = info->nb_ranges_alloc;
 
 	info->controller = 0;
-	info->pf = priv->pf_bond >= 0 ? priv->pf_bond : 0;
+	info->pf = 0;
+	if (mlx5_is_port_on_mpesw_device(priv)) {
+		info->pf = priv->mpesw_port;
+		/* PF range, both ports will show the same information. */
+		info->ranges[i].type = RTE_ETH_REPRESENTOR_PF;
+		info->ranges[i].controller = 0;
+		info->ranges[i].pf = priv->mpesw_owner + 1;
+		info->ranges[i].vf = 0;
+		/*
+		 * The representor indexes should be the values set of "priv->mpesw_port".
+		 * In the real case now, only 1 PF/UPLINK representor is supported.
+		 * The port index will always be the value of "owner + 1".
+		 */
+		info->ranges[i].id_base =
+			MLX5_REPRESENTOR_ID(priv->mpesw_owner, info->ranges[i].type,
+					    info->ranges[i].pf);
+		info->ranges[i].id_end =
+			MLX5_REPRESENTOR_ID(priv->mpesw_owner, info->ranges[i].type,
+					    info->ranges[i].pf);
+		snprintf(info->ranges[i].name, sizeof(info->ranges[i].name),
+			 "pf%d", info->ranges[i].pf);
+		i++;
+	} else if (priv->pf_bond >= 0)
+		info->pf = priv->pf_bond;
 	for (pf = 0; pf < n_pf; ++pf) {
 		/* VF range. */
 		info->ranges[i].type = RTE_ETH_REPRESENTOR_VF;
@@ -548,7 +583,7 @@ mlx5_fw_version_get(struct rte_eth_dev *dev, char *fw_ver, size_t fw_size)
  *   A pointer to the supported Packet types array.
  */
 const uint32_t *
-mlx5_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+mlx5_dev_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		/* refers to rxq_cq_to_pkt_type() */
@@ -565,14 +600,15 @@ mlx5_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L4_FRAG,
 		RTE_PTYPE_INNER_L4_TCP,
 		RTE_PTYPE_INNER_L4_UDP,
-		RTE_PTYPE_UNKNOWN
 	};
 
 	if (dev->rx_pkt_burst == mlx5_rx_burst ||
 	    dev->rx_pkt_burst == mlx5_rx_burst_mprq ||
 	    dev->rx_pkt_burst == mlx5_rx_burst_vec ||
-	    dev->rx_pkt_burst == mlx5_rx_burst_mprq_vec)
+	    dev->rx_pkt_burst == mlx5_rx_burst_mprq_vec) {
+		*no_of_elements = RTE_DIM(ptypes);
 		return ptypes;
+	}
 	return NULL;
 }
 

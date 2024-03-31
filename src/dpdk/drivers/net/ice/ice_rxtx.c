@@ -12,6 +12,7 @@
 #define ICE_TX_CKSUM_OFFLOAD_MASK (RTE_MBUF_F_TX_IP_CKSUM |		 \
 		RTE_MBUF_F_TX_L4_MASK |		 \
 		RTE_MBUF_F_TX_TCP_SEG |		 \
+		RTE_MBUF_F_TX_UDP_SEG |		 \
 		RTE_MBUF_F_TX_OUTER_IP_CKSUM)
 
 /**
@@ -259,7 +260,8 @@ ice_program_hw_rx_queue(struct ice_rx_queue *rxq)
 	/* Set buffer size as the head split is disabled. */
 	buf_size = (uint16_t)(rte_pktmbuf_data_room_size(rxq->mp) -
 			      RTE_PKTMBUF_HEADROOM);
-	rxq->rx_buf_len = RTE_ALIGN(buf_size, (1 << ICE_RLAN_CTX_DBUF_S));
+	rxq->rx_buf_len = RTE_ALIGN_FLOOR(buf_size, (1 << ICE_RLAN_CTX_DBUF_S));
+	rxq->rx_buf_len = RTE_MIN(rxq->rx_buf_len, ICE_RX_MAX_DATA_BUF_SIZE);
 	rxq->max_pkt_len =
 		RTE_MIN((uint32_t)ICE_SUPPORT_CHAIN_NUM * rxq->rx_buf_len,
 			frame_size);
@@ -273,7 +275,7 @@ ice_program_hw_rx_queue(struct ice_rx_queue *rxq)
 		return -EINVAL;
 	}
 
-	if (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP) {
+	if (!rxq->ts_enable && (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP)) {
 		/* Register mbuf field and flag for Rx timestamp */
 		err = rte_mbuf_dyn_rx_timestamp_register(
 				&ice_timestamp_dynfield_offset,
@@ -283,6 +285,7 @@ ice_program_hw_rx_queue(struct ice_rx_queue *rxq)
 				"Cannot register mbuf field/flag for timestamp");
 			return -EINVAL;
 		}
+		rxq->ts_enable = true;
 	}
 
 	memset(&rx_ctx, 0, sizeof(rx_ctx));
@@ -670,6 +673,12 @@ ice_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		return -EINVAL;
 	}
 
+	if (dev->data->rx_queue_state[rx_queue_id] ==
+		RTE_ETH_QUEUE_STATE_STARTED)
+		return 0;
+
+	if (dev->data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP)
+		rxq->ts_enable = true;
 	err = ice_program_hw_rx_queue(rxq);
 	if (err) {
 		PMD_DRV_LOG(ERR, "fail to program RX queue %u",
@@ -712,6 +721,10 @@ ice_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	if (rx_queue_id < dev->data->nb_rx_queues) {
 		rxq = dev->data->rx_queues[rx_queue_id];
 
+		if (dev->data->rx_queue_state[rx_queue_id] ==
+			RTE_ETH_QUEUE_STATE_STOPPED)
+			return 0;
+
 		err = ice_switch_rx_queue(hw, rxq->reg_idx, false);
 		if (err) {
 			PMD_DRV_LOG(ERR, "Failed to switch RX queue %u off",
@@ -752,6 +765,10 @@ ice_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 			    tx_queue_id);
 		return -EINVAL;
 	}
+
+	if (dev->data->tx_queue_state[tx_queue_id] ==
+		RTE_ETH_QUEUE_STATE_STARTED)
+		return 0;
 
 	buf_len = ice_struct_size(txq_elem, txqs, 1);
 	txq_elem = ice_malloc(hw, buf_len);
@@ -1060,6 +1077,10 @@ ice_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 			    tx_queue_id);
 		return -EINVAL;
 	}
+
+	if (dev->data->tx_queue_state[tx_queue_id] ==
+		RTE_ETH_QUEUE_STATE_STOPPED)
+		return 0;
 
 	q_ids[0] = txq->reg_idx;
 	q_teids[0] = txq->q_teid;
@@ -1761,7 +1782,8 @@ ice_rx_scan_hw_ring(struct ice_rx_queue *rxq)
 			ice_rxd_to_vlan_tci(mb, &rxdp[j]);
 			rxd_to_pkt_fields_ops[rxq->rxdid](rxq, mb, &rxdp[j]);
 #ifndef RTE_LIBRTE_ICE_16BYTE_RX_DESC
-			if (ice_timestamp_dynflag > 0) {
+			if (ice_timestamp_dynflag > 0 &&
+			    (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP)) {
 				rxq->time_high =
 				rte_le_to_cpu_32(rxdp[j].wb.flex_ts.ts_high);
 				if (unlikely(is_tsinit)) {
@@ -2127,7 +2149,8 @@ ice_recv_scattered_pkts(void *rx_queue,
 		rxd_to_pkt_fields_ops[rxq->rxdid](rxq, first_seg, &rxd);
 		pkt_flags = ice_rxd_error_to_pkt_flags(rx_stat_err0);
 #ifndef RTE_LIBRTE_ICE_16BYTE_RX_DESC
-		if (ice_timestamp_dynflag > 0) {
+		if (ice_timestamp_dynflag > 0 &&
+		    (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP)) {
 			rxq->time_high =
 			   rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high);
 			if (unlikely(is_tsinit)) {
@@ -2143,7 +2166,7 @@ ice_recv_scattered_pkts(void *rx_queue,
 			}
 			rxq->hw_time_update = rte_get_timer_cycles() /
 					     (rte_get_timer_hz() / 1000);
-			*RTE_MBUF_DYNFIELD(rxm,
+			*RTE_MBUF_DYNFIELD(first_seg,
 					   (ice_timestamp_dynfield_offset),
 					   rte_mbuf_timestamp_t *) = ts_ns;
 			pkt_flags |= ice_timestamp_dynflag;
@@ -2193,7 +2216,7 @@ ice_recv_scattered_pkts(void *rx_queue,
 }
 
 const uint32_t *
-ice_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+ice_dev_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	struct ice_adapter *ad =
 		ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
@@ -2224,7 +2247,6 @@ ice_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L4_SCTP,
 		RTE_PTYPE_INNER_L4_TCP,
 		RTE_PTYPE_INNER_L4_UDP,
-		RTE_PTYPE_UNKNOWN
 	};
 
 	static const uint32_t ptypes_comms[] = {
@@ -2255,13 +2277,15 @@ ice_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_TUNNEL_GTPC,
 		RTE_PTYPE_TUNNEL_GTPU,
 		RTE_PTYPE_L2_ETHER_PPPOE,
-		RTE_PTYPE_UNKNOWN
 	};
 
-	if (ad->active_pkg_type == ICE_PKG_TYPE_COMMS)
+	if (ad->active_pkg_type == ICE_PKG_TYPE_COMMS) {
+		*no_of_elements = RTE_DIM(ptypes_comms);
 		ptypes = ptypes_comms;
-	else
+	} else {
+		*no_of_elements = RTE_DIM(ptypes_os);
 		ptypes = ptypes_os;
+	}
 
 	if (dev->rx_pkt_burst == ice_recv_pkts ||
 	    dev->rx_pkt_burst == ice_recv_pkts_bulk_alloc ||
@@ -2617,7 +2641,8 @@ ice_recv_pkts(void *rx_queue,
 		rxd_to_pkt_fields_ops[rxq->rxdid](rxq, rxm, &rxd);
 		pkt_flags = ice_rxd_error_to_pkt_flags(rx_stat_err0);
 #ifndef RTE_LIBRTE_ICE_16BYTE_RX_DESC
-		if (ice_timestamp_dynflag > 0) {
+		if (ice_timestamp_dynflag > 0 &&
+		    (rxq->offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP)) {
 			rxq->time_high =
 			   rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high);
 			if (unlikely(is_tsinit)) {
@@ -2727,7 +2752,8 @@ ice_parse_tunneling_params(uint64_t ol_flags,
 	 * Shall be set only if L4TUNT = 01b and EIPT is not zero
 	 */
 	if (!(*cd_tunneling & ICE_TX_CTX_EIPT_NONE) &&
-	    (*cd_tunneling & ICE_TXD_CTX_UDP_TUNNELING))
+		(*cd_tunneling & ICE_TXD_CTX_UDP_TUNNELING) &&
+		(ol_flags & RTE_MBUF_F_TX_OUTER_UDP_CKSUM))
 		*cd_tunneling |= ICE_TXD_CTX_QW0_L4T_CS_M;
 }
 
@@ -2738,10 +2764,7 @@ ice_txd_enable_checksum(uint64_t ol_flags,
 			union ice_tx_offload tx_offload)
 {
 	/* Set MACLEN */
-	if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK)
-		*td_offset |= (tx_offload.outer_l2_len >> 1)
-			<< ICE_TX_DESC_LEN_MACLEN_S;
-	else
+	if (!(ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK))
 		*td_offset |= (tx_offload.l2_len >> 1)
 			<< ICE_TX_DESC_LEN_MACLEN_S;
 
@@ -2762,6 +2785,13 @@ ice_txd_enable_checksum(uint64_t ol_flags,
 
 	if (ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
 		*td_cmd |= ICE_TX_DESC_CMD_L4T_EOFT_TCP;
+		*td_offset |= (tx_offload.l4_len >> 2) <<
+			      ICE_TX_DESC_LEN_L4_LEN_S;
+		return;
+	}
+
+	if (ol_flags & RTE_MBUF_F_TX_UDP_SEG) {
+		*td_cmd |= ICE_TX_DESC_CMD_L4T_EOFT_UDP;
 		*td_offset |= (tx_offload.l4_len >> 2) <<
 			      ICE_TX_DESC_LEN_L4_LEN_S;
 		return;
@@ -2858,6 +2888,7 @@ static inline uint16_t
 ice_calc_context_desc(uint64_t flags)
 {
 	static uint64_t mask = RTE_MBUF_F_TX_TCP_SEG |
+		RTE_MBUF_F_TX_UDP_SEG |
 		RTE_MBUF_F_TX_QINQ |
 		RTE_MBUF_F_TX_OUTER_IP_CKSUM |
 		RTE_MBUF_F_TX_TUNNEL_MASK |
@@ -2966,7 +2997,7 @@ ice_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		 * the mbuf data size exceeds max data size that hw allows
 		 * per tx desc.
 		 */
-		if (ol_flags & RTE_MBUF_F_TX_TCP_SEG)
+		if (ol_flags & (RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_UDP_SEG))
 			nb_used = (uint16_t)(ice_calc_pkt_desc(tx_pkt) +
 					     nb_ctx);
 		else
@@ -3002,9 +3033,12 @@ ice_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 		/* Fill in tunneling parameters if necessary */
 		cd_tunneling_params = 0;
-		if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK)
+		if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
+			td_offset |= (tx_offload.outer_l2_len >> 1)
+				<< ICE_TX_DESC_LEN_MACLEN_S;
 			ice_parse_tunneling_params(ol_flags, tx_offload,
 						   &cd_tunneling_params);
+		}
 
 		/* Enable checksum offloading */
 		if (ol_flags & ICE_TX_CKSUM_OFFLOAD_MASK)
@@ -3026,7 +3060,7 @@ ice_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 				txe->mbuf = NULL;
 			}
 
-			if (ol_flags & RTE_MBUF_F_TX_TCP_SEG)
+			if (ol_flags & (RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_UDP_SEG))
 				cd_type_cmd_tso_mss |=
 					ice_set_tso_ctx(tx_pkt, tx_offload);
 			else if (ol_flags & RTE_MBUF_F_TX_IEEE1588_TMST)
@@ -3066,7 +3100,7 @@ ice_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 			slen = m_seg->data_len;
 			buf_dma_addr = rte_mbuf_data_iova(m_seg);
 
-			while ((ol_flags & RTE_MBUF_F_TX_TCP_SEG) &&
+			while ((ol_flags & (RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_UDP_SEG)) &&
 				unlikely(slen > ICE_MAX_DATA_PER_TXD)) {
 				txd->buf_addr = rte_cpu_to_le_64(buf_dma_addr);
 				txd->cmd_type_offset_bsz =
@@ -3661,24 +3695,134 @@ ice_check_empty_mbuf(struct rte_mbuf *tx_pkt)
 	return 0;
 }
 
+/* Tx mbuf check */
+static uint16_t
+ice_xmit_pkts_check(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
+{
+	struct ice_tx_queue *txq = tx_queue;
+	uint16_t idx;
+	struct rte_mbuf *mb;
+	bool pkt_error = false;
+	uint16_t good_pkts = nb_pkts;
+	const char *reason = NULL;
+	struct ice_adapter *adapter = txq->vsi->adapter;
+	uint64_t ol_flags;
+
+	for (idx = 0; idx < nb_pkts; idx++) {
+		mb = tx_pkts[idx];
+		ol_flags = mb->ol_flags;
+
+		if ((adapter->devargs.mbuf_check & ICE_MBUF_CHECK_F_TX_MBUF) &&
+		    (rte_mbuf_check(mb, 0, &reason) != 0)) {
+			PMD_TX_LOG(ERR, "INVALID mbuf: %s\n", reason);
+			pkt_error = true;
+			break;
+		}
+
+		if ((adapter->devargs.mbuf_check & ICE_MBUF_CHECK_F_TX_SIZE) &&
+		    (mb->data_len > mb->pkt_len ||
+		     mb->data_len < ICE_TX_MIN_PKT_LEN ||
+		     mb->data_len > ICE_FRAME_SIZE_MAX)) {
+			PMD_TX_LOG(ERR, "INVALID mbuf: data_len (%u) is out of range, reasonable range (%d - %d)\n",
+				mb->data_len, ICE_TX_MIN_PKT_LEN, ICE_FRAME_SIZE_MAX);
+			pkt_error = true;
+			break;
+		}
+
+		if (adapter->devargs.mbuf_check & ICE_MBUF_CHECK_F_TX_SEGMENT) {
+			if (!(ol_flags & RTE_MBUF_F_TX_TCP_SEG)) {
+				/**
+				 * No TSO case: nb->segs, pkt_len to not exceed
+				 * the limites.
+				 */
+				if (mb->nb_segs > ICE_TX_MTU_SEG_MAX) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: nb_segs (%d) exceeds HW limit, maximum allowed value is %d\n",
+						mb->nb_segs, ICE_TX_MTU_SEG_MAX);
+					pkt_error = true;
+					break;
+				}
+				if (mb->pkt_len > ICE_FRAME_SIZE_MAX) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: pkt_len (%d) exceeds HW limit, maximum allowed value is %d\n",
+						mb->nb_segs, ICE_FRAME_SIZE_MAX);
+					pkt_error = true;
+					break;
+				}
+			} else if (ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
+				/** TSO case: tso_segsz, nb_segs, pkt_len not exceed
+				 * the limits.
+				 */
+				if (mb->tso_segsz < ICE_MIN_TSO_MSS ||
+				    mb->tso_segsz > ICE_MAX_TSO_MSS) {
+					/**
+					 * MSS outside the range are considered malicious
+					 */
+					PMD_TX_LOG(ERR, "INVALID mbuf: tso_segsz (%u) is out of range, reasonable range (%d - %u)\n",
+						mb->tso_segsz, ICE_MIN_TSO_MSS, ICE_MAX_TSO_MSS);
+					pkt_error = true;
+					break;
+				}
+				if (mb->nb_segs > ((struct ice_tx_queue *)tx_queue)->nb_tx_desc) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: nb_segs out of ring length\n");
+					pkt_error = true;
+					break;
+				}
+			}
+		}
+
+		if (adapter->devargs.mbuf_check & ICE_MBUF_CHECK_F_TX_OFFLOAD) {
+			if (ol_flags & ICE_TX_OFFLOAD_NOTSUP_MASK) {
+				PMD_TX_LOG(ERR, "INVALID mbuf: TX offload is not supported\n");
+				pkt_error = true;
+				break;
+			}
+
+			if (!rte_validate_tx_offload(mb)) {
+				PMD_TX_LOG(ERR, "INVALID mbuf: TX offload setup error\n");
+				pkt_error = true;
+				break;
+			}
+		}
+	}
+
+	if (pkt_error) {
+		txq->mbuf_errors++;
+		good_pkts = idx;
+		if (good_pkts == 0)
+			return 0;
+	}
+
+	return adapter->tx_pkt_burst(tx_queue, tx_pkts, good_pkts);
+}
+
 uint16_t
-ice_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
+ice_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	      uint16_t nb_pkts)
 {
 	int i, ret;
 	uint64_t ol_flags;
 	struct rte_mbuf *m;
-	struct ice_tx_queue *txq = tx_queue;
-	struct rte_eth_dev *dev = &rte_eth_devices[txq->port_id];
-	uint16_t max_frame_size = dev->data->mtu + ICE_ETH_OVERHEAD;
 
 	for (i = 0; i < nb_pkts; i++) {
 		m = tx_pkts[i];
 		ol_flags = m->ol_flags;
 
-		if (ol_flags & RTE_MBUF_F_TX_TCP_SEG &&
+		if (!(ol_flags & RTE_MBUF_F_TX_TCP_SEG) &&
+		    /**
+		     * No TSO case: nb->segs, pkt_len to not exceed
+		     * the limites.
+		     */
+		    (m->nb_segs > ICE_TX_MTU_SEG_MAX ||
+		     m->pkt_len > ICE_FRAME_SIZE_MAX)) {
+			rte_errno = EINVAL;
+			return i;
+		} else if (ol_flags & RTE_MBUF_F_TX_TCP_SEG &&
+		    /** TSO case: tso_segsz, nb_segs, pkt_len not exceed
+		     * the limits.
+		     */
 		    (m->tso_segsz < ICE_MIN_TSO_MSS ||
 		     m->tso_segsz > ICE_MAX_TSO_MSS ||
+		     m->nb_segs >
+			((struct ice_tx_queue *)tx_queue)->nb_tx_desc ||
 		     m->pkt_len > ICE_MAX_TSO_FRAME_SIZE)) {
 			/**
 			 * MSS outside the range are considered malicious
@@ -3687,11 +3831,8 @@ ice_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 			return i;
 		}
 
-		/* check the data_len in mbuf */
-		if (m->data_len < ICE_TX_MIN_PKT_LEN ||
-			m->data_len > max_frame_size) {
+		if (m->pkt_len < ICE_TX_MIN_PKT_LEN) {
 			rte_errno = EINVAL;
-			PMD_DRV_LOG(ERR, "INVALID mbuf: bad data_len=[%hu]", m->data_len);
 			return i;
 		}
 
@@ -3710,7 +3851,6 @@ ice_prep_pkts(__rte_unused void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		if (ice_check_empty_mbuf(m) != 0) {
 			rte_errno = EINVAL;
-			PMD_DRV_LOG(ERR, "INVALID mbuf:	last mbuf data_len=[0]");
 			return i;
 		}
 	}
@@ -3722,6 +3862,7 @@ ice_set_tx_function(struct rte_eth_dev *dev)
 {
 	struct ice_adapter *ad =
 		ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	int mbuf_check = ad->devargs.mbuf_check;
 #ifdef RTE_ARCH_X86
 	struct ice_tx_queue *txq;
 	int i;
@@ -3804,6 +3945,10 @@ ice_set_tx_function(struct rte_eth_dev *dev)
 			}
 		}
 
+		if (mbuf_check) {
+			ad->tx_pkt_burst = dev->tx_pkt_burst;
+			dev->tx_pkt_burst = ice_xmit_pkts_check;
+		}
 		return;
 	}
 #endif
@@ -3816,6 +3961,11 @@ ice_set_tx_function(struct rte_eth_dev *dev)
 		PMD_INIT_LOG(DEBUG, "Normal tx finally be used.");
 		dev->tx_pkt_burst = ice_xmit_pkts;
 		dev->tx_pkt_prepare = ice_prep_pkts;
+	}
+
+	if (mbuf_check) {
+		ad->tx_pkt_burst = dev->tx_pkt_burst;
+		dev->tx_pkt_burst = ice_xmit_pkts_check;
 	}
 }
 

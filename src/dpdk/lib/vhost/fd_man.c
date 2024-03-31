@@ -10,8 +10,10 @@
 
 #include "fd_man.h"
 
-
-#define RTE_LOGTYPE_VHOST_FDMAN RTE_LOGTYPE_USER1
+RTE_LOG_REGISTER_SUFFIX(vhost_fdset_logtype, fdset, INFO);
+#define RTE_LOGTYPE_VHOST_FDMAN vhost_fdset_logtype
+#define VHOST_FDMAN_LOG(level, ...) \
+	RTE_LOG_LINE(level, VHOST_FDMAN, "" __VA_ARGS__)
 
 #define FDPOLLERR (POLLERR | POLLHUP | POLLNVAL)
 
@@ -212,7 +214,7 @@ fdset_try_del(struct fdset *pfdset, int fd)
  * will wait until the flag is reset to zero(which indicates the callback is
  * finished), then it could free the context after fdset_del.
  */
-void *
+uint32_t
 fdset_event_dispatch(void *arg)
 {
 	int i;
@@ -227,7 +229,7 @@ fdset_event_dispatch(void *arg)
 	int val;
 
 	if (pfdset == NULL)
-		return NULL;
+		return 0;
 
 	while (1) {
 
@@ -303,14 +305,15 @@ fdset_event_dispatch(void *arg)
 			fdset_shrink(pfdset);
 	}
 
-	return NULL;
+	return 0;
 }
 
 static void
-fdset_pipe_read_cb(int readfd, void *dat __rte_unused,
+fdset_pipe_read_cb(int readfd, void *dat,
 		   int *remove __rte_unused)
 {
 	char charbuf[16];
+	struct fdset *fdset = dat;
 	int r = read(readfd, charbuf, sizeof(charbuf));
 	/*
 	 * Just an optimization, we don't care if read() failed
@@ -318,6 +321,11 @@ fdset_pipe_read_cb(int readfd, void *dat __rte_unused,
 	 * compiler happy
 	 */
 	RTE_SET_USED(r);
+
+	pthread_mutex_lock(&fdset->sync_mutex);
+	fdset->sync = true;
+	pthread_cond_broadcast(&fdset->sync_cond);
+	pthread_mutex_unlock(&fdset->sync_mutex);
 }
 
 void
@@ -334,17 +342,17 @@ fdset_pipe_init(struct fdset *fdset)
 	int ret;
 
 	if (pipe(fdset->u.pipefd) < 0) {
-		RTE_LOG(ERR, VHOST_FDMAN,
-			"failed to create pipe for vhost fdset\n");
+		VHOST_FDMAN_LOG(ERR,
+			"failed to create pipe for vhost fdset");
 		return -1;
 	}
 
 	ret = fdset_add(fdset, fdset->u.readfd,
-			fdset_pipe_read_cb, NULL, NULL);
+			fdset_pipe_read_cb, NULL, fdset);
 
 	if (ret < 0) {
-		RTE_LOG(ERR, VHOST_FDMAN,
-			"failed to add pipe readfd %d into vhost server fdset\n",
+		VHOST_FDMAN_LOG(ERR,
+			"failed to add pipe readfd %d into vhost server fdset",
 			fdset->u.readfd);
 
 		fdset_pipe_uninit(fdset);
@@ -364,5 +372,18 @@ fdset_pipe_notify(struct fdset *fdset)
 	 * compiler happy
 	 */
 	RTE_SET_USED(r);
+}
 
+void
+fdset_pipe_notify_sync(struct fdset *fdset)
+{
+	pthread_mutex_lock(&fdset->sync_mutex);
+
+	fdset->sync = false;
+	fdset_pipe_notify(fdset);
+
+	while (!fdset->sync)
+		pthread_cond_wait(&fdset->sync_cond, &fdset->sync_mutex);
+
+	pthread_mutex_unlock(&fdset->sync_mutex);
 }

@@ -1,4 +1,4 @@
-DPDK_23 {
+DPDK_24 {
 	global:
 
 	rte_eth_add_first_rx_callback;
@@ -135,6 +135,36 @@ DPDK_23 {
 	rte_flow_pick_transfer_proxy;
 	rte_flow_query;
 	rte_flow_validate;
+	rte_tm_capabilities_get;
+	rte_tm_get_number_of_leaf_nodes;
+	rte_tm_hierarchy_commit;
+	rte_tm_level_capabilities_get;
+	rte_tm_mark_ip_dscp;
+	rte_tm_mark_ip_ecn;
+	rte_tm_mark_vlan_dei;
+	rte_tm_node_add;
+	rte_tm_node_capabilities_get;
+	rte_tm_node_cman_update;
+	rte_tm_node_delete;
+	rte_tm_node_parent_update;
+	rte_tm_node_resume;
+	rte_tm_node_shaper_update;
+	rte_tm_node_shared_shaper_update;
+	rte_tm_node_shared_wred_context_update;
+	rte_tm_node_stats_read;
+	rte_tm_node_stats_update;
+	rte_tm_node_suspend;
+	rte_tm_node_type_get;
+	rte_tm_node_wfq_weight_mode_update;
+	rte_tm_node_wred_context_update;
+	rte_tm_shaper_profile_add;
+	rte_tm_shaper_profile_delete;
+	rte_tm_shared_shaper_add_update;
+	rte_tm_shared_shaper_delete;
+	rte_tm_shared_wred_context_add_update;
+	rte_tm_shared_wred_context_delete;
+	rte_tm_wred_profile_add;
+	rte_tm_wred_profile_delete;
 
 	local: *;
 };
@@ -180,38 +210,6 @@ EXPERIMENTAL {
 	__rte_ethdev_trace_rx_burst;
 	__rte_ethdev_trace_tx_burst;
 	rte_flow_get_aged_flows;
-
-	# Marked as experimental in 20.11
-	rte_tm_capabilities_get;
-	rte_tm_get_number_of_leaf_nodes;
-	rte_tm_hierarchy_commit;
-	rte_tm_level_capabilities_get;
-	rte_tm_mark_ip_dscp;
-	rte_tm_mark_ip_ecn;
-	rte_tm_mark_vlan_dei;
-	rte_tm_node_add;
-	rte_tm_node_capabilities_get;
-	rte_tm_node_cman_update;
-	rte_tm_node_delete;
-	rte_tm_node_parent_update;
-	rte_tm_node_resume;
-	rte_tm_node_shaper_update;
-	rte_tm_node_shared_shaper_update;
-	rte_tm_node_shared_wred_context_update;
-	rte_tm_node_stats_read;
-	rte_tm_node_stats_update;
-	rte_tm_node_suspend;
-	rte_tm_node_type_get;
-	rte_tm_node_wfq_weight_mode_update;
-	rte_tm_node_wred_context_update;
-	rte_tm_shaper_profile_add;
-	rte_tm_shaper_profile_delete;
-	rte_tm_shared_shaper_add_update;
-	rte_tm_shared_shaper_delete;
-	rte_tm_shared_wred_context_add_update;
-	rte_tm_shared_wred_context_delete;
-	rte_tm_wred_profile_add;
-	rte_tm_wred_profile_delete;
 
 	# added in 20.11
 	rte_eth_hairpin_bind;
@@ -299,6 +297,34 @@ EXPERIMENTAL {
 	rte_flow_action_handle_query_update;
 	rte_flow_async_action_handle_query_update;
 	rte_flow_async_create_by_index;
+
+	# added in 23.07
+	rte_eth_rx_queue_is_valid;
+	rte_eth_tx_queue_is_valid;
+	rte_flow_action_list_handle_create;
+	rte_flow_action_list_handle_destroy;
+	rte_flow_action_list_handle_query_update;
+	rte_flow_actions_update;
+	rte_flow_async_action_list_handle_create;
+	rte_flow_async_action_list_handle_destroy;
+	rte_flow_async_action_list_handle_query_update;
+	rte_flow_async_actions_update;
+	rte_flow_restore_info_dynflag;
+
+	# added in 23.11
+	rte_eth_dev_rss_algo_name;
+	rte_eth_recycle_rx_queue_info_get;
+	rte_flow_group_set_miss_actions;
+	rte_flow_calc_table_hash;
+
+	# added in 24.03
+	__rte_eth_trace_tx_queue_count;
+	rte_eth_find_rss_algo;
+	rte_flow_async_update_resized;
+	rte_flow_calc_encap_hash;
+	rte_flow_template_table_resizable;
+	rte_flow_template_table_resize;
+	rte_flow_template_table_resize_complete;
 };
 
 INTERNAL {
@@ -324,8 +350,12 @@ INTERNAL {
 	rte_eth_hairpin_queue_peer_unbind;
 	rte_eth_hairpin_queue_peer_update;
 	rte_eth_ip_reassembly_dynfield_register;
+	rte_eth_link_speed_ethtool; # WINDOWS_NO_EXPORT
+	rte_eth_link_speed_glink; # WINDOWS_NO_EXPORT
+	rte_eth_link_speed_gset; # WINDOWS_NO_EXPORT
 	rte_eth_pkt_burst_dummy;
 	rte_eth_representor_id_get;
 	rte_eth_switch_domain_alloc;
 	rte_eth_switch_domain_free;
+	rte_flow_fp_default_ops;
 };

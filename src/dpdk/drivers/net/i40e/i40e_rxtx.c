@@ -304,10 +304,7 @@ i40e_txd_enable_checksum(uint64_t ol_flags,
 			union i40e_tx_offload tx_offload)
 {
 	/* Set MACLEN */
-	if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK)
-		*td_offset |= (tx_offload.outer_l2_len >> 1)
-				<< I40E_TX_DESC_LENGTH_MACLEN_SHIFT;
-	else
+	if (!(ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK))
 		*td_offset |= (tx_offload.l2_len >> 1)
 			<< I40E_TX_DESC_LENGTH_MACLEN_SHIFT;
 
@@ -1171,9 +1168,12 @@ i40e_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 		/* Fill in tunneling parameters if necessary */
 		cd_tunneling_params = 0;
-		if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK)
+		if (ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
+			td_offset |= (tx_offload.outer_l2_len >> 1)
+					<< I40E_TX_DESC_LENGTH_MACLEN_SHIFT;
 			i40e_parse_tunneling_params(ol_flags, tx_offload,
 						    &cd_tunneling_params);
+		}
 		/* Enable checksum offloading */
 		if (ol_flags & I40E_TX_CKSUM_OFFLOAD_MASK)
 			i40e_txd_enable_checksum(ol_flags, &td_cmd,
@@ -1536,6 +1536,111 @@ i40e_xmit_pkts_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	return nb_tx;
 }
 
+/* Tx mbuf check */
+static uint16_t
+i40e_xmit_pkts_check(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
+{
+	struct i40e_tx_queue *txq = tx_queue;
+	uint16_t idx;
+	uint64_t ol_flags;
+	struct rte_mbuf *mb;
+	bool pkt_error = false;
+	const char *reason = NULL;
+	uint16_t good_pkts = nb_pkts;
+	struct i40e_adapter *adapter = txq->vsi->adapter;
+
+	for (idx = 0; idx < nb_pkts; idx++) {
+		mb = tx_pkts[idx];
+		ol_flags = mb->ol_flags;
+
+		if ((adapter->mbuf_check & I40E_MBUF_CHECK_F_TX_MBUF) &&
+		    (rte_mbuf_check(mb, 0, &reason) != 0)) {
+			PMD_TX_LOG(ERR, "INVALID mbuf: %s\n", reason);
+			pkt_error = true;
+			break;
+		}
+
+		if ((adapter->mbuf_check & I40E_MBUF_CHECK_F_TX_SIZE) &&
+		    (mb->data_len > mb->pkt_len ||
+		     mb->data_len < I40E_TX_MIN_PKT_LEN ||
+		     mb->data_len > adapter->max_pkt_len)) {
+			PMD_TX_LOG(ERR, "INVALID mbuf: data_len (%u) is out of range, reasonable range (%d - %u)\n",
+				mb->data_len, I40E_TX_MIN_PKT_LEN, adapter->max_pkt_len);
+			pkt_error = true;
+			break;
+		}
+
+		if (adapter->mbuf_check & I40E_MBUF_CHECK_F_TX_SEGMENT) {
+			if (!(ol_flags & RTE_MBUF_F_TX_TCP_SEG)) {
+				/**
+				 * No TSO case: nb->segs, pkt_len to not exceed
+				 * the limites.
+				 */
+				if (mb->nb_segs > I40E_TX_MAX_MTU_SEG) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: nb_segs (%d) exceeds HW limit, maximum allowed value is %d\n",
+						mb->nb_segs, I40E_TX_MAX_MTU_SEG);
+					pkt_error = true;
+					break;
+				}
+				if (mb->pkt_len > I40E_FRAME_SIZE_MAX) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: pkt_len (%d) exceeds HW limit, maximum allowed value is %d\n",
+						mb->nb_segs, I40E_FRAME_SIZE_MAX);
+					pkt_error = true;
+					break;
+				}
+			} else if (ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
+				/** TSO case: tso_segsz, nb_segs, pkt_len not exceed
+				 * the limits.
+				 */
+				if (mb->tso_segsz < I40E_MIN_TSO_MSS ||
+				    mb->tso_segsz > I40E_MAX_TSO_MSS) {
+					/**
+					 * MSS outside the range are considered malicious
+					 */
+					PMD_TX_LOG(ERR, "INVALID mbuf: tso_segsz (%u) is out of range, reasonable range (%d - %u)\n",
+						mb->tso_segsz, I40E_MIN_TSO_MSS, I40E_MAX_TSO_MSS);
+					pkt_error = true;
+					break;
+				}
+				if (mb->nb_segs > ((struct i40e_tx_queue *)tx_queue)->nb_tx_desc) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: nb_segs out of ring length\n");
+					pkt_error = true;
+					break;
+				}
+				if (mb->pkt_len > I40E_TSO_FRAME_SIZE_MAX) {
+					PMD_TX_LOG(ERR, "INVALID mbuf: pkt_len (%d) exceeds HW limit, maximum allowed value is %d\n",
+						mb->nb_segs, I40E_TSO_FRAME_SIZE_MAX);
+					pkt_error = true;
+					break;
+				}
+			}
+		}
+
+		if (adapter->mbuf_check & I40E_MBUF_CHECK_F_TX_OFFLOAD) {
+			if (ol_flags & I40E_TX_OFFLOAD_NOTSUP_MASK) {
+				PMD_TX_LOG(ERR, "INVALID mbuf: TX offload is not supported\n");
+				pkt_error = true;
+				break;
+			}
+
+			if (!rte_validate_tx_offload(mb)) {
+				PMD_TX_LOG(ERR, "INVALID mbuf: TX offload setup error\n");
+				pkt_error = true;
+				break;
+			}
+		}
+	}
+
+	if (pkt_error) {
+		txq->mbuf_errors++;
+		good_pkts = idx;
+		if (good_pkts == 0)
+			return 0;
+	}
+
+	return adapter->tx_pkt_burst(tx_queue, tx_pkts, good_pkts);
+}
+
 /*********************************************************************
  *
  *  TX simple prep functions
@@ -1823,7 +1928,7 @@ i40e_dev_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 }
 
 const uint32_t *
-i40e_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+i40e_dev_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		/* refers to i40e_rxd_pkt_type_mapping() */
@@ -1851,7 +1956,6 @@ i40e_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L4_SCTP,
 		RTE_PTYPE_INNER_L4_TCP,
 		RTE_PTYPE_INNER_L4_UDP,
-		RTE_PTYPE_UNKNOWN
 	};
 
 	if (dev->rx_pkt_burst == i40e_recv_pkts ||
@@ -1866,8 +1970,10 @@ i40e_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 	    dev->rx_pkt_burst == i40e_recv_pkts_vec_avx512 ||
 #endif
 	    dev->rx_pkt_burst == i40e_recv_scattered_pkts_vec_avx2 ||
-	    dev->rx_pkt_burst == i40e_recv_pkts_vec_avx2)
+	    dev->rx_pkt_burst == i40e_recv_pkts_vec_avx2) {
+		*no_of_elements = RTE_DIM(ptypes);
 		return ptypes;
+	}
 	return NULL;
 }
 
@@ -1918,6 +2024,12 @@ i40e_dev_rx_queue_setup_runtime(struct rte_eth_dev *dev,
 		if (use_def_burst_func)
 			ad->rx_bulk_alloc_allowed = false;
 		i40e_set_rx_function(dev);
+
+		if (ad->rx_vec_allowed && i40e_rxq_vec_setup(rxq)) {
+			PMD_DRV_LOG(ERR, "Failed vector rx setup.");
+			return -EINVAL;
+		}
+
 		return 0;
 	} else if (ad->rx_vec_allowed && !rte_is_power_of_2(rxq->nb_rx_desc)) {
 		PMD_DRV_LOG(ERR, "Vector mode is allowed, but descriptor"
@@ -2921,6 +3033,8 @@ i40e_rx_queue_config(struct i40e_rx_queue *rxq)
 		rxq->rx_hdr_len = 0;
 		rxq->rx_buf_len = RTE_ALIGN_FLOOR(buf_size,
 			(1 << I40E_RXQ_CTX_DBUFF_SHIFT));
+		rxq->rx_buf_len = RTE_MIN(rxq->rx_buf_len,
+					  I40E_RX_MAX_DATA_BUF_SIZE);
 		rxq->hs_mode = i40e_header_split_none;
 		break;
 	}
@@ -3214,6 +3328,30 @@ i40e_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	qinfo->conf.offloads = txq->offloads;
 }
 
+void
+i40e_recycle_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
+	struct rte_eth_recycle_rxq_info *recycle_rxq_info)
+{
+	struct i40e_rx_queue *rxq;
+	struct i40e_adapter *ad =
+		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+
+	rxq = dev->data->rx_queues[queue_id];
+
+	recycle_rxq_info->mbuf_ring = (void *)rxq->sw_ring;
+	recycle_rxq_info->mp = rxq->mp;
+	recycle_rxq_info->mbuf_ring_size = rxq->nb_rx_desc;
+	recycle_rxq_info->receive_tail = &rxq->rx_tail;
+
+	if (ad->rx_vec_allowed) {
+		recycle_rxq_info->refill_requirement = RTE_I40E_RXQ_REARM_THRESH;
+		recycle_rxq_info->refill_head = &rxq->rxrearm_start;
+	} else {
+		recycle_rxq_info->refill_requirement = rxq->rx_free_thresh;
+		recycle_rxq_info->refill_head = &rxq->rx_free_trigger;
+	}
+}
+
 #ifdef RTE_ARCH_X86
 static inline bool
 get_avx_supported(bool request_avx512)
@@ -3231,15 +3369,9 @@ get_avx_supported(bool request_avx512)
 #endif
 	} else {
 		if (rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_256 &&
-		rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2) == 1 &&
-		rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F) == 1)
-#ifdef CC_AVX2_SUPPORT
+				rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX2) == 1 &&
+				rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F) == 1)
 			return true;
-#else
-		PMD_DRV_LOG(NOTICE,
-			"AVX2 is not supported in build env");
-		return false;
-#endif
 	}
 
 	return false;
@@ -3308,6 +3440,8 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 				dev->rx_pkt_burst = ad->rx_use_avx2 ?
 					i40e_recv_scattered_pkts_vec_avx2 :
 					i40e_recv_scattered_pkts_vec;
+				dev->recycle_rx_descriptors_refill =
+					i40e_recycle_rx_descriptors_refill_vec;
 			}
 		} else {
 			if (ad->rx_use_avx512) {
@@ -3326,9 +3460,12 @@ i40e_set_rx_function(struct rte_eth_dev *dev)
 				dev->rx_pkt_burst = ad->rx_use_avx2 ?
 					i40e_recv_pkts_vec_avx2 :
 					i40e_recv_pkts_vec;
+				dev->recycle_rx_descriptors_refill =
+					i40e_recycle_rx_descriptors_refill_vec;
 			}
 		}
 #else /* RTE_ARCH_X86 */
+		dev->recycle_rx_descriptors_refill = i40e_recycle_rx_descriptors_refill_vec;
 		if (dev->data->scattered_rx) {
 			PMD_INIT_LOG(DEBUG,
 				     "Using Vector Scattered Rx (port %d).",
@@ -3453,6 +3590,7 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 {
 	struct i40e_adapter *ad =
 		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	uint64_t mbuf_check = ad->mbuf_check;
 	int i;
 
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY) {
@@ -3496,21 +3634,29 @@ i40e_set_tx_function(struct rte_eth_dev *dev)
 				dev->tx_pkt_burst = ad->tx_use_avx2 ?
 						    i40e_xmit_pkts_vec_avx2 :
 						    i40e_xmit_pkts_vec;
+				dev->recycle_tx_mbufs_reuse = i40e_recycle_tx_mbufs_reuse_vec;
 			}
 #else /* RTE_ARCH_X86 */
 			PMD_INIT_LOG(DEBUG, "Using Vector Tx (port %d).",
 				     dev->data->port_id);
 			dev->tx_pkt_burst = i40e_xmit_pkts_vec;
+			dev->recycle_tx_mbufs_reuse = i40e_recycle_tx_mbufs_reuse_vec;
 #endif /* RTE_ARCH_X86 */
 		} else {
 			PMD_INIT_LOG(DEBUG, "Simple tx finally be used.");
 			dev->tx_pkt_burst = i40e_xmit_pkts_simple;
+			dev->recycle_tx_mbufs_reuse = i40e_recycle_tx_mbufs_reuse_vec;
 		}
 		dev->tx_pkt_prepare = i40e_simple_prep_pkts;
 	} else {
 		PMD_INIT_LOG(DEBUG, "Xmit tx finally be used.");
 		dev->tx_pkt_burst = i40e_xmit_pkts;
 		dev->tx_pkt_prepare = i40e_prep_pkts;
+	}
+
+	if (mbuf_check) {
+		ad->tx_pkt_burst = dev->tx_pkt_burst;
+		dev->tx_pkt_burst = i40e_xmit_pkts_check;
 	}
 }
 
@@ -3623,7 +3769,7 @@ i40e_set_default_pctype_table(struct rte_eth_dev *dev)
 	}
 }
 
-#ifndef CC_AVX2_SUPPORT
+#if !defined(RTE_ARCH_X86) || !defined(CC_AVX2_SUPPORT)
 uint16_t
 i40e_recv_pkts_vec_avx2(void __rte_unused *rx_queue,
 			struct rte_mbuf __rte_unused **rx_pkts,
@@ -3647,4 +3793,4 @@ i40e_xmit_pkts_vec_avx2(void __rte_unused * tx_queue,
 {
 	return 0;
 }
-#endif /* ifndef CC_AVX2_SUPPORT */
+#endif /* ifndef RTE_ARCH_X86 */

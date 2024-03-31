@@ -1061,26 +1061,10 @@ s32 ngbe_set_pcie_master(struct ngbe_hw *hw, bool enable)
 {
 	struct rte_pci_device *pci_dev = (struct rte_pci_device *)hw->back;
 	s32 status = 0;
-	s32 ret = 0;
 	u32 i;
-	u16 reg;
 
-	ret = rte_pci_read_config(pci_dev, &reg,
-			sizeof(reg), PCI_COMMAND);
-	if (ret != sizeof(reg)) {
-		DEBUGOUT("Cannot read command from PCI config space!\n");
-		return -1;
-	}
-
-	if (enable)
-		reg |= PCI_COMMAND_MASTER;
-	else
-		reg &= ~PCI_COMMAND_MASTER;
-
-	ret = rte_pci_write_config(pci_dev, &reg,
-			sizeof(reg), PCI_COMMAND);
-	if (ret != sizeof(reg)) {
-		DEBUGOUT("Cannot write command to PCI config space!\n");
+	if (rte_pci_set_bus_master(pci_dev, enable) < 0) {
+		DEBUGOUT("Cannot configure PCI bus master\n");
 		return -1;
 	}
 
@@ -1541,11 +1525,15 @@ s32 ngbe_clear_vfta(struct ngbe_hw *hw)
 s32 ngbe_check_mac_link_em(struct ngbe_hw *hw, u32 *speed,
 			bool *link_up, bool link_up_wait_to_complete)
 {
-	u32 i, reg;
+	u32 i;
 	s32 status = 0;
 
-	reg = rd32(hw, NGBE_GPIOINTSTAT);
-	wr32(hw, NGBE_GPIOEOI, reg);
+	if (hw->lsc) {
+		u32 reg;
+
+		reg = rd32(hw, NGBE_GPIOINTSTAT);
+		wr32(hw, NGBE_GPIOEOI, reg);
+	}
 
 	if (link_up_wait_to_complete) {
 		for (i = 0; i < hw->mac.max_link_up_time; i++) {

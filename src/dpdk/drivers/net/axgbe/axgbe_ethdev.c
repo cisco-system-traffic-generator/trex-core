@@ -12,6 +12,14 @@
 
 #include "eal_filesystem.h"
 
+#include <rte_vect.h>
+
+#ifdef RTE_ARCH_X86
+#include <cpuid.h>
+#else
+#define __cpuid(n, a, b, c, d)
+#endif
+
 static int eth_axgbe_dev_init(struct rte_eth_dev *eth_dev);
 static int  axgbe_dev_configure(struct rte_eth_dev *dev);
 static int  axgbe_dev_start(struct rte_eth_dev *dev);
@@ -85,7 +93,8 @@ static void axgbe_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_rxq_info *qinfo);
 static void axgbe_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	struct rte_eth_txq_info *qinfo);
-const uint32_t *axgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev);
+const uint32_t *axgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev,
+					       size_t *no_of_elements);
 static int axgb_mtu_set(struct rte_eth_dev *dev, uint16_t mtu);
 
 static int
@@ -172,9 +181,14 @@ static const struct axgbe_xstats axgbe_xstats_strings[] = {
 
 /* The set of PCI devices this driver supports */
 #define AMD_PCI_VENDOR_ID       0x1022
-#define AMD_PCI_RV_ROOT_COMPLEX_ID	0x15d0
-#define AMD_PCI_YC_ROOT_COMPLEX_ID	0x14b5
-#define AMD_PCI_SNOWY_ROOT_COMPLEX_ID	0x1450
+
+#define	Fam17h	0x17
+#define	Fam19h	0x19
+
+#define	CPUID_VENDOR_AuthenticAMD_ebx	0x68747541
+#define	CPUID_VENDOR_AuthenticAMD_ecx	0x444d4163
+#define	CPUID_VENDOR_AuthenticAMD_edx	0x69746e65
+
 #define AMD_PCI_AXGBE_DEVICE_V2A 0x1458
 #define AMD_PCI_AXGBE_DEVICE_V2B 0x1459
 
@@ -352,6 +366,7 @@ static int
 axgbe_dev_start(struct rte_eth_dev *dev)
 {
 	struct axgbe_port *pdata = dev->data->dev_private;
+	uint16_t i;
 	int ret;
 
 	dev->dev_ops = &axgbe_eth_dev_ops;
@@ -388,6 +403,12 @@ axgbe_dev_start(struct rte_eth_dev *dev)
 
 	axgbe_set_rx_function(dev);
 	axgbe_set_tx_function(dev);
+
+	for (i = 0; i < dev->data->nb_rx_queues; i++)
+		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+	for (i = 0; i < dev->data->nb_tx_queues; i++)
+		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+
 	return 0;
 }
 
@@ -1434,7 +1455,7 @@ axgbe_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	qinfo->conf.tx_free_thresh = txq->free_thresh;
 }
 const uint32_t *
-axgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+axgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -1461,11 +1482,12 @@ axgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L4_SCTP,
 		RTE_PTYPE_INNER_L4_TCP,
 		RTE_PTYPE_INNER_L4_UDP,
-		RTE_PTYPE_UNKNOWN
 	};
 
-	if (dev->rx_pkt_burst == axgbe_recv_pkts)
+	if (dev->rx_pkt_burst == axgbe_recv_pkts) {
+		*no_of_elements = RTE_DIM(ptypes);
 		return ptypes;
+	}
 	return NULL;
 }
 
@@ -2111,29 +2133,6 @@ static void axgbe_default_config(struct axgbe_port *pdata)
 	pdata->power_down = 0;
 }
 
-/*
- * Return PCI root complex device id on success else 0
- */
-static uint16_t
-get_pci_rc_devid(void)
-{
-	char pci_sysfs[PATH_MAX];
-	const struct rte_pci_addr pci_rc_addr = {0, 0, 0, 0};
-	unsigned long device_id;
-
-	snprintf(pci_sysfs, sizeof(pci_sysfs), "%s/" PCI_PRI_FMT "/device",
-		 rte_pci_get_sysfs_path(), pci_rc_addr.domain,
-		 pci_rc_addr.bus, pci_rc_addr.devid, pci_rc_addr.function);
-
-	/* get device id */
-	if (eal_parse_sysfs_value(pci_sysfs, &device_id) < 0) {
-		PMD_INIT_LOG(ERR, "Error in reading PCI sysfs\n");
-		return 0;
-	}
-
-	return (uint16_t)device_id;
-}
-
 /* Used in dev_start by primary process and then
  * in dev_init by secondary process when attaching to an existing ethdev.
  */
@@ -2142,6 +2141,8 @@ axgbe_set_tx_function(struct rte_eth_dev *dev)
 {
 	struct axgbe_port *pdata = dev->data->dev_private;
 
+	dev->tx_pkt_burst = &axgbe_xmit_pkts;
+
 	if (pdata->multi_segs_tx)
 		dev->tx_pkt_burst = &axgbe_xmit_pkts_seg;
 #ifdef RTE_ARCH_X86
@@ -2149,8 +2150,6 @@ axgbe_set_tx_function(struct rte_eth_dev *dev)
 	if (!txq->vector_disable &&
 			rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_128)
 		dev->tx_pkt_burst = &axgbe_xmit_pkts_vec;
-#else
-	dev->tx_pkt_burst = &axgbe_xmit_pkts;
 #endif
 }
 
@@ -2185,6 +2184,9 @@ eth_axgbe_dev_init(struct rte_eth_dev *eth_dev)
 	uint32_t reg, mac_lo, mac_hi;
 	uint32_t len;
 	int ret;
+
+	unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+	unsigned char cpu_family = 0, cpu_model = 0;
 
 	eth_dev->dev_ops = &axgbe_eth_dev_ops;
 
@@ -2230,26 +2232,55 @@ eth_axgbe_dev_init(struct rte_eth_dev *eth_dev)
 		pdata->vdata = &axgbe_v2b;
 
 	/*
-	 * Use PCI root complex device ID to identify the CPU
+	 * Use CPUID to get Family and model ID to identify the CPU
 	 */
-	switch (get_pci_rc_devid()) {
-	case AMD_PCI_RV_ROOT_COMPLEX_ID:
-		pdata->xpcs_window_def_reg = PCS_V2_RV_WINDOW_DEF;
-		pdata->xpcs_window_sel_reg = PCS_V2_RV_WINDOW_SELECT;
+	__cpuid(0x0, eax, ebx, ecx, edx);
+
+	if (ebx == CPUID_VENDOR_AuthenticAMD_ebx &&
+		edx == CPUID_VENDOR_AuthenticAMD_edx &&
+		ecx == CPUID_VENDOR_AuthenticAMD_ecx) {
+		int unknown_cpu = 0;
+		eax = 0, ebx = 0, ecx = 0, edx = 0;
+
+		__cpuid(0x1, eax, ebx, ecx, edx);
+
+		cpu_family = ((GET_BITS(eax, 8, 4)) + (GET_BITS(eax, 20, 8)));
+		cpu_model = ((GET_BITS(eax, 4, 4)) | (((GET_BITS(eax, 16, 4)) << 4) & 0xF0));
+
+		switch (cpu_family) {
+		case Fam17h:
+		/* V1000/R1000 */
+		if (cpu_model >= 0x10 && cpu_model <= 0x1F) {
+			pdata->xpcs_window_def_reg = PCS_V2_RV_WINDOW_DEF;
+			pdata->xpcs_window_sel_reg = PCS_V2_RV_WINDOW_SELECT;
+		/* EPYC 3000 */
+		} else if (cpu_model >= 0x01 && cpu_model <= 0x0F) {
+			pdata->xpcs_window_def_reg = PCS_V2_WINDOW_DEF;
+			pdata->xpcs_window_sel_reg = PCS_V2_WINDOW_SELECT;
+		} else {
+			unknown_cpu = 1;
+		}
 		break;
-	case AMD_PCI_YC_ROOT_COMPLEX_ID:
-		pdata->xpcs_window_def_reg = PCS_V2_YC_WINDOW_DEF;
-		pdata->xpcs_window_sel_reg = PCS_V2_YC_WINDOW_SELECT;
-		/* Yellow Carp devices do not need cdr workaround */
-		pdata->vdata->an_cdr_workaround = 0;
+		case Fam19h:
+		/* V3000 (Yellow Carp) */
+		if (cpu_model >= 0x44 && cpu_model <= 0x47) {
+			pdata->xpcs_window_def_reg = PCS_V2_YC_WINDOW_DEF;
+			pdata->xpcs_window_sel_reg = PCS_V2_YC_WINDOW_SELECT;
+
+			/* Yellow Carp devices do not need cdr workaround */
+			pdata->vdata->an_cdr_workaround = 0;
+		} else {
+			unknown_cpu = 1;
+		}
 		break;
-	case AMD_PCI_SNOWY_ROOT_COMPLEX_ID:
-		pdata->xpcs_window_def_reg = PCS_V2_WINDOW_DEF;
-		pdata->xpcs_window_sel_reg = PCS_V2_WINDOW_SELECT;
-		break;
-	default:
-		PMD_DRV_LOG(ERR, "No supported devices found\n");
-		return -ENODEV;
+		default:
+			unknown_cpu = 1;
+			break;
+		}
+		if (unknown_cpu) {
+			PMD_DRV_LOG(ERR, "Unknown CPU family, no supported axgbe device found\n");
+			return -ENODEV;
+		}
 	}
 
 	/* Configure the PCS indirect addressing support */
@@ -2313,23 +2344,28 @@ eth_axgbe_dev_init(struct rte_eth_dev *eth_dev)
 	pdata->arcache = AXGBE_DMA_OS_ARCACHE;
 	pdata->awcache = AXGBE_DMA_OS_AWCACHE;
 
+	/* Read the port property registers */
+	pdata->pp0 = XP_IOREAD(pdata, XP_PROP_0);
+	pdata->pp1 = XP_IOREAD(pdata, XP_PROP_1);
+	pdata->pp2 = XP_IOREAD(pdata, XP_PROP_2);
+	pdata->pp3 = XP_IOREAD(pdata, XP_PROP_3);
+	pdata->pp4 = XP_IOREAD(pdata, XP_PROP_4);
+
 	/* Set the maximum channels and queues */
-	reg = XP_IOREAD(pdata, XP_PROP_1);
-	pdata->tx_max_channel_count = XP_GET_BITS(reg, XP_PROP_1, MAX_TX_DMA);
-	pdata->rx_max_channel_count = XP_GET_BITS(reg, XP_PROP_1, MAX_RX_DMA);
-	pdata->tx_max_q_count = XP_GET_BITS(reg, XP_PROP_1, MAX_TX_QUEUES);
-	pdata->rx_max_q_count = XP_GET_BITS(reg, XP_PROP_1, MAX_RX_QUEUES);
+	pdata->tx_max_channel_count = XP_GET_BITS(pdata->pp1, XP_PROP_1, MAX_TX_DMA);
+	pdata->rx_max_channel_count = XP_GET_BITS(pdata->pp1, XP_PROP_1, MAX_RX_DMA);
+	pdata->tx_max_q_count = XP_GET_BITS(pdata->pp1, XP_PROP_1, MAX_TX_QUEUES);
+	pdata->rx_max_q_count = XP_GET_BITS(pdata->pp1, XP_PROP_1, MAX_RX_QUEUES);
 
 	/* Set the hardware channel and queue counts */
 	axgbe_set_counts(pdata);
 
 	/* Set the maximum fifo amounts */
-	reg = XP_IOREAD(pdata, XP_PROP_2);
-	pdata->tx_max_fifo_size = XP_GET_BITS(reg, XP_PROP_2, TX_FIFO_SIZE);
+	pdata->tx_max_fifo_size = XP_GET_BITS(pdata->pp2, XP_PROP_2, TX_FIFO_SIZE);
 	pdata->tx_max_fifo_size *= 16384;
 	pdata->tx_max_fifo_size = RTE_MIN(pdata->tx_max_fifo_size,
 					  pdata->vdata->tx_max_fifo_size);
-	pdata->rx_max_fifo_size = XP_GET_BITS(reg, XP_PROP_2, RX_FIFO_SIZE);
+	pdata->rx_max_fifo_size = XP_GET_BITS(pdata->pp2, XP_PROP_2, RX_FIFO_SIZE);
 	pdata->rx_max_fifo_size *= 16384;
 	pdata->rx_max_fifo_size = RTE_MIN(pdata->rx_max_fifo_size,
 					  pdata->vdata->rx_max_fifo_size);

@@ -54,6 +54,7 @@ INTERNAL {
 	mlx5_devx_cmd_modify_tir;
 	mlx5_devx_cmd_modify_virtq;
 	mlx5_devx_cmd_qp_query_tis_td;
+	mlx5_devx_cmd_query_geneve_tlv_option;
 	mlx5_devx_cmd_query_hca_attr;
 	mlx5_devx_cmd_query_lag;
 	mlx5_devx_cmd_query_parse_samples;
@@ -122,8 +123,11 @@ INTERNAL {
 	mlx5_mr_ctrl_init;
 	mlx5_mr_flush_local_cache;
 	mlx5_mr_mb2mr_bh;
+	mlx5_mr_addr2mr_bh;
 
 	mlx5_nl_allmulti; # WINDOWS_NO_EXPORT
+	mlx5_nl_devlink_esw_multiport_get; # WINDOWS_NO_EXPORT
+	mlx5_nl_devlink_family_id_get; # WINDOWS_NO_EXPORT
 	mlx5_nl_ifindex; # WINDOWS_NO_EXPORT
 	mlx5_nl_init; # WINDOWS_NO_EXPORT
 	mlx5_nl_mac_addr_add; # WINDOWS_NO_EXPORT
@@ -158,5 +162,7 @@ INTERNAL {
 
 	mlx5_os_interrupt_handler_create; # WINDOWS_NO_EXPORT
 	mlx5_os_interrupt_handler_destroy; # WINDOWS_NO_EXPORT
+
+	mlx5_os_set_reg_mr_cb;
 	local: *;
 };

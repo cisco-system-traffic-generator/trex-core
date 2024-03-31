@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 #ifdef RTE_LIB_EAL
 #include "osdep_rte/osdep_generic.h"
@@ -80,7 +81,7 @@ struct uuid {
 #define opae_memset(a, b, c)    memset((a), (b), (c))
 
 #define readx_poll_timeout(op, val, cond, invl, timeout, args...) \
-({                                                                \
+__extension__ ({                                                      \
 	unsigned long __wait = 0;                                     \
 	unsigned long __invl = (invl);                                \
 	unsigned long __timeout = (timeout);                          \
@@ -106,7 +107,7 @@ struct uuid {
 	readx_poll_timeout(opae_readb, val, cond, invl, timeout, addr)
 
 #define opae_max10_read_poll_timeout(dev, addr, value, cond, invl, timeout) \
-({ \
+__extension__ ({ \
 	int __ret, __tmp; \
 	__tmp = readx_poll_timeout(max10_sys_read, __ret, __ret || (cond), \
 			invl, timeout, (dev), (addr), &(value)); \

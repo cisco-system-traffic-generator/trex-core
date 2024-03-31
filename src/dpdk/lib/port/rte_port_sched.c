@@ -7,6 +7,8 @@
 
 #include "rte_port_sched.h"
 
+#include "port_log.h"
+
 /*
  * Reader
  */
@@ -40,7 +42,7 @@ rte_port_sched_reader_create(void *params, int socket_id)
 	/* Check input parameters */
 	if ((conf == NULL) ||
 	    (conf->sched == NULL)) {
-		RTE_LOG(ERR, PORT, "%s: Invalid params\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid params", __func__);
 		return NULL;
 	}
 
@@ -48,7 +50,7 @@ rte_port_sched_reader_create(void *params, int socket_id)
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -74,7 +76,7 @@ static int
 rte_port_sched_reader_free(void *port)
 {
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: port is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -139,7 +141,7 @@ rte_port_sched_writer_create(void *params, int socket_id)
 	    (conf->tx_burst_sz == 0) ||
 	    (conf->tx_burst_sz > RTE_PORT_IN_BURST_SIZE_MAX) ||
 		(!rte_is_power_of_2(conf->tx_burst_sz))) {
-		RTE_LOG(ERR, PORT, "%s: Invalid params\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid params", __func__);
 		return NULL;
 	}
 
@@ -147,7 +149,7 @@ rte_port_sched_writer_create(void *params, int socket_id)
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -191,7 +193,7 @@ rte_port_sched_writer_tx_bulk(void *port,
 
 	if (expr == 0) {
 		__rte_unused uint32_t nb_tx;
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 
 		if (tx_buf_count) {
 			nb_tx = rte_sched_port_enqueue(p->sched, p->tx_buf,
@@ -204,7 +206,7 @@ rte_port_sched_writer_tx_bulk(void *port,
 		RTE_PORT_SCHED_WRITER_STATS_PKTS_DROP_ADD(p, n_pkts - nb_tx);
 	} else {
 		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
+			uint32_t pkt_index = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pkt_index;
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
@@ -247,7 +249,7 @@ static int
 rte_port_sched_writer_free(void *port)
 {
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: port is NULL", __func__);
 		return -EINVAL;
 	}
 

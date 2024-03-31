@@ -9,6 +9,8 @@
 
 #include "rte_port_ras.h"
 
+#include "port_log.h"
+
 #ifndef RTE_PORT_RAS_N_BUCKETS
 #define RTE_PORT_RAS_N_BUCKETS                                 4094
 #endif
@@ -69,16 +71,16 @@ rte_port_ring_writer_ras_create(void *params, int socket_id, int is_ipv4)
 
 	/* Check input parameters */
 	if (conf == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Parameter conf is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Parameter conf is NULL", __func__);
 		return NULL;
 	}
 	if (conf->ring == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Parameter ring is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Parameter ring is NULL", __func__);
 		return NULL;
 	}
 	if ((conf->tx_burst_sz == 0) ||
 	    (conf->tx_burst_sz > RTE_PORT_IN_BURST_SIZE_MAX)) {
-		RTE_LOG(ERR, PORT, "%s: Parameter tx_burst_sz is invalid\n",
+		PORT_LOG(ERR, "%s: Parameter tx_burst_sz is invalid",
 			__func__);
 		return NULL;
 	}
@@ -87,7 +89,7 @@ rte_port_ring_writer_ras_create(void *params, int socket_id, int is_ipv4)
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate socket\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate socket", __func__);
 		return NULL;
 	}
 
@@ -103,7 +105,7 @@ rte_port_ring_writer_ras_create(void *params, int socket_id, int is_ipv4)
 		socket_id);
 
 	if (port->frag_tbl == NULL) {
-		RTE_LOG(ERR, PORT, "%s: rte_ip_frag_table_create failed\n",
+		PORT_LOG(ERR, "%s: rte_ip_frag_table_create failed",
 			__func__);
 		rte_free(port);
 		return NULL;
@@ -234,7 +236,7 @@ rte_port_ring_writer_ras_tx_bulk(void *port,
 			port;
 
 	if ((pkts_mask & (pkts_mask + 1)) == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 		uint32_t i;
 
 		for (i = 0; i < n_pkts; i++) {
@@ -247,7 +249,7 @@ rte_port_ring_writer_ras_tx_bulk(void *port,
 		}
 	} else {
 		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
+			uint32_t pkt_index = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pkt_index;
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
@@ -282,7 +284,7 @@ rte_port_ring_writer_ras_free(void *port)
 			port;
 
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Parameter port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Parameter port is NULL", __func__);
 		return -1;
 	}
 

@@ -33,11 +33,14 @@
 #define CN10K_SSO_GW_MODE  "gw_mode"
 #define CN10K_SSO_STASH	   "stash"
 
+#define CNXK_SSO_MAX_PROFILES 2
+
 #define NSEC2USEC(__ns)		((__ns) / 1E3)
 #define USEC2NSEC(__us)		((__us)*1E3)
 #define NSEC2TICK(__ns, __freq) (((__ns) * (__freq)) / 1E9)
 
 #define CN9K_SSOW_GET_BASE_ADDR(_GW) ((_GW)-SSOW_LF_GWS_OP_GET_WORK0)
+#define CN9K_DUAL_WS_NB_WS	     2
 
 #define CN10K_GW_MODE_NONE     0
 #define CN10K_GW_MODE_PREF     1
@@ -47,19 +50,19 @@
 	(min + val / ((max + cnt - 1) / cnt))
 #define CNXK_SSO_FLUSH_RETRY_MAX 0xfff
 
-#define CNXK_VALID_DEV_OR_ERR_RET(dev, drv_name)                               \
+#define CNXK_VALID_DEV_OR_ERR_RET(dev, drv_name, err_val)                      \
 	do {                                                                   \
 		if (strncmp(dev->driver->name, drv_name, strlen(drv_name)))    \
-			return -EINVAL;                                        \
+			return -err_val;                                       \
 	} while (0)
 
 typedef void *(*cnxk_sso_init_hws_mem_t)(void *dev, uint8_t port_id);
 typedef void (*cnxk_sso_hws_setup_t)(void *dev, void *ws, uintptr_t grp_base);
 typedef void (*cnxk_sso_hws_release_t)(void *dev, void *ws);
-typedef int (*cnxk_sso_link_t)(void *dev, void *ws, uint16_t *map,
-			       uint16_t nb_link);
-typedef int (*cnxk_sso_unlink_t)(void *dev, void *ws, uint16_t *map,
-				 uint16_t nb_link);
+typedef int (*cnxk_sso_link_t)(void *dev, void *ws, uint16_t *map, uint16_t nb_link,
+			       uint8_t profile);
+typedef int (*cnxk_sso_unlink_t)(void *dev, void *ws, uint16_t *map, uint16_t nb_link,
+				 uint8_t profile);
 typedef void (*cnxk_handle_event_t)(void *arg, struct rte_event ev);
 typedef void (*cnxk_sso_hws_reset_t)(void *arg, void *ws);
 typedef int (*cnxk_sso_hws_flush_t)(void *ws, uint8_t queue_id, uintptr_t base,
@@ -89,7 +92,9 @@ struct cnxk_sso_evdev {
 	uint32_t min_dequeue_timeout_ns;
 	uint32_t max_dequeue_timeout_ns;
 	int32_t max_num_events;
+	int32_t num_events;
 	uint64_t xaq_lmt;
+	int64_t *fc_cache_space;
 	rte_iova_t fc_iova;
 	uint64_t rx_offloads;
 	uint64_t tx_offloads;
@@ -116,11 +121,9 @@ struct cnxk_sso_evdev {
 	/* CN9K */
 	uint8_t dual_ws;
 	/* CN10K */
-	uint8_t gw_mode;
+	uint32_t gw_mode;
 	uint16_t stash_cnt;
 	struct cnxk_sso_stash *stash_parse_data;
-	/* Crypto adapter */
-	uint8_t is_ca_internal_port;
 } __rte_cache_aligned;
 
 /* Event port a.k.a GWS */
@@ -206,7 +209,8 @@ int cnxk_sso_fini(struct rte_eventdev *event_dev);
 int cnxk_sso_remove(struct rte_pci_device *pci_dev);
 void cnxk_sso_info_get(struct cnxk_sso_evdev *dev,
 		       struct rte_event_dev_info *dev_info);
-int cnxk_sso_dev_validate(const struct rte_eventdev *event_dev);
+int cnxk_sso_dev_validate(const struct rte_eventdev *event_dev,
+			  uint32_t deq_depth, uint32_t enq_depth);
 int cnxk_setup_event_ports(const struct rte_eventdev *event_dev,
 			   cnxk_sso_init_hws_mem_t init_hws_mem,
 			   cnxk_sso_hws_setup_t hws_setup);
@@ -280,4 +284,7 @@ int cnxk_crypto_adapter_qp_add(const struct rte_eventdev *event_dev,
 			       const struct rte_event_crypto_adapter_queue_conf *conf);
 int cnxk_crypto_adapter_qp_del(const struct rte_cryptodev *cdev, int32_t queue_pair_id);
 
+int cnxk_dma_adapter_vchan_add(const struct rte_eventdev *event_dev,
+			       const int16_t dma_dev_id, uint16_t vchan_id);
+int cnxk_dma_adapter_vchan_del(const int16_t dma_dev_id, uint16_t vchan_id);
 #endif /* __CNXK_EVENTDEV_H__ */

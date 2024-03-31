@@ -11,8 +11,10 @@ extern "C" {
 #endif
 #include "ena_com.h"
 
-/* head update threshold in units of (queue size / ENA_COMP_HEAD_THRESH) */
-#define ENA_COMP_HEAD_THRESH 4
+/* we allow 2 DMA descriptors per LLQ entry */
+#define ENA_LLQ_ENTRY_DESC_CHUNK_SIZE	(2 * sizeof(struct ena_eth_io_tx_desc))
+#define ENA_LLQ_HEADER		(128UL - ENA_LLQ_ENTRY_DESC_CHUNK_SIZE)
+#define ENA_LLQ_LARGE_HEADER	(256UL - ENA_LLQ_ENTRY_DESC_CHUNK_SIZE)
 
 struct ena_com_tx_ctx {
 	struct ena_com_tx_meta ena_meta;
@@ -48,7 +50,7 @@ struct ena_com_rx_ctx {
 	bool frag;
 	u32 hash;
 	u16 descs;
-	int max_bufs;
+	u16 max_bufs;
 	u8 pkt_offset;
 };
 
@@ -171,28 +173,6 @@ static inline int ena_com_write_sq_doorbell(struct ena_com_io_sq *io_sq)
 	return 0;
 }
 
-static inline int ena_com_update_dev_comp_head(struct ena_com_io_cq *io_cq)
-{
-	u16 unreported_comp, head;
-	bool need_update;
-
-	if (unlikely(io_cq->cq_head_db_reg)) {
-		head = io_cq->head;
-		unreported_comp = head - io_cq->last_head_update;
-		need_update = unreported_comp > (io_cq->q_depth / ENA_COMP_HEAD_THRESH);
-
-		if (unlikely(need_update)) {
-			ena_trc_dbg(ena_com_io_cq_to_ena_dev(io_cq),
-				    "Write completion queue doorbell for queue %d: head: %d\n",
-				    io_cq->qid, head);
-			ENA_REG_WRITE32(io_cq->bus, head, io_cq->cq_head_db_reg);
-			io_cq->last_head_update = head;
-		}
-	}
-
-	return 0;
-}
-
 static inline void ena_com_update_numa_node(struct ena_com_io_cq *io_cq,
 					    u8 numa_node)
 {
@@ -224,9 +204,11 @@ static inline void ena_com_cq_inc_head(struct ena_com_io_cq *io_cq)
 static inline int ena_com_tx_comp_req_id_get(struct ena_com_io_cq *io_cq,
 					     u16 *req_id)
 {
+	struct ena_com_dev *dev = ena_com_io_cq_to_ena_dev(io_cq);
 	u8 expected_phase, cdesc_phase;
 	struct ena_eth_io_tx_cdesc *cdesc;
 	u16 masked_head;
+	u8 flags;
 
 	masked_head = io_cq->head & (io_cq->q_depth - 1);
 	expected_phase = io_cq->phase;
@@ -235,13 +217,23 @@ static inline int ena_com_tx_comp_req_id_get(struct ena_com_io_cq *io_cq,
 		((uintptr_t)io_cq->cdesc_addr.virt_addr +
 		(masked_head * io_cq->cdesc_entry_size_in_bytes));
 
+	flags = READ_ONCE8(cdesc->flags);
+
 	/* When the current completion descriptor phase isn't the same as the
 	 * expected, it mean that the device still didn't update
 	 * this completion.
 	 */
-	cdesc_phase = READ_ONCE16(cdesc->flags) & ENA_ETH_IO_TX_CDESC_PHASE_MASK;
+	cdesc_phase = flags & ENA_ETH_IO_TX_CDESC_PHASE_MASK;
 	if (cdesc_phase != expected_phase)
 		return ENA_COM_TRY_AGAIN;
+
+	if (unlikely((flags & ENA_ETH_IO_TX_CDESC_MBZ6_MASK) &&
+		      ena_com_get_cap(dev, ENA_ADMIN_CDESC_MBZ))) {
+		ena_trc_err(dev,
+			    "Corrupted TX descriptor on q_id: %d, req_id: %u\n",
+			    io_cq->qid, cdesc->req_id);
+		return ENA_COM_FAULT;
+	}
 
 	dma_rmb();
 

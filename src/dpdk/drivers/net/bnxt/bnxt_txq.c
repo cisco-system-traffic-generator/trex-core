@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2021 Broadcom
+ * Copyright(c) 2014-2023 Broadcom
  * All rights reserved.
  */
 
@@ -42,6 +42,8 @@ uint64_t bnxt_get_tx_port_offloads(struct bnxt *bp)
 		tx_offload_capa |= RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO;
 	if (BNXT_TUNNELED_OFFLOADS_CAP_IPINIP_EN(bp))
 		tx_offload_capa |= RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO;
+	if (bp->fw_cap & BNXT_FW_CAP_UDP_GSO)
+		tx_offload_capa |= RTE_ETH_TX_OFFLOAD_UDP_TSO;
 
 	return tx_offload_capa;
 }
@@ -96,21 +98,23 @@ void bnxt_tx_queue_release_op(struct rte_eth_dev *dev, uint16_t queue_idx)
 		if (txq->tx_ring) {
 			bnxt_free_ring(txq->tx_ring->tx_ring_struct);
 			rte_free(txq->tx_ring->tx_ring_struct);
+			rte_free(txq->tx_ring->nr_bds);
 			rte_free(txq->tx_ring);
 		}
 
 		/* Free TX completion ring hardware descriptors */
 		if (txq->cp_ring) {
+			bnxt_free_txq_stats(txq);
 			bnxt_free_ring(txq->cp_ring->cp_ring_struct);
 			rte_free(txq->cp_ring->cp_ring_struct);
 			rte_free(txq->cp_ring);
 		}
 
-		bnxt_free_txq_stats(txq);
 		rte_memzone_free(txq->mz);
 		txq->mz = NULL;
 
 		rte_free(txq->free);
+		pthread_mutex_destroy(&txq->txq_lock);
 		rte_free(txq);
 		dev->data->tx_queues[queue_idx] = NULL;
 	}
@@ -194,6 +198,11 @@ int bnxt_tx_queue_setup_op(struct rte_eth_dev *eth_dev,
 		goto err;
 	}
 
+	rc = pthread_mutex_init(&txq->txq_lock, NULL);
+	if (rc != 0) {
+		PMD_DRV_LOG(ERR, "TxQ mutex init failed!");
+		goto err;
+	}
 	return 0;
 err:
 	bnxt_tx_queue_release_op(eth_dev, queue_idx);

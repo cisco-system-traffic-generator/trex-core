@@ -6,6 +6,9 @@
 #include "ice_ethdev.h"
 #include "ice_rxtx.h"
 
+#define MAX_CHILDREN_PER_SCHED_NODE	8
+#define MAX_CHILDREN_PER_TM_NODE	256
+
 static int ice_hierarchy_commit(struct rte_eth_dev *dev,
 				 int clear_on_fail,
 				 __rte_unused struct rte_tm_error *error);
@@ -43,95 +46,37 @@ ice_tm_conf_init(struct rte_eth_dev *dev)
 	/* initialize node configuration */
 	TAILQ_INIT(&pf->tm_conf.shaper_profile_list);
 	pf->tm_conf.root = NULL;
-	TAILQ_INIT(&pf->tm_conf.tc_list);
-	TAILQ_INIT(&pf->tm_conf.vsi_list);
-	TAILQ_INIT(&pf->tm_conf.qgroup_list);
-	TAILQ_INIT(&pf->tm_conf.queue_list);
-	pf->tm_conf.nb_tc_node = 0;
-	pf->tm_conf.nb_vsi_node = 0;
-	pf->tm_conf.nb_qgroup_node = 0;
-	pf->tm_conf.nb_queue_node = 0;
 	pf->tm_conf.committed = false;
+	pf->tm_conf.clear_on_fail = false;
+}
+
+static void free_node(struct ice_tm_node *root)
+{
+	uint32_t i;
+
+	if (root == NULL)
+		return;
+
+	for (i = 0; i < root->reference_count; i++)
+		free_node(root->children[i]);
+
+	rte_free(root);
 }
 
 void
 ice_tm_conf_uninit(struct rte_eth_dev *dev)
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct ice_tm_node *tm_node;
+	struct ice_tm_shaper_profile *shaper_profile;
 
-	/* clear node configuration */
-	while ((tm_node = TAILQ_FIRST(&pf->tm_conf.queue_list))) {
-		TAILQ_REMOVE(&pf->tm_conf.queue_list, tm_node, node);
-		rte_free(tm_node);
-	}
-	pf->tm_conf.nb_queue_node = 0;
-	while ((tm_node = TAILQ_FIRST(&pf->tm_conf.qgroup_list))) {
-		TAILQ_REMOVE(&pf->tm_conf.qgroup_list, tm_node, node);
-		rte_free(tm_node);
-	}
-	pf->tm_conf.nb_qgroup_node = 0;
-	while ((tm_node = TAILQ_FIRST(&pf->tm_conf.vsi_list))) {
-		TAILQ_REMOVE(&pf->tm_conf.vsi_list, tm_node, node);
-		rte_free(tm_node);
-	}
-	pf->tm_conf.nb_vsi_node = 0;
-	while ((tm_node = TAILQ_FIRST(&pf->tm_conf.tc_list))) {
-		TAILQ_REMOVE(&pf->tm_conf.tc_list, tm_node, node);
-		rte_free(tm_node);
-	}
-	pf->tm_conf.nb_tc_node = 0;
-	if (pf->tm_conf.root) {
-		rte_free(pf->tm_conf.root);
-		pf->tm_conf.root = NULL;
-	}
-}
-
-static inline struct ice_tm_node *
-ice_tm_node_search(struct rte_eth_dev *dev,
-		    uint32_t node_id, enum ice_tm_node_type *node_type)
-{
-	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	struct ice_tm_node_list *tc_list = &pf->tm_conf.tc_list;
-	struct ice_tm_node_list *vsi_list = &pf->tm_conf.vsi_list;
-	struct ice_tm_node_list *qgroup_list = &pf->tm_conf.qgroup_list;
-	struct ice_tm_node_list *queue_list = &pf->tm_conf.queue_list;
-	struct ice_tm_node *tm_node;
-
-	if (pf->tm_conf.root && pf->tm_conf.root->id == node_id) {
-		*node_type = ICE_TM_NODE_TYPE_PORT;
-		return pf->tm_conf.root;
+	/* clear profile */
+	while ((shaper_profile = TAILQ_FIRST(&pf->tm_conf.shaper_profile_list))) {
+		TAILQ_REMOVE(&pf->tm_conf.shaper_profile_list, shaper_profile, node);
+		rte_free(shaper_profile);
 	}
 
-	TAILQ_FOREACH(tm_node, tc_list, node) {
-		if (tm_node->id == node_id) {
-			*node_type = ICE_TM_NODE_TYPE_TC;
-			return tm_node;
-		}
-	}
-
-	TAILQ_FOREACH(tm_node, vsi_list, node) {
-		if (tm_node->id == node_id) {
-			*node_type = ICE_TM_NODE_TYPE_VSI;
-			return tm_node;
-		}
-	}
-
-	TAILQ_FOREACH(tm_node, qgroup_list, node) {
-		if (tm_node->id == node_id) {
-			*node_type = ICE_TM_NODE_TYPE_QGROUP;
-			return tm_node;
-		}
-	}
-
-	TAILQ_FOREACH(tm_node, queue_list, node) {
-		if (tm_node->id == node_id) {
-			*node_type = ICE_TM_NODE_TYPE_QUEUE;
-			return tm_node;
-		}
-	}
-
-	return NULL;
+	free_node(pf->tm_conf.root);
+	pf->tm_conf.root = NULL;
 }
 
 static int
@@ -224,11 +169,29 @@ ice_node_param_check(struct ice_pf *pf, uint32_t node_id,
 	return 0;
 }
 
+static struct ice_tm_node *
+find_node(struct ice_tm_node *root, uint32_t id)
+{
+	uint32_t i;
+
+	if (root == NULL || root->id == id)
+		return root;
+
+	for (i = 0; i < root->reference_count; i++) {
+		struct ice_tm_node *node = find_node(root->children[i], id);
+
+		if (node)
+			return node;
+	}
+
+	return NULL;
+}
+
 static int
 ice_node_type_get(struct rte_eth_dev *dev, uint32_t node_id,
 		   int *is_leaf, struct rte_tm_error *error)
 {
-	enum ice_tm_node_type node_type = ICE_TM_NODE_TYPE_MAX;
+	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_tm_node *tm_node;
 
 	if (!is_leaf || !error)
@@ -241,14 +204,14 @@ ice_node_type_get(struct rte_eth_dev *dev, uint32_t node_id,
 	}
 
 	/* check if the node id exists */
-	tm_node = ice_tm_node_search(dev, node_id, &node_type);
+	tm_node = find_node(pf->tm_conf.root, node_id);
 	if (!tm_node) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_ID;
 		error->message = "no such node";
 		return -EINVAL;
 	}
 
-	if (node_type == ICE_TM_NODE_TYPE_QUEUE)
+	if (tm_node->level == ICE_TM_NODE_TYPE_QUEUE)
 		*is_leaf = true;
 	else
 		*is_leaf = false;
@@ -378,24 +341,13 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 	      struct rte_tm_error *error)
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	enum ice_tm_node_type node_type = ICE_TM_NODE_TYPE_MAX;
-	enum ice_tm_node_type parent_node_type = ICE_TM_NODE_TYPE_MAX;
 	struct ice_tm_shaper_profile *shaper_profile = NULL;
 	struct ice_tm_node *tm_node;
 	struct ice_tm_node *parent_node;
-	uint16_t tc_nb = 1;
-	uint16_t vsi_nb = 1;
 	int ret;
 
 	if (!params || !error)
 		return -EINVAL;
-
-	/* if already committed */
-	if (pf->tm_conf.committed) {
-		error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
-		error->message = "already committed";
-		return -EINVAL;
-	}
 
 	ret = ice_node_param_check(pf, node_id, priority, weight,
 				    params, error);
@@ -403,7 +355,7 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 		return ret;
 
 	/* check if the node is already existed */
-	if (ice_tm_node_search(dev, node_id, &node_type)) {
+	if (find_node(pf->tm_conf.root, node_id)) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_ID;
 		error->message = "node id already used";
 		return -EINVAL;
@@ -438,63 +390,48 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 		}
 
 		/* add the root node */
-		tm_node = rte_zmalloc("ice_tm_node",
-				      sizeof(struct ice_tm_node),
+		tm_node = rte_zmalloc(NULL,
+				      sizeof(struct ice_tm_node) +
+				      sizeof(struct ice_tm_node *) * MAX_CHILDREN_PER_TM_NODE,
 				      0);
 		if (!tm_node)
 			return -ENOMEM;
 		tm_node->id = node_id;
+		tm_node->level = ICE_TM_NODE_TYPE_PORT;
 		tm_node->parent = NULL;
 		tm_node->reference_count = 0;
-		tm_node->children = (struct ice_tm_node **)
-			rte_calloc(NULL, 256, (sizeof(struct ice_tm_node *)), 0);
+		tm_node->shaper_profile = shaper_profile;
+		tm_node->children =
+			(void *)((uint8_t *)tm_node + sizeof(struct ice_tm_node));
 		rte_memcpy(&tm_node->params, params,
 				 sizeof(struct rte_tm_node_params));
 		pf->tm_conf.root = tm_node;
 		return 0;
 	}
 
-	/* TC or queue node */
 	/* check the parent node */
-	parent_node = ice_tm_node_search(dev, parent_node_id,
-					  &parent_node_type);
+	parent_node = find_node(pf->tm_conf.root, parent_node_id);
 	if (!parent_node) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_PARENT_NODE_ID;
 		error->message = "parent not exist";
 		return -EINVAL;
 	}
-	if (parent_node_type != ICE_TM_NODE_TYPE_PORT &&
-	    parent_node_type != ICE_TM_NODE_TYPE_TC &&
-	    parent_node_type != ICE_TM_NODE_TYPE_VSI &&
-	    parent_node_type != ICE_TM_NODE_TYPE_QGROUP) {
+	if (parent_node->level != ICE_TM_NODE_TYPE_PORT &&
+	    parent_node->level != ICE_TM_NODE_TYPE_QGROUP) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_PARENT_NODE_ID;
 		error->message = "parent is not valid";
 		return -EINVAL;
 	}
 	/* check level */
 	if (level_id != RTE_TM_NODE_LEVEL_ID_ANY &&
-	    level_id != (uint32_t)parent_node_type + 1) {
+	    level_id != parent_node->level + 1) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_PARAMS;
 		error->message = "Wrong level";
 		return -EINVAL;
 	}
 
 	/* check the node number */
-	if (parent_node_type == ICE_TM_NODE_TYPE_PORT) {
-		/* check the TC number */
-		if (pf->tm_conf.nb_tc_node >= tc_nb) {
-			error->type = RTE_TM_ERROR_TYPE_NODE_ID;
-			error->message = "too many TCs";
-			return -EINVAL;
-		}
-	} else if (parent_node_type == ICE_TM_NODE_TYPE_TC) {
-		/* check the VSI number */
-		if (pf->tm_conf.nb_vsi_node >= vsi_nb) {
-			error->type = RTE_TM_ERROR_TYPE_NODE_ID;
-			error->message = "too many VSIs";
-			return -EINVAL;
-		}
-	} else if (parent_node_type == ICE_TM_NODE_TYPE_VSI) {
+	if (parent_node->level == ICE_TM_NODE_TYPE_PORT) {
 		/* check the queue group number */
 		if (parent_node->reference_count >= pf->dev_data->nb_tx_queues) {
 			error->type = RTE_TM_ERROR_TYPE_NODE_ID;
@@ -503,7 +440,8 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 		}
 	} else {
 		/* check the queue number */
-		if (parent_node->reference_count >= pf->dev_data->nb_tx_queues) {
+		if (parent_node->reference_count >=
+			MAX_CHILDREN_PER_SCHED_NODE) {
 			error->type = RTE_TM_ERROR_TYPE_NODE_ID;
 			error->message = "too many queues";
 			return -EINVAL;
@@ -515,9 +453,9 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 		}
 	}
 
-	/* add the TC or VSI or queue group or queue node */
-	tm_node = rte_zmalloc("ice_tm_node",
-			      sizeof(struct ice_tm_node),
+	tm_node = rte_zmalloc(NULL,
+			      sizeof(struct ice_tm_node) +
+			      sizeof(struct ice_tm_node *) * MAX_CHILDREN_PER_TM_NODE,
 			      0);
 	if (!tm_node)
 		return -ENOMEM;
@@ -526,9 +464,10 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 	tm_node->weight = weight;
 	tm_node->reference_count = 0;
 	tm_node->parent = parent_node;
+	tm_node->level = parent_node->level + 1;
 	tm_node->shaper_profile = shaper_profile;
-	tm_node->children = (struct ice_tm_node **)
-			rte_calloc(NULL, 256, (sizeof(struct ice_tm_node *)), 0);
+	tm_node->children =
+		(void *)((uint8_t *)tm_node + sizeof(struct ice_tm_node));
 	tm_node->parent->children[tm_node->parent->reference_count] = tm_node;
 
 	if (tm_node->priority != 0 && level_id != ICE_TM_NODE_TYPE_QUEUE &&
@@ -536,33 +475,13 @@ ice_tm_node_add(struct rte_eth_dev *dev, uint32_t node_id,
 		PMD_DRV_LOG(WARNING, "priority != 0 not supported in level %d",
 			    level_id);
 
-	if (tm_node->weight != 1 && level_id != ICE_TM_NODE_TYPE_QUEUE)
+	if (tm_node->weight != 1 &&
+	    level_id != ICE_TM_NODE_TYPE_QUEUE && level_id != ICE_TM_NODE_TYPE_QGROUP)
 		PMD_DRV_LOG(WARNING, "weight != 1 not supported in level %d",
 			    level_id);
 
 	rte_memcpy(&tm_node->params, params,
 			 sizeof(struct rte_tm_node_params));
-	if (parent_node_type == ICE_TM_NODE_TYPE_PORT) {
-		TAILQ_INSERT_TAIL(&pf->tm_conf.tc_list,
-				  tm_node, node);
-		tm_node->tc = pf->tm_conf.nb_tc_node;
-		pf->tm_conf.nb_tc_node++;
-	} else if (parent_node_type == ICE_TM_NODE_TYPE_TC) {
-		TAILQ_INSERT_TAIL(&pf->tm_conf.vsi_list,
-				  tm_node, node);
-		tm_node->tc = parent_node->tc;
-		pf->tm_conf.nb_vsi_node++;
-	} else if (parent_node_type == ICE_TM_NODE_TYPE_VSI) {
-		TAILQ_INSERT_TAIL(&pf->tm_conf.qgroup_list,
-				  tm_node, node);
-		tm_node->tc = parent_node->parent->tc;
-		pf->tm_conf.nb_qgroup_node++;
-	} else {
-		TAILQ_INSERT_TAIL(&pf->tm_conf.queue_list,
-				  tm_node, node);
-		tm_node->tc = parent_node->parent->parent->tc;
-		pf->tm_conf.nb_queue_node++;
-	}
 	tm_node->parent->reference_count++;
 
 	return 0;
@@ -573,18 +492,11 @@ ice_tm_node_delete(struct rte_eth_dev *dev, uint32_t node_id,
 		 struct rte_tm_error *error)
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-	enum ice_tm_node_type node_type = ICE_TM_NODE_TYPE_MAX;
 	struct ice_tm_node *tm_node;
+	uint32_t i, j;
 
 	if (!error)
 		return -EINVAL;
-
-	/* if already committed */
-	if (pf->tm_conf.committed) {
-		error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
-		error->message = "already committed";
-		return -EINVAL;
-	}
 
 	if (node_id == RTE_TM_NODE_ID_NULL) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_ID;
@@ -593,7 +505,7 @@ ice_tm_node_delete(struct rte_eth_dev *dev, uint32_t node_id,
 	}
 
 	/* check if the node id exists */
-	tm_node = ice_tm_node_search(dev, node_id, &node_type);
+	tm_node = find_node(pf->tm_conf.root, node_id);
 	if (!tm_node) {
 		error->type = RTE_TM_ERROR_TYPE_NODE_ID;
 		error->message = "no such node";
@@ -609,27 +521,21 @@ ice_tm_node_delete(struct rte_eth_dev *dev, uint32_t node_id,
 	}
 
 	/* root node */
-	if (node_type == ICE_TM_NODE_TYPE_PORT) {
+	if (tm_node->level == ICE_TM_NODE_TYPE_PORT) {
 		rte_free(tm_node);
 		pf->tm_conf.root = NULL;
 		return 0;
 	}
 
-	/* TC or VSI or queue group or queue node */
+	/* queue group or queue node */
+	for (i = 0; i < tm_node->parent->reference_count; i++)
+		if (tm_node->parent->children[i] == tm_node)
+			break;
+
+	for (j = i ; j < tm_node->parent->reference_count - 1; j++)
+		tm_node->parent->children[j] = tm_node->parent->children[j + 1];
+
 	tm_node->parent->reference_count--;
-	if (node_type == ICE_TM_NODE_TYPE_TC) {
-		TAILQ_REMOVE(&pf->tm_conf.tc_list, tm_node, node);
-		pf->tm_conf.nb_tc_node--;
-	} else if (node_type == ICE_TM_NODE_TYPE_VSI) {
-		TAILQ_REMOVE(&pf->tm_conf.vsi_list, tm_node, node);
-		pf->tm_conf.nb_vsi_node--;
-	} else if (node_type == ICE_TM_NODE_TYPE_QGROUP) {
-		TAILQ_REMOVE(&pf->tm_conf.qgroup_list, tm_node, node);
-		pf->tm_conf.nb_qgroup_node--;
-	} else {
-		TAILQ_REMOVE(&pf->tm_conf.queue_list, tm_node, node);
-		pf->tm_conf.nb_queue_node--;
-	}
 	rte_free(tm_node);
 
 	return 0;
@@ -648,6 +554,8 @@ static int ice_move_recfg_lan_txq(struct rte_eth_dev *dev,
 	uint16_t buf_size = ice_struct_size(buf, txqs, 1);
 
 	buf = (struct ice_aqc_move_txqs_data *)ice_malloc(hw, sizeof(*buf));
+	if (buf == NULL)
+		return -ENOMEM;
 
 	queue_parent_node = queue_sched_node->parent;
 	buf->src_teid = queue_parent_node->info.node_teid;
@@ -659,6 +567,7 @@ static int ice_move_recfg_lan_txq(struct rte_eth_dev *dev,
 					NULL, buf, buf_size, &txqs_moved, NULL);
 	if (ret || txqs_moved == 0) {
 		PMD_DRV_LOG(ERR, "move lan queue %u failed", queue_id);
+		rte_free(buf);
 		return ICE_ERR_PARAM;
 	}
 
@@ -668,32 +577,196 @@ static int ice_move_recfg_lan_txq(struct rte_eth_dev *dev,
 	} else {
 		PMD_DRV_LOG(ERR, "invalid children number %d for queue %u",
 			    queue_parent_node->num_children, queue_id);
+		rte_free(buf);
 		return ICE_ERR_PARAM;
 	}
 	dst_node->children[dst_node->num_children++] = queue_sched_node;
 	queue_sched_node->parent = dst_node;
 	ice_sched_query_elem(hw, queue_sched_node->info.node_teid, &queue_sched_node->info);
 
+	rte_free(buf);
 	return ret;
 }
 
-static int ice_hierarchy_commit(struct rte_eth_dev *dev,
-				 int clear_on_fail,
-				 __rte_unused struct rte_tm_error *error)
+static int ice_set_node_rate(struct ice_hw *hw,
+			     struct ice_tm_node *tm_node,
+			     struct ice_sched_node *sched_node)
+{
+	enum ice_status status;
+	bool reset = false;
+	uint32_t peak = 0;
+	uint32_t committed = 0;
+	uint32_t rate;
+
+	if (tm_node == NULL || tm_node->shaper_profile == NULL) {
+		reset = true;
+	} else {
+		peak = (uint32_t)tm_node->shaper_profile->profile.peak.rate;
+		committed = (uint32_t)tm_node->shaper_profile->profile.committed.rate;
+	}
+
+	if (reset || peak == 0)
+		rate = ICE_SCHED_DFLT_BW;
+	else
+		rate = peak / 1000 * BITS_PER_BYTE;
+
+
+	status = ice_sched_set_node_bw_lmt(hw->port_info,
+					   sched_node,
+					   ICE_MAX_BW,
+					   rate);
+	if (status)
+		return -EINVAL;
+
+	if (reset || committed == 0)
+		rate = ICE_SCHED_DFLT_BW;
+	else
+		rate = committed / 1000 * BITS_PER_BYTE;
+
+	status = ice_sched_set_node_bw_lmt(hw->port_info,
+					   sched_node,
+					   ICE_MIN_BW,
+					   rate);
+	if (status)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int ice_cfg_hw_node(struct ice_hw *hw,
+			   struct ice_tm_node *tm_node,
+			   struct ice_sched_node *sched_node)
+{
+	enum ice_status status;
+	uint8_t priority;
+	uint16_t weight;
+	int ret;
+
+	ret = ice_set_node_rate(hw, tm_node, sched_node);
+	if (ret) {
+		PMD_DRV_LOG(ERR,
+			    "configure queue group %u bandwidth failed",
+			    sched_node->info.node_teid);
+		return ret;
+	}
+
+	priority = tm_node ? (7 - tm_node->priority) : 0;
+	status = ice_sched_cfg_sibl_node_prio(hw->port_info,
+					      sched_node,
+					      priority);
+	if (status) {
+		PMD_DRV_LOG(ERR, "configure node %u priority %u failed",
+			    sched_node->info.node_teid,
+			    priority);
+		return -EINVAL;
+	}
+
+	weight = tm_node ? (uint16_t)tm_node->weight : 4;
+
+	status = ice_sched_cfg_node_bw_alloc(hw, sched_node,
+					     ICE_MAX_BW,
+					     weight);
+	if (status) {
+		PMD_DRV_LOG(ERR, "configure node %u weight %u failed",
+			    sched_node->info.node_teid,
+			    weight);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static struct ice_sched_node *ice_get_vsi_node(struct ice_hw *hw)
+{
+	struct ice_sched_node *node = hw->port_info->root;
+	uint32_t vsi_layer = hw->num_tx_sched_layers - ICE_VSI_LAYER_OFFSET;
+	uint32_t i;
+
+	for (i = 0; i < vsi_layer; i++)
+		node = node->children[0];
+
+	return node;
+}
+
+static int ice_reset_noleaf_nodes(struct rte_eth_dev *dev)
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-	struct ice_tm_node_list *qgroup_list = &pf->tm_conf.qgroup_list;
-	struct ice_tm_node_list *queue_list = &pf->tm_conf.queue_list;
-	struct ice_tm_node *tm_node;
-	struct ice_sched_node *node;
-	struct ice_sched_node *vsi_node;
+	struct ice_sched_node *vsi_node = ice_get_vsi_node(hw);
+	struct ice_tm_node *root = pf->tm_conf.root;
+	uint32_t i;
+	int ret;
+
+	/* reset vsi_node */
+	ret = ice_set_node_rate(hw, NULL, vsi_node);
+	if (ret) {
+		PMD_DRV_LOG(ERR, "reset vsi node failed");
+		return ret;
+	}
+
+	if (root == NULL)
+		return 0;
+
+	for (i = 0; i < root->reference_count; i++) {
+		struct ice_tm_node *tm_node = root->children[i];
+
+		if (tm_node->sched_node == NULL)
+			continue;
+
+		ret = ice_cfg_hw_node(hw, NULL, tm_node->sched_node);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "reset queue group node %u failed", tm_node->id);
+			return ret;
+		}
+		tm_node->sched_node = NULL;
+	}
+
+	return 0;
+}
+
+static int ice_remove_leaf_nodes(struct rte_eth_dev *dev)
+{
+	int ret = 0;
+	int i;
+
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		ret = ice_tx_queue_stop(dev, i);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "stop queue %u failed", i);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static int ice_add_leaf_nodes(struct rte_eth_dev *dev)
+{
+	int ret = 0;
+	int i;
+
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		ret = ice_tx_queue_start(dev, i);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "start queue %u failed", i);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+int ice_do_hierarchy_commit(struct rte_eth_dev *dev,
+			    int clear_on_fail,
+			    struct rte_tm_error *error)
+{
+	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_tm_node *root;
+	struct ice_sched_node *vsi_node = NULL;
 	struct ice_sched_node *queue_node;
 	struct ice_tx_queue *txq;
-	struct ice_vsi *vsi;
-	int ret_val = ICE_SUCCESS;
-	uint64_t peak = 0;
-	uint8_t priority;
+	int ret_val = 0;
 	uint32_t i;
 	uint32_t idx_vsi_child;
 	uint32_t idx_qg;
@@ -701,41 +774,70 @@ static int ice_hierarchy_commit(struct rte_eth_dev *dev,
 	uint32_t nb_qg;
 	uint32_t qid;
 	uint32_t q_teid;
-	uint32_t vsi_layer;
 
-	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		ret_val = ice_tx_queue_stop(dev, i);
-		if (ret_val) {
-			error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
-			PMD_DRV_LOG(ERR, "stop queue %u failed", i);
-			goto fail_clear;
-		}
+	/* remove leaf nodes */
+	ret_val = ice_remove_leaf_nodes(dev);
+	if (ret_val) {
+		error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
+		PMD_DRV_LOG(ERR, "reset no-leaf nodes failed");
+		goto fail_clear;
 	}
 
-	node = hw->port_info->root;
-	vsi_layer = hw->num_tx_sched_layers - ICE_VSI_LAYER_OFFSET;
-	for (i = 0; i < vsi_layer; i++)
-		node = node->children[0];
-	vsi_node = node;
+	/* reset no-leaf nodes. */
+	ret_val = ice_reset_noleaf_nodes(dev);
+	if (ret_val) {
+		error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
+		PMD_DRV_LOG(ERR, "reset leaf nodes failed");
+		goto add_leaf;
+	}
+
+	/* config vsi node */
+	vsi_node = ice_get_vsi_node(hw);
+	root = pf->tm_conf.root;
+
+	ret_val = ice_set_node_rate(hw, root, vsi_node);
+	if (ret_val) {
+		error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
+		PMD_DRV_LOG(ERR,
+			    "configure vsi node %u bandwidth failed",
+			    root->id);
+		goto add_leaf;
+	}
+
+	/* config queue group nodes */
 	nb_vsi_child = vsi_node->num_children;
 	nb_qg = vsi_node->children[0]->num_children;
 
 	idx_vsi_child = 0;
 	idx_qg = 0;
 
-	TAILQ_FOREACH(tm_node, qgroup_list, node) {
+	if (root == NULL)
+		goto commit;
+
+	for (i = 0; i < root->reference_count; i++) {
+		struct ice_tm_node *tm_node = root->children[i];
 		struct ice_tm_node *tm_child_node;
 		struct ice_sched_node *qgroup_sched_node =
 			vsi_node->children[idx_vsi_child]->children[idx_qg];
+		uint32_t j;
 
-		for (i = 0; i < tm_node->reference_count; i++) {
-			tm_child_node = tm_node->children[i];
+		ret_val = ice_cfg_hw_node(hw, tm_node, qgroup_sched_node);
+		if (ret_val) {
+			error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
+			PMD_DRV_LOG(ERR,
+				    "configure queue group node %u failed",
+				    tm_node->id);
+			goto reset_leaf;
+		}
+
+		for (j = 0; j < tm_node->reference_count; j++) {
+			tm_child_node = tm_node->children[j];
 			qid = tm_child_node->id;
 			ret_val = ice_tx_queue_start(dev, qid);
 			if (ret_val) {
 				error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
 				PMD_DRV_LOG(ERR, "start queue %u failed", qid);
-				goto fail_clear;
+				goto reset_leaf;
 			}
 			txq = dev->data->tx_queues[qid];
 			q_teid = txq->q_teid;
@@ -743,45 +845,27 @@ static int ice_hierarchy_commit(struct rte_eth_dev *dev,
 			if (queue_node == NULL) {
 				error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
 				PMD_DRV_LOG(ERR, "get queue %u node failed", qid);
-				goto fail_clear;
+				goto reset_leaf;
 			}
-			if (queue_node->info.parent_teid == qgroup_sched_node->info.node_teid)
-				continue;
-			ret_val = ice_move_recfg_lan_txq(dev, queue_node, qgroup_sched_node, qid);
-			if (ret_val) {
-				error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
-				PMD_DRV_LOG(ERR, "move queue %u failed", qid);
-				goto fail_clear;
+			if (queue_node->info.parent_teid != qgroup_sched_node->info.node_teid) {
+				ret_val = ice_move_recfg_lan_txq(dev, queue_node,
+								 qgroup_sched_node, qid);
+				if (ret_val) {
+					error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
+					PMD_DRV_LOG(ERR, "move queue %u failed", qid);
+					goto reset_leaf;
+				}
 			}
-		}
-		if (tm_node->reference_count != 0 && tm_node->shaper_profile) {
-			uint32_t node_teid = qgroup_sched_node->info.node_teid;
-			/* Transfer from Byte per seconds to Kbps */
-			peak = tm_node->shaper_profile->profile.peak.rate;
-			peak = peak / 1000 * BITS_PER_BYTE;
-			ret_val = ice_sched_set_node_bw_lmt_per_tc(hw->port_info,
-								   node_teid,
-								   ICE_AGG_TYPE_Q,
-								   tm_node->tc,
-								   ICE_MAX_BW,
-								   (u32)peak);
+			ret_val = ice_cfg_hw_node(hw, tm_child_node, queue_node);
 			if (ret_val) {
 				error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
 				PMD_DRV_LOG(ERR,
-					    "configure queue group %u bandwidth failed",
+					    "configure queue group node %u failed",
 					    tm_node->id);
-				goto fail_clear;
+				goto reset_leaf;
 			}
 		}
-		priority = 7 - tm_node->priority;
-		ret_val = ice_sched_cfg_sibl_node_prio_lock(hw->port_info, qgroup_sched_node,
-							    priority);
-		if (ret_val) {
-			error->type = RTE_TM_ERROR_TYPE_NODE_PRIORITY;
-			PMD_DRV_LOG(ERR, "configure queue group %u priority failed",
-				    tm_node->priority);
-			goto fail_clear;
-		}
+
 		idx_qg++;
 		if (idx_qg >= nb_qg) {
 			idx_qg = 0;
@@ -790,51 +874,21 @@ static int ice_hierarchy_commit(struct rte_eth_dev *dev,
 		if (idx_vsi_child >= nb_vsi_child) {
 			error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
 			PMD_DRV_LOG(ERR, "too many queues");
-			goto fail_clear;
+			goto reset_leaf;
 		}
 	}
 
-	TAILQ_FOREACH(tm_node, queue_list, node) {
-		qid = tm_node->id;
-		txq = dev->data->tx_queues[qid];
-		vsi = txq->vsi;
-		q_teid = txq->q_teid;
-		if (tm_node->shaper_profile) {
-			/* Transfer from Byte per seconds to Kbps */
-			peak = tm_node->shaper_profile->profile.peak.rate;
-			peak = peak / 1000 * BITS_PER_BYTE;
-			ret_val = ice_cfg_q_bw_lmt(hw->port_info, vsi->idx,
-						   tm_node->tc, tm_node->id,
-						   ICE_MAX_BW, (u32)peak);
-			if (ret_val) {
-				error->type = RTE_TM_ERROR_TYPE_UNSPECIFIED;
-				PMD_DRV_LOG(ERR,
-					    "configure queue %u bandwidth failed",
-					    tm_node->id);
-				goto fail_clear;
-			}
-		}
-		priority = 7 - tm_node->priority;
-		ret_val = ice_cfg_vsi_q_priority(hw->port_info, 1,
-						 &q_teid, &priority);
-		if (ret_val) {
-			error->type = RTE_TM_ERROR_TYPE_NODE_PRIORITY;
-			PMD_DRV_LOG(ERR, "configure queue %u priority failed", tm_node->priority);
-			goto fail_clear;
-		}
-
-		ret_val = ice_cfg_q_bw_alloc(hw->port_info, vsi->idx,
-					     tm_node->tc, tm_node->id,
-					     ICE_MAX_BW, (u32)tm_node->weight);
-		if (ret_val) {
-			error->type = RTE_TM_ERROR_TYPE_NODE_WEIGHT;
-			PMD_DRV_LOG(ERR, "configure queue %u weight failed", tm_node->weight);
-			goto fail_clear;
-		}
-	}
+commit:
+	pf->tm_conf.committed = true;
+	pf->tm_conf.clear_on_fail = clear_on_fail;
 
 	return ret_val;
 
+reset_leaf:
+	ice_remove_leaf_nodes(dev);
+add_leaf:
+	ice_add_leaf_nodes(dev);
+	ice_reset_noleaf_nodes(dev);
 fail_clear:
 	/* clear all the traffic manager configuration */
 	if (clear_on_fail) {
@@ -842,4 +896,20 @@ fail_clear:
 		ice_tm_conf_init(dev);
 	}
 	return ret_val;
+}
+
+static int ice_hierarchy_commit(struct rte_eth_dev *dev,
+				 int clear_on_fail,
+				 struct rte_tm_error *error)
+{
+	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+
+	/* if device not started, simply set committed flag and return. */
+	if (!dev->data->dev_started) {
+		pf->tm_conf.committed = true;
+		pf->tm_conf.clear_on_fail = clear_on_fail;
+		return 0;
+	}
+
+	return ice_do_hierarchy_commit(dev, clear_on_fail, error);
 }

@@ -10,6 +10,8 @@
 
 #include "rte_port_fd.h"
 
+#include "port_log.h"
+
 /*
  * Port FD Reader
  */
@@ -43,19 +45,19 @@ rte_port_fd_reader_create(void *params, int socket_id)
 
 	/* Check input parameters */
 	if (conf == NULL) {
-		RTE_LOG(ERR, PORT, "%s: params is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: params is NULL", __func__);
 		return NULL;
 	}
 	if (conf->fd < 0) {
-		RTE_LOG(ERR, PORT, "%s: Invalid file descriptor\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid file descriptor", __func__);
 		return NULL;
 	}
 	if (conf->mtu == 0) {
-		RTE_LOG(ERR, PORT, "%s: Invalid MTU\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid MTU", __func__);
 		return NULL;
 	}
 	if (conf->mempool == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Invalid mempool\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid mempool", __func__);
 		return NULL;
 	}
 
@@ -63,7 +65,7 @@ rte_port_fd_reader_create(void *params, int socket_id)
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -109,7 +111,7 @@ static int
 rte_port_fd_reader_free(void *port)
 {
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: port is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -171,7 +173,7 @@ rte_port_fd_writer_create(void *params, int socket_id)
 		(conf->tx_burst_sz == 0) ||
 		(conf->tx_burst_sz > RTE_PORT_IN_BURST_SIZE_MAX) ||
 		(!rte_is_power_of_2(conf->tx_burst_sz))) {
-		RTE_LOG(ERR, PORT, "%s: Invalid input parameters\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid input parameters", __func__);
 		return NULL;
 	}
 
@@ -179,7 +181,7 @@ rte_port_fd_writer_create(void *params, int socket_id)
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 		RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -239,7 +241,7 @@ rte_port_fd_writer_tx_bulk(void *port,
 	uint32_t tx_buf_count = p->tx_buf_count;
 
 	if ((pkts_mask & (pkts_mask + 1)) == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 		uint32_t i;
 
 		for (i = 0; i < n_pkts; i++)
@@ -247,7 +249,7 @@ rte_port_fd_writer_tx_bulk(void *port,
 		RTE_PORT_FD_WRITER_STATS_PKTS_IN_ADD(p, n_pkts);
 	} else
 		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
+			uint32_t pkt_index = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pkt_index;
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
@@ -279,7 +281,7 @@ static int
 rte_port_fd_writer_free(void *port)
 {
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Port is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -344,7 +346,7 @@ rte_port_fd_writer_nodrop_create(void *params, int socket_id)
 		(conf->tx_burst_sz == 0) ||
 		(conf->tx_burst_sz > RTE_PORT_IN_BURST_SIZE_MAX) ||
 		(!rte_is_power_of_2(conf->tx_burst_sz))) {
-		RTE_LOG(ERR, PORT, "%s: Invalid input parameters\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid input parameters", __func__);
 		return NULL;
 	}
 
@@ -352,7 +354,7 @@ rte_port_fd_writer_nodrop_create(void *params, int socket_id)
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 		RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -424,7 +426,7 @@ rte_port_fd_writer_nodrop_tx_bulk(void *port,
 	uint32_t tx_buf_count = p->tx_buf_count;
 
 	if ((pkts_mask & (pkts_mask + 1)) == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 		uint32_t i;
 
 		for (i = 0; i < n_pkts; i++)
@@ -432,7 +434,7 @@ rte_port_fd_writer_nodrop_tx_bulk(void *port,
 		RTE_PORT_FD_WRITER_NODROP_STATS_PKTS_IN_ADD(p, n_pkts);
 	} else
 		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
+			uint32_t pkt_index = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pkt_index;
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
@@ -464,7 +466,7 @@ static int
 rte_port_fd_writer_nodrop_free(void *port)
 {
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Port is NULL", __func__);
 		return -EINVAL;
 	}
 

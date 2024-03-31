@@ -379,7 +379,7 @@ mlx5_flex_acquire_index(struct rte_eth_dev *dev,
 		return ret;
 	}
 	if (acquire)
-		__atomic_add_fetch(&flex->refcnt, 1, __ATOMIC_RELEASE);
+		__atomic_fetch_add(&flex->refcnt, 1, __ATOMIC_RELEASE);
 	return ret;
 }
 
@@ -414,7 +414,7 @@ mlx5_flex_release_index(struct rte_eth_dev *dev,
 		rte_errno = -EINVAL;
 		return -EINVAL;
 	}
-	__atomic_sub_fetch(&flex->refcnt, 1, __ATOMIC_RELEASE);
+	__atomic_fetch_sub(&flex->refcnt, 1, __ATOMIC_RELEASE);
 	return 0;
 }
 
@@ -484,6 +484,14 @@ mlx5_flex_translate_length(struct mlx5_hca_flex_attr *attr,
 			return rte_flow_error_set
 				(error, EINVAL, RTE_FLOW_ERROR_TYPE_ITEM, NULL,
 				 "unsupported header length field mode (OFFSET)");
+		if (!field->field_size)
+			return rte_flow_error_set
+				(error, EINVAL, RTE_FLOW_ERROR_TYPE_ITEM, NULL,
+				 "field size is a must for offset mode");
+		if (field->field_size + field->offset_base < attr->header_length_mask_width)
+			return rte_flow_error_set
+				(error, EINVAL, RTE_FLOW_ERROR_TYPE_ITEM, NULL,
+				 "field size plus offset_base is too small");
 		node->header_length_mode = MLX5_GRAPH_NODE_LEN_FIELD;
 		if (field->offset_mask == 0 ||
 		    !rte_is_power_of_2(field->offset_mask + 1))
@@ -539,8 +547,20 @@ mlx5_flex_translate_length(struct mlx5_hca_flex_attr *attr,
 			return rte_flow_error_set
 				(error, EINVAL, RTE_FLOW_ERROR_TYPE_ITEM, NULL,
 				 "header length field shift exceeds limit");
-		node->header_length_field_shift	= field->offset_shift;
+		node->header_length_field_shift = field->offset_shift;
 		node->header_length_field_offset = field->offset_base;
+	}
+	if (field->field_mode == FIELD_MODE_OFFSET) {
+		if (field->field_size > attr->header_length_mask_width) {
+			node->header_length_field_offset +=
+				field->field_size - attr->header_length_mask_width;
+		} else if (field->field_size < attr->header_length_mask_width) {
+			node->header_length_field_offset -=
+				attr->header_length_mask_width - field->field_size;
+			node->header_length_field_mask =
+					RTE_MIN(node->header_length_field_mask,
+						(1u << field->field_size) - 1);
+		}
 	}
 	return 0;
 }
@@ -1317,7 +1337,7 @@ flow_dv_item_create(struct rte_eth_dev *dev,
 	}
 	flex->devx_fp = container_of(ent, struct mlx5_flex_parser_devx, entry);
 	/* Mark initialized flex item valid. */
-	__atomic_add_fetch(&flex->refcnt, 1, __ATOMIC_RELEASE);
+	__atomic_fetch_add(&flex->refcnt, 1, __ATOMIC_RELEASE);
 	return (struct rte_flow_item_flex_handle *)flex;
 
 error:

@@ -368,6 +368,7 @@ static int enicpmd_dev_stop(struct rte_eth_dev *eth_dev)
 {
 	struct rte_eth_link link;
 	struct enic *enic = pmd_priv(eth_dev);
+	uint16_t i;
 
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
@@ -377,6 +378,11 @@ static int enicpmd_dev_stop(struct rte_eth_dev *eth_dev)
 
 	memset(&link, 0, sizeof(link));
 	rte_eth_linkstatus_set(eth_dev, &link);
+
+	for (i = 0; i < eth_dev->data->nb_rx_queues; i++)
+		eth_dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+	for (i = 0; i < eth_dev->data->nb_tx_queues; i++)
+		eth_dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -505,7 +511,8 @@ static int enicpmd_dev_info_get(struct rte_eth_dev *eth_dev,
 	return 0;
 }
 
-static const uint32_t *enicpmd_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+static const uint32_t *enicpmd_dev_supported_ptypes_get(struct rte_eth_dev *dev,
+							size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -516,7 +523,6 @@ static const uint32_t *enicpmd_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_L4_UDP,
 		RTE_PTYPE_L4_FRAG,
 		RTE_PTYPE_L4_NONFRAG,
-		RTE_PTYPE_UNKNOWN
 	};
 	static const uint32_t ptypes_overlay[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -535,16 +541,18 @@ static const uint32_t *enicpmd_dev_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L4_UDP,
 		RTE_PTYPE_INNER_L4_FRAG,
 		RTE_PTYPE_INNER_L4_NONFRAG,
-		RTE_PTYPE_UNKNOWN
 	};
 
 	if (dev->rx_pkt_burst != rte_eth_pkt_burst_dummy &&
 	    dev->rx_pkt_burst != NULL) {
 		struct enic *enic = pmd_priv(dev);
-		if (enic->overlay_offload)
+		if (enic->overlay_offload) {
+			*no_of_elements = RTE_DIM(ptypes_overlay);
 			return ptypes_overlay;
-		else
+		} else {
+			*no_of_elements = RTE_DIM(ptypes);
 			return ptypes;
+		}
 	}
 	return NULL;
 }
@@ -1268,7 +1276,7 @@ static int eth_enic_dev_init(struct rte_eth_dev *eth_dev,
 	enic->pdev = pdev;
 	addr = &pdev->addr;
 
-	snprintf(enic->bdf_name, ENICPMD_BDF_LENGTH, "%04x:%02x:%02x.%x",
+	snprintf(enic->bdf_name, PCI_PRI_STR_SIZE, PCI_PRI_FMT,
 		addr->domain, addr->bus, addr->devid, addr->function);
 
 	err = enic_check_devargs(eth_dev);
@@ -1311,8 +1319,8 @@ static int eth_enic_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	ENICPMD_FUNC_TRACE();
 	if (pci_dev->device.devargs) {
 		retval = rte_eth_devargs_parse(pci_dev->device.devargs->args,
-				&eth_da);
-		if (retval)
+				&eth_da, 1);
+		if (retval < 0)
 			return retval;
 	}
 	if (eth_da.nb_representor_ports > 0 &&
@@ -1378,7 +1386,7 @@ static int eth_enic_pci_remove(struct rte_pci_device *pci_dev)
 	ethdev = rte_eth_dev_allocated(pci_dev->device.name);
 	if (!ethdev)
 		return -ENODEV;
-	if (ethdev->data->dev_flags & RTE_ETH_DEV_REPRESENTOR)
+	if (rte_eth_dev_is_repr(ethdev))
 		return rte_eth_dev_destroy(ethdev, enic_vf_representor_uninit);
 	else
 		return rte_eth_dev_destroy(ethdev, eth_enic_dev_uninit);

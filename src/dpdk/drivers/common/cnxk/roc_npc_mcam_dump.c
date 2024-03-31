@@ -496,6 +496,10 @@ npc_flow_dump_rx_action(FILE *file, uint64_t npc_action)
 		plt_strlcpy(index_name, "Multicast/mirror table index",
 			    NPC_MAX_FIELD_NAME_SIZE);
 		break;
+	case NIX_RX_ACTIONOP_DEFAULT:
+		fprintf(file, "NIX_RX_ACTIONOP_DEFAULT (%" PRIu64 ")\n",
+			(uint64_t)NIX_RX_ACTIONOP_DEFAULT);
+		break;
 	default:
 		plt_err("Unknown NIX_RX_ACTIONOP found");
 		return;
@@ -645,6 +649,7 @@ npc_flow_hw_mcam_entry_dump(FILE *file, struct npc *npc, struct roc_npc_flow *fl
 	struct nix_inl_dev *inl_dev = NULL;
 	struct idev_cfg *idev;
 	struct mbox *mbox;
+	uint8_t enabled;
 	int rc = 0, i;
 
 	idev = idev_get_cfg();
@@ -673,6 +678,7 @@ npc_flow_hw_mcam_entry_dump(FILE *file, struct npc *npc, struct roc_npc_flow *fl
 
 	mbox_memcpy(mcam_data, mcam_read_rsp->entry_data.kw, sizeof(mcam_data));
 	mbox_memcpy(mcam_mask, mcam_read_rsp->entry_data.kw_mask, sizeof(mcam_data));
+	enabled = mcam_read_rsp->enable;
 
 	fprintf(file, "HW MCAM Data :\n");
 
@@ -680,6 +686,7 @@ npc_flow_hw_mcam_entry_dump(FILE *file, struct npc *npc, struct roc_npc_flow *fl
 		fprintf(file, "\tDW%d     :%016lX\n", i, mcam_data[i]);
 		fprintf(file, "\tDW%d_Mask:%016lX\n", i, mcam_mask[i]);
 	}
+	fprintf(file, "\tEnabled = 0x%x\n", enabled);
 
 	fprintf(file, "\n");
 	mbox_put(mbox);

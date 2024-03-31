@@ -10,23 +10,41 @@
 #include <rte_dev.h>
 #include <errno.h>
 #include <rte_alarm.h>
+#include <rte_hash_crc.h>
 
 #include "cpfl_ethdev.h"
+#include <ethdev_private.h>
 #include "cpfl_rxtx.h"
+#include "cpfl_flow.h"
+#include "cpfl_rules.h"
 
+#define CPFL_REPRESENTOR	"representor"
 #define CPFL_TX_SINGLE_Q	"tx_single"
 #define CPFL_RX_SINGLE_Q	"rx_single"
 #define CPFL_VPORT		"vport"
+
+#ifdef RTE_HAS_JANSSON
+#define CPFL_FLOW_PARSER	"flow_parser"
+#endif
 
 rte_spinlock_t cpfl_adapter_lock;
 /* A list for all adapters, one adapter matches one PCI device */
 struct cpfl_adapter_list cpfl_adapter_list;
 bool cpfl_adapter_list_init;
 
-static const char * const cpfl_valid_args[] = {
+static const char * const cpfl_valid_args_first[] = {
+	CPFL_REPRESENTOR,
 	CPFL_TX_SINGLE_Q,
 	CPFL_RX_SINGLE_Q,
 	CPFL_VPORT,
+#ifdef RTE_HAS_JANSSON
+	CPFL_FLOW_PARSER,
+#endif
+	NULL
+};
+
+static const char * const cpfl_valid_args_again[] = {
+	CPFL_REPRESENTOR,
 	NULL
 };
 
@@ -124,7 +142,8 @@ static int
 cpfl_dev_link_update(struct rte_eth_dev *dev,
 		     __rte_unused int wait_to_complete)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct rte_eth_link new_link;
 	unsigned int i;
 
@@ -154,9 +173,27 @@ cpfl_dev_link_update(struct rte_eth_dev *dev,
 }
 
 static int
+cpfl_hairpin_cap_get(struct rte_eth_dev *dev,
+		     struct rte_eth_hairpin_cap *cap)
+{
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+
+	if (cpfl_vport->p2p_q_chunks_info == NULL)
+		return -ENOTSUP;
+
+	cap->max_nb_queues = CPFL_MAX_P2P_NB_QUEUES;
+	cap->max_rx_2_tx = CPFL_MAX_HAIRPINQ_RX_2_TX;
+	cap->max_tx_2_rx = CPFL_MAX_HAIRPINQ_TX_2_RX;
+	cap->max_nb_desc = CPFL_MAX_HAIRPINQ_NB_DESC;
+
+	return 0;
+}
+
+static int
 cpfl_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct idpf_adapter *base = vport->adapter;
 
 	dev_info->max_rx_queues = base->caps.max_rx_q;
@@ -216,7 +253,8 @@ cpfl_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 static int
 cpfl_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 
 	/* mtu setting is forbidden if port is start */
 	if (dev->data->dev_started) {
@@ -235,7 +273,8 @@ cpfl_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 }
 
 static const uint32_t *
-cpfl_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused)
+cpfl_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused,
+			      size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -246,9 +285,9 @@ cpfl_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused)
 		RTE_PTYPE_L4_TCP,
 		RTE_PTYPE_L4_SCTP,
 		RTE_PTYPE_L4_ICMP,
-		RTE_PTYPE_UNKNOWN
 	};
 
+	*no_of_elements = RTE_DIM(ptypes);
 	return ptypes;
 }
 
@@ -256,12 +295,12 @@ static uint64_t
 cpfl_get_mbuf_alloc_failed_stats(struct rte_eth_dev *dev)
 {
 	uint64_t mbuf_alloc_failed = 0;
-	struct idpf_rx_queue *rxq;
+	struct cpfl_rx_queue *cpfl_rxq;
 	int i = 0;
 
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxq = dev->data->rx_queues[i];
-		mbuf_alloc_failed += __atomic_load_n(&rxq->rx_stats.mbuf_alloc_failed,
+		cpfl_rxq = dev->data->rx_queues[i];
+		mbuf_alloc_failed += __atomic_load_n(&cpfl_rxq->base.rx_stats.mbuf_alloc_failed,
 						     __ATOMIC_RELAXED);
 	}
 
@@ -271,8 +310,8 @@ cpfl_get_mbuf_alloc_failed_stats(struct rte_eth_dev *dev)
 static int
 cpfl_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 {
-	struct idpf_vport *vport =
-		(struct idpf_vport *)dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct virtchnl2_vport_stats *pstats = NULL;
 	int ret;
 
@@ -284,7 +323,7 @@ cpfl_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 
 		idpf_vport_stats_update(&vport->eth_stats_offset, pstats);
 		stats->ipackets = pstats->rx_unicast + pstats->rx_multicast +
-				pstats->rx_broadcast - pstats->rx_discards;
+				  pstats->rx_broadcast;
 		stats->opackets = pstats->tx_broadcast + pstats->tx_multicast +
 						pstats->tx_unicast;
 		stats->imissed = pstats->rx_discards;
@@ -305,20 +344,20 @@ cpfl_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 static void
 cpfl_reset_mbuf_alloc_failed_stats(struct rte_eth_dev *dev)
 {
-	struct idpf_rx_queue *rxq;
+	struct cpfl_rx_queue *cpfl_rxq;
 	int i;
 
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxq = dev->data->rx_queues[i];
-		__atomic_store_n(&rxq->rx_stats.mbuf_alloc_failed, 0, __ATOMIC_RELAXED);
+		cpfl_rxq = dev->data->rx_queues[i];
+		__atomic_store_n(&cpfl_rxq->base.rx_stats.mbuf_alloc_failed, 0, __ATOMIC_RELAXED);
 	}
 }
 
 static int
 cpfl_dev_stats_reset(struct rte_eth_dev *dev)
 {
-	struct idpf_vport *vport =
-		(struct idpf_vport *)dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct virtchnl2_vport_stats *pstats = NULL;
 	int ret;
 
@@ -343,8 +382,8 @@ static int cpfl_dev_xstats_reset(struct rte_eth_dev *dev)
 static int cpfl_dev_xstats_get(struct rte_eth_dev *dev,
 			       struct rte_eth_xstat *xstats, unsigned int n)
 {
-	struct idpf_vport *vport =
-		(struct idpf_vport *)dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct virtchnl2_vport_stats *pstats = NULL;
 	unsigned int i;
 	int ret;
@@ -459,7 +498,8 @@ cpfl_rss_reta_update(struct rte_eth_dev *dev,
 		     struct rte_eth_rss_reta_entry64 *reta_conf,
 		     uint16_t reta_size)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct idpf_adapter *base = vport->adapter;
 	uint16_t idx, shift;
 	int ret = 0;
@@ -498,7 +538,8 @@ cpfl_rss_reta_query(struct rte_eth_dev *dev,
 		    struct rte_eth_rss_reta_entry64 *reta_conf,
 		    uint16_t reta_size)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct idpf_adapter *base = vport->adapter;
 	uint16_t idx, shift;
 	int ret = 0;
@@ -536,7 +577,8 @@ static int
 cpfl_rss_hash_update(struct rte_eth_dev *dev,
 		     struct rte_eth_rss_conf *rss_conf)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct idpf_adapter *base = vport->adapter;
 	int ret = 0;
 
@@ -601,7 +643,8 @@ static int
 cpfl_rss_hash_conf_get(struct rte_eth_dev *dev,
 		       struct rte_eth_rss_conf *rss_conf)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct idpf_adapter *base = vport->adapter;
 	int ret = 0;
 
@@ -638,7 +681,8 @@ cpfl_rss_hash_conf_get(struct rte_eth_dev *dev,
 static int
 cpfl_dev_configure(struct rte_eth_dev *dev)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct rte_eth_conf *conf = &dev->data->dev_conf;
 	struct idpf_adapter *base = vport->adapter;
 	int ret;
@@ -687,17 +731,15 @@ cpfl_dev_configure(struct rte_eth_dev *dev)
 		return -EINVAL;
 	}
 
-	if (base->caps.rss_caps != 0 && dev->data->nb_rx_queues != 0 &&
-		conf->rxmode.mq_mode == RTE_ETH_MQ_RX_RSS) {
+	if (base->caps.rss_caps != 0 && dev->data->nb_rx_queues != 0) {
 		ret = cpfl_init_rss(vport);
 		if (ret != 0) {
 			PMD_INIT_LOG(ERR, "Failed to init rss");
 			return ret;
 		}
-	} else {
+	} else if (conf->rxmode.mq_mode == RTE_ETH_MQ_RX_RSS) {
 		PMD_INIT_LOG(ERR, "RSS is not supported.");
-		if (conf->rxmode.mq_mode == RTE_ETH_MQ_RX_RSS)
-			return -ENOTSUP;
+		return -ENOTSUP;
 	}
 
 	vport->max_pkt_len =
@@ -710,41 +752,245 @@ cpfl_dev_configure(struct rte_eth_dev *dev)
 static int
 cpfl_config_rx_queues_irqs(struct rte_eth_dev *dev)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	uint32_t qids[CPFL_MAX_P2P_NB_QUEUES + IDPF_DEFAULT_RXQ_NUM] = {0};
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	uint16_t nb_rx_queues = dev->data->nb_rx_queues;
+	struct cpfl_rx_queue *cpfl_rxq;
+	int i;
 
-	return idpf_vport_irq_map_config(vport, nb_rx_queues);
+	for (i = 0; i < nb_rx_queues; i++) {
+		cpfl_rxq = dev->data->rx_queues[i];
+		if (cpfl_rxq->hairpin_info.hairpin_q)
+			qids[i] = cpfl_hw_qid_get(cpfl_vport->p2p_q_chunks_info->rx_start_qid,
+						  (i - cpfl_vport->nb_data_rxq));
+		else
+			qids[i] = cpfl_hw_qid_get(vport->chunks_info.rx_start_qid, i);
+	}
+	return idpf_vport_irq_map_config_by_qids(vport, qids, nb_rx_queues);
+}
+
+/* Update hairpin_info for dev's tx hairpin queue */
+static int
+cpfl_txq_hairpin_info_update(struct rte_eth_dev *dev, uint16_t rx_port)
+{
+	struct cpfl_vport *cpfl_tx_vport = dev->data->dev_private;
+	struct rte_eth_dev *peer_dev = &rte_eth_devices[rx_port];
+	struct cpfl_vport *cpfl_rx_vport = peer_dev->data->dev_private;
+	struct cpfl_txq_hairpin_info *hairpin_info;
+	struct cpfl_tx_queue *cpfl_txq;
+	int i;
+
+	for (i = cpfl_tx_vport->nb_data_txq; i < dev->data->nb_tx_queues; i++) {
+		cpfl_txq = dev->data->tx_queues[i];
+		hairpin_info = &cpfl_txq->hairpin_info;
+		if (hairpin_info->peer_rxp != rx_port) {
+			PMD_DRV_LOG(ERR, "port %d is not the peer port", rx_port);
+			return -EINVAL;
+		}
+		hairpin_info->peer_rxq_id =
+			cpfl_hw_qid_get(cpfl_rx_vport->p2p_q_chunks_info->rx_start_qid,
+					hairpin_info->peer_rxq_id - cpfl_rx_vport->nb_data_rxq);
+	}
+
+	return 0;
+}
+
+/* Bind Rx hairpin queue's memory zone to peer Tx hairpin queue's memory zone */
+static void
+cpfl_rxq_hairpin_mz_bind(struct rte_eth_dev *dev)
+{
+	struct cpfl_vport *cpfl_rx_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_rx_vport->base;
+	struct idpf_adapter *adapter = vport->adapter;
+	struct idpf_hw *hw = &adapter->hw;
+	struct cpfl_rx_queue *cpfl_rxq;
+	struct cpfl_tx_queue *cpfl_txq;
+	struct rte_eth_dev *peer_dev;
+	const struct rte_memzone *mz;
+	uint16_t peer_tx_port;
+	uint16_t peer_tx_qid;
+	int i;
+
+	for (i = cpfl_rx_vport->nb_data_rxq; i < dev->data->nb_rx_queues; i++) {
+		cpfl_rxq = dev->data->rx_queues[i];
+		peer_tx_port = cpfl_rxq->hairpin_info.peer_txp;
+		peer_tx_qid = cpfl_rxq->hairpin_info.peer_txq_id;
+		peer_dev = &rte_eth_devices[peer_tx_port];
+		cpfl_txq = peer_dev->data->tx_queues[peer_tx_qid];
+
+		/* bind rx queue */
+		mz = cpfl_txq->base.mz;
+		cpfl_rxq->base.rx_ring_phys_addr = mz->iova;
+		cpfl_rxq->base.rx_ring = mz->addr;
+		cpfl_rxq->base.mz = mz;
+
+		/* bind rx buffer queue */
+		mz = cpfl_txq->base.complq->mz;
+		cpfl_rxq->base.bufq1->rx_ring_phys_addr = mz->iova;
+		cpfl_rxq->base.bufq1->rx_ring = mz->addr;
+		cpfl_rxq->base.bufq1->mz = mz;
+		cpfl_rxq->base.bufq1->qrx_tail = hw->hw_addr +
+			cpfl_hw_qtail_get(cpfl_rx_vport->p2p_q_chunks_info->rx_buf_qtail_start,
+					0, cpfl_rx_vport->p2p_q_chunks_info->rx_buf_qtail_spacing);
+	}
+}
+
+static int
+cpfl_rss_lut_config(struct cpfl_vport *cpfl_vport, uint16_t nb_q)
+{
+	struct idpf_vport *vport = &cpfl_vport->base;
+	uint16_t lut_size = vport->rss_lut_size;
+	uint16_t i;
+	int ret;
+
+	for (i = 0; i < lut_size; i++)
+		vport->rss_lut[i] = i % nb_q;
+
+	ret = idpf_vc_rss_lut_set(vport);
+	if (ret)
+		PMD_INIT_LOG(ERR, "Failed to configure RSS lut");
+
+	return ret;
 }
 
 static int
 cpfl_start_queues(struct rte_eth_dev *dev)
 {
-	struct idpf_rx_queue *rxq;
-	struct idpf_tx_queue *txq;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
+	struct cpfl_rx_queue *cpfl_rxq;
+	struct cpfl_tx_queue *cpfl_txq;
+	int update_flag = 0;
 	int err = 0;
 	int i;
 
+	/* For normal data queues, configure, init and enale Txq.
+	 * For non-manual bind hairpin queues, configure Txq.
+	 */
 	for (i = 0; i < dev->data->nb_tx_queues; i++) {
-		txq = dev->data->tx_queues[i];
-		if (txq == NULL || txq->tx_deferred_start)
+		cpfl_txq = dev->data->tx_queues[i];
+		if (cpfl_txq == NULL || cpfl_txq->base.tx_deferred_start)
 			continue;
-		err = cpfl_tx_queue_start(dev, i);
+		if (!cpfl_txq->hairpin_info.hairpin_q) {
+			err = cpfl_tx_queue_start(dev, i);
+			if (err != 0) {
+				PMD_DRV_LOG(ERR, "Fail to start Tx queue %u", i);
+				return err;
+			}
+		} else if (!cpfl_vport->p2p_manual_bind) {
+			if (update_flag == 0) {
+				err = cpfl_txq_hairpin_info_update(dev,
+								   cpfl_txq->hairpin_info.peer_rxp);
+				if (err != 0) {
+					PMD_DRV_LOG(ERR, "Fail to update Tx hairpin queue info");
+					return err;
+				}
+				update_flag = 1;
+			}
+			err = cpfl_hairpin_txq_config(vport, cpfl_txq);
+			if (err != 0) {
+				PMD_DRV_LOG(ERR, "Fail to configure hairpin Tx queue %u", i);
+				return err;
+			}
+		}
+	}
+
+	/* For non-manual bind hairpin queues, configure Tx completion queue first.*/
+	if (!cpfl_vport->p2p_manual_bind && cpfl_vport->p2p_tx_complq != NULL) {
+		err = cpfl_hairpin_tx_complq_config(cpfl_vport);
 		if (err != 0) {
-			PMD_DRV_LOG(ERR, "Fail to start Tx queue %u", i);
+			PMD_DRV_LOG(ERR, "Fail to config Tx completion queue");
 			return err;
 		}
 	}
 
-	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		rxq = dev->data->rx_queues[i];
-		if (rxq == NULL || rxq->rx_deferred_start)
-			continue;
-		err = cpfl_rx_queue_start(dev, i);
+	/* For non-manual bind hairpin queues, configure Rx buffer queue.*/
+	if (!cpfl_vport->p2p_manual_bind && cpfl_vport->p2p_rx_bufq != NULL) {
+		cpfl_rxq_hairpin_mz_bind(dev);
+		err = cpfl_hairpin_rx_bufq_config(cpfl_vport);
 		if (err != 0) {
-			PMD_DRV_LOG(ERR, "Fail to start Rx queue %u", i);
+			PMD_DRV_LOG(ERR, "Fail to config Rx buffer queue");
 			return err;
 		}
 	}
+
+	/* For normal data queues, configure, init and enale Rxq.
+	 * For non-manual bind hairpin queues, configure Rxq, and then init Rxq.
+	 */
+	for (i = 0; i < dev->data->nb_rx_queues; i++) {
+		cpfl_rxq = dev->data->rx_queues[i];
+		if (cpfl_rxq == NULL || cpfl_rxq->base.rx_deferred_start)
+			continue;
+		if (!cpfl_rxq->hairpin_info.hairpin_q) {
+			err = cpfl_rx_queue_start(dev, i);
+			if (err != 0) {
+				PMD_DRV_LOG(ERR, "Fail to start Rx queue %u", i);
+				return err;
+			}
+		} else if (!cpfl_vport->p2p_manual_bind) {
+			err = cpfl_hairpin_rxq_config(vport, cpfl_rxq);
+			if (err != 0) {
+				PMD_DRV_LOG(ERR, "Fail to configure hairpin Rx queue %u", i);
+				return err;
+			}
+			err = cpfl_rx_queue_init(dev, i);
+			if (err != 0) {
+				PMD_DRV_LOG(ERR, "Fail to init hairpin Rx queue %u", i);
+				return err;
+			}
+		}
+	}
+
+	/* For non-manual bind hairpin queues, enable Tx queue and Rx queue,
+	 * then enable Tx completion queue and Rx buffer queue.
+	 */
+	for (i = cpfl_vport->nb_data_txq; i < dev->data->nb_tx_queues; i++) {
+		cpfl_txq = dev->data->tx_queues[i];
+		if (cpfl_txq->hairpin_info.hairpin_q && !cpfl_vport->p2p_manual_bind) {
+			err = cpfl_switch_hairpin_rxtx_queue(cpfl_vport,
+							     i - cpfl_vport->nb_data_txq,
+							     false, true);
+			if (err)
+				PMD_DRV_LOG(ERR, "Failed to switch hairpin TX queue %u on",
+					    i);
+			else
+				cpfl_txq->base.q_started = true;
+		}
+	}
+
+	for (i = cpfl_vport->nb_data_rxq; i < dev->data->nb_rx_queues; i++) {
+		cpfl_rxq = dev->data->rx_queues[i];
+		if (cpfl_rxq->hairpin_info.hairpin_q && !cpfl_vport->p2p_manual_bind) {
+			err = cpfl_switch_hairpin_rxtx_queue(cpfl_vport,
+							     i - cpfl_vport->nb_data_rxq,
+							     true, true);
+			if (err)
+				PMD_DRV_LOG(ERR, "Failed to switch hairpin RX queue %u on",
+					    i);
+			else
+				cpfl_rxq->base.q_started = true;
+		}
+	}
+
+	if (!cpfl_vport->p2p_manual_bind &&
+	    cpfl_vport->p2p_tx_complq != NULL &&
+	    cpfl_vport->p2p_rx_bufq != NULL) {
+		err = cpfl_switch_hairpin_complq(cpfl_vport, true);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Failed to switch hairpin Tx complq");
+			return err;
+		}
+		err = cpfl_switch_hairpin_bufq(cpfl_vport, true);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Failed to switch hairpin Rx bufq");
+			return err;
+		}
+	}
+
+	/* re-configure RSS lut if there's hairpin queue */
+	if (cpfl_vport->nb_p2p_rxq > 0)
+		err = cpfl_rss_lut_config(cpfl_vport, cpfl_vport->nb_data_rxq);
 
 	return err;
 }
@@ -752,7 +998,8 @@ cpfl_start_queues(struct rte_eth_dev *dev)
 static int
 cpfl_dev_start(struct rte_eth_dev *dev)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct idpf_adapter *base = vport->adapter;
 	struct cpfl_adapter_ext *adapter = CPFL_ADAPTER_TO_EXT(base);
 	uint16_t num_allocated_vectors = base->caps.num_allocated_vectors;
@@ -798,8 +1045,6 @@ cpfl_dev_start(struct rte_eth_dev *dev)
 	if (cpfl_dev_stats_reset(dev))
 		PMD_DRV_LOG(ERR, "Failed to reset stats");
 
-	vport->stopped = 0;
-
 	return 0;
 
 err_vport:
@@ -815,9 +1060,10 @@ err_vec:
 static int
 cpfl_dev_stop(struct rte_eth_dev *dev)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 
-	if (vport->stopped == 1)
+	if (dev->data->dev_started == 0)
 		return 0;
 
 	idpf_vc_vport_ena_dis(vport, false);
@@ -828,25 +1074,261 @@ cpfl_dev_stop(struct rte_eth_dev *dev)
 
 	idpf_vc_vectors_dealloc(vport);
 
-	vport->stopped = 1;
-
 	return 0;
+}
+
+static void
+cpfl_flow_free(struct cpfl_vport *vport)
+{
+	struct rte_flow *p_flow;
+
+	while ((p_flow = TAILQ_FIRST(&vport->itf.flow_list))) {
+		TAILQ_REMOVE(&vport->itf.flow_list, p_flow, next);
+		if (p_flow->engine->free)
+			p_flow->engine->free(p_flow);
+		rte_free(p_flow);
+	}
+}
+
+static int
+cpfl_p2p_queue_grps_del(struct idpf_vport *vport)
+{
+	struct virtchnl2_queue_group_id qg_ids;
+	int ret = 0;
+
+	memset(&qg_ids, 0, sizeof(qg_ids));
+	qg_ids.queue_group_id = CPFL_P2P_QUEUE_GRP_ID;
+	qg_ids.queue_group_type = VIRTCHNL2_QUEUE_GROUP_P2P;
+	ret = idpf_vc_queue_grps_del(vport, CPFL_P2P_NB_QUEUE_GRPS, &qg_ids);
+	if (ret)
+		PMD_DRV_LOG(ERR, "Failed to delete p2p queue groups");
+	return ret;
 }
 
 static int
 cpfl_dev_close(struct rte_eth_dev *dev)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct cpfl_adapter_ext *adapter = CPFL_ADAPTER_TO_EXT(vport->adapter);
 
 	cpfl_dev_stop(dev);
+	if (cpfl_vport->p2p_mp) {
+		rte_mempool_free(cpfl_vport->p2p_mp);
+		cpfl_vport->p2p_mp = NULL;
+	}
+
+	if (!adapter->base.is_rx_singleq && !adapter->base.is_tx_singleq)
+		cpfl_p2p_queue_grps_del(vport);
+
+	cpfl_flow_free(cpfl_vport);
 	idpf_vport_deinit(vport);
+	rte_free(cpfl_vport->p2p_q_chunks_info);
 
 	adapter->cur_vports &= ~RTE_BIT32(vport->devarg_id);
 	adapter->cur_vport_nb--;
 	dev->data->dev_private = NULL;
 	adapter->vports[vport->sw_idx] = NULL;
-	rte_free(vport);
+	idpf_free_dma_mem(NULL, &cpfl_vport->itf.flow_dma);
+	rte_free(cpfl_vport);
+
+	return 0;
+}
+
+static int
+cpfl_dev_flow_ops_get(struct rte_eth_dev *dev,
+		      const struct rte_flow_ops **ops)
+{
+	struct cpfl_itf *itf;
+
+	if (!dev)
+		return -EINVAL;
+
+	itf = CPFL_DEV_TO_ITF(dev);
+
+	/* only vport support rte_flow */
+	if (itf->type != CPFL_ITF_TYPE_VPORT)
+		return -ENOTSUP;
+#ifdef RTE_HAS_JANSSON
+	*ops = &cpfl_flow_ops;
+#else
+	*ops = NULL;
+	PMD_DRV_LOG(NOTICE, "not support rte_flow, please install json-c library.");
+#endif
+	return 0;
+}
+
+static int
+cpfl_hairpin_get_peer_ports(struct rte_eth_dev *dev, uint16_t *peer_ports,
+			    size_t len, uint32_t tx)
+{
+	struct cpfl_vport *cpfl_vport =
+		(struct cpfl_vport *)dev->data->dev_private;
+	struct idpf_tx_queue *txq;
+	struct idpf_rx_queue *rxq;
+	struct cpfl_tx_queue *cpfl_txq;
+	struct cpfl_rx_queue *cpfl_rxq;
+	uint16_t i;
+	uint16_t j = 0;
+
+	if (len <= 0)
+		return -EINVAL;
+
+	if (cpfl_vport->p2p_q_chunks_info == NULL)
+		return -ENOTSUP;
+
+	if (tx > 0) {
+		for (i = cpfl_vport->nb_data_txq, j = 0; i < dev->data->nb_tx_queues; i++, j++) {
+			txq = dev->data->tx_queues[i];
+			if (txq == NULL || j >= len)
+				return -EINVAL;
+			cpfl_txq = (struct cpfl_tx_queue *)txq;
+			peer_ports[j] = cpfl_txq->hairpin_info.peer_rxp;
+		}
+	} else if (tx == 0) {
+		for (i = cpfl_vport->nb_data_rxq, j = 0; i < dev->data->nb_rx_queues; i++, j++) {
+			rxq = dev->data->rx_queues[i];
+			if (rxq == NULL || j >= len)
+				return -EINVAL;
+			cpfl_rxq = (struct cpfl_rx_queue *)rxq;
+			peer_ports[j] = cpfl_rxq->hairpin_info.peer_txp;
+		}
+	}
+
+	return j;
+}
+
+static int
+cpfl_hairpin_bind(struct rte_eth_dev *dev, uint16_t rx_port)
+{
+	struct cpfl_vport *cpfl_tx_vport = dev->data->dev_private;
+	struct idpf_vport *tx_vport = &cpfl_tx_vport->base;
+	struct cpfl_vport *cpfl_rx_vport;
+	struct cpfl_tx_queue *cpfl_txq;
+	struct cpfl_rx_queue *cpfl_rxq;
+	struct rte_eth_dev *peer_dev;
+	struct idpf_vport *rx_vport;
+	int err = 0;
+	int i;
+
+	err = cpfl_txq_hairpin_info_update(dev, rx_port);
+	if (err != 0) {
+		PMD_DRV_LOG(ERR, "Fail to update Tx hairpin queue info.");
+		return err;
+	}
+
+	/* configure hairpin queues */
+	for (i = cpfl_tx_vport->nb_data_txq; i < dev->data->nb_tx_queues; i++) {
+		cpfl_txq = dev->data->tx_queues[i];
+		err = cpfl_hairpin_txq_config(tx_vport, cpfl_txq);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Fail to configure hairpin Tx queue %u", i);
+			return err;
+		}
+	}
+
+	err = cpfl_hairpin_tx_complq_config(cpfl_tx_vport);
+	if (err != 0) {
+		PMD_DRV_LOG(ERR, "Fail to config Tx completion queue");
+		return err;
+	}
+
+	peer_dev = &rte_eth_devices[rx_port];
+	cpfl_rx_vport = (struct cpfl_vport *)peer_dev->data->dev_private;
+	rx_vport = &cpfl_rx_vport->base;
+	cpfl_rxq_hairpin_mz_bind(peer_dev);
+
+	err = cpfl_hairpin_rx_bufq_config(cpfl_rx_vport);
+	if (err != 0) {
+		PMD_DRV_LOG(ERR, "Fail to config Rx buffer queue");
+		return err;
+	}
+
+	for (i = cpfl_rx_vport->nb_data_rxq; i < peer_dev->data->nb_rx_queues; i++) {
+		cpfl_rxq = peer_dev->data->rx_queues[i];
+		err = cpfl_hairpin_rxq_config(rx_vport, cpfl_rxq);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Fail to configure hairpin Rx queue %u", i);
+			return err;
+		}
+		err = cpfl_rx_queue_init(peer_dev, i);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Fail to init hairpin Rx queue %u", i);
+			return err;
+		}
+	}
+
+	/* enable hairpin queues */
+	for (i = cpfl_tx_vport->nb_data_txq; i < dev->data->nb_tx_queues; i++) {
+		cpfl_txq = dev->data->tx_queues[i];
+		err = cpfl_switch_hairpin_rxtx_queue(cpfl_tx_vport,
+						     i - cpfl_tx_vport->nb_data_txq,
+						     false, true);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Failed to switch hairpin TX queue %u on",
+				    i);
+			return err;
+		}
+		cpfl_txq->base.q_started = true;
+	}
+
+	err = cpfl_switch_hairpin_complq(cpfl_tx_vport, true);
+	if (err != 0) {
+		PMD_DRV_LOG(ERR, "Failed to switch hairpin Tx complq");
+		return err;
+	}
+
+	for (i = cpfl_rx_vport->nb_data_rxq; i < peer_dev->data->nb_rx_queues; i++) {
+		cpfl_rxq = peer_dev->data->rx_queues[i];
+		err = cpfl_switch_hairpin_rxtx_queue(cpfl_rx_vport,
+						     i - cpfl_rx_vport->nb_data_rxq,
+						     true, true);
+		if (err != 0) {
+			PMD_DRV_LOG(ERR, "Failed to switch hairpin RX queue %u on",
+				    i);
+		}
+		cpfl_rxq->base.q_started = true;
+	}
+
+	err = cpfl_switch_hairpin_bufq(cpfl_rx_vport, true);
+	if (err != 0) {
+		PMD_DRV_LOG(ERR, "Failed to switch hairpin Rx buffer queue");
+		return err;
+	}
+
+	return 0;
+}
+
+static int
+cpfl_hairpin_unbind(struct rte_eth_dev *dev, uint16_t rx_port)
+{
+	struct cpfl_vport *cpfl_tx_vport = dev->data->dev_private;
+	struct rte_eth_dev *peer_dev = &rte_eth_devices[rx_port];
+	struct cpfl_vport *cpfl_rx_vport = peer_dev->data->dev_private;
+	struct cpfl_tx_queue *cpfl_txq;
+	struct cpfl_rx_queue *cpfl_rxq;
+	int i;
+
+	/* disable hairpin queues */
+	for (i = cpfl_tx_vport->nb_data_txq; i < dev->data->nb_tx_queues; i++) {
+		cpfl_txq = dev->data->tx_queues[i];
+		cpfl_switch_hairpin_rxtx_queue(cpfl_tx_vport,
+					       i - cpfl_tx_vport->nb_data_txq,
+					       false, false);
+		cpfl_txq->base.q_started = false;
+	}
+
+	cpfl_switch_hairpin_complq(cpfl_tx_vport, false);
+
+	for (i = cpfl_rx_vport->nb_data_rxq; i < peer_dev->data->nb_rx_queues; i++) {
+		cpfl_rxq = peer_dev->data->rx_queues[i];
+		cpfl_switch_hairpin_rxtx_queue(cpfl_rx_vport,
+					       i - cpfl_rx_vport->nb_data_rxq,
+					       true, false);
+		cpfl_rxq->base.q_started = false;
+	}
+
+	cpfl_switch_hairpin_bufq(cpfl_rx_vport, false);
 
 	return 0;
 }
@@ -877,6 +1359,13 @@ static const struct eth_dev_ops cpfl_eth_dev_ops = {
 	.xstats_get			= cpfl_dev_xstats_get,
 	.xstats_get_names		= cpfl_dev_xstats_get_names,
 	.xstats_reset			= cpfl_dev_xstats_reset,
+	.flow_ops_get			= cpfl_dev_flow_ops_get,
+	.hairpin_cap_get		= cpfl_hairpin_cap_get,
+	.rx_hairpin_queue_setup		= cpfl_rx_hairpin_queue_setup,
+	.tx_hairpin_queue_setup		= cpfl_tx_hairpin_queue_setup,
+	.hairpin_get_peer_ports         = cpfl_hairpin_get_peer_ports,
+	.hairpin_bind                   = cpfl_hairpin_bind,
+	.hairpin_unbind                 = cpfl_hairpin_unbind,
 };
 
 static int
@@ -976,19 +1465,158 @@ parse_bool(const char *key, const char *value, void *args)
 }
 
 static int
+enlist(uint16_t *list, uint16_t *len_list, const uint16_t max_list, uint16_t val)
+{
+	uint16_t i;
+
+	for (i = 0; i < *len_list; i++) {
+		if (list[i] == val)
+			return 0;
+	}
+	if (*len_list >= max_list)
+		return -1;
+	list[(*len_list)++] = val;
+	return 0;
+}
+
+static const char *
+process_range(const char *str, uint16_t *list, uint16_t *len_list,
+	const uint16_t max_list)
+{
+	uint16_t lo, hi, val;
+	int result, n = 0;
+	const char *pos = str;
+
+	result = sscanf(str, "%hu%n-%hu%n", &lo, &n, &hi, &n);
+	if (result == 1) {
+		if (enlist(list, len_list, max_list, lo) != 0)
+			return NULL;
+	} else if (result == 2) {
+		if (lo > hi)
+			return NULL;
+		for (val = lo; val <= hi; val++) {
+			if (enlist(list, len_list, max_list, val) != 0)
+				return NULL;
+		}
+	} else {
+		return NULL;
+	}
+	return pos + n;
+}
+
+static const char *
+process_list(const char *str, uint16_t *list, uint16_t *len_list, const uint16_t max_list)
+{
+	const char *pos = str;
+
+	if (*pos == '[')
+		pos++;
+	while (1) {
+		pos = process_range(pos, list, len_list, max_list);
+		if (pos == NULL)
+			return NULL;
+		if (*pos != ',') /* end of list */
+			break;
+		pos++;
+	}
+	if (*str == '[' && *pos != ']')
+		return NULL;
+	if (*pos == ']')
+		pos++;
+	return pos;
+}
+
+static int
+parse_repr(const char *key __rte_unused, const char *value, void *args)
+{
+	struct cpfl_devargs *devargs = args;
+	struct rte_eth_devargs *eth_da;
+	const char *str = value;
+
+	if (devargs->repr_args_num == CPFL_REPR_ARG_NUM_MAX)
+		return -EINVAL;
+
+	eth_da = &devargs->repr_args[devargs->repr_args_num];
+
+	if (str[0] == 'c') {
+		str += 1;
+		str = process_list(str, eth_da->mh_controllers,
+				&eth_da->nb_mh_controllers,
+				RTE_DIM(eth_da->mh_controllers));
+		if (str == NULL)
+			goto done;
+	}
+	if (str[0] == 'p' && str[1] == 'f') {
+		eth_da->type = RTE_ETH_REPRESENTOR_PF;
+		str += 2;
+		str = process_list(str, eth_da->ports,
+				&eth_da->nb_ports, RTE_DIM(eth_da->ports));
+		if (str == NULL || str[0] == '\0')
+			goto done;
+	} else if (eth_da->nb_mh_controllers > 0) {
+		/* 'c' must followed by 'pf'. */
+		str = NULL;
+		goto done;
+	}
+	if (str[0] == 'v' && str[1] == 'f') {
+		eth_da->type = RTE_ETH_REPRESENTOR_VF;
+		str += 2;
+	} else if (str[0] == 's' && str[1] == 'f') {
+		eth_da->type = RTE_ETH_REPRESENTOR_SF;
+		str += 2;
+	} else {
+		/* 'pf' must followed by 'vf' or 'sf'. */
+		if (eth_da->type == RTE_ETH_REPRESENTOR_PF) {
+			str = NULL;
+			goto done;
+		}
+		eth_da->type = RTE_ETH_REPRESENTOR_VF;
+	}
+	str = process_list(str, eth_da->representor_ports,
+		&eth_da->nb_representor_ports,
+		RTE_DIM(eth_da->representor_ports));
+done:
+	if (str == NULL) {
+		RTE_LOG(ERR, EAL, "wrong representor format: %s\n", str);
+		return -1;
+	}
+
+	devargs->repr_args_num++;
+
+	return 0;
+}
+
+#ifdef RTE_HAS_JANSSON
+static int
+parse_file(const char *key, const char *value, void *args)
+{
+	char *name = args;
+
+	if (strlen(value) > CPFL_FLOW_FILE_LEN - 1) {
+		PMD_DRV_LOG(ERR, "file path(%s) is too long.", value);
+		return -1;
+	}
+
+	PMD_DRV_LOG(DEBUG, "value:\"%s\" for key:\"%s\"", value, key);
+	strlcpy(name, value, CPFL_FLOW_FILE_LEN);
+
+	return 0;
+}
+#endif
+
+static int
 cpfl_parse_devargs(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adapter,
-		   struct cpfl_devargs *cpfl_args)
+		   bool first, struct cpfl_devargs *cpfl_args)
 {
 	struct rte_devargs *devargs = pci_dev->device.devargs;
 	struct rte_kvargs *kvlist;
-	int i, ret;
-
-	cpfl_args->req_vport_nb = 0;
+	int ret;
 
 	if (devargs == NULL)
 		return 0;
 
-	kvlist = rte_kvargs_parse(devargs->args, cpfl_valid_args);
+	kvlist = rte_kvargs_parse(devargs->args,
+			first ? cpfl_valid_args_first : cpfl_valid_args_again);
 	if (kvlist == NULL) {
 		PMD_INIT_LOG(ERR, "invalid kvargs key");
 		return -EINVAL;
@@ -996,8 +1624,17 @@ cpfl_parse_devargs(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adap
 
 	if (rte_kvargs_count(kvlist, CPFL_VPORT) > 1) {
 		PMD_INIT_LOG(ERR, "devarg vport is duplicated.");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto fail;
 	}
+
+	ret = rte_kvargs_process(kvlist, CPFL_REPRESENTOR, &parse_repr, cpfl_args);
+
+	if (ret != 0)
+		goto fail;
+
+	if (!first)
+		goto finish;
 
 	ret = rte_kvargs_process(kvlist, CPFL_VPORT, &parse_vport,
 				 cpfl_args);
@@ -1013,74 +1650,180 @@ cpfl_parse_devargs(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adap
 				 &adapter->base.is_rx_singleq);
 	if (ret != 0)
 		goto fail;
-
-	/* check parsed devargs */
-	if (adapter->cur_vport_nb + cpfl_args->req_vport_nb >
-	    adapter->max_vport_nb) {
-		PMD_INIT_LOG(ERR, "Total vport number can't be > %d",
-			     adapter->max_vport_nb);
-		ret = -EINVAL;
-		goto fail;
-	}
-
-	for (i = 0; i < cpfl_args->req_vport_nb; i++) {
-		if (cpfl_args->req_vports[i] > adapter->max_vport_nb - 1) {
-			PMD_INIT_LOG(ERR, "Invalid vport id %d, it should be 0 ~ %d",
-				     cpfl_args->req_vports[i], adapter->max_vport_nb - 1);
-			ret = -EINVAL;
+#ifdef RTE_HAS_JANSSON
+	if (rte_kvargs_get(kvlist, CPFL_FLOW_PARSER)) {
+		ret = rte_kvargs_process(kvlist, CPFL_FLOW_PARSER,
+					 &parse_file, cpfl_args->flow_parser);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Failed to parser flow_parser, ret: %d", ret);
 			goto fail;
 		}
-
-		if (adapter->cur_vports & RTE_BIT32(cpfl_args->req_vports[i])) {
-			PMD_INIT_LOG(ERR, "Vport %d has been requested",
-				     cpfl_args->req_vports[i]);
-			ret = -EINVAL;
-			goto fail;
-		}
+	} else {
+		cpfl_args->flow_parser[0] = '\0';
 	}
-
+#endif
+finish:
 fail:
 	rte_kvargs_free(kvlist);
 	return ret;
 }
 
-static struct idpf_vport *
+static struct cpfl_vport *
 cpfl_find_vport(struct cpfl_adapter_ext *adapter, uint32_t vport_id)
 {
-	struct idpf_vport *vport = NULL;
+	struct cpfl_vport *vport = NULL;
 	int i;
 
 	for (i = 0; i < adapter->cur_vport_nb; i++) {
 		vport = adapter->vports[i];
-		if (vport->vport_id != vport_id)
+		if (vport == NULL)
+			continue;
+		if (vport->base.vport_id != vport_id)
 			continue;
 		else
 			return vport;
 	}
 
-	return vport;
+	return NULL;
 }
 
 static void
-cpfl_handle_event_msg(struct idpf_vport *vport, uint8_t *msg, uint16_t msglen)
+cpfl_handle_vchnl_event_msg(struct cpfl_adapter_ext *adapter, uint8_t *msg, uint16_t msglen)
 {
 	struct virtchnl2_event *vc_event = (struct virtchnl2_event *)msg;
-	struct rte_eth_dev *dev = (struct rte_eth_dev *)vport->dev;
+	struct cpfl_vport *vport;
+	struct rte_eth_dev_data *data;
+	struct rte_eth_dev *dev;
 
 	if (msglen < sizeof(struct virtchnl2_event)) {
 		PMD_DRV_LOG(ERR, "Error event");
 		return;
 	}
 
+	/* ignore if it is ctrl vport */
+	if (adapter->ctrl_vport.base.vport_id == vc_event->vport_id)
+		return;
+
+	vport = cpfl_find_vport(adapter, vc_event->vport_id);
+	if (!vport) {
+		PMD_DRV_LOG(ERR, "Can't find vport.");
+		return;
+	}
+
+	data = vport->itf.data;
+	dev = &rte_eth_devices[data->port_id];
+
 	switch (vc_event->event) {
 	case VIRTCHNL2_EVENT_LINK_CHANGE:
 		PMD_DRV_LOG(DEBUG, "VIRTCHNL2_EVENT_LINK_CHANGE");
-		vport->link_up = !!(vc_event->link_status);
-		vport->link_speed = vc_event->link_speed;
+		vport->base.link_up = !!(vc_event->link_status);
+		vport->base.link_speed = vc_event->link_speed;
 		cpfl_dev_link_update(dev, 0);
 		break;
 	default:
 		PMD_DRV_LOG(ERR, " unknown event received %u", vc_event->event);
+		break;
+	}
+}
+
+int
+cpfl_vport_info_create(struct cpfl_adapter_ext *adapter,
+		       struct cpfl_vport_id *vport_identity,
+		       struct cpchnl2_event_vport_created *vport_created)
+{
+	struct cpfl_vport_info *info = NULL;
+	int ret;
+
+	rte_spinlock_lock(&adapter->vport_map_lock);
+	ret = rte_hash_lookup_data(adapter->vport_map_hash, vport_identity, (void **)&info);
+	if (ret >= 0) {
+		PMD_DRV_LOG(WARNING, "vport already exist, overwrite info anyway");
+		/* overwrite info */
+		if (info)
+			info->vport = *vport_created;
+		goto fini;
+	}
+
+	info = rte_zmalloc(NULL, sizeof(*info), 0);
+	if (info == NULL) {
+		PMD_DRV_LOG(ERR, "Failed to alloc memory for vport map info");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	info->vport = *vport_created;
+
+	ret = rte_hash_add_key_data(adapter->vport_map_hash, vport_identity, info);
+	if (ret < 0) {
+		PMD_DRV_LOG(ERR, "Failed to add vport map into hash");
+		rte_free(info);
+		goto err;
+	}
+
+fini:
+	rte_spinlock_unlock(&adapter->vport_map_lock);
+	return 0;
+err:
+	rte_spinlock_unlock(&adapter->vport_map_lock);
+	return ret;
+}
+
+static int
+cpfl_vport_info_destroy(struct cpfl_adapter_ext *adapter, struct cpfl_vport_id *vport_identity)
+{
+	struct cpfl_vport_info *info;
+	int ret;
+
+	rte_spinlock_lock(&adapter->vport_map_lock);
+	ret = rte_hash_lookup_data(adapter->vport_map_hash, vport_identity, (void **)&info);
+	if (ret < 0) {
+		PMD_DRV_LOG(ERR, "vport id doesn't exist");
+		goto err;
+	}
+
+	rte_hash_del_key(adapter->vport_map_hash, vport_identity);
+	rte_spinlock_unlock(&adapter->vport_map_lock);
+	rte_free(info);
+
+	return 0;
+
+err:
+	rte_spinlock_unlock(&adapter->vport_map_lock);
+	return ret;
+}
+
+static void
+cpfl_handle_cpchnl_event_msg(struct cpfl_adapter_ext *adapter, uint8_t *msg, uint16_t msglen)
+{
+	struct cpchnl2_event_info *cpchnl2_event = (struct cpchnl2_event_info *)msg;
+	struct cpchnl2_event_vport_created *vport_created;
+	struct cpfl_vport_id vport_identity = { 0 };
+
+	if (msglen < sizeof(struct cpchnl2_event_info)) {
+		PMD_DRV_LOG(ERR, "Error event");
+		return;
+	}
+
+	switch (cpchnl2_event->header.type) {
+	case CPCHNL2_EVENT_VPORT_CREATED:
+		vport_identity.vport_id = cpchnl2_event->data.vport_created.vport.vport_id;
+		vport_created = &cpchnl2_event->data.vport_created;
+		vport_identity.func_type = vport_created->info.func_type;
+		vport_identity.pf_id = vport_created->info.pf_id;
+		vport_identity.vf_id = vport_created->info.vf_id;
+		if (cpfl_vport_info_create(adapter, &vport_identity, vport_created))
+			PMD_DRV_LOG(WARNING, "Failed to handle CPCHNL2_EVENT_VPORT_CREATED");
+		break;
+	case CPCHNL2_EVENT_VPORT_DESTROYED:
+		vport_identity.vport_id = cpchnl2_event->data.vport_destroyed.vport.vport_id;
+		vport_identity.func_type = cpchnl2_event->data.vport_destroyed.func.func_type;
+		vport_identity.pf_id = cpchnl2_event->data.vport_destroyed.func.pf_id;
+		vport_identity.vf_id = cpchnl2_event->data.vport_destroyed.func.vf_id;
+		if (cpfl_vport_info_destroy(adapter, &vport_identity))
+			PMD_DRV_LOG(WARNING, "Failed to handle CPCHNL2_EVENT_VPORT_DESTROY");
+		break;
+	default:
+		PMD_DRV_LOG(ERR, " unknown event received %u", cpchnl2_event->header.type);
 		break;
 	}
 }
@@ -1091,10 +1834,8 @@ cpfl_handle_virtchnl_msg(struct cpfl_adapter_ext *adapter)
 	struct idpf_adapter *base = &adapter->base;
 	struct idpf_dma_mem *dma_mem = NULL;
 	struct idpf_hw *hw = &base->hw;
-	struct virtchnl2_event *vc_event;
 	struct idpf_ctlq_msg ctlq_msg;
 	enum idpf_mbx_opc mbx_op;
-	struct idpf_vport *vport;
 	uint16_t pending = 1;
 	uint32_t vc_op;
 	int ret;
@@ -1116,18 +1857,11 @@ cpfl_handle_virtchnl_msg(struct cpfl_adapter_ext *adapter)
 		switch (mbx_op) {
 		case idpf_mbq_opc_send_msg_to_peer_pf:
 			if (vc_op == VIRTCHNL2_OP_EVENT) {
-				if (ctlq_msg.data_len < sizeof(struct virtchnl2_event)) {
-					PMD_DRV_LOG(ERR, "Error event");
-					return;
-				}
-				vc_event = (struct virtchnl2_event *)base->mbx_resp;
-				vport = cpfl_find_vport(adapter, vc_event->vport_id);
-				if (!vport) {
-					PMD_DRV_LOG(ERR, "Can't find vport.");
-					return;
-				}
-				cpfl_handle_event_msg(vport, base->mbx_resp,
-						      ctlq_msg.data_len);
+				cpfl_handle_vchnl_event_msg(adapter, adapter->base.mbx_resp,
+							    ctlq_msg.data_len);
+			} else if (vc_op == CPCHNL2_OP_EVENT) {
+				cpfl_handle_cpchnl_event_msg(adapter, adapter->base.mbx_resp,
+							     ctlq_msg.data_len);
 			} else {
 				if (vc_op == base->pend_cmd)
 					notify_cmd(base, base->cmd_retval);
@@ -1166,11 +1900,388 @@ cpfl_dev_alarm_handler(void *param)
 }
 
 static int
-cpfl_adapter_ext_init(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adapter)
+cpfl_stop_cfgqs(struct cpfl_adapter_ext *adapter)
+{
+	int i, ret;
+
+	for (i = 0; i < CPFL_TX_CFGQ_NUM; i++) {
+		ret = idpf_vc_queue_switch(&adapter->ctrl_vport.base, i, false, false);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Fail to disable Tx config queue.");
+			return ret;
+		}
+	}
+
+	for (i = 0; i < CPFL_RX_CFGQ_NUM; i++) {
+		ret = idpf_vc_queue_switch(&adapter->ctrl_vport.base, i, true, false);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Fail to disable Rx config queue.");
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int
+cpfl_start_cfgqs(struct cpfl_adapter_ext *adapter)
+{
+	int i, ret;
+
+	ret = cpfl_config_ctlq_tx(adapter);
+	if (ret) {
+		PMD_DRV_LOG(ERR, "Fail to configure Tx config queue.");
+		return ret;
+	}
+
+	ret = cpfl_config_ctlq_rx(adapter);
+	if (ret) {
+		PMD_DRV_LOG(ERR, "Fail to configure Rx config queue.");
+		return ret;
+	}
+
+	for (i = 0; i < CPFL_TX_CFGQ_NUM; i++) {
+		ret = idpf_vc_queue_switch(&adapter->ctrl_vport.base, i, false, true);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Fail to enable Tx config queue.");
+			return ret;
+		}
+	}
+
+	for (i = 0; i < CPFL_RX_CFGQ_NUM; i++) {
+		ret = idpf_vc_queue_switch(&adapter->ctrl_vport.base, i, true, true);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Fail to enable Rx config queue.");
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static void
+cpfl_remove_cfgqs(struct cpfl_adapter_ext *adapter)
+{
+	struct idpf_hw *hw = (struct idpf_hw *)(&adapter->base.hw);
+	struct cpfl_ctlq_create_info *create_cfgq_info;
+	int i;
+
+	create_cfgq_info = adapter->cfgq_info;
+
+	for (i = 0; i < CPFL_CFGQ_NUM; i++) {
+		if (adapter->ctlqp[i])
+			cpfl_vport_ctlq_remove(hw, adapter->ctlqp[i]);
+		if (create_cfgq_info[i].ring_mem.va)
+			idpf_free_dma_mem(&adapter->base.hw, &create_cfgq_info[i].ring_mem);
+		if (create_cfgq_info[i].buf_mem.va)
+			idpf_free_dma_mem(&adapter->base.hw, &create_cfgq_info[i].buf_mem);
+	}
+}
+
+static int
+cpfl_add_cfgqs(struct cpfl_adapter_ext *adapter)
+{
+	struct idpf_ctlq_info *cfg_cq;
+	int ret = 0;
+	int i = 0;
+
+	for (i = 0; i < CPFL_CFGQ_NUM; i++) {
+		cfg_cq = NULL;
+		ret = cpfl_vport_ctlq_add((struct idpf_hw *)(&adapter->base.hw),
+					  &adapter->cfgq_info[i],
+					  &cfg_cq);
+		if (ret || !cfg_cq) {
+			PMD_DRV_LOG(ERR, "ctlq add failed for queue id: %d",
+				    adapter->cfgq_info[i].id);
+			cpfl_remove_cfgqs(adapter);
+			return ret;
+		}
+		PMD_DRV_LOG(INFO, "added cfgq to hw. queue id: %d",
+			    adapter->cfgq_info[i].id);
+		adapter->ctlqp[i] = cfg_cq;
+	}
+
+	return ret;
+}
+
+#define CPFL_CFGQ_RING_LEN		512
+#define CPFL_CFGQ_DESCRIPTOR_SIZE	32
+#define CPFL_CFGQ_BUFFER_SIZE		256
+#define CPFL_CFGQ_RING_SIZE		512
+
+static int
+cpfl_cfgq_setup(struct cpfl_adapter_ext *adapter)
+{
+	struct cpfl_ctlq_create_info *create_cfgq_info;
+	struct cpfl_vport *vport;
+	int i, err;
+	uint32_t ring_size = CPFL_CFGQ_RING_SIZE * sizeof(struct idpf_ctlq_desc);
+	uint32_t buf_size = CPFL_CFGQ_RING_SIZE * CPFL_CFGQ_BUFFER_SIZE;
+
+	vport = &adapter->ctrl_vport;
+	create_cfgq_info = adapter->cfgq_info;
+
+	for (i = 0; i < CPFL_CFGQ_NUM; i++) {
+		if (i % 2 == 0) {
+			/* Setup Tx config queue */
+			create_cfgq_info[i].id = vport->base.chunks_info.tx_start_qid + i / 2;
+			create_cfgq_info[i].type = IDPF_CTLQ_TYPE_CONFIG_TX;
+			create_cfgq_info[i].len = CPFL_CFGQ_RING_SIZE;
+			create_cfgq_info[i].buf_size = CPFL_CFGQ_BUFFER_SIZE;
+			memset(&create_cfgq_info[i].reg, 0, sizeof(struct idpf_ctlq_reg));
+			create_cfgq_info[i].reg.tail = vport->base.chunks_info.tx_qtail_start +
+				i / 2 * vport->base.chunks_info.tx_qtail_spacing;
+		} else {
+			/* Setup Rx config queue */
+			create_cfgq_info[i].id = vport->base.chunks_info.rx_start_qid + i / 2;
+			create_cfgq_info[i].type = IDPF_CTLQ_TYPE_CONFIG_RX;
+			create_cfgq_info[i].len = CPFL_CFGQ_RING_SIZE;
+			create_cfgq_info[i].buf_size = CPFL_CFGQ_BUFFER_SIZE;
+			memset(&create_cfgq_info[i].reg, 0, sizeof(struct idpf_ctlq_reg));
+			create_cfgq_info[i].reg.tail = vport->base.chunks_info.rx_qtail_start +
+				i / 2 * vport->base.chunks_info.rx_qtail_spacing;
+			if (!idpf_alloc_dma_mem(&adapter->base.hw, &create_cfgq_info[i].buf_mem,
+						buf_size)) {
+				err = -ENOMEM;
+				goto free_mem;
+			}
+		}
+		if (!idpf_alloc_dma_mem(&adapter->base.hw, &create_cfgq_info[i].ring_mem,
+					ring_size)) {
+			err = -ENOMEM;
+			goto free_mem;
+		}
+	}
+	return 0;
+free_mem:
+	for (i = 0; i < CPFL_CFGQ_NUM; i++) {
+		if (create_cfgq_info[i].ring_mem.va)
+			idpf_free_dma_mem(&adapter->base.hw, &create_cfgq_info[i].ring_mem);
+		if (create_cfgq_info[i].buf_mem.va)
+			idpf_free_dma_mem(&adapter->base.hw, &create_cfgq_info[i].buf_mem);
+	}
+	return err;
+}
+
+static int
+cpfl_init_ctrl_vport(struct cpfl_adapter_ext *adapter)
+{
+	struct cpfl_vport *vport = &adapter->ctrl_vport;
+	struct virtchnl2_create_vport *vport_info =
+		(struct virtchnl2_create_vport *)adapter->ctrl_vport_recv_info;
+	int i;
+
+	vport->itf.adapter = adapter;
+	vport->base.adapter = &adapter->base;
+	vport->base.vport_id = vport_info->vport_id;
+
+	for (i = 0; i < vport_info->chunks.num_chunks; i++) {
+		if (vport_info->chunks.chunks[i].type == VIRTCHNL2_QUEUE_TYPE_TX) {
+			vport->base.chunks_info.tx_start_qid =
+				vport_info->chunks.chunks[i].start_queue_id;
+			vport->base.chunks_info.tx_qtail_start =
+			vport_info->chunks.chunks[i].qtail_reg_start;
+			vport->base.chunks_info.tx_qtail_spacing =
+			vport_info->chunks.chunks[i].qtail_reg_spacing;
+		} else if (vport_info->chunks.chunks[i].type == VIRTCHNL2_QUEUE_TYPE_RX) {
+			vport->base.chunks_info.rx_start_qid =
+				vport_info->chunks.chunks[i].start_queue_id;
+			vport->base.chunks_info.rx_qtail_start =
+			vport_info->chunks.chunks[i].qtail_reg_start;
+			vport->base.chunks_info.rx_qtail_spacing =
+			vport_info->chunks.chunks[i].qtail_reg_spacing;
+		} else {
+			PMD_INIT_LOG(ERR, "Unsupported chunk type");
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static void
+cpfl_ctrl_path_close(struct cpfl_adapter_ext *adapter)
+{
+	cpfl_stop_cfgqs(adapter);
+	cpfl_remove_cfgqs(adapter);
+	idpf_vc_vport_destroy(&adapter->ctrl_vport.base);
+}
+
+static int
+cpfl_ctrl_path_open(struct cpfl_adapter_ext *adapter)
+{
+	int ret;
+
+	ret = cpfl_vc_create_ctrl_vport(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to create control vport");
+		return ret;
+	}
+
+	ret = cpfl_init_ctrl_vport(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to init control vport");
+		goto err_init_ctrl_vport;
+	}
+
+	ret = cpfl_cfgq_setup(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to setup control queues");
+		goto err_cfgq_setup;
+	}
+
+	ret = cpfl_add_cfgqs(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to add control queues");
+		goto err_add_cfgq;
+	}
+
+	ret = cpfl_start_cfgqs(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to start control queues");
+		goto err_start_cfgqs;
+	}
+
+	return 0;
+
+err_start_cfgqs:
+	cpfl_stop_cfgqs(adapter);
+err_add_cfgq:
+	cpfl_remove_cfgqs(adapter);
+err_cfgq_setup:
+err_init_ctrl_vport:
+	idpf_vc_vport_destroy(&adapter->ctrl_vport.base);
+
+	return ret;
+}
+
+static struct virtchnl2_get_capabilities req_caps = {
+	.csum_caps =
+	VIRTCHNL2_CAP_TX_CSUM_L3_IPV4          |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_TCP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_UDP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV4_SCTP     |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_TCP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_UDP      |
+	VIRTCHNL2_CAP_TX_CSUM_L4_IPV6_SCTP     |
+	VIRTCHNL2_CAP_TX_CSUM_GENERIC          |
+	VIRTCHNL2_CAP_RX_CSUM_L3_IPV4          |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_TCP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_UDP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV4_SCTP     |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_TCP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_UDP      |
+	VIRTCHNL2_CAP_RX_CSUM_L4_IPV6_SCTP     |
+	VIRTCHNL2_CAP_RX_CSUM_GENERIC,
+
+	.rss_caps =
+	VIRTCHNL2_CAP_RSS_IPV4_TCP             |
+	VIRTCHNL2_CAP_RSS_IPV4_UDP             |
+	VIRTCHNL2_CAP_RSS_IPV4_SCTP            |
+	VIRTCHNL2_CAP_RSS_IPV4_OTHER           |
+	VIRTCHNL2_CAP_RSS_IPV6_TCP             |
+	VIRTCHNL2_CAP_RSS_IPV6_UDP             |
+	VIRTCHNL2_CAP_RSS_IPV6_SCTP            |
+	VIRTCHNL2_CAP_RSS_IPV6_OTHER           |
+	VIRTCHNL2_CAP_RSS_IPV4_AH              |
+	VIRTCHNL2_CAP_RSS_IPV4_ESP             |
+	VIRTCHNL2_CAP_RSS_IPV4_AH_ESP          |
+	VIRTCHNL2_CAP_RSS_IPV6_AH              |
+	VIRTCHNL2_CAP_RSS_IPV6_ESP             |
+	VIRTCHNL2_CAP_RSS_IPV6_AH_ESP,
+
+	.other_caps = VIRTCHNL2_CAP_WB_ON_ITR
+};
+
+static int
+cpfl_vport_map_init(struct cpfl_adapter_ext *adapter)
+{
+	char hname[32];
+
+	snprintf(hname, 32, "%s-vport", adapter->name);
+
+	rte_spinlock_init(&adapter->vport_map_lock);
+
+#define CPFL_VPORT_MAP_HASH_ENTRY_NUM 2048
+
+	struct rte_hash_parameters params = {
+		.name = adapter->name,
+		.entries = CPFL_VPORT_MAP_HASH_ENTRY_NUM,
+		.key_len = sizeof(struct cpfl_vport_id),
+		.hash_func = rte_hash_crc,
+		.socket_id = SOCKET_ID_ANY,
+	};
+
+	adapter->vport_map_hash = rte_hash_create(&params);
+
+	if (adapter->vport_map_hash == NULL) {
+		PMD_INIT_LOG(ERR, "Failed to create vport map hash");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static void
+cpfl_vport_map_uninit(struct cpfl_adapter_ext *adapter)
+{
+	const void *key = NULL;
+	struct cpfl_vport_map_info *info;
+	uint32_t iter = 0;
+
+	while (rte_hash_iterate(adapter->vport_map_hash, &key, (void **)&info, &iter) >= 0)
+		rte_free(info);
+
+	rte_hash_free(adapter->vport_map_hash);
+}
+
+static int
+cpfl_repr_allowlist_init(struct cpfl_adapter_ext *adapter)
+{
+	char hname[32];
+
+	snprintf(hname, 32, "%s-repr_al", adapter->name);
+
+	rte_spinlock_init(&adapter->repr_lock);
+
+#define CPFL_REPR_HASH_ENTRY_NUM 2048
+
+	struct rte_hash_parameters params = {
+		.name = hname,
+		.entries = CPFL_REPR_HASH_ENTRY_NUM,
+		.key_len = sizeof(struct cpfl_repr_id),
+		.hash_func = rte_hash_crc,
+		.socket_id = SOCKET_ID_ANY,
+	};
+
+	adapter->repr_allowlist_hash = rte_hash_create(&params);
+
+	if (adapter->repr_allowlist_hash == NULL) {
+		PMD_INIT_LOG(ERR, "Failed to create repr allowlist hash");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static void
+cpfl_repr_allowlist_uninit(struct cpfl_adapter_ext *adapter)
+{
+	rte_hash_free(adapter->repr_allowlist_hash);
+}
+
+
+static int
+cpfl_adapter_ext_init(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adapter,
+		      struct cpfl_devargs *devargs)
 {
 	struct idpf_adapter *base = &adapter->base;
 	struct idpf_hw *hw = &base->hw;
 	int ret = 0;
+
+#ifndef RTE_HAS_JANSSON
+	RTE_SET_USED(devargs);
+#endif
 
 	hw->hw_addr = (void *)pci_dev->mem_resource[0].addr;
 	hw->hw_addr_len = pci_dev->mem_resource[0].len;
@@ -1181,10 +2292,24 @@ cpfl_adapter_ext_init(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *a
 
 	strncpy(adapter->name, pci_dev->device.name, PCI_PRI_STR_SIZE);
 
+	rte_memcpy(&base->caps, &req_caps, sizeof(struct virtchnl2_get_capabilities));
+
 	ret = idpf_adapter_init(base);
 	if (ret != 0) {
 		PMD_INIT_LOG(ERR, "Failed to init adapter");
 		goto err_adapter_init;
+	}
+
+	ret = cpfl_vport_map_init(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to init vport map");
+		goto err_vport_map_init;
+	}
+
+	ret = cpfl_repr_allowlist_init(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to init representor allowlist");
+		goto err_repr_allowlist_init;
 	}
 
 	rte_eal_alarm_set(CPFL_ALARM_INTERVAL, cpfl_dev_alarm_handler, adapter);
@@ -1202,6 +2327,19 @@ cpfl_adapter_ext_init(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *a
 		goto err_vports_alloc;
 	}
 
+	ret = cpfl_ctrl_path_open(adapter);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to setup control path");
+		goto err_create_ctrl_vport;
+	}
+
+#ifdef RTE_HAS_JANSSON
+	ret = cpfl_flow_init(adapter, devargs);
+	if (ret) {
+		PMD_INIT_LOG(ERR, "Failed to init flow module");
+		goto err_flow_init;
+	}
+#endif
 	adapter->cur_vports = 0;
 	adapter->cur_vport_nb = 0;
 
@@ -1209,8 +2347,18 @@ cpfl_adapter_ext_init(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *a
 
 	return ret;
 
+#ifdef RTE_HAS_JANSSON
+err_flow_init:
+	cpfl_ctrl_path_close(adapter);
+#endif
+err_create_ctrl_vport:
+	rte_free(adapter->vports);
 err_vports_alloc:
 	rte_eal_alarm_cancel(cpfl_dev_alarm_handler, adapter);
+	cpfl_repr_allowlist_uninit(adapter);
+err_repr_allowlist_init:
+	cpfl_vport_map_uninit(adapter);
+err_vport_map_init:
 	idpf_adapter_deinit(base);
 err_adapter_init:
 	return ret;
@@ -1236,20 +2384,132 @@ cpfl_vport_idx_alloc(struct cpfl_adapter_ext *adapter)
 }
 
 static int
+cpfl_p2p_q_grps_add(struct idpf_vport *vport,
+		    struct virtchnl2_add_queue_groups *p2p_queue_grps_info,
+		    uint8_t *p2p_q_vc_out_info)
+{
+	int ret;
+
+	p2p_queue_grps_info->vport_id = vport->vport_id;
+	p2p_queue_grps_info->qg_info.num_queue_groups = CPFL_P2P_NB_QUEUE_GRPS;
+	p2p_queue_grps_info->qg_info.groups[0].num_rx_q = CPFL_MAX_P2P_NB_QUEUES;
+	p2p_queue_grps_info->qg_info.groups[0].num_rx_bufq = CPFL_P2P_NB_RX_BUFQ;
+	p2p_queue_grps_info->qg_info.groups[0].num_tx_q = CPFL_MAX_P2P_NB_QUEUES;
+	p2p_queue_grps_info->qg_info.groups[0].num_tx_complq = CPFL_P2P_NB_TX_COMPLQ;
+	p2p_queue_grps_info->qg_info.groups[0].qg_id.queue_group_id = CPFL_P2P_QUEUE_GRP_ID;
+	p2p_queue_grps_info->qg_info.groups[0].qg_id.queue_group_type = VIRTCHNL2_QUEUE_GROUP_P2P;
+	p2p_queue_grps_info->qg_info.groups[0].rx_q_grp_info.rss_lut_size = 0;
+	p2p_queue_grps_info->qg_info.groups[0].tx_q_grp_info.tx_tc = 0;
+	p2p_queue_grps_info->qg_info.groups[0].tx_q_grp_info.priority = 0;
+	p2p_queue_grps_info->qg_info.groups[0].tx_q_grp_info.is_sp = 0;
+	p2p_queue_grps_info->qg_info.groups[0].tx_q_grp_info.pir_weight = 0;
+
+	ret = idpf_vc_queue_grps_add(vport, p2p_queue_grps_info, p2p_q_vc_out_info);
+	if (ret != 0) {
+		PMD_DRV_LOG(ERR, "Failed to add p2p queue groups.");
+		return ret;
+	}
+
+	return ret;
+}
+
+static int
+cpfl_p2p_queue_info_init(struct cpfl_vport *cpfl_vport,
+			 struct virtchnl2_add_queue_groups *p2p_q_vc_out_info)
+{
+	struct p2p_queue_chunks_info *p2p_q_chunks_info = cpfl_vport->p2p_q_chunks_info;
+	struct virtchnl2_queue_reg_chunks *vc_chunks_out;
+	int i, type;
+
+	if (p2p_q_vc_out_info->qg_info.groups[0].qg_id.queue_group_type !=
+	    VIRTCHNL2_QUEUE_GROUP_P2P) {
+		PMD_DRV_LOG(ERR, "Add queue group response mismatch.");
+		return -EINVAL;
+	}
+
+	vc_chunks_out = &p2p_q_vc_out_info->qg_info.groups[0].chunks;
+
+	for (i = 0; i < vc_chunks_out->num_chunks; i++) {
+		type = vc_chunks_out->chunks[i].type;
+		switch (type) {
+		case VIRTCHNL2_QUEUE_TYPE_TX:
+			p2p_q_chunks_info->tx_start_qid =
+				vc_chunks_out->chunks[i].start_queue_id;
+			p2p_q_chunks_info->tx_qtail_start =
+				vc_chunks_out->chunks[i].qtail_reg_start;
+			p2p_q_chunks_info->tx_qtail_spacing =
+				vc_chunks_out->chunks[i].qtail_reg_spacing;
+			break;
+		case VIRTCHNL2_QUEUE_TYPE_RX:
+			p2p_q_chunks_info->rx_start_qid =
+				vc_chunks_out->chunks[i].start_queue_id;
+			p2p_q_chunks_info->rx_qtail_start =
+				vc_chunks_out->chunks[i].qtail_reg_start;
+			p2p_q_chunks_info->rx_qtail_spacing =
+				vc_chunks_out->chunks[i].qtail_reg_spacing;
+			break;
+		case VIRTCHNL2_QUEUE_TYPE_TX_COMPLETION:
+			p2p_q_chunks_info->tx_compl_start_qid =
+				vc_chunks_out->chunks[i].start_queue_id;
+			p2p_q_chunks_info->tx_compl_qtail_start =
+				vc_chunks_out->chunks[i].qtail_reg_start;
+			p2p_q_chunks_info->tx_compl_qtail_spacing =
+				vc_chunks_out->chunks[i].qtail_reg_spacing;
+			break;
+		case VIRTCHNL2_QUEUE_TYPE_RX_BUFFER:
+			p2p_q_chunks_info->rx_buf_start_qid =
+				vc_chunks_out->chunks[i].start_queue_id;
+			p2p_q_chunks_info->rx_buf_qtail_start =
+				vc_chunks_out->chunks[i].qtail_reg_start;
+			p2p_q_chunks_info->rx_buf_qtail_spacing =
+				vc_chunks_out->chunks[i].qtail_reg_spacing;
+			break;
+		default:
+			PMD_DRV_LOG(ERR, "Unsupported queue type");
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int
+cpfl_alloc_dma_mem_batch(struct idpf_dma_mem *orig_dma, struct idpf_dma_mem *dma, uint32_t size,
+			 int batch_size)
+{
+	int i;
+
+	if (!idpf_alloc_dma_mem(NULL, orig_dma, (uint64_t)size * (1 + batch_size))) {
+		PMD_INIT_LOG(ERR, "Could not alloc dma memory");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < batch_size; i++) {
+		dma[i].va = (void *)((char *)orig_dma->va + size * (i + 1));
+		dma[i].pa = orig_dma->pa + size * (i + 1);
+		dma[i].size = size;
+		dma[i].zone = NULL;
+	}
+	return 0;
+}
+
+static int
 cpfl_dev_vport_init(struct rte_eth_dev *dev, void *init_params)
 {
-	struct idpf_vport *vport = dev->data->dev_private;
+	struct cpfl_vport *cpfl_vport = dev->data->dev_private;
+	struct idpf_vport *vport = &cpfl_vport->base;
 	struct cpfl_vport_param *param = init_params;
 	struct cpfl_adapter_ext *adapter = param->adapter;
 	/* for sending create vport virtchnl msg prepare */
 	struct virtchnl2_create_vport create_vport_info;
+	struct virtchnl2_add_queue_groups p2p_queue_grps_info;
+	uint8_t p2p_q_vc_out_info[IDPF_DFLT_MBX_BUF_SIZE] = {0};
 	int ret = 0;
 
 	dev->dev_ops = &cpfl_eth_dev_ops;
 	vport->adapter = &adapter->base;
 	vport->sw_idx = param->idx;
 	vport->devarg_id = param->devarg_id;
-	vport->dev = dev;
 
 	memset(&create_vport_info, 0, sizeof(create_vport_info));
 	ret = idpf_vport_info_init(vport, &create_vport_info);
@@ -1264,7 +2524,11 @@ cpfl_dev_vport_init(struct rte_eth_dev *dev, void *init_params)
 		goto err;
 	}
 
-	adapter->vports[param->idx] = vport;
+	cpfl_vport->itf.type = CPFL_ITF_TYPE_VPORT;
+	cpfl_vport->itf.adapter = adapter;
+	cpfl_vport->itf.data = dev->data;
+	TAILQ_INIT(&cpfl_vport->itf.flow_list);
+	adapter->vports[param->idx] = cpfl_vport;
 	adapter->cur_vports |= RTE_BIT32(param->devarg_id);
 	adapter->cur_vport_nb++;
 
@@ -1277,6 +2541,38 @@ cpfl_dev_vport_init(struct rte_eth_dev *dev, void *init_params)
 
 	rte_ether_addr_copy((struct rte_ether_addr *)vport->default_mac_addr,
 			    &dev->data->mac_addrs[0]);
+
+	memset(cpfl_vport->itf.dma, 0, sizeof(cpfl_vport->itf.dma));
+	memset(cpfl_vport->itf.msg, 0, sizeof(cpfl_vport->itf.msg));
+	ret = cpfl_alloc_dma_mem_batch(&cpfl_vport->itf.flow_dma,
+				       cpfl_vport->itf.dma,
+				       sizeof(union cpfl_rule_cfg_pkt_record),
+				       CPFL_FLOW_BATCH_SIZE);
+	if (ret < 0)
+		goto err_mac_addrs;
+
+	if (!adapter->base.is_rx_singleq && !adapter->base.is_tx_singleq) {
+		memset(&p2p_queue_grps_info, 0, sizeof(p2p_queue_grps_info));
+		ret = cpfl_p2p_q_grps_add(vport, &p2p_queue_grps_info, p2p_q_vc_out_info);
+		if (ret != 0) {
+			PMD_INIT_LOG(WARNING, "Failed to add p2p queue group.");
+			return 0;
+		}
+		cpfl_vport->p2p_q_chunks_info = rte_zmalloc(NULL,
+						    sizeof(struct p2p_queue_chunks_info), 0);
+		if (cpfl_vport->p2p_q_chunks_info == NULL) {
+			PMD_INIT_LOG(WARNING, "Failed to allocate p2p queue info.");
+			cpfl_p2p_queue_grps_del(vport);
+			return 0;
+		}
+		ret = cpfl_p2p_queue_info_init(cpfl_vport,
+				       (struct virtchnl2_add_queue_groups *)p2p_q_vc_out_info);
+		if (ret != 0) {
+			PMD_INIT_LOG(WARNING, "Failed to init p2p queue info.");
+			rte_free(cpfl_vport->p2p_q_chunks_info);
+			cpfl_p2p_queue_grps_del(vport);
+		}
+	}
 
 	return 0;
 
@@ -1321,7 +2617,12 @@ cpfl_find_adapter_ext(struct rte_pci_device *pci_dev)
 static void
 cpfl_adapter_ext_deinit(struct cpfl_adapter_ext *adapter)
 {
+#ifdef RTE_HAS_JANSSON
+	cpfl_flow_uninit(adapter);
+#endif
+	cpfl_ctrl_path_close(adapter);
 	rte_eal_alarm_cancel(cpfl_dev_alarm_handler, adapter);
+	cpfl_vport_map_uninit(adapter);
 	idpf_adapter_deinit(&adapter->base);
 
 	rte_free(adapter->vports);
@@ -1329,20 +2630,79 @@ cpfl_adapter_ext_deinit(struct cpfl_adapter_ext *adapter)
 }
 
 static int
-cpfl_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
-	       struct rte_pci_device *pci_dev)
+cpfl_vport_devargs_process(struct cpfl_adapter_ext *adapter, struct cpfl_devargs *devargs)
+{
+	int i;
+
+	/* refine vport number, at least 1 vport */
+	if (devargs->req_vport_nb == 0) {
+		devargs->req_vport_nb = 1;
+		devargs->req_vports[0] = 0;
+	}
+
+	/* check parsed devargs */
+	if (adapter->cur_vport_nb + devargs->req_vport_nb >
+	    adapter->max_vport_nb) {
+		PMD_INIT_LOG(ERR, "Total vport number can't be > %d",
+			     adapter->max_vport_nb);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < devargs->req_vport_nb; i++) {
+		if (devargs->req_vports[i] > adapter->max_vport_nb - 1) {
+			PMD_INIT_LOG(ERR, "Invalid vport id %d, it should be 0 ~ %d",
+				     devargs->req_vports[i], adapter->max_vport_nb - 1);
+			return -EINVAL;
+		}
+
+		if (adapter->cur_vports & RTE_BIT32(devargs->req_vports[i])) {
+			PMD_INIT_LOG(ERR, "Vport %d has been requested",
+				     devargs->req_vports[i]);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static int
+cpfl_vport_create(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adapter,
+		  struct cpfl_devargs *devargs)
 {
 	struct cpfl_vport_param vport_param;
+	char name[RTE_ETH_NAME_MAX_LEN];
+	int ret, i;
+
+	for (i = 0; i < devargs->req_vport_nb; i++) {
+		vport_param.adapter = adapter;
+		vport_param.devarg_id = devargs->req_vports[i];
+		vport_param.idx = cpfl_vport_idx_alloc(adapter);
+		if (vport_param.idx == CPFL_INVALID_VPORT_IDX) {
+			PMD_INIT_LOG(ERR, "No space for vport %u", vport_param.devarg_id);
+			break;
+		}
+		snprintf(name, sizeof(name), "net_%s_vport_%d",
+			 pci_dev->device.name,
+			 devargs->req_vports[i]);
+		ret = rte_eth_dev_create(&pci_dev->device, name,
+					    sizeof(struct cpfl_vport),
+					    NULL, NULL, cpfl_dev_vport_init,
+					    &vport_param);
+		if (ret != 0)
+			PMD_DRV_LOG(ERR, "Failed to create vport %d",
+				    vport_param.devarg_id);
+	}
+
+	return 0;
+}
+
+static int
+cpfl_pci_probe_first(struct rte_pci_device *pci_dev)
+{
 	struct cpfl_adapter_ext *adapter;
 	struct cpfl_devargs devargs;
-	char name[RTE_ETH_NAME_MAX_LEN];
-	int i, retval;
-
-	if (!cpfl_adapter_list_init) {
-		rte_spinlock_init(&cpfl_adapter_lock);
-		TAILQ_INIT(&cpfl_adapter_list);
-		cpfl_adapter_list_init = true;
-	}
+	int retval;
+	uint16_t port_id;
 
 	adapter = rte_zmalloc("cpfl_adapter_ext",
 			      sizeof(struct cpfl_adapter_ext), 0);
@@ -1351,7 +2711,15 @@ cpfl_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		return -ENOMEM;
 	}
 
-	retval = cpfl_adapter_ext_init(pci_dev, adapter);
+	memset(&devargs, 0, sizeof(devargs));
+
+	retval = cpfl_parse_devargs(pci_dev, adapter, true, &devargs);
+	if (retval != 0) {
+		PMD_INIT_LOG(ERR, "Failed to parse private devargs");
+		return retval;
+	}
+
+	retval = cpfl_adapter_ext_init(pci_dev, adapter, &devargs);
 	if (retval != 0) {
 		PMD_INIT_LOG(ERR, "Failed to init adapter.");
 		return retval;
@@ -1361,53 +2729,38 @@ cpfl_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	TAILQ_INSERT_TAIL(&cpfl_adapter_list, adapter, next);
 	rte_spinlock_unlock(&cpfl_adapter_lock);
 
-	retval = cpfl_parse_devargs(pci_dev, adapter, &devargs);
+	retval = cpfl_vport_devargs_process(adapter, &devargs);
 	if (retval != 0) {
-		PMD_INIT_LOG(ERR, "Failed to parse private devargs");
+		PMD_INIT_LOG(ERR, "Failed to process vport devargs");
 		goto err;
 	}
 
-	if (devargs.req_vport_nb == 0) {
-		/* If no vport devarg, create vport 0 by default. */
-		vport_param.adapter = adapter;
-		vport_param.devarg_id = 0;
-		vport_param.idx = cpfl_vport_idx_alloc(adapter);
-		if (vport_param.idx == CPFL_INVALID_VPORT_IDX) {
-			PMD_INIT_LOG(ERR, "No space for vport %u", vport_param.devarg_id);
-			return 0;
-		}
-		snprintf(name, sizeof(name), "cpfl_%s_vport_0",
-			 pci_dev->device.name);
-		retval = rte_eth_dev_create(&pci_dev->device, name,
-					    sizeof(struct idpf_vport),
-					    NULL, NULL, cpfl_dev_vport_init,
-					    &vport_param);
-		if (retval != 0)
-			PMD_DRV_LOG(ERR, "Failed to create default vport 0");
-	} else {
-		for (i = 0; i < devargs.req_vport_nb; i++) {
-			vport_param.adapter = adapter;
-			vport_param.devarg_id = devargs.req_vports[i];
-			vport_param.idx = cpfl_vport_idx_alloc(adapter);
-			if (vport_param.idx == CPFL_INVALID_VPORT_IDX) {
-				PMD_INIT_LOG(ERR, "No space for vport %u", vport_param.devarg_id);
-				break;
-			}
-			snprintf(name, sizeof(name), "cpfl_%s_vport_%d",
-				 pci_dev->device.name,
-				 devargs.req_vports[i]);
-			retval = rte_eth_dev_create(&pci_dev->device, name,
-						    sizeof(struct idpf_vport),
-						    NULL, NULL, cpfl_dev_vport_init,
-						    &vport_param);
-			if (retval != 0)
-				PMD_DRV_LOG(ERR, "Failed to create vport %d",
-					    vport_param.devarg_id);
-		}
+	retval = cpfl_vport_create(pci_dev, adapter, &devargs);
+	if (retval != 0) {
+		PMD_INIT_LOG(ERR, "Failed to create vports.");
+		goto err;
 	}
+
+	retval = cpfl_repr_devargs_process(adapter, &devargs);
+	if (retval != 0) {
+		PMD_INIT_LOG(ERR, "Failed to process repr devargs");
+		goto close_ethdev;
+	}
+
+	retval = cpfl_repr_create(pci_dev, adapter);
+	if (retval != 0) {
+		PMD_INIT_LOG(ERR, "Failed to create representors ");
+		goto close_ethdev;
+	}
+
 
 	return 0;
 
+close_ethdev:
+	/* Ethdev created can be found RTE_ETH_FOREACH_DEV_OF through rte_device */
+	RTE_ETH_FOREACH_DEV_OF(port_id, &pci_dev->device) {
+		rte_eth_dev_close(port_id);
+	}
 err:
 	rte_spinlock_lock(&cpfl_adapter_lock);
 	TAILQ_REMOVE(&cpfl_adapter_list, adapter, next);
@@ -1415,6 +2768,54 @@ err:
 	cpfl_adapter_ext_deinit(adapter);
 	rte_free(adapter);
 	return retval;
+}
+
+static int
+cpfl_pci_probe_again(struct rte_pci_device *pci_dev, struct cpfl_adapter_ext *adapter)
+{
+	struct cpfl_devargs devargs;
+	int ret;
+
+	memset(&devargs, 0, sizeof(devargs));
+	ret = cpfl_parse_devargs(pci_dev, adapter, false, &devargs);
+	if (ret != 0) {
+		PMD_INIT_LOG(ERR, "Failed to parse private devargs");
+		return ret;
+	}
+
+	ret = cpfl_repr_devargs_process(adapter, &devargs);
+	if (ret != 0) {
+		PMD_INIT_LOG(ERR, "Failed to process reprenstor devargs");
+		return ret;
+	}
+
+	ret = cpfl_repr_create(pci_dev, adapter);
+	if (ret != 0) {
+		PMD_INIT_LOG(ERR, "Failed to create representors ");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int
+cpfl_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
+	       struct rte_pci_device *pci_dev)
+{
+	struct cpfl_adapter_ext *adapter;
+
+	if (!cpfl_adapter_list_init) {
+		rte_spinlock_init(&cpfl_adapter_lock);
+		TAILQ_INIT(&cpfl_adapter_list);
+		cpfl_adapter_list_init = true;
+	}
+
+	adapter = cpfl_find_adapter_ext(pci_dev);
+
+	if (adapter == NULL)
+		return cpfl_pci_probe_first(pci_dev);
+	else
+		return cpfl_pci_probe_again(pci_dev, adapter);
 }
 
 static int
@@ -1439,7 +2840,8 @@ cpfl_pci_remove(struct rte_pci_device *pci_dev)
 
 static struct rte_pci_driver rte_cpfl_pmd = {
 	.id_table	= pci_id_cpfl_map,
-	.drv_flags	= RTE_PCI_DRV_NEED_MAPPING,
+	.drv_flags	= RTE_PCI_DRV_NEED_MAPPING |
+			  RTE_PCI_DRV_PROBE_AGAIN,
 	.probe		= cpfl_pci_probe,
 	.remove		= cpfl_pci_remove,
 };

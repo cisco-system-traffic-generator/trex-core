@@ -12,9 +12,9 @@
 #include <ethdev_pci.h>
 #include <rte_cycles.h>
 #include <rte_pci.h>
-#include <bus_pci_driver.h>
+#include <rte_bus_pci.h>
 #include <rte_timer.h>
-#include <dev_driver.h>
+#include <rte_dev.h>
 #include <rte_net.h>
 
 #include "ena_com.h"
@@ -44,6 +44,8 @@
 #define ENA_MONITORED_TX_QUEUES		3
 #define ENA_DEFAULT_MISSING_COMP	256U
 
+#define ENA_MAX_CONTROL_PATH_POLL_INTERVAL_MSEC 1000
+
 /* While processing submitted and completed descriptors (rx and tx path
  * respectively) in a loop it is desired to:
  *  - perform batch submissions while populating submission queue
@@ -53,6 +55,12 @@
  */
 #define ENA_REFILL_THRESH_DIVIDER      8
 #define ENA_REFILL_THRESH_PACKET       256
+
+/*
+ * The max customer metrics is equal or bigger than the ENI metrics. That
+ * assumption simplifies the fallback to the legacy metrics mechanism.
+ */
+#define ENA_MAX_CUSTOMER_METRICS	6
 
 #define ENA_IDX_NEXT_MASKED(idx, mask) (((idx) + 1) & (mask))
 #define ENA_IDX_ADD_MASKED(idx, n, mask) (((idx) + (n)) & (mask))
@@ -78,6 +86,14 @@ enum ena_ring_type {
 	ENA_RING_TYPE_RX = 1,
 	ENA_RING_TYPE_TX = 2,
 };
+
+typedef enum ena_llq_policy_t {
+	ENA_LLQ_POLICY_DISABLED    = 0, /* Host queues */
+	ENA_LLQ_POLICY_RECOMMENDED = 1, /* Device recommendation */
+	ENA_LLQ_POLICY_NORMAL      = 2, /* 128B long LLQ entry */
+	ENA_LLQ_POLICY_LARGE       = 3, /* 256B long LLQ entry */
+	ENA_LLQ_POLICY_LAST,
+} ena_llq_policy;
 
 struct ena_tx_buffer {
 	struct rte_mbuf *mbuf;
@@ -215,7 +231,7 @@ struct ena_stats_dev {
 	u64 tx_drops;
 };
 
-struct ena_stats_eni {
+struct ena_stats_metrics {
 	/*
 	 * The number of packets shaped due to inbound aggregate BW
 	 * allowance being exceeded
@@ -239,6 +255,27 @@ struct ena_stats_eni {
 	 * allowance being exceeded
 	 */
 	uint64_t linklocal_allowance_exceeded;
+	 /*
+	  * The number of available connections
+	  */
+	uint64_t conntrack_allowance_available;
+};
+
+struct ena_stats_srd {
+	/* Describes which ENA Express features are enabled */
+	uint64_t ena_srd_mode;
+
+	/* Number of packets transmitted over ENA SRD */
+	uint64_t ena_srd_tx_pkts;
+
+	/* Number of packets transmitted or could have been transmitted over ENA SRD */
+	uint64_t ena_srd_eligible_tx_pkts;
+
+	/* Number of packets received over ENA SRD */
+	uint64_t ena_srd_rx_pkts;
+
+	/* Percentage of the ENA SRD resources that is in use */
+	uint64_t ena_srd_resource_utilization;
 };
 
 struct ena_offloads {
@@ -293,7 +330,6 @@ struct ena_adapter {
 	uint64_t keep_alive_timeout;
 
 	struct ena_stats_dev dev_stats;
-	struct ena_stats_eni eni_stats;
 	struct ena_admin_basic_stats basic_stats;
 
 	u32 indirect_table[ENA_RX_RSS_TABLE_SIZE];
@@ -302,9 +338,10 @@ struct ena_adapter {
 	uint32_t active_aenq_groups;
 
 	bool trigger_reset;
-
 	bool enable_llq;
 	bool use_large_llq_hdr;
+	bool use_normal_llq_hdr;
+	ena_llq_policy llq_header_policy;
 
 	uint32_t last_tx_comp_qid;
 	uint64_t missing_tx_completion_to;
@@ -312,6 +349,17 @@ struct ena_adapter {
 	uint64_t tx_cleanup_stall_delay;
 
 	uint64_t memzone_cnt;
+
+	/* Time (in microseconds) of the control path queues monitoring interval */
+	uint64_t control_path_poll_interval;
+
+	/*
+	 * Helper variables for holding the information about the supported
+	 * metrics.
+	 */
+	uint64_t metrics_stats[ENA_MAX_CUSTOMER_METRICS] __rte_cache_aligned;
+	uint16_t metrics_num;
+	struct ena_stats_srd srd_stats __rte_cache_aligned;
 };
 
 int ena_mp_indirect_table_set(struct ena_adapter *adapter);

@@ -5,6 +5,7 @@
 #include "cnxk_cryptodev_ops.h"
 #include "cnxk_ethdev.h"
 #include "cnxk_eventdev.h"
+#include "cnxk_dmadev.h"
 
 void
 cnxk_sso_updt_xae_cnt(struct cnxk_sso_evdev *dev, void *data,
@@ -260,10 +261,8 @@ cnxk_sso_rx_adapter_queue_add(
 							     false);
 		}
 
-		if (rxq_sp->tx_pause)
-			roc_nix_fc_npa_bp_cfg(&cnxk_eth_dev->nix,
-					      rxq_sp->qconf.mp->pool_id, true,
-					      dev->force_ena_bp, rxq_sp->tc);
+		/* Propagate force bp devarg */
+		cnxk_eth_dev->nix.force_rx_aura_bp = dev->force_ena_bp;
 		cnxk_sso_tstamp_cfg(eth_dev->data->port_id, cnxk_eth_dev, dev);
 		cnxk_eth_dev->nb_rxq_sso++;
 	}
@@ -275,15 +274,6 @@ cnxk_sso_rx_adapter_queue_add(
 	}
 
 	dev->rx_offloads |= cnxk_eth_dev->rx_offload_flags;
-
-	/* Switch to use PF/VF's NIX LF instead of inline device for inbound
-	 * when all the RQ's are switched to event dev mode. We do this only
-	 * when dev arg no_inl_dev=1 is selected.
-	 */
-	if (cnxk_eth_dev->inb.no_inl_dev &&
-	    cnxk_eth_dev->nb_rxq_sso == cnxk_eth_dev->nb_rxq)
-		cnxk_nix_inb_mode_set(cnxk_eth_dev, false);
-
 	return 0;
 }
 
@@ -293,8 +283,6 @@ cnxk_sso_rx_adapter_queue_del(const struct rte_eventdev *event_dev,
 			      int32_t rx_queue_id)
 {
 	struct cnxk_eth_dev *cnxk_eth_dev = eth_dev->data->dev_private;
-	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
-	struct cnxk_eth_rxq_sp *rxq_sp;
 	int i, rc = 0;
 
 	RTE_SET_USED(event_dev);
@@ -302,12 +290,7 @@ cnxk_sso_rx_adapter_queue_del(const struct rte_eventdev *event_dev,
 		for (i = 0; i < eth_dev->data->nb_rx_queues; i++)
 			cnxk_sso_rx_adapter_queue_del(event_dev, eth_dev, i);
 	} else {
-		rxq_sp = cnxk_eth_rxq_to_sp(
-			eth_dev->data->rx_queues[rx_queue_id]);
 		rc = cnxk_sso_rxq_disable(cnxk_eth_dev, (uint16_t)rx_queue_id);
-		roc_nix_fc_npa_bp_cfg(&cnxk_eth_dev->nix,
-				      rxq_sp->qconf.mp->pool_id, false,
-				      dev->force_ena_bp, 0);
 		cnxk_eth_dev->nb_rxq_sso--;
 
 		/* Enable drop_re if it was disabled earlier */
@@ -318,12 +301,6 @@ cnxk_sso_rx_adapter_queue_del(const struct rte_eventdev *event_dev,
 	if (rc < 0)
 		plt_err("Failed to clear Rx adapter config port=%d, q=%d",
 			eth_dev->data->port_id, rx_queue_id);
-
-	/* Removing RQ from Rx adapter implies need to use
-	 * inline device for CQ/Poll mode.
-	 */
-	cnxk_nix_inb_mode_set(cnxk_eth_dev, true);
-
 	return rc;
 }
 
@@ -331,9 +308,9 @@ int
 cnxk_sso_rx_adapter_start(const struct rte_eventdev *event_dev,
 			  const struct rte_eth_dev *eth_dev)
 {
-	RTE_SET_USED(event_dev);
-	RTE_SET_USED(eth_dev);
-
+	struct cnxk_eth_dev *cnxk_eth_dev = eth_dev->data->dev_private;
+	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
+	dev->rx_offloads |= cnxk_eth_dev->rx_offload_flags;
 	return 0;
 }
 
@@ -341,9 +318,9 @@ int
 cnxk_sso_rx_adapter_stop(const struct rte_eventdev *event_dev,
 			 const struct rte_eth_dev *eth_dev)
 {
-	RTE_SET_USED(event_dev);
 	RTE_SET_USED(eth_dev);
-
+	struct cnxk_sso_evdev *dev = cnxk_sso_pmd_priv(event_dev);
+	dev->rx_offloads = 0;
 	return 0;
 }
 
@@ -635,6 +612,7 @@ cnxk_sso_tx_adapter_free(uint8_t id __rte_unused,
 	if (dev->tx_adptr_data_sz && dev->tx_adptr_active_mask == 0) {
 		dev->tx_adptr_data_sz = 0;
 		free(dev->tx_adptr_data);
+		dev->tx_adptr_data = NULL;
 	}
 
 	return 0;
@@ -756,6 +734,102 @@ cnxk_crypto_adapter_qp_del(const struct rte_cryptodev *cdev,
 		qp = cdev->data->queue_pairs[queue_pair_id];
 		if (qp->ca.enabled)
 			crypto_adapter_qp_free(qp);
+	}
+
+	return 0;
+}
+
+static int
+dma_adapter_vchan_setup(const int16_t dma_dev_id, struct cnxk_dpi_conf *vchan,
+			uint16_t vchan_id)
+{
+	char name[RTE_MEMPOOL_NAMESIZE];
+	uint32_t cache_size, nb_req;
+	unsigned int req_size;
+
+	snprintf(name, RTE_MEMPOOL_NAMESIZE, "cnxk_dma_req_%u:%u", dma_dev_id, vchan_id);
+	req_size = sizeof(struct cnxk_dpi_compl_s);
+
+	nb_req = vchan->c_desc.max_cnt;
+	cache_size = 16;
+	nb_req += (cache_size * rte_lcore_count());
+
+	vchan->adapter_info.req_mp = rte_mempool_create(name, nb_req, req_size, cache_size, 0,
+							NULL, NULL, NULL, NULL, rte_socket_id(), 0);
+	if (vchan->adapter_info.req_mp == NULL)
+		return -ENOMEM;
+
+	vchan->adapter_info.enabled = true;
+
+	return 0;
+}
+
+int
+cnxk_dma_adapter_vchan_add(const struct rte_eventdev *event_dev,
+			   const int16_t dma_dev_id, uint16_t vchan_id)
+{
+	struct cnxk_sso_evdev *sso_evdev = cnxk_sso_pmd_priv(event_dev);
+	uint32_t adptr_xae_cnt = 0;
+	struct cnxk_dpi_vf_s *dpivf;
+	struct cnxk_dpi_conf *vchan;
+	int ret;
+
+	dpivf = rte_dma_fp_objs[dma_dev_id].dev_private;
+	if ((int16_t)vchan_id == -1) {
+		uint16_t vchan_id;
+
+		for (vchan_id = 0; vchan_id < dpivf->num_vchans; vchan_id++) {
+			vchan = &dpivf->conf[vchan_id];
+			ret = dma_adapter_vchan_setup(dma_dev_id, vchan, vchan_id);
+			if (ret) {
+				cnxk_dma_adapter_vchan_del(dma_dev_id, -1);
+				return ret;
+			}
+			adptr_xae_cnt += vchan->adapter_info.req_mp->size;
+		}
+	} else {
+		vchan = &dpivf->conf[vchan_id];
+		ret = dma_adapter_vchan_setup(dma_dev_id, vchan, vchan_id);
+		if (ret)
+			return ret;
+		adptr_xae_cnt = vchan->adapter_info.req_mp->size;
+	}
+
+	/* Update dma adapter XAE count */
+	sso_evdev->adptr_xae_cnt += adptr_xae_cnt;
+	cnxk_sso_xae_reconfigure((struct rte_eventdev *)(uintptr_t)event_dev);
+
+	return 0;
+}
+
+static int
+dma_adapter_vchan_free(struct cnxk_dpi_conf *vchan)
+{
+	rte_mempool_free(vchan->adapter_info.req_mp);
+	vchan->adapter_info.enabled = false;
+
+	return 0;
+}
+
+int
+cnxk_dma_adapter_vchan_del(const int16_t dma_dev_id, uint16_t vchan_id)
+{
+	struct cnxk_dpi_vf_s *dpivf;
+	struct cnxk_dpi_conf *vchan;
+
+	dpivf = rte_dma_fp_objs[dma_dev_id].dev_private;
+	if ((int16_t)vchan_id == -1) {
+		uint16_t vchan_id;
+
+		for (vchan_id = 0; vchan_id < dpivf->num_vchans; vchan_id++) {
+			vchan = &dpivf->conf[vchan_id];
+			if (vchan->adapter_info.enabled)
+				dma_adapter_vchan_free(vchan);
+		}
+	} else {
+		vchan = &dpivf->conf[vchan_id];
+		if (vchan->adapter_info.enabled)
+			dma_adapter_vchan_free(vchan);
 	}
 
 	return 0;

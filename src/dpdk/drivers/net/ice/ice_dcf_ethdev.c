@@ -11,7 +11,6 @@
 #include <rte_interrupts.h>
 #include <rte_debug.h>
 #include <rte_pci.h>
-#include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
 #include <ethdev_pci.h>
@@ -115,7 +114,8 @@ ice_dcf_init_rxq(struct rte_eth_dev *dev, struct ice_rx_queue *rxq)
 
 	buf_size = rte_pktmbuf_data_room_size(rxq->mp) - RTE_PKTMBUF_HEADROOM;
 	rxq->rx_hdr_len = 0;
-	rxq->rx_buf_len = RTE_ALIGN(buf_size, (1 << ICE_RLAN_CTX_DBUF_S));
+	rxq->rx_buf_len = RTE_ALIGN_FLOOR(buf_size, (1 << ICE_RLAN_CTX_DBUF_S));
+	rxq->rx_buf_len = RTE_MIN(rxq->rx_buf_len, ICE_RX_MAX_DATA_BUF_SIZE);
 	max_pkt_len = RTE_MIN(ICE_SUPPORT_CHAIN_NUM * rxq->rx_buf_len,
 			      dev->data->mtu + ICE_ETH_OVERHEAD);
 
@@ -670,7 +670,6 @@ ice_dcf_dev_stop(struct rte_eth_dev *dev)
 	struct ice_dcf_adapter *dcf_ad = dev->data->dev_private;
 	struct rte_intr_handle *intr_handle = dev->intr_handle;
 	struct ice_adapter *ad = &dcf_ad->parent;
-	struct ice_dcf_hw *hw = &dcf_ad->real_hw;
 
 	if (ad->pf.adapter_stopped == 1) {
 		PMD_DRV_LOG(DEBUG, "Port is already stopped");
@@ -697,7 +696,6 @@ ice_dcf_dev_stop(struct rte_eth_dev *dev)
 
 	dev->data->dev_link.link_status = RTE_ETH_LINK_DOWN;
 	ad->pf.adapter_stopped = 1;
-	hw->tm_conf.committed = false;
 
 	return 0;
 }
@@ -1400,6 +1398,7 @@ ice_dcf_dev_rss_hash_update(struct rte_eth_dev *dev,
 {
 	struct ice_dcf_adapter *adapter = dev->data->dev_private;
 	struct ice_dcf_hw *hw = &adapter->real_hw;
+	int ret;
 
 	if (!(hw->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RSS_PF))
 		return -ENOTSUP;
@@ -1418,7 +1417,28 @@ ice_dcf_dev_rss_hash_update(struct rte_eth_dev *dev,
 
 	rte_memcpy(hw->rss_key, rss_conf->rss_key, rss_conf->rss_key_len);
 
-	return ice_dcf_configure_rss_key(hw);
+	ret = ice_dcf_configure_rss_key(hw);
+	if (ret)
+		return ret;
+
+	/* Clear existing RSS. */
+	ret = ice_dcf_set_hena(hw, 0);
+
+	/* It is a workaround, temporarily allow error to be returned
+	 * due to possible lack of PF handling for hena = 0.
+	 */
+	if (ret)
+		PMD_DRV_LOG(WARNING, "fail to clean existing RSS,"
+				"lack PF support");
+
+	/* Set new RSS configuration. */
+	ret = ice_dcf_rss_hash_set(hw, rss_conf->rss_hf, true);
+	if (ret) {
+		PMD_DRV_LOG(ERR, "fail to set new RSS");
+		return ret;
+	}
+
+	return 0;
 }
 
 static int
@@ -1598,6 +1618,26 @@ ice_dcf_free_repr_info(struct ice_dcf_adapter *dcf_adapter)
 	}
 }
 
+int
+ice_dcf_handle_vf_repr_close(struct ice_dcf_adapter *dcf_adapter,
+				uint16_t vf_id)
+{
+	struct ice_dcf_repr_info *vf_rep_info;
+
+	if (dcf_adapter->num_reprs >= vf_id) {
+		PMD_DRV_LOG(ERR, "Invalid VF id: %d", vf_id);
+		return -1;
+	}
+
+	if (!dcf_adapter->repr_infos)
+		return 0;
+
+	vf_rep_info = &dcf_adapter->repr_infos[vf_id];
+	vf_rep_info->vf_rep_eth_dev = NULL;
+
+	return 0;
+}
+
 static int
 ice_dcf_init_repr_info(struct ice_dcf_adapter *dcf_adapter)
 {
@@ -1621,11 +1661,10 @@ ice_dcf_dev_close(struct rte_eth_dev *dev)
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
 
+	ice_dcf_vf_repr_notify_all(adapter, false);
 	(void)ice_dcf_dev_stop(dev);
 
 	ice_free_queues(dev);
-
-	ice_dcf_free_repr_info(adapter);
 	ice_dcf_uninit_parent_adapter(dev);
 	ice_dcf_uninit_hw(dev, &adapter->real_hw);
 
@@ -1815,7 +1854,7 @@ ice_dcf_dev_reset(struct rte_eth_dev *dev)
 		ice_dcf_reset_hw(dev, hw);
 	}
 
-	ret = ice_dcf_dev_uninit(dev);
+	ret = ice_dcf_dev_close(dev);
 	if (ret)
 		return ret;
 
@@ -1825,7 +1864,8 @@ ice_dcf_dev_reset(struct rte_eth_dev *dev)
 }
 
 static const uint32_t *
-ice_dcf_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused)
+ice_dcf_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused,
+				 size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -1836,8 +1876,8 @@ ice_dcf_dev_supported_ptypes_get(struct rte_eth_dev *dev __rte_unused)
 		RTE_PTYPE_L4_SCTP,
 		RTE_PTYPE_L4_TCP,
 		RTE_PTYPE_L4_UDP,
-		RTE_PTYPE_UNKNOWN
 	};
+	*no_of_elements = RTE_DIM(ptypes);
 	return ptypes;
 }
 
@@ -1917,13 +1957,20 @@ ice_dcf_dev_init(struct rte_eth_dev *eth_dev)
 		return -1;
 	}
 
+	ice_dcf_stats_reset(eth_dev);
+
 	dcf_config_promisc(adapter, false, false);
+	ice_dcf_vf_repr_notify_all(adapter, true);
+
 	return 0;
 }
 
 static int
 ice_dcf_dev_uninit(struct rte_eth_dev *eth_dev)
 {
+	struct ice_dcf_adapter *adapter = eth_dev->data->dev_private;
+
+	ice_dcf_free_repr_info(adapter);
 	ice_dcf_dev_close(eth_dev);
 
 	return 0;
@@ -1995,8 +2042,8 @@ eth_ice_dcf_pci_probe(__rte_unused struct rte_pci_driver *pci_drv,
 	if (!ice_devargs_check(pci_dev->device.devargs, ICE_DCF_DEVARG_CAP))
 		return 1;
 
-	ret = rte_eth_devargs_parse(pci_dev->device.devargs->args, &eth_da);
-	if (ret)
+	ret = rte_eth_devargs_parse(pci_dev->device.devargs->args, &eth_da, 1);
+	if (ret < 0)
 		return ret;
 
 	ret = rte_eth_dev_pci_generic_probe(pci_dev,
@@ -2084,7 +2131,7 @@ eth_ice_dcf_pci_remove(struct rte_pci_device *pci_dev)
 	if (!eth_dev)
 		return 0;
 
-	if (eth_dev->data->dev_flags & RTE_ETH_DEV_REPRESENTOR)
+	if (rte_eth_dev_is_repr(eth_dev))
 		return rte_eth_dev_pci_generic_remove(pci_dev,
 						      ice_dcf_vf_repr_uninit);
 	else

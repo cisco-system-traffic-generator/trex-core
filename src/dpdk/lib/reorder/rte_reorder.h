@@ -12,7 +12,6 @@
  * Reorder library is a component which is designed to
  * provide ordering of out of ordered packets based on
  * sequence number present in mbuf.
- *
  */
 
 #include <rte_compat.h>
@@ -212,6 +211,23 @@ rte_reorder_drain_up_to_seqn(struct rte_reorder_buffer *b, struct rte_mbuf **mbu
 __rte_experimental
 unsigned int
 rte_reorder_min_seqn_set(struct rte_reorder_buffer *b, rte_reorder_seqn_t min_seqn);
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Determine the amount of memory needed by the reorder buffer
+ * to accommodate a given number of elements.
+ * @see rte_reorder_init()
+ *
+ * @param size
+ *   Number of elements that can be stored in reorder buffer.
+ * @return
+ *   Reorder buffer footprint measured in bytes.
+ */
+__rte_experimental
+unsigned int
+rte_reorder_memory_footprint_get(unsigned int size);
 
 #ifdef __cplusplus
 }

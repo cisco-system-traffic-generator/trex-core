@@ -17,7 +17,14 @@ indirect_headers += files(
         'rte_thash_x86_gfni.h',
 )
 
-sources = files('rte_cuckoo_hash.c', 'rte_fbk_hash.c', 'rte_thash.c')
+sources = files(
+        'rte_cuckoo_hash.c',
+        'rte_hash_crc.c',
+        'rte_fbk_hash.c',
+        'rte_thash.c',
+        'rte_thash_gfni.c',
+)
+
 deps += ['net']
 deps += ['ring']
 deps += ['rcu']

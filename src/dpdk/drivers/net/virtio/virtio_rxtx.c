@@ -2,6 +2,7 @@
  * Copyright(c) 2010-2014 Intel Corporation
  */
 
+#include <stdalign.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,7 +95,7 @@ virtio_update_packet_stats(struct virtnet_stats *stats, struct rte_mbuf *mbuf)
 		uint32_t bin;
 
 		/* count zeros, and offset into correct bin */
-		bin = (sizeof(s) * 8) - __builtin_clz(s) - 5;
+		bin = (sizeof(s) * 8) - rte_clz32(s) - 5;
 		stats->size_bins[bin]++;
 	} else {
 		if (s < 64)
@@ -1797,7 +1798,7 @@ virtio_xmit_pkts_packed(void *tx_queue, struct rte_mbuf **tx_pkts,
 		    txm->nb_segs == 1 &&
 		    rte_pktmbuf_headroom(txm) >= hdr_size &&
 		    rte_is_aligned(rte_pktmbuf_mtod(txm, char *),
-			   __alignof__(struct virtio_net_hdr_mrg_rxbuf)))
+			   alignof(struct virtio_net_hdr_mrg_rxbuf)))
 			can_push = 1;
 		else if (virtio_with_feature(hw, VIRTIO_RING_F_INDIRECT_DESC) &&
 			 txm->nb_segs < VIRTIO_MAX_TX_INDIRECT)
@@ -1878,7 +1879,7 @@ virtio_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		    txm->nb_segs == 1 &&
 		    rte_pktmbuf_headroom(txm) >= hdr_size &&
 		    rte_is_aligned(rte_pktmbuf_mtod(txm, char *),
-				   __alignof__(struct virtio_net_hdr_mrg_rxbuf)))
+				   alignof(struct virtio_net_hdr_mrg_rxbuf)))
 			can_push = 1;
 		else if (virtio_with_feature(hw, VIRTIO_RING_F_INDIRECT_DESC) &&
 			 txm->nb_segs < VIRTIO_MAX_TX_INDIRECT)
@@ -1980,7 +1981,7 @@ virtio_xmit_pkts_inorder(void *tx_queue,
 		     txm->nb_segs == 1 &&
 		     rte_pktmbuf_headroom(txm) >= hdr_size &&
 		     rte_is_aligned(rte_pktmbuf_mtod(txm, char *),
-				__alignof__(struct virtio_net_hdr_mrg_rxbuf))) {
+				alignof(struct virtio_net_hdr_mrg_rxbuf))) {
 			inorder_pkts[nb_inorder_pkts] = txm;
 			nb_inorder_pkts++;
 

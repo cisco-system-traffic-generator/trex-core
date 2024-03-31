@@ -5,17 +5,21 @@
 #ifndef _POWER_COMMON_H_
 #define _POWER_COMMON_H_
 
-
 #include <rte_common.h>
+#include <rte_log.h>
 
 #define RTE_POWER_INVALID_FREQ_INDEX (~0)
 
+extern int power_logtype;
+#define RTE_LOGTYPE_POWER power_logtype
+#define POWER_LOG(level, ...) \
+	RTE_LOG_LINE(level, POWER, "" __VA_ARGS__)
 
 #ifdef RTE_LIBRTE_POWER_DEBUG
-#define POWER_DEBUG_TRACE(fmt, args...) \
-		RTE_LOG(ERR, POWER, "%s: " fmt, __func__, ## args)
+#define POWER_DEBUG_LOG(...) \
+	RTE_LOG_LINE_PREFIX(ERR, POWER, "%s: ", __func__, __VA_ARGS__)
 #else
-#define POWER_DEBUG_TRACE(fmt, args...)
+#define POWER_DEBUG_LOG(...)
 #endif
 
 /* check if scaling driver matches one we want */

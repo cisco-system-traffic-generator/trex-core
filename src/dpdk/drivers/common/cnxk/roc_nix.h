@@ -13,8 +13,20 @@
 #define ROC_NIX_BPF_STATS_MAX	      12
 #define ROC_NIX_MTR_ID_INVALID	      UINT32_MAX
 #define ROC_NIX_PFC_CLASS_INVALID     UINT8_MAX
-#define ROC_NIX_SQB_LOWER_THRESH      70U
+#define ROC_NIX_SQB_THRESH	      30U
 #define ROC_NIX_SQB_SLACK	      12U
+#define ROC_NIX_AURA_THRESH	      95U
+
+/* Reserved interface types for BPID allocation */
+#define ROC_NIX_INTF_TYPE_CGX  0
+#define ROC_NIX_INTF_TYPE_LBK  1
+#define ROC_NIX_INTF_TYPE_SDP  2
+#define ROC_NIX_INTF_TYPE_CPT  3
+#define ROC_NIX_INTF_TYPE_RSVD 4
+
+/* Application based types for BPID allocation, start from end (255 unused rsvd) */
+#define ROC_NIX_INTF_TYPE_CPT_NIX 254
+#define ROC_NIX_INTF_TYPE_SSO     253
 
 enum roc_nix_rss_reta_sz {
 	ROC_NIX_RSS_RETA_SZ_64 = 64,
@@ -184,8 +196,11 @@ struct roc_nix_fc_cfg {
 			uint32_t rq;
 			uint16_t tc;
 			uint16_t cq_drop;
-			bool enable;
 			uint64_t pool;
+			uint64_t spb_pool;
+			uint64_t pool_drop_pct;
+			uint64_t spb_pool_drop_pct;
+			bool enable;
 		} rq_cfg;
 
 		struct {
@@ -229,14 +244,28 @@ struct roc_nix_eeprom_info {
 #define ROC_NIX_LF_RX_CFG_LEN_OL4     BIT_ULL(40)
 #define ROC_NIX_LF_RX_CFG_LEN_OL3     BIT_ULL(41)
 
+#define ROC_NIX_LF_RX_CFG_RX_ERROR_MASK 0xFFFFFFFFFFF80000
+#define ROC_NIX_RE_PARTIAL		BIT_ULL(1)
+#define ROC_NIX_RE_JABBER		BIT_ULL(2)
+#define ROC_NIX_RE_CRC8_PCH		BIT_ULL(5)
+#define ROC_NIX_RE_CNC_INV		BIT_ULL(6)
+#define ROC_NIX_RE_FCS			BIT_ULL(7)
+#define ROC_NIX_RE_FCS_RCV		BIT_ULL(8)
+#define ROC_NIX_RE_TERMINATE		BIT_ULL(9)
+#define ROC_NIX_RE_MACSEC		BIT_ULL(10)
+#define ROC_NIX_RE_RX_CTL		BIT_ULL(11)
+#define ROC_NIX_RE_SKIP			BIT_ULL(12)
+#define ROC_NIX_RE_DMAPKT		BIT_ULL(15)
+#define ROC_NIX_RE_UNDERSIZE		BIT_ULL(16)
+#define ROC_NIX_RE_OVERSIZE		BIT_ULL(17)
+#define ROC_NIX_RE_OL2_LENMISM		BIT_ULL(18)
+
 /* Group 0 will be used for RSS, 1 -7 will be used for npc_flow RSS action*/
 #define ROC_NIX_RSS_GROUP_DEFAULT    0
 #define ROC_NIX_RSS_GRPS	     8
 #define ROC_NIX_RSS_RETA_MAX	     ROC_NIX_RSS_RETA_SZ_256
 #define ROC_NIX_RSS_KEY_LEN	     48 /* 352 Bits */
 #define ROC_NIX_RSS_MCAM_IDX_DEFAULT (-1)
-
-#define ROC_NIX_DEFAULT_HW_FRS 1514
 
 #define ROC_NIX_VWQE_MAX_SIZE_LOG2 11
 #define ROC_NIX_VWQE_MIN_SIZE_LOG2 2
@@ -264,7 +293,6 @@ struct roc_nix_stats {
 };
 
 struct roc_nix_stats_queue {
-	PLT_STD_C11
 	union {
 		struct {
 			/* Rx */
@@ -280,6 +308,8 @@ struct roc_nix_stats_queue {
 			uint64_t tx_octs;
 			uint64_t tx_drop_pkts;
 			uint64_t tx_drop_octs;
+			uint64_t tx_age_drop_pkts;
+			uint64_t tx_age_drop_octs;
 		};
 	};
 };
@@ -335,6 +365,7 @@ struct roc_nix_cq {
 	/* Input parameters */
 	uint16_t qid;
 	uint32_t nb_desc;
+	uint8_t stash_thresh;
 	/* End of Input parameters */
 	uint16_t drop_thresh;
 	struct roc_nix *roc_nix;
@@ -368,6 +399,7 @@ struct roc_nix_sq {
 	void *sqe_mem;
 	void *fc;
 	uint8_t tc;
+	bool enable;
 };
 
 struct roc_nix_link_info {
@@ -414,6 +446,8 @@ typedef void (*q_err_get_t)(struct roc_nix *roc_nix, void *data);
 typedef void (*link_info_get_t)(struct roc_nix *roc_nix,
 				struct roc_nix_link_info *link);
 
+TAILQ_HEAD(roc_nix_list, roc_nix);
+
 struct roc_nix {
 	/* Input parameters */
 	struct plt_pci_device *pci_dev;
@@ -436,6 +470,9 @@ struct roc_nix {
 	bool custom_sa_action;
 	bool local_meta_aura_ena;
 	uint32_t meta_buf_sz;
+	bool force_rx_aura_bp;
+	bool custom_meta_aura_ena;
+	bool rx_inj_ena;
 	/* End of input parameters */
 	/* LMT line base for "Per Core Tx LMT line" mode*/
 	uintptr_t lmt_base;
@@ -445,8 +482,11 @@ struct roc_nix {
 	uint32_t buf_sz;
 	uint64_t meta_aura_handle;
 	uintptr_t meta_mempool;
+	uint16_t rep_cnt;
+	uint16_t rep_pfvf_map[MAX_PFVF_REP];
+	TAILQ_ENTRY(roc_nix) next;
 
-#define ROC_NIX_MEM_SZ (6 * 1056)
+#define ROC_NIX_MEM_SZ (6 * 1070)
 	uint8_t reserved[ROC_NIX_MEM_SZ] __plt_cache_aligned;
 } __plt_cache_aligned;
 
@@ -486,10 +526,12 @@ int __roc_api roc_nix_dev_fini(struct roc_nix *roc_nix);
 
 /* Type */
 bool __roc_api roc_nix_is_lbk(struct roc_nix *roc_nix);
+bool __roc_api roc_nix_is_esw(struct roc_nix *roc_nix);
 bool __roc_api roc_nix_is_sdp(struct roc_nix *roc_nix);
 bool __roc_api roc_nix_is_pf(struct roc_nix *roc_nix);
 bool __roc_api roc_nix_is_vf_or_sdp(struct roc_nix *roc_nix);
 int __roc_api roc_nix_get_base_chan(struct roc_nix *roc_nix);
+uint8_t __roc_api roc_nix_get_rx_chan_cnt(struct roc_nix *roc_nix);
 int __roc_api roc_nix_get_pf(struct roc_nix *roc_nix);
 int __roc_api roc_nix_get_vf(struct roc_nix *roc_nix);
 uint16_t __roc_api roc_nix_get_pf_func(struct roc_nix *roc_nix);
@@ -509,10 +551,12 @@ int __roc_api roc_nix_rx_drop_re_set(struct roc_nix *roc_nix, bool ena);
 int __roc_api roc_nix_lf_get_reg_count(struct roc_nix *roc_nix);
 int __roc_api roc_nix_lf_reg_dump(struct roc_nix *roc_nix, uint64_t *data);
 int __roc_api roc_nix_queues_ctx_dump(struct roc_nix *roc_nix, FILE *file);
-void __roc_api roc_nix_cqe_dump(const struct nix_cqe_hdr_s *cq);
+void __roc_api roc_nix_cqe_dump(FILE *file, const struct nix_cqe_hdr_s *cq);
 void __roc_api roc_nix_rq_dump(struct roc_nix_rq *rq, FILE *file);
 void __roc_api roc_nix_cq_dump(struct roc_nix_cq *cq, FILE *file);
 void __roc_api roc_nix_sq_dump(struct roc_nix_sq *sq, FILE *file);
+int __roc_api roc_nix_sq_desc_dump(struct roc_nix *roc_nix, uint16_t q, uint16_t offset,
+				   uint16_t num, FILE *file);
 void __roc_api roc_nix_tm_dump(struct roc_nix *roc_nix, FILE *file);
 void __roc_api roc_nix_dump(struct roc_nix *roc_nix, FILE *file);
 
@@ -670,8 +714,13 @@ int __roc_api roc_nix_tm_node_stats_get(struct roc_nix *roc_nix,
 /*
  * TM ratelimit tree API.
  */
-int __roc_api roc_nix_tm_rlimit_sq(struct roc_nix *roc_nix, uint16_t qid,
-				   uint64_t rate);
+int __roc_api roc_nix_tm_rlimit_sq(struct roc_nix *roc_nix, uint16_t qid, uint64_t rate);
+
+/*
+ * TM PFC tree ratelimit API.
+ */
+int __roc_api roc_nix_tm_pfc_rlimit_sq(struct roc_nix *roc_nix, uint16_t qid, uint64_t rate);
+
 /*
  * TM hierarchy enable/disable API.
  */
@@ -710,6 +759,8 @@ int __roc_api roc_nix_tm_mark_config(struct roc_nix *roc_nix,
 				     int mark_red);
 uint64_t __roc_api roc_nix_tm_mark_format_get(struct roc_nix *roc_nix,
 					      uint64_t *flags);
+int __roc_api roc_nix_tm_egress_link_cfg_set(struct roc_nix *roc_nix, uint64_t dst_pf_func,
+					     bool enable);
 
 /* Ingress Policer API */
 int __roc_api roc_nix_bpf_timeunit_get(struct roc_nix *roc_nix,
@@ -835,8 +886,18 @@ uint16_t __roc_api roc_nix_chan_count_get(struct roc_nix *roc_nix);
 
 enum roc_nix_fc_mode __roc_api roc_nix_fc_mode_get(struct roc_nix *roc_nix);
 
-void __roc_api roc_nix_fc_npa_bp_cfg(struct roc_nix *roc_nix, uint64_t pool_id,
-				     uint8_t ena, uint8_t force, uint8_t tc);
+void __roc_api roc_nix_fc_npa_bp_cfg(struct roc_nix *roc_nix, uint64_t pool_id, uint8_t ena,
+				     uint8_t force, uint8_t tc, uint64_t drop_percent);
+int __roc_api roc_nix_bpids_alloc(struct roc_nix *roc_nix, uint8_t type,
+				  uint8_t bp_cnt, uint16_t *bpids);
+int __roc_api roc_nix_bpids_free(struct roc_nix *roc_nix, uint8_t bp_cnt,
+				 uint16_t *bpids);
+int __roc_api roc_nix_rx_chan_cfg_get(struct roc_nix *roc_nix, uint16_t chan,
+				      bool is_cpt, uint64_t *cfg);
+int __roc_api roc_nix_rx_chan_cfg_set(struct roc_nix *roc_nix, uint16_t chan,
+				      bool is_cpt, uint64_t val);
+int __roc_api roc_nix_chan_bpid_set(struct roc_nix *roc_nix, uint16_t chan,
+				    uint64_t bpid, int ena, bool cpt_chan);
 
 /* NPC */
 int __roc_api roc_nix_npc_promisc_ena_dis(struct roc_nix *roc_nix, int enable);
@@ -898,6 +959,7 @@ void __roc_api roc_nix_cq_head_tail_get(struct roc_nix *roc_nix, uint16_t qid,
 					uint32_t *head, uint32_t *tail);
 int __roc_api roc_nix_sq_init(struct roc_nix *roc_nix, struct roc_nix_sq *sq);
 int __roc_api roc_nix_sq_fini(struct roc_nix_sq *sq);
+int __roc_api roc_nix_sq_ena_dis(struct roc_nix_sq *sq, bool enable);
 void __roc_api roc_nix_sq_head_tail_get(struct roc_nix *roc_nix, uint16_t qid,
 					uint32_t *head, uint32_t *tail);
 
@@ -949,6 +1011,11 @@ int __roc_api roc_nix_mcast_mcam_entry_write(struct roc_nix *roc_nix,
 					     struct mcam_entry *entry,
 					     uint32_t index, uint8_t intf,
 					     uint64_t action);
-int __roc_api roc_nix_mcast_mcam_entry_ena_dis(struct roc_nix *roc_nix,
-					       uint32_t index, bool enable);
+int __roc_api roc_nix_mcast_mcam_entry_ena_dis(struct roc_nix *roc_nix, uint32_t index,
+					       bool enable);
+int __roc_api roc_nix_mcast_list_setup(struct mbox *mbox, uint8_t intf, int nb_entries,
+				       uint16_t *pf_funcs, uint16_t *channels, uint32_t *rqs,
+				       uint32_t *grp_index, uint32_t *start_index);
+int __roc_api roc_nix_mcast_list_free(struct mbox *mbox, uint32_t mcast_grp_index);
+int __roc_api roc_nix_max_rep_count(struct roc_nix *roc_nix);
 #endif /* _ROC_NIX_H_ */

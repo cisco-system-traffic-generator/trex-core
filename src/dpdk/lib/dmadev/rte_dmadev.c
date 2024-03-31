@@ -17,6 +17,7 @@
 
 #include "rte_dmadev.h"
 #include "rte_dmadev_pmd.h"
+#include "rte_dmadev_trace.h"
 
 static int16_t dma_devices_max;
 
@@ -31,9 +32,10 @@ static struct {
 } *dma_devices_shared_data;
 
 RTE_LOG_REGISTER_DEFAULT(rte_dma_logtype, INFO);
+#define RTE_LOGTYPE_DMADEV rte_dma_logtype
+
 #define RTE_DMA_LOG(level, ...) \
-	rte_log(RTE_LOG_ ## level, rte_dma_logtype, RTE_FMT("dma: " \
-		RTE_FMT_HEAD(__VA_ARGS__,) "\n", RTE_FMT_TAIL(__VA_ARGS__,)))
+	RTE_LOG_LINE(level, DMADEV, "" __VA_ARGS__)
 
 int
 rte_dma_dev_max(size_t dev_max)
@@ -396,6 +398,15 @@ rte_dma_is_valid(int16_t dev_id)
 		rte_dma_devices[dev_id].state != RTE_DMA_DEV_UNUSED;
 }
 
+struct rte_dma_dev *
+rte_dma_pmd_get_dev_by_id(int16_t dev_id)
+{
+	if (!rte_dma_is_valid(dev_id))
+		return NULL;
+
+	return &rte_dma_devices[dev_id];
+}
+
 uint16_t
 rte_dma_count_avail(void)
 {
@@ -433,6 +444,8 @@ rte_dma_info_get(int16_t dev_id, struct rte_dma_info *dev_info)
 	dev_info->dev_name = dev->data->dev_name;
 	dev_info->numa_node = dev->device->numa_node;
 	dev_info->nb_vchans = dev->data->dev_conf.nb_vchans;
+
+	rte_dma_trace_info_get(dev_id, dev_info);
 
 	return 0;
 }
@@ -483,6 +496,8 @@ rte_dma_configure(int16_t dev_id, const struct rte_dma_conf *dev_conf)
 		memcpy(&dev->data->dev_conf, dev_conf,
 		       sizeof(struct rte_dma_conf));
 
+	rte_dma_trace_configure(dev_id, dev_conf, ret);
+
 	return ret;
 }
 
@@ -509,6 +524,7 @@ rte_dma_start(int16_t dev_id)
 		goto mark_started;
 
 	ret = (*dev->dev_ops->dev_start)(dev);
+	rte_dma_trace_start(dev_id, ret);
 	if (ret != 0)
 		return ret;
 
@@ -535,6 +551,7 @@ rte_dma_stop(int16_t dev_id)
 		goto mark_stopped;
 
 	ret = (*dev->dev_ops->dev_stop)(dev);
+	rte_dma_trace_stop(dev_id, ret);
 	if (ret != 0)
 		return ret;
 
@@ -564,6 +581,8 @@ rte_dma_close(int16_t dev_id)
 	ret = (*dev->dev_ops->dev_close)(dev);
 	if (ret == 0)
 		dma_release(dev);
+
+	rte_dma_trace_close(dev_id, ret);
 
 	return ret;
 }
@@ -655,8 +674,11 @@ rte_dma_vchan_setup(int16_t dev_id, uint16_t vchan,
 
 	if (*dev->dev_ops->vchan_setup == NULL)
 		return -ENOTSUP;
-	return (*dev->dev_ops->vchan_setup)(dev, vchan, conf,
+	ret = (*dev->dev_ops->vchan_setup)(dev, vchan, conf,
 					sizeof(struct rte_dma_vchan_conf));
+	rte_dma_trace_vchan_setup(dev_id, vchan, conf, ret);
+
+	return ret;
 }
 
 int
@@ -685,6 +707,7 @@ int
 rte_dma_stats_reset(int16_t dev_id, uint16_t vchan)
 {
 	struct rte_dma_dev *dev = &rte_dma_devices[dev_id];
+	int ret;
 
 	if (!rte_dma_is_valid(dev_id))
 		return -EINVAL;
@@ -698,7 +721,10 @@ rte_dma_stats_reset(int16_t dev_id, uint16_t vchan)
 
 	if (*dev->dev_ops->stats_reset == NULL)
 		return -ENOTSUP;
-	return (*dev->dev_ops->stats_reset)(dev, vchan);
+	ret = (*dev->dev_ops->stats_reset)(dev, vchan);
+	rte_dma_trace_stats_reset(dev_id, vchan, ret);
+
+	return ret;
 }
 
 int
@@ -710,7 +736,7 @@ rte_dma_vchan_status(int16_t dev_id, uint16_t vchan, enum rte_dma_vchan_status *
 		return -EINVAL;
 
 	if (vchan >= dev->data->dev_conf.nb_vchans) {
-		RTE_DMA_LOG(ERR, "Device %u vchan %u out of range\n", dev_id, vchan);
+		RTE_DMA_LOG(ERR, "Device %u vchan %u out of range", dev_id, vchan);
 		return -EINVAL;
 	}
 
@@ -733,6 +759,7 @@ dma_capability_name(uint64_t capability)
 		{ RTE_DMA_CAPA_SVA,         "sva"     },
 		{ RTE_DMA_CAPA_SILENT,      "silent"  },
 		{ RTE_DMA_CAPA_HANDLES_ERRORS, "handles_errors" },
+		{ RTE_DMA_CAPA_M2D_AUTO_FREE,  "m2d_auto_free"  },
 		{ RTE_DMA_CAPA_OPS_COPY,    "copy"    },
 		{ RTE_DMA_CAPA_OPS_COPY_SG, "copy_sg" },
 		{ RTE_DMA_CAPA_OPS_FILL,    "fill"    },
@@ -758,7 +785,7 @@ dma_dump_capability(FILE *f, uint64_t dev_capa)
 
 	(void)fprintf(f, "  dev_capa: 0x%" PRIx64 " -", dev_capa);
 	while (dev_capa > 0) {
-		capa = 1ull << __builtin_ctzll(dev_capa);
+		capa = 1ull << rte_ctz64(dev_capa);
 		(void)fprintf(f, " %s", dma_capability_name(capa));
 		dev_capa &= ~capa;
 	}
@@ -792,9 +819,10 @@ rte_dma_dump(int16_t dev_id, FILE *f)
 		dev->data->dev_conf.enable_silent ? "on" : "off");
 
 	if (dev->dev_ops->dev_dump != NULL)
-		return (*dev->dev_ops->dev_dump)(dev, f);
+		ret = (*dev->dev_ops->dev_dump)(dev, f);
+	rte_dma_trace_dump(dev_id, f, ret);
 
-	return 0;
+	return ret;
 }
 
 static int
@@ -936,6 +964,7 @@ dmadev_handle_dev_info(const char *cmd __rte_unused,
 	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_SVA);
 	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_SILENT);
 	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_HANDLES_ERRORS);
+	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_M2D_AUTO_FREE);
 	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_OPS_COPY);
 	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_OPS_COPY_SG);
 	ADD_CAPA(dma_caps, dev_capa, RTE_DMA_CAPA_OPS_FILL);
@@ -1011,7 +1040,7 @@ dmadev_handle_dev_dump(const char *cmd __rte_unused,
 	if (*end_param != '\0')
 		RTE_DMA_LOG(WARNING, "Extra parameters passed to dmadev telemetry command, ignoring");
 
-	buf = calloc(sizeof(char), RTE_TEL_MAX_SINGLE_STRING_LEN);
+	buf = calloc(RTE_TEL_MAX_SINGLE_STRING_LEN, sizeof(char));
 	if (buf == NULL)
 		return -ENOMEM;
 

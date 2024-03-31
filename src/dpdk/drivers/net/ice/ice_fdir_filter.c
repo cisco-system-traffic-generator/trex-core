@@ -106,7 +106,7 @@
 	ICE_INSET_IPV6_SRC | ICE_INSET_IPV6_DST | \
 	ICE_INSET_NAT_T_ESP_SPI)
 
-static struct ice_pattern_match_item ice_fdir_pattern_list[] = {
+static struct ice_pattern_match_item ice_fdir_supported_pattern[] = {
 	{pattern_raw,					ICE_INSET_NONE,			ICE_INSET_NONE,			ICE_INSET_NONE},
 	{pattern_ethertype,				ICE_FDIR_INSET_ETH,		ICE_INSET_NONE,			ICE_INSET_NONE},
 	{pattern_eth_ipv4,				ICE_FDIR_INSET_ETH_IPV4,	ICE_INSET_NONE,			ICE_INSET_NONE},
@@ -136,8 +136,6 @@ static struct ice_pattern_match_item ice_fdir_pattern_list[] = {
 	{pattern_eth_ipv6_gtpu,				ICE_FDIR_INSET_IPV6_GTPU,	ICE_FDIR_INSET_IPV6_GTPU,	ICE_INSET_NONE},
 	{pattern_eth_ipv6_gtpu_eh,			ICE_FDIR_INSET_IPV6_GTPU_EH,	ICE_FDIR_INSET_IPV6_GTPU_EH,	ICE_INSET_NONE},
 };
-
-static struct ice_flow_parser ice_fdir_parser;
 
 static int
 ice_fdir_is_tunnel_profile(enum ice_fdir_tunnel_type tunnel_type);
@@ -1147,33 +1145,17 @@ static int
 ice_fdir_init(struct ice_adapter *ad)
 {
 	struct ice_pf *pf = &ad->pf;
-	struct ice_flow_parser *parser;
-	int ret;
 
-	if (ad->hw.dcf_enabled)
-		return 0;
-
-	ret = ice_fdir_setup(pf);
-	if (ret)
-		return ret;
-
-	parser = &ice_fdir_parser;
-
-	return ice_register_parser(parser, ad);
+	return ice_fdir_setup(pf);
 }
 
 static void
 ice_fdir_uninit(struct ice_adapter *ad)
 {
-	struct ice_flow_parser *parser;
 	struct ice_pf *pf = &ad->pf;
 
 	if (ad->hw.dcf_enabled)
 		return;
-
-	parser = &ice_fdir_parser;
-
-	ice_unregister_parser(parser, ad);
 
 	ice_fdir_teardown(pf);
 }
@@ -1876,7 +1858,7 @@ ice_fdir_parse_pattern(__rte_unused struct ice_adapter *ad,
 				(uint8_t *)(uintptr_t)raw_mask->pattern;
 			uint8_t *tmp_spec, *tmp_mask;
 			uint16_t tmp_val = 0;
-			uint8_t pkt_len = 0;
+			uint16_t pkt_len = 0;
 			uint8_t tmp = 0;
 			int i, j;
 
@@ -2467,7 +2449,7 @@ ice_fdir_parse(struct ice_adapter *ad,
 	item = ice_search_pattern_match_item(ad, pattern, array, array_len,
 					     error);
 
-	if (!ad->devargs.pipe_mode_support && priority >= 1)
+	if (priority >= 1)
 		return -rte_errno;
 
 	if (!item)
@@ -2510,10 +2492,10 @@ error:
 	return ret;
 }
 
-static struct ice_flow_parser ice_fdir_parser = {
+struct ice_flow_parser ice_fdir_parser = {
 	.engine = &ice_fdir_engine,
-	.array = ice_fdir_pattern_list,
-	.array_len = RTE_DIM(ice_fdir_pattern_list),
+	.array = ice_fdir_supported_pattern,
+	.array_len = RTE_DIM(ice_fdir_supported_pattern),
 	.parse_pattern_action = ice_fdir_parse,
 	.stage = ICE_FLOW_STAGE_DISTRIBUTOR,
 };

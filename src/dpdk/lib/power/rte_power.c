@@ -10,8 +10,10 @@
 #include "rte_power.h"
 #include "power_acpi_cpufreq.h"
 #include "power_cppc_cpufreq.h"
+#include "power_common.h"
 #include "power_kvm_vm.h"
 #include "power_pstate_cpufreq.h"
+#include "power_amd_pstate_cpufreq.h"
 
 enum power_management_env global_default_env = PM_ENV_NOT_SET;
 
@@ -58,6 +60,8 @@ rte_power_check_env_supported(enum power_management_env env)
 		return power_kvm_vm_check_supported();
 	case PM_ENV_CPPC_CPUFREQ:
 		return power_cppc_cpufreq_check_supported();
+	case PM_ENV_AMD_PSTATE_CPUFREQ:
+		return power_amd_pstate_cpufreq_check_supported();
 	default:
 		rte_errno = EINVAL;
 		return -1;
@@ -70,7 +74,7 @@ rte_power_set_env(enum power_management_env env)
 	rte_spinlock_lock(&global_env_cfg_lock);
 
 	if (global_default_env != PM_ENV_NOT_SET) {
-		RTE_LOG(ERR, POWER, "Power Management Environment already set.\n");
+		POWER_LOG(ERR, "Power Management Environment already set.");
 		rte_spinlock_unlock(&global_env_cfg_lock);
 		return -1;
 	}
@@ -126,8 +130,20 @@ rte_power_set_env(enum power_management_env env)
 		rte_power_freq_enable_turbo = power_cppc_enable_turbo;
 		rte_power_freq_disable_turbo = power_cppc_disable_turbo;
 		rte_power_get_capabilities = power_cppc_get_capabilities;
+	} else if (env == PM_ENV_AMD_PSTATE_CPUFREQ) {
+		rte_power_freqs = power_amd_pstate_cpufreq_freqs;
+		rte_power_get_freq = power_amd_pstate_cpufreq_get_freq;
+		rte_power_set_freq = power_amd_pstate_cpufreq_set_freq;
+		rte_power_freq_up = power_amd_pstate_cpufreq_freq_up;
+		rte_power_freq_down = power_amd_pstate_cpufreq_freq_down;
+		rte_power_freq_min = power_amd_pstate_cpufreq_freq_min;
+		rte_power_freq_max = power_amd_pstate_cpufreq_freq_max;
+		rte_power_turbo_status = power_amd_pstate_turbo_status;
+		rte_power_freq_enable_turbo = power_amd_pstate_enable_turbo;
+		rte_power_freq_disable_turbo = power_amd_pstate_disable_turbo;
+		rte_power_get_capabilities = power_amd_pstate_get_capabilities;
 	} else {
-		RTE_LOG(ERR, POWER, "Invalid Power Management Environment(%d) set\n",
+		POWER_LOG(ERR, "Invalid Power Management Environment(%d) set",
 				env);
 		ret = -1;
 	}
@@ -171,40 +187,49 @@ rte_power_init(unsigned int lcore_id)
 		return power_pstate_cpufreq_init(lcore_id);
 	case PM_ENV_CPPC_CPUFREQ:
 		return power_cppc_cpufreq_init(lcore_id);
+	case PM_ENV_AMD_PSTATE_CPUFREQ:
+		return power_amd_pstate_cpufreq_init(lcore_id);
 	default:
-		RTE_LOG(INFO, POWER, "Env isn't set yet!\n");
+		POWER_LOG(INFO, "Env isn't set yet!");
 	}
 
 	/* Auto detect Environment */
-	RTE_LOG(INFO, POWER, "Attempting to initialise ACPI cpufreq power management...\n");
+	POWER_LOG(INFO, "Attempting to initialise ACPI cpufreq power management...");
 	ret = power_acpi_cpufreq_init(lcore_id);
 	if (ret == 0) {
 		rte_power_set_env(PM_ENV_ACPI_CPUFREQ);
 		goto out;
 	}
 
-	RTE_LOG(INFO, POWER, "Attempting to initialise PSTAT power management...\n");
+	POWER_LOG(INFO, "Attempting to initialise PSTAT power management...");
 	ret = power_pstate_cpufreq_init(lcore_id);
 	if (ret == 0) {
 		rte_power_set_env(PM_ENV_PSTATE_CPUFREQ);
 		goto out;
 	}
 
-	RTE_LOG(INFO, POWER, "Attempting to initialise CPPC power management...\n");
+	POWER_LOG(INFO, "Attempting to initialise AMD PSTATE power management...");
+	ret = power_amd_pstate_cpufreq_init(lcore_id);
+	if (ret == 0) {
+		rte_power_set_env(PM_ENV_AMD_PSTATE_CPUFREQ);
+		goto out;
+	}
+
+	POWER_LOG(INFO, "Attempting to initialise CPPC power management...");
 	ret = power_cppc_cpufreq_init(lcore_id);
 	if (ret == 0) {
 		rte_power_set_env(PM_ENV_CPPC_CPUFREQ);
 		goto out;
 	}
 
-	RTE_LOG(INFO, POWER, "Attempting to initialise VM power management...\n");
+	POWER_LOG(INFO, "Attempting to initialise VM power management...");
 	ret = power_kvm_vm_init(lcore_id);
 	if (ret == 0) {
 		rte_power_set_env(PM_ENV_KVM_VM);
 		goto out;
 	}
-	RTE_LOG(ERR, POWER, "Unable to set Power Management Environment for lcore "
-			"%u\n", lcore_id);
+	POWER_LOG(ERR, "Unable to set Power Management Environment for lcore "
+			"%u", lcore_id);
 out:
 	return ret;
 }
@@ -221,8 +246,10 @@ rte_power_exit(unsigned int lcore_id)
 		return power_pstate_cpufreq_exit(lcore_id);
 	case PM_ENV_CPPC_CPUFREQ:
 		return power_cppc_cpufreq_exit(lcore_id);
+	case PM_ENV_AMD_PSTATE_CPUFREQ:
+		return power_amd_pstate_cpufreq_exit(lcore_id);
 	default:
-		RTE_LOG(ERR, POWER, "Environment has not been set, unable to exit gracefully\n");
+		POWER_LOG(ERR, "Environment has not been set, unable to exit gracefully");
 
 	}
 	return -1;

@@ -29,6 +29,7 @@
 #include <bus_vdev_driver.h>
 #include <rte_string_fns.h>
 #include <rte_pmd_i40e.h>
+#include <bus_driver.h>
 
 #include "base/opae_hw_api.h"
 #include "base/opae_ifpga_hw_api.h"
@@ -73,7 +74,7 @@ static const struct rte_pci_id pci_ifpga_map[] = {
 static struct ifpga_rawdev ifpga_rawdevices[IFPGA_RAWDEV_NUM];
 
 static int ifpga_monitor_refcnt;
-static pthread_t ifpga_monitor_start_thread;
+static rte_thread_t ifpga_monitor_start_thread;
 
 static struct ifpga_rawdev *
 ifpga_rawdev_allocate(struct rte_rawdev *rawdev);
@@ -503,7 +504,7 @@ end:
 	return -EFAULT;
 }
 
-static void *
+static uint32_t
 ifpga_rawdev_gsd_handle(__rte_unused void *param)
 {
 	struct ifpga_rawdev *ifpga_rdev;
@@ -531,7 +532,7 @@ ifpga_rawdev_gsd_handle(__rte_unused void *param)
 		rte_delay_us(100 * MS);
 	}
 
-	return NULL;
+	return 0;
 }
 
 static int
@@ -549,11 +550,10 @@ ifpga_monitor_start_func(struct ifpga_rawdev *dev)
 	dev->poll_enabled = 1;
 
 	if (!__atomic_fetch_add(&ifpga_monitor_refcnt, 1, __ATOMIC_RELAXED)) {
-		ret = rte_ctrl_thread_create(&ifpga_monitor_start_thread,
-					     "ifpga-monitor", NULL,
-					     ifpga_rawdev_gsd_handle, NULL);
+		ret = rte_thread_create_internal_control(&ifpga_monitor_start_thread,
+				"ifpga-mon", ifpga_rawdev_gsd_handle, NULL);
 		if (ret != 0) {
-			ifpga_monitor_start_thread = 0;
+			ifpga_monitor_start_thread.opaque_id = 0;
 			IFPGA_RAWDEV_PMD_ERR(
 				"Fail to create ifpga monitor thread");
 			return -1;
@@ -573,13 +573,13 @@ ifpga_monitor_stop_func(struct ifpga_rawdev *dev)
 
 	dev->poll_enabled = 0;
 
-	if (!__atomic_sub_fetch(&ifpga_monitor_refcnt, 1, __ATOMIC_RELAXED) &&
-		ifpga_monitor_start_thread) {
-		ret = pthread_cancel(ifpga_monitor_start_thread);
+	if (!(__atomic_fetch_sub(&ifpga_monitor_refcnt, 1, __ATOMIC_RELAXED) - 1) &&
+		ifpga_monitor_start_thread.opaque_id != 0) {
+		ret = pthread_cancel((pthread_t)ifpga_monitor_start_thread.opaque_id);
 		if (ret)
 			IFPGA_RAWDEV_PMD_ERR("Can't cancel the thread");
 
-		ret = pthread_join(ifpga_monitor_start_thread, NULL);
+		ret = rte_thread_join(ifpga_monitor_start_thread, NULL);
 		if (ret)
 			IFPGA_RAWDEV_PMD_ERR("Can't join the thread");
 
@@ -1832,12 +1832,19 @@ ifpga_cfg_probe(struct rte_vdev_device *vdev)
 	return ret;
 }
 
+static int cmp_dev_name(const struct rte_device *dev, const void *_name)
+{
+	const char *name = _name;
+	return strcmp(dev->name, name);
+}
+
 static int
 ifpga_cfg_remove(struct rte_vdev_device *vdev)
 {
 	struct rte_rawdev *rawdev = NULL;
 	struct ifpga_rawdev *ifpga_dev;
 	struct ifpga_vdev_args args;
+	struct rte_bus *bus;
 	char dev_name[RTE_RAWDEV_NAME_MAX_LEN];
 	const char *vdev_name = NULL;
 	char *tmp_vdev = NULL;
@@ -1864,7 +1871,13 @@ ifpga_cfg_remove(struct rte_vdev_device *vdev)
 
 	snprintf(dev_name, RTE_RAWDEV_NAME_MAX_LEN, "%d|%s",
 		args.port, args.bdf);
-	ret = rte_eal_hotplug_remove(RTE_STR(IFPGA_BUS_NAME), dev_name);
+	bus = rte_bus_find_by_name(RTE_STR(IFPGA_BUS_NAME));
+	if (bus) {
+		if (bus->find_device(NULL, cmp_dev_name, dev_name)) {
+			ret = rte_eal_hotplug_remove(RTE_STR(IFPGA_BUS_NAME),
+				dev_name);
+		}
+	}
 
 	for (i = 0; i < IFPGA_MAX_VDEV; i++) {
 		tmp_vdev = ifpga_dev->vdev_name[i];

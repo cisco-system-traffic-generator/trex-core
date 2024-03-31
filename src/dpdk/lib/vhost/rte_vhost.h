@@ -298,7 +298,13 @@ struct rte_vhost_device_ops {
 	 */
 	void (*guest_notified)(int vid);
 
-	void *reserved[1]; /**< Reserved for future extension */
+	/**
+	 * If this callback is registered, notification to the guest can
+	 * be handled by the front-end calling rte_vhost_notify_guest().
+	 * If it's not handled, 'false' should be returned. This can be used
+	 * to remove the "slow" eventfd_write() syscall from the datapath.
+	 */
+	bool (*guest_notify)(int vid, uint16_t queue_id);
 };
 
 /**
@@ -434,6 +440,21 @@ void rte_vhost_log_used_vring(int vid, uint16_t vring_idx,
 int rte_vhost_enable_guest_notification(int vid, uint16_t queue_id, int enable);
 
 /**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice.
+ *
+ * Inject the offloaded interrupt into the vhost device's queue.
+ * @see guest_notify vhost device operation
+ *
+ * @param vid
+ *  vhost device ID
+ * @param queue_id
+ *  virtio queue index
+ */
+__rte_experimental
+void rte_vhost_notify_guest(int vid, uint16_t queue_id);
+
+/**
  * Register vhost driver. path could be different for multiple
  * instance support.
  */
@@ -488,7 +509,6 @@ rte_vhost_driver_get_vdpa_device(const char *path);
  * @return
  *  0 on success, -1 on failure
  */
-__rte_experimental
 int
 rte_vhost_driver_get_vdpa_dev_type(const char *path, uint32_t *type);
 
@@ -589,6 +609,23 @@ int
 rte_vhost_driver_get_queue_num(const char *path, uint32_t *queue_num);
 
 /**
+ * @warning
+ * @b EXPERIMENTAL: this API may change, or be removed, without prior notice.
+ *
+ * Set the maximum number of queue pairs supported by the device.
+ *
+ * @param path
+ *  The vhost-user socket file path
+ * @param max_queue_pairs
+ *  The maximum number of queue pairs
+ * @return
+ *  0 on success, -1 on failure
+ */
+__rte_experimental
+int
+rte_vhost_driver_set_max_queue_num(const char *path, uint32_t max_queue_pairs);
+
+/**
  * Get the feature bits after negotiation
  *
  * @param vid
@@ -610,7 +647,6 @@ int rte_vhost_get_negotiated_features(int vid, uint64_t *features);
  * @return
  *  0 on success, -1 on failure
  */
-__rte_experimental
 int
 rte_vhost_get_negotiated_protocol_features(int vid,
 					   uint64_t *protocol_features);
@@ -922,7 +958,6 @@ int rte_vhost_vring_call(int vid, uint16_t vring_idx);
  * @return
  *  0 on success, -1 on failure, -EAGAIN for another retry
  */
-__rte_experimental
 int rte_vhost_vring_call_nonblock(int vid, uint16_t vring_idx);
 
 /**
@@ -949,7 +984,6 @@ uint32_t rte_vhost_rx_queue_count(int vid, uint16_t qid);
  * @return
  *  0 on success, -1 on failure
  */
-__rte_experimental
 int
 rte_vhost_get_monitor_addr(int vid, uint16_t queue_id,
 		struct rte_vhost_power_monitor_cond *pmc);
@@ -1064,7 +1098,6 @@ rte_vhost_get_vdpa_device(int vid);
  * @return
  *  0 on success, < 0 on failure
  */
-__rte_experimental
 int
 rte_vhost_backend_config_change(int vid, bool need_reply);
 

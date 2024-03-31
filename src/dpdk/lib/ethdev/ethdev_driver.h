@@ -16,8 +16,9 @@ extern "C" {
  *
  * These APIs for the use from Ethernet drivers, user applications shouldn't
  * use them.
- *
  */
+
+#include <pthread.h>
 
 #include <dev_driver.h>
 #include <rte_compat.h>
@@ -29,7 +30,7 @@ extern "C" {
  * queue on Rx and Tx.
  */
 struct rte_eth_rxtx_callback {
-	struct rte_eth_rxtx_callback *next;
+	RTE_ATOMIC(struct rte_eth_rxtx_callback *) next;
 	union{
 		rte_rx_callback_fn rx;
 		rte_tx_callback_fn tx;
@@ -47,7 +48,7 @@ struct rte_eth_rxtx_callback {
  * memory. This split allows the function pointer and driver data to be per-
  * process, while the actual configuration data for the device is shared.
  */
-struct rte_eth_dev {
+struct __rte_cache_aligned rte_eth_dev {
 	eth_rx_burst_t rx_pkt_burst; /**< Pointer to PMD receive function */
 	eth_tx_burst_t tx_pkt_burst; /**< Pointer to PMD transmit function */
 
@@ -57,8 +58,14 @@ struct rte_eth_dev {
 	eth_rx_queue_count_t rx_queue_count;
 	/** Check the status of a Rx descriptor */
 	eth_rx_descriptor_status_t rx_descriptor_status;
+	/** Get the number of used Tx descriptors */
+	eth_tx_queue_count_t tx_queue_count;
 	/** Check the status of a Tx descriptor */
 	eth_tx_descriptor_status_t tx_descriptor_status;
+	/** Pointer to PMD transmit mbufs reuse function */
+	eth_recycle_tx_mbufs_reuse_t recycle_tx_mbufs_reuse;
+	/** Pointer to PMD receive descriptors refill function */
+	eth_recycle_rx_descriptors_refill_t recycle_rx_descriptors_refill;
 
 	/**
 	 * Device data that is shared between primary and secondary processes
@@ -66,6 +73,8 @@ struct rte_eth_dev {
 	struct rte_eth_dev_data *data;
 	void *process_private; /**< Pointer to per-process device data */
 	const struct eth_dev_ops *dev_ops; /**< Functions exported by PMD */
+	/** Fast path flow API functions exported by PMD */
+	const struct rte_flow_fp_ops *flow_fp_ops;
 	struct rte_device *device; /**< Backing device */
 	struct rte_intr_handle *intr_handle; /**< Device interrupt handle */
 
@@ -75,16 +84,16 @@ struct rte_eth_dev {
 	 * User-supplied functions called from rx_burst to post-process
 	 * received packets before passing them to the user
 	 */
-	struct rte_eth_rxtx_callback *post_rx_burst_cbs[RTE_MAX_QUEUES_PER_PORT];
+	RTE_ATOMIC(struct rte_eth_rxtx_callback *) post_rx_burst_cbs[RTE_MAX_QUEUES_PER_PORT];
 	/**
 	 * User-supplied functions called from tx_burst to pre-process
 	 * received packets before passing them to the driver for transmission
 	 */
-	struct rte_eth_rxtx_callback *pre_tx_burst_cbs[RTE_MAX_QUEUES_PER_PORT];
+	RTE_ATOMIC(struct rte_eth_rxtx_callback *) pre_tx_burst_cbs[RTE_MAX_QUEUES_PER_PORT];
 
 	enum rte_eth_dev_state state; /**< Flag indicating the port state */
 	void *security_ctx; /**< Context for security ops */
-} __rte_cache_aligned;
+};
 
 struct rte_eth_dev_sriov;
 struct rte_eth_dev_owner;
@@ -95,7 +104,7 @@ struct rte_eth_dev_owner;
  * device. This structure is safe to place in shared memory to be common
  * among different processes in a multi-process configuration.
  */
-struct rte_eth_dev_data {
+struct __rte_cache_aligned rte_eth_dev_data {
 	char name[RTE_ETH_NAME_MAX_LEN]; /**< Unique identifier name */
 
 	void **rx_queues; /**< Array of pointers to Rx queues */
@@ -117,7 +126,11 @@ struct rte_eth_dev_data {
 
 	uint64_t rx_mbuf_alloc_failed; /**< Rx ring mbuf allocation failures */
 
-	/** Device Ethernet link address. @see rte_eth_dev_release_port() */
+	/**
+	 * Device Ethernet link addresses.
+	 * All entries are unique.
+	 * The first entry (index zero) is the default address.
+	 */
 	struct rte_ether_addr *mac_addrs;
 	/** Bitmap associating MAC addresses to pools */
 	uint64_t mac_pool_sel[RTE_ETH_NUM_RECEIVE_MAC_ADDR];
@@ -177,7 +190,7 @@ struct rte_eth_dev_data {
 	uint16_t backer_port_id;
 
 	pthread_mutex_t flow_ops_mutex; /**< rte_flow ops mutex */
-} __rte_cache_aligned;
+};
 
 /**
  * @internal
@@ -438,8 +451,22 @@ typedef int (*eth_queue_stats_mapping_set_t)(struct rte_eth_dev *dev,
 typedef int (*eth_dev_infos_get_t)(struct rte_eth_dev *dev,
 				   struct rte_eth_dev_info *dev_info);
 
-/** @internal Get supported ptypes of an Ethernet device. */
-typedef const uint32_t *(*eth_dev_supported_ptypes_get_t)(struct rte_eth_dev *dev);
+/**
+ * @internal
+ * Function used to get supported ptypes of an Ethernet device.
+ *
+ * @param dev
+ *   ethdev handle of port.
+ *
+ * @param no_of_elements
+ *   number of ptypes elements. Must be initialized to 0.
+ *
+ * @retval
+ *   Success, array of ptypes elements and valid no_of_elements > 0.
+ *   Failures, NULL.
+ */
+typedef const uint32_t *(*eth_dev_supported_ptypes_get_t)(struct rte_eth_dev *dev,
+							  size_t *no_of_elements);
 
 /**
  * @internal
@@ -503,6 +530,10 @@ typedef void (*eth_rxq_info_get_t)(struct rte_eth_dev *dev,
 
 typedef void (*eth_txq_info_get_t)(struct rte_eth_dev *dev,
 	uint16_t tx_queue_id, struct rte_eth_txq_info *qinfo);
+
+typedef void (*eth_recycle_rxq_info_get_t)(struct rte_eth_dev *dev,
+	uint16_t rx_queue_id,
+	struct rte_eth_recycle_rxq_info *recycle_rxq_info);
 
 typedef int (*eth_burst_mode_get_t)(struct rte_eth_dev *dev,
 	uint16_t queue_id, struct rte_eth_burst_mode *mode);
@@ -1066,7 +1097,8 @@ typedef int (*eth_ip_reassembly_conf_set_t)(struct rte_eth_dev *dev,
  * @return
  *   An array pointer to store supported protocol headers.
  */
-typedef const uint32_t *(*eth_buffer_split_supported_hdr_ptypes_get_t)(struct rte_eth_dev *dev);
+typedef const uint32_t *(*eth_buffer_split_supported_hdr_ptypes_get_t)(struct rte_eth_dev *dev,
+								       size_t *no_of_elements);
 
 /**
  * @internal
@@ -1247,6 +1279,8 @@ struct eth_dev_ops {
 	eth_rxq_info_get_t         rxq_info_get;
 	/** Retrieve Tx queue information */
 	eth_txq_info_get_t         txq_info_get;
+	/** Retrieve mbufs recycle Rx queue information */
+	eth_recycle_rxq_info_get_t recycle_rxq_info_get;
 	eth_burst_mode_get_t       rx_burst_mode_get; /**< Get Rx burst mode */
 	eth_burst_mode_get_t       tx_burst_mode_get; /**< Get Tx burst mode */
 	eth_fw_version_get_t       fw_version_get; /**< Get firmware version */
@@ -1640,7 +1674,7 @@ static inline int
 rte_eth_linkstatus_set(struct rte_eth_dev *dev,
 		       const struct rte_eth_link *new_link)
 {
-	uint64_t *dev_link = (uint64_t *)&(dev->data->dev_link);
+	RTE_ATOMIC(uint64_t) *dev_link = (uint64_t __rte_atomic *)&(dev->data->dev_link);
 	union {
 		uint64_t val64;
 		struct rte_eth_link link;
@@ -1648,8 +1682,8 @@ rte_eth_linkstatus_set(struct rte_eth_dev *dev,
 
 	RTE_BUILD_BUG_ON(sizeof(*new_link) != sizeof(uint64_t));
 
-	orig.val64 = __atomic_exchange_n(dev_link, *(const uint64_t *)new_link,
-					__ATOMIC_SEQ_CST);
+	orig.val64 = rte_atomic_exchange_explicit(dev_link, *(const uint64_t *)new_link,
+					rte_memory_order_seq_cst);
 
 	return (orig.link.link_status == new_link->link_status) ? -1 : 0;
 }
@@ -1667,12 +1701,12 @@ static inline void
 rte_eth_linkstatus_get(const struct rte_eth_dev *dev,
 		       struct rte_eth_link *link)
 {
-	uint64_t *src = (uint64_t *)&(dev->data->dev_link);
+	RTE_ATOMIC(uint64_t) *src = (uint64_t __rte_atomic *)&(dev->data->dev_link);
 	uint64_t *dst = (uint64_t *)link;
 
 	RTE_BUILD_BUG_ON(sizeof(*link) != sizeof(uint64_t));
 
-	*dst = __atomic_load_n(src, __ATOMIC_SEQ_CST);
+	*dst = rte_atomic_load_explicit(src, rte_memory_order_seq_cst);
 }
 
 /**
@@ -1780,19 +1814,39 @@ rte_eth_representor_id_get(uint16_t port_id,
 			   uint16_t *repr_id);
 
 /**
+ * @internal
+ * Check if the ethdev is a representor port.
+ *
+ * @param dev
+ *  Pointer to struct rte_eth_dev.
+ *
+ * @return
+ *  false the ethdev is not a representor port.
+ *  true  the ethdev is a representor port.
+ */
+static inline bool
+rte_eth_dev_is_repr(const struct rte_eth_dev *dev)
+{
+	return ((dev->data->dev_flags & RTE_ETH_DEV_REPRESENTOR) != 0);
+}
+
+/**
  * PMD helper function to parse ethdev arguments
  *
  * @param devargs
  *  device arguments
  * @param eth_devargs
- *  parsed ethdev specific arguments.
+ *  contiguous memory populated with parsed ethdev specific arguments.
+ * @param nb_da
+ *  size of eth_devargs array passed
  *
  * @return
- *   Negative errno value on error, 0 on success.
+ *   Negative errno value on error, no of devargs parsed on success.
  */
 __rte_internal
 int
-rte_eth_devargs_parse(const char *devargs, struct rte_eth_devargs *eth_devargs);
+rte_eth_devargs_parse(const char *devargs, struct rte_eth_devargs *eth_devargs,
+		      unsigned int nb_da);
 
 
 typedef int (*ethdev_init_t)(struct rte_eth_dev *ethdev, void *init_params);
