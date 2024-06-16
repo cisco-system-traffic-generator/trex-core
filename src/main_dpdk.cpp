@@ -5811,13 +5811,7 @@ COLD_FUNC void CPhyEthIF::configure_rss(){
 
 COLD_FUNC void CPhyEthIF::conf_multi_rx() {
     const struct rte_eth_dev_info *dev_info = m_port_attr->get_dev_info();
-    uint8_t hash_key_size;
-
-     if ( dev_info->hash_key_size==0 ) {
-          hash_key_size = 40; /* for mlx5 */
-        } else {
-          hash_key_size = dev_info->hash_key_size;
-     }
+    uint8_t hash_key_size = dev_info->hash_key_size;
 
     struct rte_eth_rss_conf *lp_rss = 
         &g_trex.m_port_cfg.m_port_conf.rx_adv_conf.rss_conf;

@@ -289,3 +289,5 @@ test_tcp_sfr_no_crash :
     cores               : 1
     bw_per_core         : 20
 
+test_all_profiles :
+        skip          : ['udp_1pkt_range_clients_split_garp.py']

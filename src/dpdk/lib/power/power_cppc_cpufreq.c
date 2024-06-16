@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include <rte_memcpy.h>
+#include <rte_stdatomic.h>
 
 #include "power_cppc_cpufreq.h"
 #include "power_common.h"
@@ -48,9 +49,9 @@ enum power_state {
 /**
  * Power info per lcore.
  */
-struct cppc_power_info {
-	unsigned int lcore_id;                   /**< Logical core id */
-	uint32_t state;                      /**< Power in use state */
+struct __rte_cache_aligned cppc_power_info {
+	unsigned int lcore_id;               /**< Logical core id */
+	RTE_ATOMIC(uint32_t) state;          /**< Power in use state */
 	FILE *f;                             /**< FD of scaling_setspeed */
 	char governor_ori[32];               /**< Original governor name */
 	uint32_t curr_idx;                   /**< Freq index in freqs array */
@@ -60,7 +61,7 @@ struct cppc_power_info {
 	uint16_t turbo_enable;               /**< Turbo Boost enable/disable */
 	uint32_t nb_freqs;                   /**< number of available freqs */
 	uint32_t freqs[RTE_MAX_LCORE_FREQS]; /**< Frequency array */
-} __rte_cache_aligned;
+};
 
 static struct cppc_power_info lcore_power_info[RTE_MAX_LCORE];
 
@@ -72,8 +73,8 @@ static int
 set_freq_internal(struct cppc_power_info *pi, uint32_t idx)
 {
 	if (idx >= RTE_MAX_LCORE_FREQS || idx >= pi->nb_freqs) {
-		RTE_LOG(ERR, POWER, "Invalid frequency index %u, which "
-				"should be less than %u\n", idx, pi->nb_freqs);
+		POWER_LOG(ERR, "Invalid frequency index %u, which "
+				"should be less than %u", idx, pi->nb_freqs);
 		return -1;
 	}
 
@@ -81,16 +82,16 @@ set_freq_internal(struct cppc_power_info *pi, uint32_t idx)
 	if (idx == pi->curr_idx)
 		return 0;
 
-	POWER_DEBUG_TRACE("Frequency[%u] %u to be set for lcore %u\n",
+	POWER_DEBUG_LOG("Frequency[%u] %u to be set for lcore %u",
 			idx, pi->freqs[idx], pi->lcore_id);
 	if (fseek(pi->f, 0, SEEK_SET) < 0) {
-		RTE_LOG(ERR, POWER, "Fail to set file position indicator to 0 "
-			"for setting frequency for lcore %u\n", pi->lcore_id);
+		POWER_LOG(ERR, "Fail to set file position indicator to 0 "
+			"for setting frequency for lcore %u", pi->lcore_id);
 		return -1;
 	}
 	if (fprintf(pi->f, "%u", pi->freqs[idx]) < 0) {
-		RTE_LOG(ERR, POWER, "Fail to write new frequency for "
-				"lcore %u\n", pi->lcore_id);
+		POWER_LOG(ERR, "Fail to write new frequency for "
+				"lcore %u", pi->lcore_id);
 		return -1;
 	}
 	fflush(pi->f);
@@ -121,7 +122,7 @@ power_check_turbo(struct cppc_power_info *pi)
 	open_core_sysfs_file(&f_max, "r", POWER_SYSFILE_HIGHEST_PERF,
 			pi->lcore_id);
 	if (f_max == NULL) {
-		RTE_LOG(ERR, POWER, "failed to open %s\n",
+		POWER_LOG(ERR, "failed to open %s",
 				POWER_SYSFILE_HIGHEST_PERF);
 		goto err;
 	}
@@ -129,7 +130,7 @@ power_check_turbo(struct cppc_power_info *pi)
 	open_core_sysfs_file(&f_nom, "r", POWER_SYSFILE_NOMINAL_PERF,
 			pi->lcore_id);
 	if (f_nom == NULL) {
-		RTE_LOG(ERR, POWER, "failed to open %s\n",
+		POWER_LOG(ERR, "failed to open %s",
 				POWER_SYSFILE_NOMINAL_PERF);
 		goto err;
 	}
@@ -137,28 +138,28 @@ power_check_turbo(struct cppc_power_info *pi)
 	open_core_sysfs_file(&f_cmax, "r", POWER_SYSFILE_SYS_MAX,
 			pi->lcore_id);
 	if (f_cmax == NULL) {
-		RTE_LOG(ERR, POWER, "failed to open %s\n",
+		POWER_LOG(ERR, "failed to open %s",
 				POWER_SYSFILE_SYS_MAX);
 		goto err;
 	}
 
 	ret = read_core_sysfs_u32(f_max, &highest_perf);
 	if (ret < 0) {
-		RTE_LOG(ERR, POWER, "Failed to read %s\n",
+		POWER_LOG(ERR, "Failed to read %s",
 				POWER_SYSFILE_HIGHEST_PERF);
 		goto err;
 	}
 
 	ret = read_core_sysfs_u32(f_nom, &nominal_perf);
 	if (ret < 0) {
-		RTE_LOG(ERR, POWER, "Failed to read %s\n",
+		POWER_LOG(ERR, "Failed to read %s",
 				POWER_SYSFILE_NOMINAL_PERF);
 		goto err;
 	}
 
 	ret = read_core_sysfs_u32(f_cmax, &cpuinfo_max_freq);
 	if (ret < 0) {
-		RTE_LOG(ERR, POWER, "Failed to read %s\n",
+		POWER_LOG(ERR, "Failed to read %s",
 				POWER_SYSFILE_SYS_MAX);
 		goto err;
 	}
@@ -171,14 +172,14 @@ power_check_turbo(struct cppc_power_info *pi)
 		pi->turbo_available = 1;
 		pi->turbo_enable = 1;
 		ret = 0;
-		POWER_DEBUG_TRACE("Lcore %u can do Turbo Boost! highest perf %u, "
-				"nominal perf %u\n",
+		POWER_DEBUG_LOG("Lcore %u can do Turbo Boost! highest perf %u, "
+				"nominal perf %u",
 				pi->lcore_id, highest_perf, nominal_perf);
 	} else {
 		pi->turbo_available = 0;
 		pi->turbo_enable = 0;
-		POWER_DEBUG_TRACE("Lcore %u Turbo not available! highest perf %u, "
-				"nominal perf %u\n",
+		POWER_DEBUG_LOG("Lcore %u Turbo not available! highest perf %u, "
+				"nominal perf %u",
 				pi->lcore_id, highest_perf, nominal_perf);
 	}
 
@@ -208,7 +209,7 @@ power_get_available_freqs(struct cppc_power_info *pi)
 	open_core_sysfs_file(&f_max, "r", POWER_SYSFILE_SCALING_MAX_FREQ,
 			pi->lcore_id);
 	if (f_max == NULL) {
-		RTE_LOG(ERR, POWER, "failed to open %s\n",
+		POWER_LOG(ERR, "failed to open %s",
 				POWER_SYSFILE_SCALING_MAX_FREQ);
 		goto out;
 	}
@@ -216,21 +217,21 @@ power_get_available_freqs(struct cppc_power_info *pi)
 	open_core_sysfs_file(&f_min, "r", POWER_SYSFILE_SCALING_MIN_FREQ,
 			pi->lcore_id);
 	if (f_min == NULL) {
-		RTE_LOG(ERR, POWER, "failed to open %s\n",
+		POWER_LOG(ERR, "failed to open %s",
 				POWER_SYSFILE_SCALING_MIN_FREQ);
 		goto out;
 	}
 
 	ret = read_core_sysfs_u32(f_max, &scaling_max_freq);
 	if (ret < 0) {
-		RTE_LOG(ERR, POWER, "Failed to read %s\n",
+		POWER_LOG(ERR, "Failed to read %s",
 				POWER_SYSFILE_SCALING_MAX_FREQ);
 		goto out;
 	}
 
 	ret = read_core_sysfs_u32(f_min, &scaling_min_freq);
 	if (ret < 0) {
-		RTE_LOG(ERR, POWER, "Failed to read %s\n",
+		POWER_LOG(ERR, "Failed to read %s",
 				POWER_SYSFILE_SCALING_MIN_FREQ);
 		goto out;
 	}
@@ -248,7 +249,7 @@ power_get_available_freqs(struct cppc_power_info *pi)
 	num_freqs = (nominal_perf - scaling_min_freq) / BUS_FREQ + 1 +
 		pi->turbo_available;
 	if (num_freqs >= RTE_MAX_LCORE_FREQS) {
-		RTE_LOG(ERR, POWER, "Too many available frequencies: %d\n",
+		POWER_LOG(ERR, "Too many available frequencies: %d",
 				num_freqs);
 		goto out;
 	}
@@ -264,7 +265,7 @@ power_get_available_freqs(struct cppc_power_info *pi)
 
 	ret = 0;
 
-	POWER_DEBUG_TRACE("%d frequency(s) of lcore %u are available\n",
+	POWER_DEBUG_LOG("%d frequency(s) of lcore %u are available",
 			num_freqs, pi->lcore_id);
 
 out:
@@ -289,14 +290,14 @@ power_init_for_setting_freq(struct cppc_power_info *pi)
 
 	open_core_sysfs_file(&f, "rw+", POWER_SYSFILE_SETSPEED, pi->lcore_id);
 	if (f == NULL) {
-		RTE_LOG(ERR, POWER, "failed to open %s\n",
+		POWER_LOG(ERR, "failed to open %s",
 				POWER_SYSFILE_SETSPEED);
 		goto err;
 	}
 
 	ret = read_core_sysfs_s(f, buf, sizeof(buf));
 	if (ret < 0) {
-		RTE_LOG(ERR, POWER, "Failed to read %s\n",
+		POWER_LOG(ERR, "Failed to read %s",
 				POWER_SYSFILE_SETSPEED);
 		goto err;
 	}
@@ -340,7 +341,7 @@ power_cppc_cpufreq_init(unsigned int lcore_id)
 	uint32_t exp_state;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Lcore id %u can not exceeds %u\n",
+		POWER_LOG(ERR, "Lcore id %u can not exceeds %u",
 				lcore_id, RTE_MAX_LCORE - 1U);
 		return -1;
 	}
@@ -353,52 +354,52 @@ power_cppc_cpufreq_init(unsigned int lcore_id)
 	 * ordering below as lock to make sure the frequency operations
 	 * in the critical section are done under the correct state.
 	 */
-	if (!__atomic_compare_exchange_n(&(pi->state), &exp_state,
-					POWER_ONGOING, 0,
-					__ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-		RTE_LOG(INFO, POWER, "Power management of lcore %u is "
-				"in use\n", lcore_id);
+	if (!rte_atomic_compare_exchange_strong_explicit(&(pi->state), &exp_state,
+					POWER_ONGOING,
+					rte_memory_order_acquire, rte_memory_order_relaxed)) {
+		POWER_LOG(INFO, "Power management of lcore %u is "
+				"in use", lcore_id);
 		return -1;
 	}
 
 	pi->lcore_id = lcore_id;
 	/* Check and set the governor */
 	if (power_set_governor_userspace(pi) < 0) {
-		RTE_LOG(ERR, POWER, "Cannot set governor of lcore %u to "
-				"userspace\n", lcore_id);
+		POWER_LOG(ERR, "Cannot set governor of lcore %u to "
+				"userspace", lcore_id);
 		goto fail;
 	}
 
 	/* Get the available frequencies */
 	if (power_get_available_freqs(pi) < 0) {
-		RTE_LOG(ERR, POWER, "Cannot get available frequencies of "
-				"lcore %u\n", lcore_id);
+		POWER_LOG(ERR, "Cannot get available frequencies of "
+				"lcore %u", lcore_id);
 		goto fail;
 	}
 
 	/* Init for setting lcore frequency */
 	if (power_init_for_setting_freq(pi) < 0) {
-		RTE_LOG(ERR, POWER, "Cannot init for setting frequency for "
-				"lcore %u\n", lcore_id);
+		POWER_LOG(ERR, "Cannot init for setting frequency for "
+				"lcore %u", lcore_id);
 		goto fail;
 	}
 
 	/* Set freq to max by default */
 	if (power_cppc_cpufreq_freq_max(lcore_id) < 0) {
-		RTE_LOG(ERR, POWER, "Cannot set frequency of lcore %u "
-				"to max\n", lcore_id);
+		POWER_LOG(ERR, "Cannot set frequency of lcore %u "
+				"to max", lcore_id);
 		goto fail;
 	}
 
-	RTE_LOG(INFO, POWER, "Initialized successfully for lcore %u "
-			"power management\n", lcore_id);
+	POWER_LOG(INFO, "Initialized successfully for lcore %u "
+			"power management", lcore_id);
 
-	__atomic_store_n(&(pi->state), POWER_USED, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit(&(pi->state), POWER_USED, rte_memory_order_release);
 
 	return 0;
 
 fail:
-	__atomic_store_n(&(pi->state), POWER_UNKNOWN, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit(&(pi->state), POWER_UNKNOWN, rte_memory_order_release);
 	return -1;
 }
 
@@ -419,7 +420,7 @@ power_cppc_cpufreq_exit(unsigned int lcore_id)
 	uint32_t exp_state;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Lcore id %u can not exceeds %u\n",
+		POWER_LOG(ERR, "Lcore id %u can not exceeds %u",
 				lcore_id, RTE_MAX_LCORE - 1U);
 		return -1;
 	}
@@ -431,11 +432,11 @@ power_cppc_cpufreq_exit(unsigned int lcore_id)
 	 * ordering below as lock to make sure the frequency operations
 	 * in the critical section are done under the correct state.
 	 */
-	if (!__atomic_compare_exchange_n(&(pi->state), &exp_state,
-					POWER_ONGOING, 0,
-					__ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-		RTE_LOG(INFO, POWER, "Power management of lcore %u is "
-				"not used\n", lcore_id);
+	if (!rte_atomic_compare_exchange_strong_explicit(&(pi->state), &exp_state,
+					POWER_ONGOING,
+					rte_memory_order_acquire, rte_memory_order_relaxed)) {
+		POWER_LOG(INFO, "Power management of lcore %u is "
+				"not used", lcore_id);
 		return -1;
 	}
 
@@ -445,20 +446,20 @@ power_cppc_cpufreq_exit(unsigned int lcore_id)
 
 	/* Set the governor back to the original */
 	if (power_set_governor_original(pi) < 0) {
-		RTE_LOG(ERR, POWER, "Cannot set the governor of %u back "
-				"to the original\n", lcore_id);
+		POWER_LOG(ERR, "Cannot set the governor of %u back "
+				"to the original", lcore_id);
 		goto fail;
 	}
 
-	RTE_LOG(INFO, POWER, "Power management of lcore %u has exited from "
+	POWER_LOG(INFO, "Power management of lcore %u has exited from "
 			"'userspace' mode and been set back to the "
-			"original\n", lcore_id);
-	__atomic_store_n(&(pi->state), POWER_IDLE, __ATOMIC_RELEASE);
+			"original", lcore_id);
+	rte_atomic_store_explicit(&(pi->state), POWER_IDLE, rte_memory_order_release);
 
 	return 0;
 
 fail:
-	__atomic_store_n(&(pi->state), POWER_UNKNOWN, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit(&(pi->state), POWER_UNKNOWN, rte_memory_order_release);
 
 	return -1;
 }
@@ -469,18 +470,18 @@ power_cppc_cpufreq_freqs(unsigned int lcore_id, uint32_t *freqs, uint32_t num)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return 0;
 	}
 
 	if (freqs == NULL) {
-		RTE_LOG(ERR, POWER, "NULL buffer supplied\n");
+		POWER_LOG(ERR, "NULL buffer supplied");
 		return 0;
 	}
 
 	pi = &lcore_power_info[lcore_id];
 	if (num < pi->nb_freqs) {
-		RTE_LOG(ERR, POWER, "Buffer size is not enough\n");
+		POWER_LOG(ERR, "Buffer size is not enough");
 		return 0;
 	}
 	rte_memcpy(freqs, pi->freqs, pi->nb_freqs * sizeof(uint32_t));
@@ -492,7 +493,7 @@ uint32_t
 power_cppc_cpufreq_get_freq(unsigned int lcore_id)
 {
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return RTE_POWER_INVALID_FREQ_INDEX;
 	}
 
@@ -503,7 +504,7 @@ int
 power_cppc_cpufreq_set_freq(unsigned int lcore_id, uint32_t index)
 {
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -516,7 +517,7 @@ power_cppc_cpufreq_freq_down(unsigned int lcore_id)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -534,7 +535,7 @@ power_cppc_cpufreq_freq_up(unsigned int lcore_id)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -551,7 +552,7 @@ int
 power_cppc_cpufreq_freq_max(unsigned int lcore_id)
 {
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -575,7 +576,7 @@ power_cppc_cpufreq_freq_min(unsigned int lcore_id)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -591,7 +592,7 @@ power_cppc_turbo_status(unsigned int lcore_id)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -606,7 +607,7 @@ power_cppc_enable_turbo(unsigned int lcore_id)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -616,8 +617,8 @@ power_cppc_enable_turbo(unsigned int lcore_id)
 		pi->turbo_enable = 1;
 	else {
 		pi->turbo_enable = 0;
-		RTE_LOG(ERR, POWER,
-			"Failed to enable turbo on lcore %u\n",
+		POWER_LOG(ERR,
+			"Failed to enable turbo on lcore %u",
 			lcore_id);
 		return -1;
 	}
@@ -627,8 +628,8 @@ power_cppc_enable_turbo(unsigned int lcore_id)
 	 */
 	/* Max may have changed, so call to max function */
 	if (power_cppc_cpufreq_freq_max(lcore_id) < 0) {
-		RTE_LOG(ERR, POWER,
-			"Failed to set frequency of lcore %u to max\n",
+		POWER_LOG(ERR,
+			"Failed to set frequency of lcore %u to max",
 			lcore_id);
 		return -1;
 	}
@@ -642,7 +643,7 @@ power_cppc_disable_turbo(unsigned int lcore_id)
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 
@@ -653,8 +654,8 @@ power_cppc_disable_turbo(unsigned int lcore_id)
 	if ((pi->turbo_available) && (pi->curr_idx <= 1)) {
 		/* Try to set freq to max by default coming out of turbo */
 		if (power_cppc_cpufreq_freq_max(lcore_id) < 0) {
-			RTE_LOG(ERR, POWER,
-				"Failed to set frequency of lcore %u to max\n",
+			POWER_LOG(ERR,
+				"Failed to set frequency of lcore %u to max",
 				lcore_id);
 			return -1;
 		}
@@ -670,11 +671,11 @@ power_cppc_get_capabilities(unsigned int lcore_id,
 	struct cppc_power_info *pi;
 
 	if (lcore_id >= RTE_MAX_LCORE) {
-		RTE_LOG(ERR, POWER, "Invalid lcore ID\n");
+		POWER_LOG(ERR, "Invalid lcore ID");
 		return -1;
 	}
 	if (caps == NULL) {
-		RTE_LOG(ERR, POWER, "Invalid argument\n");
+		POWER_LOG(ERR, "Invalid argument");
 		return -1;
 	}
 

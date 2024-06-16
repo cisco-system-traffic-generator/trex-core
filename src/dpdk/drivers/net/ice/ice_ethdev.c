@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include <rte_tailq.h>
+#include <rte_os_shim.h>
 
 #include "eal_firmware.h"
 
@@ -27,7 +28,6 @@
 
 /* devargs */
 #define ICE_SAFE_MODE_SUPPORT_ARG "safe-mode-support"
-#define ICE_PIPELINE_MODE_SUPPORT_ARG  "pipeline-mode-support"
 #define ICE_DEFAULT_MAC_DISABLE   "default-mac-disable"
 #define ICE_PROTO_XTR_ARG         "proto_xtr"
 #define ICE_FIELD_OFFS_ARG		  "field_offs"
@@ -35,6 +35,7 @@
 #define ICE_HW_DEBUG_MASK_ARG     "hw_debug_mask"
 #define ICE_ONE_PPS_OUT_ARG       "pps_out"
 #define ICE_RX_LOW_LATENCY_ARG    "rx_low_latency"
+#define ICE_MBUF_CHECK_ARG       "mbuf_check"
 
 #define ICE_CYCLECOUNTER_MASK  0xffffffffffffffffULL
 
@@ -43,7 +44,6 @@ int ice_timestamp_dynfield_offset = -1;
 
 static const char * const ice_valid_args[] = {
 	ICE_SAFE_MODE_SUPPORT_ARG,
-	ICE_PIPELINE_MODE_SUPPORT_ARG,
 	ICE_PROTO_XTR_ARG,
 	ICE_FIELD_OFFS_ARG,
 	ICE_FIELD_NAME_ARG,
@@ -51,10 +51,22 @@ static const char * const ice_valid_args[] = {
 	ICE_ONE_PPS_OUT_ARG,
 	ICE_RX_LOW_LATENCY_ARG,
 	ICE_DEFAULT_MAC_DISABLE,
+	ICE_MBUF_CHECK_ARG,
 	NULL
 };
 
 #define PPS_OUT_DELAY_NS  1
+
+/* Maximum number of VSI */
+#define ICE_MAX_NUM_VSIS          (768UL)
+
+/* The 119 bit offset of the LAN Rx queue context is the L2TSEL control bit. */
+#define ICE_L2TSEL_QRX_CONTEXT_REG_IDX	3
+#define ICE_L2TSEL_BIT_OFFSET		   23
+enum ice_l2tsel {
+	ICE_L2TSEL_EXTRACT_FIRST_TAG_L2TAG2_2ND,
+	ICE_L2TSEL_EXTRACT_FIRST_TAG_L2TAG1,
+};
 
 struct proto_xtr_ol_flag {
 	const struct rte_mbuf_dynflag param;
@@ -89,6 +101,9 @@ static int ice_dev_close(struct rte_eth_dev *dev);
 static int ice_dev_reset(struct rte_eth_dev *dev);
 static int ice_dev_info_get(struct rte_eth_dev *dev,
 			    struct rte_eth_dev_info *dev_info);
+static int ice_phy_conf_link(struct ice_hw *hw,
+					u16 force_speed,
+					bool link_up);
 static int ice_link_update(struct rte_eth_dev *dev,
 			   int wait_to_complete);
 static int ice_dev_set_link_up(struct rte_eth_dev *dev);
@@ -130,6 +145,9 @@ static int ice_fw_version_get(struct rte_eth_dev *dev, char *fw_version,
 			      size_t fw_size);
 static int ice_vlan_pvid_set(struct rte_eth_dev *dev,
 			     uint16_t pvid, int on);
+static int ice_vlan_tpid_set(struct rte_eth_dev *dev,
+		   enum rte_vlan_type vlan_type,
+		   uint16_t tpid);
 static int ice_get_eeprom_length(struct rte_eth_dev *dev);
 static int ice_get_eeprom(struct rte_eth_dev *dev,
 			  struct rte_dev_eeprom_info *eeprom);
@@ -163,7 +181,8 @@ static int ice_timesync_read_time(struct rte_eth_dev *dev,
 static int ice_timesync_write_time(struct rte_eth_dev *dev,
 				   const struct timespec *timestamp);
 static int ice_timesync_disable(struct rte_eth_dev *dev);
-static const uint32_t *ice_buffer_split_supported_hdr_ptypes_get(struct rte_eth_dev *dev);
+static const uint32_t *ice_buffer_split_supported_hdr_ptypes_get(struct rte_eth_dev *dev,
+						size_t *no_of_elements);
 
 static const struct rte_pci_id pci_id_ice_map[] = {
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E823L_BACKPLANE) },
@@ -196,8 +215,8 @@ static const struct rte_pci_id pci_id_ice_map[] = {
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_BACKPLANE) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_QSFP) },
 	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_SFP) },
-	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_1GBE) },
-	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825X) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_C825X) },
+	{ RTE_PCI_DEVICE(ICE_INTEL_VENDOR_ID, ICE_DEV_ID_E825C_SGMII) },
 	{ .vendor_id = 0, /* sentinel */ },
 };
 
@@ -252,6 +271,7 @@ static const struct eth_dev_ops ice_eth_dev_ops = {
 	.rx_queue_intr_disable        = ice_rx_queue_intr_disable,
 	.fw_version_get               = ice_fw_version_get,
 	.vlan_pvid_set                = ice_vlan_pvid_set,
+	.vlan_tpid_set                = ice_vlan_tpid_set,
 	.rxq_info_get                 = ice_rxq_info_get,
 	.txq_info_get                 = ice_txq_info_get,
 	.rx_burst_mode_get            = ice_rx_burst_mode_get,
@@ -302,6 +322,12 @@ static const struct ice_xstats_name_off ice_stats_strings[] = {
 
 #define ICE_NB_ETH_XSTATS (sizeof(ice_stats_strings) / \
 		sizeof(ice_stats_strings[0]))
+
+static const struct ice_xstats_name_off ice_mbuf_strings[] = {
+	{"tx_mbuf_error_packets", offsetof(struct ice_mbuf_stats, tx_pkt_errors)},
+};
+
+#define ICE_NB_MBUF_XSTATS (sizeof(ice_mbuf_strings) / sizeof(ice_mbuf_strings[0]))
 
 static const struct ice_xstats_name_off ice_hw_port_strings[] = {
 	{"tx_link_down_dropped", offsetof(struct ice_hw_port_stats,
@@ -1588,6 +1614,9 @@ ice_setup_vsi(struct ice_pf *pf, enum ice_vsi_type type)
 			hw->func_caps.common_cap.rss_table_size;
 	pf->flags |= ICE_FLAG_RSS_AQ_CAPABLE;
 
+	/* Defines the type of outer tag expected */
+	pf->outer_ethertype = RTE_ETHER_TYPE_VLAN;
+
 	memset(&vsi_ctx, 0, sizeof(vsi_ctx));
 	switch (type) {
 	case ICE_VSI_PF:
@@ -1615,6 +1644,9 @@ ice_setup_vsi(struct ice_pf *pf, enum ice_vsi_type type)
 				(ICE_AQ_VSI_OUTER_TAG_VLAN_8100 <<
 				 ICE_AQ_VSI_OUTER_TAG_TYPE_S) &
 				ICE_AQ_VSI_OUTER_TAG_TYPE_M;
+			vsi_ctx.info.outer_vlan_flags |=
+				(ICE_AQ_VSI_OUTER_VLAN_EMODE_NOTHING <<
+				ICE_AQ_VSI_OUTER_VLAN_EMODE_S);
 		}
 
 		/* FDIR */
@@ -1782,6 +1814,7 @@ ice_pf_setup(struct ice_pf *pf)
 	}
 
 	pf->main_vsi = vsi;
+	rte_spinlock_init(&pf->link_lock);
 
 	return 0;
 }
@@ -2038,6 +2071,58 @@ handle_pps_out_arg(__rte_unused const char *key, const char *value,
 	return 0;
 }
 
+static int
+ice_parse_mbuf_check(__rte_unused const char *key, const char *value, void *args)
+{
+	char *cur;
+	char *tmp;
+	int str_len;
+	int valid_len;
+
+	int ret = 0;
+	uint64_t *mc_flags = args;
+	char *str2 = strdup(value);
+	if (str2 == NULL)
+		return -1;
+
+	str_len = strlen(str2);
+	if (str_len == 0) {
+		ret = -1;
+		goto err_end;
+	}
+
+	/* Try stripping the outer square brackets of the parameter string. */
+	str_len = strlen(str2);
+	if (str2[0] == '[' && str2[str_len - 1] == ']') {
+		if (str_len < 3) {
+			ret = -1;
+			goto err_end;
+		}
+		valid_len = str_len - 2;
+		memmove(str2, str2 + 1, valid_len);
+		memset(str2 + valid_len, '\0', 2);
+	}
+
+	cur = strtok_r(str2, ",", &tmp);
+	while (cur != NULL) {
+		if (!strcmp(cur, "mbuf"))
+			*mc_flags |= ICE_MBUF_CHECK_F_TX_MBUF;
+		else if (!strcmp(cur, "size"))
+			*mc_flags |= ICE_MBUF_CHECK_F_TX_SIZE;
+		else if (!strcmp(cur, "segment"))
+			*mc_flags |= ICE_MBUF_CHECK_F_TX_SEGMENT;
+		else if (!strcmp(cur, "offload"))
+			*mc_flags |= ICE_MBUF_CHECK_F_TX_OFFLOAD;
+		else
+			PMD_DRV_LOG(ERR, "Unsupported diagnostic type: %s", cur);
+		cur = strtok_r(NULL, ",", &tmp);
+	}
+
+err_end:
+	free(str2);
+	return ret;
+}
+
 static int ice_parse_devargs(struct rte_eth_dev *dev)
 {
 	struct ice_adapter *ad =
@@ -2079,11 +2164,6 @@ static int ice_parse_devargs(struct rte_eth_dev *dev)
 	if (ret)
 		goto bail;
 
-	ret = rte_kvargs_process(kvlist, ICE_PIPELINE_MODE_SUPPORT_ARG,
-				 &parse_bool, &ad->devargs.pipe_mode_support);
-	if (ret)
-		goto bail;
-
 	ret = rte_kvargs_process(kvlist, ICE_DEFAULT_MAC_DISABLE,
 				&parse_bool, &ad->devargs.default_mac_disable);
 	if (ret)
@@ -2096,6 +2176,11 @@ static int ice_parse_devargs(struct rte_eth_dev *dev)
 
 	ret = rte_kvargs_process(kvlist, ICE_ONE_PPS_OUT_ARG,
 				 &handle_pps_out_arg, &ad->devargs);
+	if (ret)
+		goto bail;
+
+	ret = rte_kvargs_process(kvlist, ICE_MBUF_CHECK_ARG,
+				 &ice_parse_mbuf_check, &ad->devargs.mbuf_check);
 	if (ret)
 		goto bail;
 
@@ -2425,6 +2510,7 @@ ice_dev_init(struct rte_eth_dev *dev)
 	}
 
 	if (!ad->is_safe_mode) {
+		ad->disabled_engine_mask |= BIT(ICE_FLOW_ENGINE_ACL);
 		ret = ice_flow_init(ad);
 		if (ret) {
 			PMD_INIT_LOG(ERR, "Failed to initialize flow");
@@ -2439,6 +2525,9 @@ ice_dev_init(struct rte_eth_dev *dev)
 	}
 
 	pf->supported_rxdid = ice_get_supported_rxdid(hw);
+
+	/* reset all stats of the device, including pf and main vsi */
+	ice_stats_reset(dev);
 
 	return 0;
 
@@ -3323,7 +3412,8 @@ static int ice_init_rss(struct ice_pf *pf)
 
 	rss_conf = &dev_data->dev_conf.rx_adv_conf.rss_conf;
 	nb_q = dev_data->nb_rx_queues;
-	vsi->rss_key_size = ICE_AQC_GET_SET_RSS_KEY_DATA_RSS_KEY_SIZE;
+	vsi->rss_key_size = ICE_AQC_GET_SET_RSS_KEY_DATA_RSS_KEY_SIZE +
+			    ICE_AQC_GET_SET_RSS_KEY_DATA_HASH_KEY_SIZE;
 	vsi->rss_lut_size = pf->hash_lut_size;
 
 	if (nb_q == 0) {
@@ -3364,7 +3454,10 @@ static int ice_init_rss(struct ice_pf *pf)
 				   vsi->rss_key_size));
 
 	rte_memcpy(key.standard_rss_key, vsi->rss_key,
-		RTE_MIN(sizeof(key.standard_rss_key), vsi->rss_key_size));
+		ICE_AQC_GET_SET_RSS_KEY_DATA_RSS_KEY_SIZE);
+	rte_memcpy(key.extended_hash_key,
+		&vsi->rss_key[ICE_AQC_GET_SET_RSS_KEY_DATA_RSS_KEY_SIZE],
+		ICE_AQC_GET_SET_RSS_KEY_DATA_HASH_KEY_SIZE);
 	ret = ice_aq_set_rss_key(hw, vsi->idx, &key);
 	if (ret)
 		goto out;
@@ -3596,17 +3689,31 @@ ice_rxq_intr_setup(struct rte_eth_dev *dev)
 	return 0;
 }
 
+static enum ice_status
+ice_get_link_info_safe(struct ice_pf *pf, bool ena_lse,
+		       struct ice_link_status *link)
+{
+	struct ice_hw *hw = ICE_PF_TO_HW(pf);
+	int ret;
+
+	rte_spinlock_lock(&pf->link_lock);
+
+	ret = ice_aq_get_link_info(hw->port_info, ena_lse, link, NULL);
+
+	rte_spinlock_unlock(&pf->link_lock);
+
+	return ret;
+}
+
 static void
 ice_get_init_link_status(struct rte_eth_dev *dev)
 {
-	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	bool enable_lse = dev->data->dev_conf.intr_conf.lsc ? true : false;
 	struct ice_link_status link_status;
 	int ret;
 
-	ret = ice_aq_get_link_info(hw->port_info, enable_lse,
-				   &link_status, NULL);
+	ret = ice_get_link_info_safe(pf, enable_lse, &link_status);
 	if (ret != ICE_SUCCESS) {
 		PMD_DRV_LOG(ERR, "Failed to get link info");
 		pf->init_link_up = false;
@@ -3615,6 +3722,8 @@ ice_get_init_link_status(struct rte_eth_dev *dev)
 
 	if (link_status.link_info & ICE_AQ_LINK_UP)
 		pf->init_link_up = true;
+	else
+		pf->init_link_up = false;
 }
 
 static int
@@ -3675,12 +3784,23 @@ ice_dev_start(struct rte_eth_dev *dev)
 	int mask, ret;
 	uint8_t timer = hw->func_caps.ts_func_info.tmr_index_owned;
 	uint32_t pin_idx = ad->devargs.pin_idx;
+	struct rte_tm_error tm_err;
 
 	/* program Tx queues' context in hardware */
 	for (nb_txq = 0; nb_txq < data->nb_tx_queues; nb_txq++) {
 		ret = ice_tx_queue_start(dev, nb_txq);
 		if (ret) {
 			PMD_DRV_LOG(ERR, "fail to start Tx queue %u", nb_txq);
+			goto tx_err;
+		}
+	}
+
+	if (dev->data->dev_conf.rxmode.offloads & RTE_ETH_RX_OFFLOAD_TIMESTAMP) {
+		/* Register mbuf field and flag for Rx timestamp */
+		ret = rte_mbuf_dyn_rx_timestamp_register(&ice_timestamp_dynfield_offset,
+							 &ice_timestamp_dynflag);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "Cannot register mbuf field/flag for timestamp");
 			goto tx_err;
 		}
 	}
@@ -3694,11 +3814,19 @@ ice_dev_start(struct rte_eth_dev *dev)
 		}
 	}
 
+	if (pf->tm_conf.committed) {
+		ret = ice_do_hierarchy_commit(dev, pf->tm_conf.clear_on_fail, &tm_err);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "fail to commit Tx scheduler");
+			goto rx_err;
+		}
+	}
+
 	ice_set_rx_function(dev);
 	ice_set_tx_function(dev);
 
 	mask = RTE_ETH_VLAN_STRIP_MASK | RTE_ETH_VLAN_FILTER_MASK |
-			RTE_ETH_VLAN_EXTEND_MASK;
+			RTE_ETH_VLAN_EXTEND_MASK | RTE_ETH_QINQ_STRIP_MASK;
 	ret = ice_vlan_offload_set(dev, mask);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "Unable to set VLAN offload");
@@ -3839,7 +3967,11 @@ ice_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 			RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
 			RTE_ETH_TX_OFFLOAD_SCTP_CKSUM |
 			RTE_ETH_TX_OFFLOAD_OUTER_IPV4_CKSUM |
-			RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM;
+			RTE_ETH_TX_OFFLOAD_OUTER_UDP_CKSUM |
+			RTE_ETH_TX_OFFLOAD_VXLAN_TNL_TSO |
+			RTE_ETH_TX_OFFLOAD_GRE_TNL_TSO |
+			RTE_ETH_TX_OFFLOAD_IPIP_TNL_TSO |
+			RTE_ETH_TX_OFFLOAD_GENEVE_TNL_TSO;
 		dev_info->flow_type_rss_offloads |= ICE_RSS_OFFLOAD_ALL;
 	}
 
@@ -3881,6 +4013,8 @@ ice_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		.nb_max = ICE_MAX_RING_DESC,
 		.nb_min = ICE_MIN_RING_DESC,
 		.nb_align = ICE_ALIGN_RING_DESC,
+		.nb_mtu_seg_max = ICE_TX_MTU_SEG_MAX,
+		.nb_seg_max = ICE_MAX_RING_DESC,
 	};
 
 	dev_info->speed_capa = RTE_ETH_LINK_SPEED_10M |
@@ -3927,8 +4061,10 @@ ice_atomic_read_link_status(struct rte_eth_dev *dev,
 	struct rte_eth_link *dst = link;
 	struct rte_eth_link *src = &dev->data->dev_link;
 
-	if (rte_atomic64_cmpset((uint64_t *)dst, *(uint64_t *)dst,
-				*(uint64_t *)src) == 0)
+	/* NOTE: review for potential ordering optimization */
+	if (!__atomic_compare_exchange_n((uint64_t *)dst, (uint64_t *)dst,
+			*(uint64_t *)src, 0,
+			__ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
 		return -1;
 
 	return 0;
@@ -3941,8 +4077,10 @@ ice_atomic_write_link_status(struct rte_eth_dev *dev,
 	struct rte_eth_link *dst = &dev->data->dev_link;
 	struct rte_eth_link *src = link;
 
-	if (rte_atomic64_cmpset((uint64_t *)dst, *(uint64_t *)dst,
-				*(uint64_t *)src) == 0)
+	/* NOTE: review for potential ordering optimization */
+	if (!__atomic_compare_exchange_n((uint64_t *)dst, (uint64_t *)dst,
+			*(uint64_t *)src, 0,
+			__ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
 		return -1;
 
 	return 0;
@@ -3951,9 +4089,9 @@ ice_atomic_write_link_status(struct rte_eth_dev *dev,
 static int
 ice_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 {
-#define CHECK_INTERVAL 100  /* 100ms */
-#define MAX_REPEAT_TIME 10  /* 1s (10 * 100ms) in total */
-	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+#define CHECK_INTERVAL 50  /* 50ms */
+#define MAX_REPEAT_TIME 40  /* 2s (40 * 50ms) in total */
+	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_link_status link_status;
 	struct rte_eth_link link, old;
 	int status;
@@ -3967,8 +4105,7 @@ ice_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 
 	do {
 		/* Get link status information from hardware */
-		status = ice_aq_get_link_info(hw->port_info, enable_lse,
-					      &link_status, NULL);
+		status = ice_get_link_info_safe(pf, enable_lse, &link_status);
 		if (status != ICE_SUCCESS) {
 			link.link_speed = RTE_ETH_SPEED_NUM_100M;
 			link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
@@ -4045,72 +4182,134 @@ out:
 	return 0;
 }
 
-/* Force the physical link state by getting the current PHY capabilities from
- * hardware and setting the PHY config based on the determined capabilities. If
- * link changes, link event will be triggered because both the Enable Automatic
- * Link Update and LESM Enable bits are set when setting the PHY capabilities.
- */
-static enum ice_status
-ice_force_phys_link_state(struct ice_hw *hw, bool link_up)
+static inline uint16_t
+ice_parse_link_speeds(uint16_t link_speeds)
+{
+	uint16_t link_speed = ICE_AQ_LINK_SPEED_UNKNOWN;
+
+	if (link_speeds & RTE_ETH_LINK_SPEED_100G)
+		link_speed |= ICE_AQ_LINK_SPEED_100GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_50G)
+		link_speed |= ICE_AQ_LINK_SPEED_50GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_40G)
+		link_speed |= ICE_AQ_LINK_SPEED_40GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_25G)
+		link_speed |= ICE_AQ_LINK_SPEED_25GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_20G)
+		link_speed |= ICE_AQ_LINK_SPEED_20GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_10G)
+		link_speed |= ICE_AQ_LINK_SPEED_10GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_5G)
+		link_speed |= ICE_AQ_LINK_SPEED_5GB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_2_5G)
+		link_speed |= ICE_AQ_LINK_SPEED_2500MB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_1G)
+		link_speed |= ICE_AQ_LINK_SPEED_1000MB;
+	if (link_speeds & RTE_ETH_LINK_SPEED_100M)
+		link_speed |= ICE_AQ_LINK_SPEED_100MB;
+
+	return link_speed;
+}
+
+static int
+ice_apply_link_speed(struct rte_eth_dev *dev)
+{
+	uint16_t speed;
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct rte_eth_conf *conf = &dev->data->dev_conf;
+
+	if (conf->link_speeds == RTE_ETH_LINK_SPEED_AUTONEG) {
+		conf->link_speeds = RTE_ETH_LINK_SPEED_100G |
+				    RTE_ETH_LINK_SPEED_50G  |
+				    RTE_ETH_LINK_SPEED_40G  |
+				    RTE_ETH_LINK_SPEED_25G  |
+				    RTE_ETH_LINK_SPEED_20G  |
+				    RTE_ETH_LINK_SPEED_10G  |
+					RTE_ETH_LINK_SPEED_5G   |
+					RTE_ETH_LINK_SPEED_2_5G |
+					RTE_ETH_LINK_SPEED_1G   |
+					RTE_ETH_LINK_SPEED_100M;
+	}
+	speed = ice_parse_link_speeds(conf->link_speeds);
+
+	return ice_phy_conf_link(hw, speed, true);
+}
+
+static int
+ice_phy_conf_link(struct ice_hw *hw,
+		   u16 link_speeds_bitmap,
+		   bool link_up)
 {
 	struct ice_aqc_set_phy_cfg_data cfg = { 0 };
-	struct ice_aqc_get_phy_caps_data *pcaps;
-	struct ice_port_info *pi;
-	enum ice_status status;
+	struct ice_port_info *pi = hw->port_info;
+	struct ice_aqc_get_phy_caps_data *phy_caps;
+	int err;
+	u64 phy_type_low = 0;
+	u64 phy_type_high = 0;
 
-	if (!hw || !hw->port_info)
-		return ICE_ERR_PARAM;
-
-	pi = hw->port_info;
-
-	pcaps = (struct ice_aqc_get_phy_caps_data *)
-		ice_malloc(hw, sizeof(*pcaps));
-	if (!pcaps)
+	phy_caps = (struct ice_aqc_get_phy_caps_data *)
+		ice_malloc(hw, sizeof(*phy_caps));
+	if (!phy_caps)
 		return ICE_ERR_NO_MEMORY;
 
-	status = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_ACTIVE_CFG,
-				     pcaps, NULL);
-	if (status)
-		goto out;
+	if (!pi)
+		return -EIO;
 
-	/* No change in link */
-	if (link_up == !!(pcaps->caps & ICE_AQC_PHY_EN_LINK) &&
-	    link_up == !!(pi->phy.link_info.link_info & ICE_AQ_LINK_UP))
-		goto out;
 
-	cfg.phy_type_low = pcaps->phy_type_low;
-	cfg.phy_type_high = pcaps->phy_type_high;
-	cfg.caps = pcaps->caps | ICE_AQ_PHY_ENA_AUTO_LINK_UPDT;
-	cfg.low_power_ctrl_an = pcaps->low_power_ctrl_an;
-	cfg.eee_cap = pcaps->eee_cap;
-	cfg.eeer_value = pcaps->eeer_value;
-	cfg.link_fec_opt = pcaps->link_fec_options;
+	if (ice_fw_supports_report_dflt_cfg(pi->hw))
+		err = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_DFLT_CFG,
+					  phy_caps, NULL);
+	else
+		err = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_TOPO_CAP_MEDIA,
+					  phy_caps, NULL);
+	if (err)
+		goto done;
+
+	ice_update_phy_type(&phy_type_low, &phy_type_high, link_speeds_bitmap);
+
+	if (link_speeds_bitmap == ICE_LINK_SPEED_UNKNOWN) {
+		cfg.phy_type_low = phy_caps->phy_type_low;
+		cfg.phy_type_high = phy_caps->phy_type_high;
+	} else if (phy_type_low & phy_caps->phy_type_low ||
+					phy_type_high & phy_caps->phy_type_high) {
+		cfg.phy_type_low = phy_type_low & phy_caps->phy_type_low;
+		cfg.phy_type_high = phy_type_high & phy_caps->phy_type_high;
+	} else {
+		PMD_DRV_LOG(WARNING, "Invalid speed setting, set to default!\n");
+		cfg.phy_type_low = phy_caps->phy_type_low;
+		cfg.phy_type_high = phy_caps->phy_type_high;
+	}
+
+	cfg.caps = phy_caps->caps | ICE_AQ_PHY_ENA_AUTO_LINK_UPDT;
+	cfg.low_power_ctrl_an = phy_caps->low_power_ctrl_an;
+	cfg.eee_cap = phy_caps->eee_cap;
+	cfg.eeer_value = phy_caps->eeer_value;
+	cfg.link_fec_opt = phy_caps->link_fec_options;
 	if (link_up)
 		cfg.caps |= ICE_AQ_PHY_ENA_LINK;
 	else
 		cfg.caps &= ~ICE_AQ_PHY_ENA_LINK;
 
-	status = ice_aq_set_phy_cfg(hw, pi, &cfg, NULL);
+	err = ice_aq_set_phy_cfg(hw, pi, &cfg, NULL);
 
-out:
-	ice_free(hw, pcaps);
-	return status;
+done:
+	ice_free(hw, phy_caps);
+	return err;
 }
 
 static int
 ice_dev_set_link_up(struct rte_eth_dev *dev)
 {
-	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
-
-	return ice_force_phys_link_state(hw, true);
+	return ice_apply_link_speed(dev);
 }
 
 static int
 ice_dev_set_link_down(struct rte_eth_dev *dev)
 {
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	uint8_t speed = ICE_LINK_SPEED_UNKNOWN;
 
-	return ice_force_phys_link_state(hw, false);
+	return ice_phy_conf_link(hw, speed, false);
 }
 
 static int
@@ -4431,11 +4630,86 @@ ice_vsi_dis_inner_stripping(struct ice_vsi *vsi)
 	return ice_vsi_manage_vlan_stripping(vsi, false);
 }
 
-static int ice_vsi_ena_outer_stripping(struct ice_vsi *vsi)
+/**
+ * tpid_to_vsi_outer_vlan_type - convert from TPID to VSI context based tag_type
+ * @tpid: tpid used to translate into VSI context based tag_type
+ * @tag_type: output variable to hold the VSI context based tag type
+ */
+static int tpid_to_vsi_outer_vlan_type(u16 tpid, u8 *tag_type)
+{
+	switch (tpid) {
+	case RTE_ETHER_TYPE_VLAN:
+		*tag_type = ICE_AQ_VSI_OUTER_TAG_VLAN_8100;
+		break;
+	case RTE_ETHER_TYPE_QINQ:
+		*tag_type = ICE_AQ_VSI_OUTER_TAG_STAG;
+		break;
+	case RTE_ETHER_TYPE_QINQ1:
+		*tag_type = ICE_AQ_VSI_OUTER_TAG_VLAN_9100;
+		break;
+	default:
+		*tag_type = 0;
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/**
+ * ice_is_supported_port_vlan_proto - make sure the vlan_proto is supported
+ * @hw: hardware structure used to check the VLAN mode
+ * @vlan_proto: VLAN TPID being checked
+ *
+ * If the device is configured in Double VLAN Mode (DVM), it supports three
+ * types: RTE_ETHER_TYPE_VLAN, RTE_ETHER_TYPE_QINQ1 and RTE_ETHER_TYPE_QINQ. If the device is
+ * configured in Single VLAN Mode (SVM), then only RTE_ETHER_TYPE_VLAN is supported.
+ */
+static bool
+ice_is_supported_port_vlan_proto(struct ice_hw *hw, u16 vlan_proto)
+{
+	bool is_supported = false;
+
+	switch (vlan_proto) {
+	case RTE_ETHER_TYPE_VLAN:
+		is_supported = true;
+		break;
+	case RTE_ETHER_TYPE_QINQ:
+		if (ice_is_dvm_ena(hw))
+			is_supported = true;
+		break;
+	case RTE_ETHER_TYPE_QINQ1:
+		if (ice_is_dvm_ena(hw))
+			is_supported = true;
+		break;
+	}
+
+	return is_supported;
+}
+
+/**
+ * ice_vsi_ena_outer_stripping - enable outer VLAN stripping
+ * @vsi: VSI to configure
+ * @tpid: TPID to enable outer VLAN stripping for
+ *
+ * Enable outer VLAN stripping via VSI context. This function should only be
+ * used if DVM is supported.
+ *
+ * Since the VSI context only supports a single TPID for insertion and
+ * stripping, setting the TPID for stripping will affect the TPID for insertion.
+ * Callers need to be aware of this limitation.
+ *
+ * Only modify outer VLAN stripping settings and the VLAN TPID. Outer VLAN
+ * insertion settings are unmodified.
+ *
+ * This enables hardware to strip a VLAN tag with the specified TPID to be
+ * stripped from the packet and placed in the receive descriptor.
+ */
+static int ice_vsi_ena_outer_stripping(struct ice_vsi *vsi, u16 tpid)
 {
 	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	struct ice_vsi_ctx ctxt;
 	enum ice_status status;
+	u8 tag_type;
 	int err = 0;
 
 	/* do not allow modifying VLAN stripping when a port VLAN is configured
@@ -4443,6 +4717,9 @@ static int ice_vsi_ena_outer_stripping(struct ice_vsi *vsi)
 	 */
 	if (vsi->info.port_based_outer_vlan)
 		return 0;
+
+	if (tpid_to_vsi_outer_vlan_type(tpid, &tag_type))
+		return -EINVAL;
 
 	memset(&ctxt, 0, sizeof(ctxt));
 
@@ -4454,8 +4731,8 @@ static int ice_vsi_ena_outer_stripping(struct ice_vsi *vsi)
 	ctxt.info.outer_vlan_flags |=
 		(ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW_BOTH <<
 		 ICE_AQ_VSI_OUTER_VLAN_EMODE_S) |
-		(ICE_AQ_VSI_OUTER_TAG_VLAN_8100 <<
-		 ICE_AQ_VSI_OUTER_TAG_TYPE_S);
+		((tag_type << ICE_AQ_VSI_OUTER_TAG_TYPE_S) &
+		 ICE_AQ_VSI_OUTER_TAG_TYPE_M);
 
 	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
 	if (status) {
@@ -4503,22 +4780,105 @@ ice_vsi_dis_outer_stripping(struct ice_vsi *vsi)
 static int
 ice_vsi_config_vlan_stripping(struct ice_vsi *vsi, bool ena)
 {
-	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
 	int ret;
 
-	if (ice_is_dvm_ena(hw)) {
-		if (ena)
-			ret = ice_vsi_ena_outer_stripping(vsi);
-		else
-			ret = ice_vsi_dis_outer_stripping(vsi);
-	} else {
-		if (ena)
-			ret = ice_vsi_ena_inner_stripping(vsi);
-		else
-			ret = ice_vsi_dis_inner_stripping(vsi);
-	}
+	if (ena)
+		ret = ice_vsi_ena_inner_stripping(vsi);
+	else
+		ret = ice_vsi_dis_inner_stripping(vsi);
 
 	return ret;
+}
+
+/**
+ * ice_vsi_update_l2tsel - update l2tsel field for all Rx rings on this VSI
+ * @vsi: VSI used to update l2tsel on
+ * @l2tsel: l2tsel setting requested
+ *
+ * Use the l2tsel setting to update all of the Rx queue context bits for l2tsel.
+ * This will modify which descriptor field the first offloaded VLAN will be
+ * stripped into.
+ */
+static void ice_vsi_update_l2tsel(struct ice_vsi *vsi, enum ice_l2tsel l2tsel)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	struct ice_pf *pf = ICE_VSI_TO_PF(vsi);
+	struct rte_eth_dev_data *dev_data = pf->dev_data;
+	u32 l2tsel_bit;
+	uint16_t i;
+
+	if (l2tsel == ICE_L2TSEL_EXTRACT_FIRST_TAG_L2TAG2_2ND)
+		l2tsel_bit = 0;
+	else
+		l2tsel_bit = BIT(ICE_L2TSEL_BIT_OFFSET);
+
+	for (i = 0; i < dev_data->nb_rx_queues; i++) {
+		u32 qrx_context_offset;
+		u32 regval;
+
+		qrx_context_offset =
+			QRX_CONTEXT(ICE_L2TSEL_QRX_CONTEXT_REG_IDX, i);
+
+		regval = rd32(hw, qrx_context_offset);
+		regval &= ~BIT(ICE_L2TSEL_BIT_OFFSET);
+		regval |= l2tsel_bit;
+		wr32(hw, qrx_context_offset, regval);
+	}
+}
+
+/* Configure outer vlan stripping on or off in QinQ mode */
+static int
+ice_vsi_config_outer_vlan_stripping(struct ice_vsi *vsi, bool on)
+{
+	uint16_t outer_ethertype = vsi->adapter->pf.outer_ethertype;
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	int err = 0;
+
+	if (vsi->vsi_id >= ICE_MAX_NUM_VSIS) {
+		PMD_DRV_LOG(ERR, "VSI ID exceeds the maximum");
+		return -EINVAL;
+	}
+
+	if (!ice_is_dvm_ena(hw)) {
+		PMD_DRV_LOG(ERR, "Single VLAN mode (SVM) does not support qinq");
+		return -EOPNOTSUPP;
+	}
+
+	if (on) {
+		err = ice_vsi_ena_outer_stripping(vsi, outer_ethertype);
+		if (!err) {
+			enum ice_l2tsel l2tsel =
+				ICE_L2TSEL_EXTRACT_FIRST_TAG_L2TAG2_2ND;
+
+			/* PF tells the VF that the outer VLAN tag is always
+			 * extracted to VIRTCHNL_VLAN_TAG_LOCATION_L2TAG2_2 and
+			 * inner is always extracted to
+			 * VIRTCHNL_VLAN_TAG_LOCATION_L2TAG1. This is needed to
+			 * support outer stripping so the first tag always ends
+			 * up in L2TAG2_2ND and the second/inner tag, if
+			 * enabled, is extracted in L2TAG1.
+			 */
+			ice_vsi_update_l2tsel(vsi, l2tsel);
+		}
+	} else {
+		err = ice_vsi_dis_outer_stripping(vsi);
+		if (!err) {
+			enum ice_l2tsel l2tsel =
+				ICE_L2TSEL_EXTRACT_FIRST_TAG_L2TAG1;
+
+			/* PF tells the VF that the outer VLAN tag is always
+			 * extracted to VIRTCHNL_VLAN_TAG_LOCATION_L2TAG2_2 and
+			 * inner is always extracted to
+			 * VIRTCHNL_VLAN_TAG_LOCATION_L2TAG1. This is needed to
+			 * support inner stripping while outer stripping is
+			 * disabled so that the first and only tag is extracted
+			 * in L2TAG1.
+			 */
+			ice_vsi_update_l2tsel(vsi, l2tsel);
+		}
+	}
+
+	return err;
 }
 
 static int
@@ -4541,6 +4901,14 @@ ice_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 			ice_vsi_config_vlan_stripping(vsi, true);
 		else
 			ice_vsi_config_vlan_stripping(vsi, false);
+	}
+
+	if (mask & RTE_ETH_QINQ_STRIP_MASK) {
+		/* Enable or disable outer VLAN stripping */
+		if (rxmode->offloads & RTE_ETH_RX_OFFLOAD_QINQ_STRIP)
+			ice_vsi_config_outer_vlan_stripping(vsi, true);
+		else
+			ice_vsi_config_outer_vlan_stripping(vsi, false);
 	}
 
 	return 0;
@@ -5019,6 +5387,130 @@ ice_vsi_vlan_pvid_set(struct ice_vsi *vsi, struct ice_vsi_vlan_pvid_info *info)
 	return ret;
 }
 
+/**
+ * ice_vsi_set_outer_port_vlan - set the outer port VLAN and related settings
+ * @vsi: VSI to configure
+ * @vlan_info: packed u16 that contains the VLAN prio and ID
+ * @tpid: TPID of the port VLAN
+ *
+ * Set the port VLAN prio, ID, and TPID.
+ *
+ * Enable VLAN pruning so the VSI doesn't receive any traffic that doesn't match
+ * a VLAN prune rule. The caller should take care to add a VLAN prune rule that
+ * matches the port VLAN ID and TPID.
+ *
+ * Tell hardware to strip outer VLAN tagged packets on receive and don't put
+ * them in the receive descriptor. VSI(s) in port VLANs should not be aware of
+ * the port VLAN ID or TPID they are assigned to.
+ *
+ * Tell hardware to prevent outer VLAN tag insertion on transmit and only allow
+ * untagged outer packets from the transmit descriptor.
+ *
+ * Also, tell the hardware to insert the port VLAN on transmit.
+ */
+static int
+ice_vsi_set_outer_port_vlan(struct ice_vsi *vsi, u16 vlan_info, u16 tpid)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	struct ice_vsi_ctx ctxt;
+	enum ice_status status;
+	u8 tag_type;
+	int err = 0;
+
+	if (tpid_to_vsi_outer_vlan_type(tpid, &tag_type))
+		return -EINVAL;
+
+	memset(&ctxt, 0, sizeof(ctxt));
+
+	ctxt.info = vsi->info;
+
+	ctxt.info.sw_flags2 |= ICE_AQ_VSI_SW_FLAG_RX_VLAN_PRUNE_ENA;
+
+	ctxt.info.port_based_outer_vlan = rte_cpu_to_le_16(vlan_info);
+	ctxt.info.outer_vlan_flags =
+		(ICE_AQ_VSI_OUTER_VLAN_EMODE_SHOW <<
+		 ICE_AQ_VSI_OUTER_VLAN_EMODE_S) |
+		((tag_type << ICE_AQ_VSI_OUTER_TAG_TYPE_S) &
+		 ICE_AQ_VSI_OUTER_TAG_TYPE_M) |
+		ICE_AQ_VSI_OUTER_VLAN_BLOCK_TX_DESC |
+		(ICE_AQ_VSI_OUTER_VLAN_TX_MODE_ACCEPTUNTAGGED <<
+		 ICE_AQ_VSI_OUTER_VLAN_TX_MODE_S) |
+		ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_INSERT;
+	ctxt.info.valid_sections =
+		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID |
+			    ICE_AQ_VSI_PROP_SW_VALID);
+
+	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
+	if (status != ICE_SUCCESS) {
+		PMD_DRV_LOG(ERR,
+		"update VSI for setting outer port based VLAN failed, err %d",
+		status);
+		err = -EINVAL;
+	} else {
+		vsi->info.port_based_outer_vlan = ctxt.info.port_based_outer_vlan;
+		vsi->info.outer_vlan_flags = ctxt.info.outer_vlan_flags;
+		vsi->info.sw_flags2 = ctxt.info.sw_flags2;
+	}
+
+	return err;
+}
+
+/**
+ * ice_vsi_dis_outer_insertion - disable outer VLAN insertion
+ * @vsi: VSI to configure
+ * @info: vlan pvid info
+ *
+ * Disable outer VLAN insertion via VSI context. This function should only be
+ * used if DVM is supported.
+ *
+ * Only modify the outer VLAN insertion settings. The VLAN TPID and outer VLAN
+ * settings are unmodified.
+ *
+ * This tells the hardware to not allow VLAN tagged packets in the transmit
+ * descriptor. This enables software offloaded VLAN insertion and disables
+ * hardware offloaded VLAN insertion.
+ */
+static int ice_vsi_dis_outer_insertion(struct ice_vsi *vsi, struct ice_vsi_vlan_pvid_info *info)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	struct ice_vsi_ctx ctxt;
+	enum ice_status status;
+	uint8_t vlan_flags = 0;
+	int err = 0;
+
+	memset(&ctxt, 0, sizeof(ctxt));
+
+	ctxt.info.valid_sections =
+		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
+	ctxt.info.port_based_inner_vlan = 0;
+	/* clear current outer VLAN insertion settings */
+	ctxt.info.outer_vlan_flags = vsi->info.outer_vlan_flags &
+		~(ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_INSERT |
+		  ICE_AQ_VSI_OUTER_VLAN_TX_MODE_M);
+	if (info->config.reject.tagged == 0)
+		vlan_flags |= ICE_AQ_VSI_OUTER_VLAN_TX_MODE_ACCEPTTAGGED;
+	if (info->config.reject.untagged == 0)
+		vlan_flags |= ICE_AQ_VSI_OUTER_VLAN_TX_MODE_ACCEPTUNTAGGED;
+	ctxt.info.outer_vlan_flags |=
+		ICE_AQ_VSI_OUTER_VLAN_BLOCK_TX_DESC |
+		((vlan_flags <<
+		  ICE_AQ_VSI_OUTER_VLAN_TX_MODE_S) &
+		 ICE_AQ_VSI_OUTER_VLAN_TX_MODE_M);
+
+	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
+	if (!status) {
+		PMD_DRV_LOG(ERR,
+			    "update VSI for disabling outer VLAN insertion failed, err %d",
+			    status);
+		err = -EINVAL;
+	} else {
+		vsi->info.outer_vlan_flags = ctxt.info.outer_vlan_flags;
+		vsi->info.port_based_inner_vlan = ctxt.info.port_based_inner_vlan;
+	}
+
+	return err;
+}
+
 static int
 ice_vlan_pvid_set(struct rte_eth_dev *dev, uint16_t pvid, int on)
 {
@@ -5039,6 +5531,13 @@ ice_vlan_pvid_set(struct rte_eth_dev *dev, uint16_t pvid, int on)
 			data->dev_conf.txmode.hw_vlan_reject_untagged;
 	}
 
+	if (ice_is_dvm_ena(&vsi->adapter->hw)) {
+		if (on)
+			return ice_vsi_set_outer_port_vlan(vsi, pvid, pf->outer_ethertype);
+		else
+			return ice_vsi_dis_outer_insertion(vsi, &info);
+	}
+
 	ret = ice_vsi_vlan_pvid_set(vsi, &info);
 	if (ret < 0) {
 		PMD_DRV_LOG(ERR, "Failed to set pvid.");
@@ -5046,6 +5545,77 @@ ice_vlan_pvid_set(struct rte_eth_dev *dev, uint16_t pvid, int on)
 	}
 
 	return 0;
+}
+
+static int ice_vsi_ena_outer_insertion(struct ice_vsi *vsi, uint16_t tpid)
+{
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	struct ice_vsi_ctx ctxt;
+	enum ice_status status;
+	int err = 0;
+	u8 tag_type;
+	/* do not allow modifying VLAN stripping when a port VLAN is configured
+	 * on this VSI
+	 */
+	if (vsi->info.port_based_outer_vlan)
+		return 0;
+
+	if (tpid_to_vsi_outer_vlan_type(tpid, &tag_type))
+		return -EINVAL;
+
+	memset(&ctxt, 0, sizeof(ctxt));
+	ctxt.info.valid_sections =
+		rte_cpu_to_le_16(ICE_AQ_VSI_PROP_OUTER_TAG_VALID);
+	/* clear current outer VLAN insertion settings */
+	ctxt.info.outer_vlan_flags = vsi->info.outer_vlan_flags &
+		~(ICE_AQ_VSI_OUTER_VLAN_PORT_BASED_INSERT |
+		  ICE_AQ_VSI_OUTER_VLAN_BLOCK_TX_DESC |
+		  ICE_AQ_VSI_OUTER_VLAN_TX_MODE_M |
+		  ICE_AQ_VSI_OUTER_TAG_TYPE_M);
+	ctxt.info.outer_vlan_flags |=
+		((ICE_AQ_VSI_OUTER_VLAN_TX_MODE_ALL <<
+		  ICE_AQ_VSI_OUTER_VLAN_TX_MODE_S) &
+		 ICE_AQ_VSI_OUTER_VLAN_TX_MODE_M) |
+		((tag_type << ICE_AQ_VSI_OUTER_TAG_TYPE_S) &
+		 ICE_AQ_VSI_OUTER_TAG_TYPE_M);
+
+	status = ice_update_vsi(hw, vsi->idx, &ctxt, NULL);
+	if (status) {
+		PMD_DRV_LOG(ERR, "Update VSI failed to enable outer VLAN stripping");
+		err = -EIO;
+	} else {
+		vsi->info.outer_vlan_flags = ctxt.info.outer_vlan_flags;
+	}
+
+	return err;
+}
+
+static int
+ice_vlan_tpid_set(struct rte_eth_dev *dev,
+		   enum rte_vlan_type vlan_type,
+		   uint16_t tpid)
+{
+	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_vsi *vsi = pf->main_vsi;
+	uint64_t qinq = dev->data->dev_conf.rxmode.offloads &
+		   RTE_ETH_RX_OFFLOAD_QINQ_STRIP;
+	int err = 0;
+
+	if ((vlan_type != RTE_ETH_VLAN_TYPE_INNER &&
+	     vlan_type != RTE_ETH_VLAN_TYPE_OUTER) ||
+	     (!qinq && vlan_type == RTE_ETH_VLAN_TYPE_INNER) ||
+		 !ice_is_supported_port_vlan_proto(hw, tpid)) {
+		PMD_DRV_LOG(ERR,
+			    "Unsupported vlan type.");
+		return -EINVAL;
+	}
+
+	err = ice_vsi_ena_outer_insertion(vsi, tpid);
+	if (!err)
+		pf->outer_ethertype = tpid;
+
+	return err;
 }
 
 static int
@@ -5570,13 +6140,12 @@ ice_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 
 	stats->ipackets = pf->main_vsi->eth_stats.rx_unicast +
 			  pf->main_vsi->eth_stats.rx_multicast +
-              pf->stats.eth.rx_unknown_protocol +
 			  pf->main_vsi->eth_stats.rx_broadcast -
 			  pf->main_vsi->eth_stats.rx_discards;
 	stats->opackets = ns->eth.tx_unicast +
 			  ns->eth.tx_multicast +
 			  ns->eth.tx_broadcast;
-	stats->ibytes   = pf->stats.eth.rx_bytes;
+	stats->ibytes   = pf->main_vsi->eth_stats.rx_bytes;
 	stats->obytes   = ns->eth.tx_bytes;
 	stats->oerrors  = ns->eth.tx_errors +
 			  pf->main_vsi->eth_stats.tx_errors;
@@ -5659,6 +6228,8 @@ ice_stats_reset(struct rte_eth_dev *dev)
 	/* read the stats, reading current register values into offset */
 	ice_read_stats_registers(pf, hw);
 
+	memset(&pf->mbuf_stats, 0, sizeof(struct ice_mbuf_stats));
+
 	return 0;
 }
 
@@ -5667,9 +6238,22 @@ ice_xstats_calc_num(void)
 {
 	uint32_t num;
 
-	num = ICE_NB_ETH_XSTATS + ICE_NB_HW_PORT_XSTATS;
+	num = ICE_NB_ETH_XSTATS + ICE_NB_MBUF_XSTATS + ICE_NB_HW_PORT_XSTATS;
 
 	return num;
+}
+
+static void
+ice_update_mbuf_stats(struct rte_eth_dev *ethdev,
+		struct ice_mbuf_stats *mbuf_stats)
+{
+	uint16_t idx;
+	struct ice_tx_queue *txq;
+
+	for (idx = 0; idx < ethdev->data->nb_tx_queues; idx++) {
+		txq = ethdev->data->tx_queues[idx];
+		mbuf_stats->tx_pkt_errors += txq->mbuf_errors;
+	}
 }
 
 static int
@@ -5678,6 +6262,9 @@ ice_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 {
 	struct ice_pf *pf = ICE_DEV_PRIVATE_TO_PF(dev->data->dev_private);
 	struct ice_hw *hw = ICE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct ice_adapter *adapter =
+		ICE_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	struct ice_mbuf_stats mbuf_stats = {0};
 	unsigned int i;
 	unsigned int count;
 	struct ice_hw_port_stats *hw_stats = &pf->stats;
@@ -5693,11 +6280,22 @@ ice_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 
 	count = 0;
 
+	if (adapter->devargs.mbuf_check)
+		ice_update_mbuf_stats(dev, &mbuf_stats);
+
 	/* Get stats from ice_eth_stats struct */
 	for (i = 0; i < ICE_NB_ETH_XSTATS; i++) {
 		xstats[count].value =
 			*(uint64_t *)((char *)&hw_stats->eth +
 				      ice_stats_strings[i].offset);
+		xstats[count].id = count;
+		count++;
+	}
+
+	/* Get stats from ice_mbuf_stats struct */
+	for (i = 0; i < ICE_NB_MBUF_XSTATS; i++) {
+		xstats[count].value =
+			*(uint64_t *)((char *)&mbuf_stats + ice_mbuf_strings[i].offset);
 		xstats[count].id = count;
 		count++;
 	}
@@ -5729,6 +6327,13 @@ static int ice_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
 	/* Get stats from ice_eth_stats struct */
 	for (i = 0; i < ICE_NB_ETH_XSTATS; i++) {
 		strlcpy(xstats_names[count].name, ice_stats_strings[i].name,
+			sizeof(xstats_names[count].name));
+		count++;
+	}
+
+	/* Get stats from ice_mbuf_stats struct */
+	for (i = 0; i < ICE_NB_MBUF_XSTATS; i++) {
+		strlcpy(xstats_names[count].name, ice_mbuf_strings[i].name,
 			sizeof(xstats_names[count].name));
 		count++;
 	}
@@ -5993,7 +6598,8 @@ ice_timesync_disable(struct rte_eth_dev *dev)
 }
 
 static const uint32_t *
-ice_buffer_split_supported_hdr_ptypes_get(struct rte_eth_dev *dev __rte_unused)
+ice_buffer_split_supported_hdr_ptypes_get(struct rte_eth_dev *dev __rte_unused,
+					  size_t *no_of_elements)
 {
 	/* Buffer split protocol header capability. */
 	static const uint32_t ptypes[] = {
@@ -6032,9 +6638,9 @@ ice_buffer_split_supported_hdr_ptypes_get(struct rte_eth_dev *dev __rte_unused)
 		RTE_PTYPE_TUNNEL_GRENAT | RTE_PTYPE_INNER_L2_ETHER |
 		RTE_PTYPE_INNER_L3_IPV6_EXT_UNKNOWN | RTE_PTYPE_INNER_L4_SCTP,
 
-		RTE_PTYPE_UNKNOWN
 	};
 
+	*no_of_elements = RTE_DIM(ptypes);
 	return ptypes;
 }
 
@@ -6072,7 +6678,6 @@ RTE_PMD_REGISTER_PARAM_STRING(net_ice,
 			      ICE_HW_DEBUG_MASK_ARG "=0xXXX"
 			      ICE_PROTO_XTR_ARG "=[queue:]<vlan|ipv4|ipv6|ipv6_flow|tcp|ip_offset>"
 			      ICE_SAFE_MODE_SUPPORT_ARG "=<0|1>"
-			      ICE_PIPELINE_MODE_SUPPORT_ARG "=<0|1>"
 			      ICE_DEFAULT_MAC_DISABLE "=<0|1>"
 			      ICE_RX_LOW_LATENCY_ARG "=<0|1>");
 

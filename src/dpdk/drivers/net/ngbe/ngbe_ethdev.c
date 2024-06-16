@@ -90,6 +90,7 @@ static int ngbe_dev_misc_interrupt_setup(struct rte_eth_dev *dev);
 static int ngbe_dev_rxq_interrupt_setup(struct rte_eth_dev *dev);
 static void ngbe_dev_interrupt_handler(void *param);
 static void ngbe_configure_msix(struct rte_eth_dev *dev);
+static void ngbe_pbthresh_set(struct rte_eth_dev *dev);
 
 #define NGBE_SET_HWSTRIP(h, q) do {\
 		uint32_t idx = (q) / (sizeof((h)->bitmap[0]) * NBBY); \
@@ -160,7 +161,9 @@ static const struct rte_ngbe_xstats_name_off rte_ngbe_stats_strings[] = {
 	HW_XSTAT(tx_total_packets),
 	HW_XSTAT(rx_total_missed_packets),
 	HW_XSTAT(rx_broadcast_packets),
+	HW_XSTAT(tx_broadcast_packets),
 	HW_XSTAT(rx_multicast_packets),
+	HW_XSTAT(tx_multicast_packets),
 	HW_XSTAT(rx_management_packets),
 	HW_XSTAT(tx_management_packets),
 	HW_XSTAT(rx_management_dropped),
@@ -972,9 +975,6 @@ ngbe_dev_start(struct rte_eth_dev *dev)
 
 	PMD_INIT_FUNC_TRACE();
 
-	/* Stop the link setup handler before resetting the HW. */
-	rte_eal_alarm_cancel(ngbe_dev_setup_link_alarm_handler, dev);
-
 	/* disable uio/vfio intr/eventfd mapping */
 	rte_intr_disable(intr_handle);
 
@@ -1038,6 +1038,7 @@ ngbe_dev_start(struct rte_eth_dev *dev)
 	}
 
 	hw->mac.setup_pba(hw);
+	ngbe_pbthresh_set(dev);
 	ngbe_configure_port(dev);
 
 	err = ngbe_dev_rxtx_start(dev);
@@ -1049,6 +1050,8 @@ ngbe_dev_start(struct rte_eth_dev *dev)
 	/* Skip link setup if loopback mode is enabled. */
 	if (hw->is_pf && dev->data->dev_conf.lpbk_mode)
 		goto skip_link_setup;
+
+	hw->lsc = dev->data->dev_conf.intr_conf.lsc;
 
 	err = hw->mac.check_link(hw, &speed, &link_up, 0);
 	if (err != 0)
@@ -1164,11 +1167,9 @@ ngbe_dev_stop(struct rte_eth_dev *dev)
 	int vf;
 
 	if (hw->adapter_stopped)
-		return 0;
+		goto out;
 
 	PMD_INIT_FUNC_TRACE();
-
-	rte_eal_alarm_cancel(ngbe_dev_setup_link_alarm_handler, dev);
 
 	if (hw->gpio_ctl) {
 		/* gpio0 is used to power on/off control*/
@@ -1187,8 +1188,6 @@ ngbe_dev_stop(struct rte_eth_dev *dev)
 
 	for (vf = 0; vfinfo != NULL && vf < pci_dev->max_vfs; vf++)
 		vfinfo[vf].clear_to_send = false;
-
-	hw->phy.set_phy_power(hw, false);
 
 	ngbe_dev_clear_queues(dev);
 
@@ -1215,6 +1214,10 @@ ngbe_dev_stop(struct rte_eth_dev *dev)
 
 	hw->adapter_stopped = true;
 	dev->data->dev_started = 0;
+
+out:
+	/* close phy to prevent reset in dev_close from restarting physical link */
+	hw->phy.set_phy_power(hw, false);
 
 	return 0;
 }
@@ -1258,6 +1261,9 @@ ngbe_dev_close(struct rte_eth_dev *dev)
 	int ret;
 
 	PMD_INIT_FUNC_TRACE();
+
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
+		return 0;
 
 	ngbe_pf_reset_hw(hw);
 
@@ -1858,13 +1864,13 @@ ngbe_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 }
 
 const uint32_t *
-ngbe_dev_supported_ptypes_get(struct rte_eth_dev *dev)
+ngbe_dev_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	if (dev->rx_pkt_burst == ngbe_recv_pkts ||
 	    dev->rx_pkt_burst == ngbe_recv_pkts_sc_single_alloc ||
 	    dev->rx_pkt_burst == ngbe_recv_pkts_sc_bulk_alloc ||
 	    dev->rx_pkt_burst == ngbe_recv_pkts_bulk_alloc)
-		return ngbe_get_supported_ptypes();
+		return ngbe_get_supported_ptypes(no_of_elements);
 
 	return NULL;
 }
@@ -1891,24 +1897,6 @@ ngbe_dev_overheat(struct rte_eth_dev *dev)
 	}
 }
 
-void
-ngbe_dev_setup_link_alarm_handler(void *param)
-{
-	struct rte_eth_dev *dev = (struct rte_eth_dev *)param;
-	struct ngbe_hw *hw = ngbe_dev_hw(dev);
-	struct ngbe_interrupt *intr = ngbe_dev_intr(dev);
-	u32 speed;
-	bool autoneg = false;
-
-	speed = hw->phy.autoneg_advertised;
-	if (!speed)
-		hw->mac.get_link_capabilities(hw, &speed, &autoneg);
-
-	hw->mac.setup_link(hw, speed, true);
-
-	intr->flags &= ~NGBE_FLAG_NEED_LINK_CONFIG;
-}
-
 /* return 0 means link status changed, -1 means not changed */
 int
 ngbe_dev_link_update_share(struct rte_eth_dev *dev,
@@ -1918,7 +1906,6 @@ ngbe_dev_link_update_share(struct rte_eth_dev *dev,
 	struct rte_eth_link link;
 	u32 link_speed = NGBE_LINK_SPEED_UNKNOWN;
 	u32 lan_speed = 0;
-	struct ngbe_interrupt *intr = ngbe_dev_intr(dev);
 	bool link_up;
 	int err;
 	int wait = 1;
@@ -1931,9 +1918,6 @@ ngbe_dev_link_update_share(struct rte_eth_dev *dev,
 			~RTE_ETH_LINK_SPEED_AUTONEG);
 
 	hw->mac.get_link_status = true;
-
-	if (intr->flags & NGBE_FLAG_NEED_LINK_CONFIG)
-		return rte_eth_linkstatus_set(dev, &link);
 
 	/* check if it needs to wait to complete, if lsc interrupt is enabled */
 	if (wait_to_complete == 0 || dev->data->dev_conf.intr_conf.lsc != 0)
@@ -1949,7 +1933,6 @@ ngbe_dev_link_update_share(struct rte_eth_dev *dev,
 	if (!link_up)
 		return rte_eth_linkstatus_set(dev, &link);
 
-	intr->flags &= ~NGBE_FLAG_NEED_LINK_CONFIG;
 	link.link_status = RTE_ETH_LINK_UP;
 	link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
 
@@ -1983,6 +1966,8 @@ ngbe_dev_link_update_share(struct rte_eth_dev *dev,
 			wr32m(hw, NGBE_MACTXCFG, NGBE_MACTXCFG_SPEED_MASK,
 				NGBE_MACTXCFG_SPEED_1G | NGBE_MACTXCFG_TE);
 		}
+		wr32m(hw, NGBE_MACRXFLT, NGBE_MACRXFLT_PROMISC,
+			NGBE_MACRXFLT_PROMISC);
 	}
 
 	return rte_eth_linkstatus_set(dev, &link);
@@ -2408,6 +2393,93 @@ ngbe_flow_ctrl_set(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 
 	PMD_INIT_LOG(ERR, "ngbe_fc_enable = 0x%x", err);
 	return -EIO;
+}
+
+/* Additional bittime to account for NGBE framing */
+#define NGBE_ETH_FRAMING 20
+
+/*
+ * ngbe_fc_hpbthresh_set - calculate high water mark for flow control
+ *
+ * @dv_id: device interface delay
+ * @pb: packet buffer to calculate
+ */
+static s32
+ngbe_fc_hpbthresh_set(struct rte_eth_dev *dev)
+{
+	struct ngbe_hw *hw = ngbe_dev_hw(dev);
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	u32 max_frame_size, tc, dv_id, rx_pb;
+	s32 kb, marker;
+
+	/* Calculate max LAN frame size */
+	max_frame_size = rd32m(hw, NGBE_FRMSZ, NGBE_FRMSZ_MAX_MASK);
+	tc = max_frame_size + NGBE_ETH_FRAMING;
+
+	/* Calculate delay value for device */
+	dv_id = NGBE_DV(tc, tc);
+
+	/* Loopback switch introduces additional latency */
+	if (pci_dev->max_vfs)
+		dv_id += NGBE_B2BT(tc);
+
+	/* Delay value is calculated in bit times convert to KB */
+	kb = NGBE_BT2KB(dv_id);
+	rx_pb = rd32(hw, NGBE_PBRXSIZE) >> 10;
+
+	marker = rx_pb - kb;
+
+	/* It is possible that the packet buffer is not large enough
+	 * to provide required headroom. In this case throw an error
+	 * to user and do the best we can.
+	 */
+	if (marker < 0) {
+		PMD_DRV_LOG(WARNING, "Packet Buffer can not provide enough headroom to support flow control.");
+		marker = tc + 1;
+	}
+
+	return marker;
+}
+
+/*
+ * ngbe_fc_lpbthresh_set - calculate low water mark for flow control
+ *
+ * @dv_id: device interface delay
+ */
+static s32
+ngbe_fc_lpbthresh_set(struct rte_eth_dev *dev)
+{
+	struct ngbe_hw *hw = ngbe_dev_hw(dev);
+	u32 max_frame_size, tc, dv_id;
+	s32 kb;
+
+	/* Calculate max LAN frame size */
+	max_frame_size = rd32m(hw, NGBE_FRMSZ, NGBE_FRMSZ_MAX_MASK);
+	tc = max_frame_size + NGBE_ETH_FRAMING;
+
+	/* Calculate delay value for device */
+	dv_id = NGBE_LOW_DV(tc);
+
+	/* Delay value is calculated in bit times convert to KB */
+	kb = NGBE_BT2KB(dv_id);
+
+	return kb;
+}
+
+/*
+ * ngbe_pbthresh_setup - calculate and setup high low water marks
+ */
+static void
+ngbe_pbthresh_set(struct rte_eth_dev *dev)
+{
+	struct ngbe_hw *hw = ngbe_dev_hw(dev);
+
+	hw->fc.high_water = ngbe_fc_hpbthresh_set(dev);
+	hw->fc.low_water = ngbe_fc_lpbthresh_set(dev);
+
+	/* Low water marks must not be larger than high water marks */
+	if (hw->fc.low_water > hw->fc.high_water)
+		hw->fc.low_water = 0;
 }
 
 int

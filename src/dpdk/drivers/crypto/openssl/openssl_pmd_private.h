@@ -12,6 +12,7 @@
 #include <openssl/rsa.h>
 #include <openssl/dh.h>
 #include <openssl/dsa.h>
+#include <openssl/ec.h>
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
 #include <openssl/provider.h>
 #include <openssl/core_names.h>
@@ -189,6 +190,8 @@ struct openssl_asym_session {
 		struct dh {
 			DH *dh_key;
 			uint32_t key_op;
+			BIGNUM *p;
+			BIGNUM *g;
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
 			OSSL_PARAM_BLD * param_bld;
 			OSSL_PARAM_BLD *param_bld_peer;
@@ -198,8 +201,17 @@ struct openssl_asym_session {
 			DSA *dsa;
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
 			OSSL_PARAM_BLD * param_bld;
+			BIGNUM *p;
+			BIGNUM *g;
+			BIGNUM *q;
+			BIGNUM *priv_key;
 #endif
 		} s;
+		struct {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+			OSSL_PARAM * params;
+#endif
+		} sm2;
 	} u;
 } __rte_cache_aligned;
 /** Set and validate OPENSSL crypto session parameters */

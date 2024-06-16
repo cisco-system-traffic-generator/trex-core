@@ -10,6 +10,8 @@
 
 #include "rte_port_ring.h"
 
+#include "port_log.h"
+
 /*
  * Port RING Reader
  */
@@ -46,7 +48,7 @@ rte_port_ring_reader_create_internal(void *params, int socket_id,
 		(conf->ring == NULL) ||
 		(rte_ring_is_cons_single(conf->ring) && is_multi) ||
 		(!rte_ring_is_cons_single(conf->ring) && !is_multi)) {
-		RTE_LOG(ERR, PORT, "%s: Invalid Parameters\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid Parameters", __func__);
 		return NULL;
 	}
 
@@ -54,7 +56,7 @@ rte_port_ring_reader_create_internal(void *params, int socket_id,
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -107,7 +109,7 @@ static int
 rte_port_ring_reader_free(void *port)
 {
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: port is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -174,7 +176,7 @@ rte_port_ring_writer_create_internal(void *params, int socket_id,
 		(rte_ring_is_prod_single(conf->ring) && is_multi) ||
 		(!rte_ring_is_prod_single(conf->ring) && !is_multi) ||
 		(conf->tx_burst_sz > RTE_PORT_IN_BURST_SIZE_MAX)) {
-		RTE_LOG(ERR, PORT, "%s: Invalid Parameters\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid Parameters", __func__);
 		return NULL;
 	}
 
@@ -182,7 +184,7 @@ rte_port_ring_writer_create_internal(void *params, int socket_id,
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -279,7 +281,7 @@ rte_port_ring_writer_tx_bulk_internal(void *port,
 			((pkts_mask & bsz_mask) ^ bsz_mask);
 
 	if (expr == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 		uint32_t n_pkts_ok;
 
 		if (tx_buf_count) {
@@ -305,7 +307,7 @@ rte_port_ring_writer_tx_bulk_internal(void *port,
 		}
 	} else {
 		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
+			uint32_t pkt_index = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pkt_index;
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
@@ -370,7 +372,7 @@ rte_port_ring_writer_free(void *port)
 	struct rte_port_ring_writer *p = port;
 
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Port is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -443,7 +445,7 @@ rte_port_ring_writer_nodrop_create_internal(void *params, int socket_id,
 		(rte_ring_is_prod_single(conf->ring) && is_multi) ||
 		(!rte_ring_is_prod_single(conf->ring) && !is_multi) ||
 		(conf->tx_burst_sz > RTE_PORT_IN_BURST_SIZE_MAX)) {
-		RTE_LOG(ERR, PORT, "%s: Invalid Parameters\n", __func__);
+		PORT_LOG(ERR, "%s: Invalid Parameters", __func__);
 		return NULL;
 	}
 
@@ -451,7 +453,7 @@ rte_port_ring_writer_nodrop_create_internal(void *params, int socket_id,
 	port = rte_zmalloc_socket("PORT", sizeof(*port),
 			RTE_CACHE_LINE_SIZE, socket_id);
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Failed to allocate port\n", __func__);
+		PORT_LOG(ERR, "%s: Failed to allocate port", __func__);
 		return NULL;
 	}
 
@@ -595,7 +597,7 @@ rte_port_ring_writer_nodrop_tx_bulk_internal(void *port,
 			((pkts_mask & bsz_mask) ^ bsz_mask);
 
 	if (expr == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
+		uint64_t n_pkts = rte_popcount64(pkts_mask);
 		uint32_t n_pkts_ok;
 
 		if (tx_buf_count) {
@@ -633,7 +635,7 @@ rte_port_ring_writer_nodrop_tx_bulk_internal(void *port,
 			send_burst_nodrop(p);
 	} else {
 		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
+			uint32_t pkt_index = rte_ctz64(pkts_mask);
 			uint64_t pkt_mask = 1LLU << pkt_index;
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
@@ -703,7 +705,7 @@ rte_port_ring_writer_nodrop_free(void *port)
 			port;
 
 	if (port == NULL) {
-		RTE_LOG(ERR, PORT, "%s: Port is NULL\n", __func__);
+		PORT_LOG(ERR, "%s: Port is NULL", __func__);
 		return -EINVAL;
 	}
 

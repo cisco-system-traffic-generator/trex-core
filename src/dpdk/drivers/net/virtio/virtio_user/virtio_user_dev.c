@@ -18,6 +18,7 @@
 #include <rte_string_fns.h>
 #include <rte_eal_memconfig.h>
 #include <rte_malloc.h>
+#include <rte_io.h>
 
 #include "vhost.h"
 #include "virtio_user_dev.h"
@@ -215,6 +216,12 @@ virtio_user_start_device(struct virtio_user_dev *dev)
 	if (ret < 0)
 		goto error;
 
+	if (dev->scvq) {
+		ret = dev->ops->cvq_enable(dev, 1);
+		if (ret < 0)
+			goto error;
+	}
+
 	dev->started = true;
 
 	pthread_mutex_unlock(&dev->mutex);
@@ -243,6 +250,12 @@ int virtio_user_stop_device(struct virtio_user_dev *dev)
 
 	for (i = 0; i < dev->max_queue_pairs; ++i) {
 		ret = dev->ops->enable_qp(dev, i, 0);
+		if (ret < 0)
+			goto err;
+	}
+
+	if (dev->scvq) {
+		ret = dev->ops->cvq_enable(dev, 0);
 		if (ret < 0)
 			goto err;
 	}
@@ -301,6 +314,24 @@ virtio_user_dev_init_max_queue_pairs(struct virtio_user_dev *dev, uint32_t user_
 	}
 
 	return 0;
+}
+
+int
+virtio_user_dev_get_rss_config(struct virtio_user_dev *dev, void *dst, size_t offset, int length)
+{
+	int ret = 0;
+
+	if (!(dev->device_features & (1ULL << VIRTIO_NET_F_RSS)))
+		return -ENOTSUP;
+
+	if (!dev->ops->get_config)
+		return -ENOTSUP;
+
+	ret = dev->ops->get_config(dev, dst, offset, length);
+	if (ret)
+		PMD_DRV_LOG(ERR, "(%s) Failed to get rss config in device", dev->path);
+
+	return ret;
 }
 
 int
@@ -414,6 +445,11 @@ virtio_user_dev_init_notify(struct virtio_user_dev *dev)
 		dev->kickfds[i] = kickfd;
 	}
 
+	if (dev->device_features & (1ULL << VIRTIO_F_NOTIFICATION_DATA))
+		if (dev->ops->map_notification_area &&
+				dev->ops->map_notification_area(dev))
+			goto err;
+
 	return 0;
 err:
 	for (j = 0; j < i; j++) {
@@ -445,6 +481,8 @@ virtio_user_dev_uninit_notify(struct virtio_user_dev *dev)
 			dev->callfds[i] = -1;
 		}
 	}
+	if (dev->ops->unmap_notification_area && dev->notify_area)
+		dev->ops->unmap_notification_area(dev);
 }
 
 static int
@@ -674,7 +712,9 @@ virtio_user_free_vrings(struct virtio_user_dev *dev)
 	 1ULL << VIRTIO_NET_F_GUEST_TSO6	|	\
 	 1ULL << VIRTIO_F_IN_ORDER		|	\
 	 1ULL << VIRTIO_F_VERSION_1		|	\
-	 1ULL << VIRTIO_F_RING_PACKED)
+	 1ULL << VIRTIO_F_RING_PACKED		|	\
+	 1ULL << VIRTIO_F_NOTIFICATION_DATA	|	\
+	 1ULL << VIRTIO_NET_F_RSS)
 
 int
 virtio_user_dev_init(struct virtio_user_dev *dev, char *path, uint16_t queues,
@@ -696,11 +736,7 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, uint16_t queues,
 	dev->frontend_features = 0;
 	dev->unsupported_features = 0;
 	dev->backend_type = backend_type;
-
-	if (*ifname) {
-		dev->ifname = *ifname;
-		*ifname = NULL;
-	}
+	dev->ifname = *ifname;
 
 	if (virtio_user_dev_setup(dev) < 0) {
 		PMD_INIT_LOG(ERR, "(%s) backend set up fails", dev->path);
@@ -729,7 +765,7 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, uint16_t queues,
 	if (virtio_user_dev_init_max_queue_pairs(dev, queues))
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MQ);
 
-	if (dev->max_queue_pairs > 1)
+	if (dev->max_queue_pairs > 1 || dev->hw_cvq)
 		cq = 1;
 
 	if (!mrg_rxbuf)
@@ -747,8 +783,9 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, uint16_t queues,
 		dev->unsupported_features |= (1ull << VIRTIO_NET_F_MAC);
 
 	if (cq) {
-		/* device does not really need to know anything about CQ,
-		 * so if necessary, we just claim to support CQ
+		/* Except for vDPA, the device does not really need to know
+		 * anything about CQ, so if necessary, we just claim to support
+		 * control queue.
 		 */
 		dev->frontend_features |= (1ull << VIRTIO_NET_F_CTRL_VQ);
 	} else {
@@ -794,6 +831,7 @@ virtio_user_dev_init(struct virtio_user_dev *dev, char *path, uint16_t queues,
 		}
 	}
 
+	*ifname = NULL;
 	return 0;
 
 notify_uninit:
@@ -847,9 +885,6 @@ virtio_user_handle_mq(struct virtio_user_dev *dev, uint16_t q_pairs)
 	for (i = q_pairs; i < dev->max_queue_pairs; ++i)
 		ret |= dev->ops->enable_qp(dev, i, 0);
 
-	if (dev->scvq)
-		ret |= dev->ops->cvq_enable(dev, 1);
-
 	dev->queue_pairs = q_pairs;
 
 	return ret;
@@ -889,6 +924,11 @@ virtio_user_handle_ctrl_msg_split(struct virtio_user_dev *dev, struct vring *vri
 
 		queues = *(uint16_t *)(uintptr_t)vring->desc[idx_data].addr;
 		status = virtio_user_handle_mq(dev, queues);
+	} else if (hdr->class == VIRTIO_NET_CTRL_MQ && hdr->cmd == VIRTIO_NET_CTRL_MQ_RSS_CONFIG) {
+		struct virtio_net_ctrl_rss *rss;
+
+		rss = (struct virtio_net_ctrl_rss *)(uintptr_t)vring->desc[idx_data].addr;
+		status = virtio_user_handle_mq(dev, rss->max_tx_vq);
 	} else if (hdr->class == VIRTIO_NET_CTRL_RX  ||
 		   hdr->class == VIRTIO_NET_CTRL_MAC ||
 		   hdr->class == VIRTIO_NET_CTRL_VLAN) {
@@ -950,6 +990,11 @@ virtio_user_handle_ctrl_msg_packed(struct virtio_user_dev *dev,
 		queues = *(uint16_t *)(uintptr_t)
 				vring->desc[idx_data].addr;
 		status = virtio_user_handle_mq(dev, queues);
+	} else if (hdr->class == VIRTIO_NET_CTRL_MQ && hdr->cmd == VIRTIO_NET_CTRL_MQ_RSS_CONFIG) {
+		struct virtio_net_ctrl_rss *rss;
+
+		rss = (struct virtio_net_ctrl_rss *)(uintptr_t)vring->desc[idx_data].addr;
+		status = virtio_user_handle_mq(dev, rss->max_tx_vq);
 	} else if (hdr->class == VIRTIO_NET_CTRL_RX  ||
 		   hdr->class == VIRTIO_NET_CTRL_MAC ||
 		   hdr->class == VIRTIO_NET_CTRL_VLAN) {
@@ -1025,7 +1070,7 @@ virtio_user_handle_cq_split(struct virtio_user_dev *dev, uint16_t queue_idx)
 		uep->id = desc_idx;
 		uep->len = n_descs;
 
-		__atomic_add_fetch(&vring->used->idx, 1, __ATOMIC_RELAXED);
+		__atomic_fetch_add(&vring->used->idx, 1, __ATOMIC_RELAXED);
 	}
 }
 
@@ -1042,11 +1087,35 @@ static void
 virtio_user_control_queue_notify(struct virtqueue *vq, void *cookie)
 {
 	struct virtio_user_dev *dev = cookie;
-	uint64_t buf = 1;
+	uint64_t notify_data = 1;
 
-	if (write(dev->kickfds[vq->vq_queue_index], &buf, sizeof(buf)) < 0)
-		PMD_DRV_LOG(ERR, "failed to kick backend: %s",
-			    strerror(errno));
+	if (!dev->notify_area) {
+		if (write(dev->kickfds[vq->vq_queue_index], &notify_data, sizeof(notify_data)) < 0)
+			PMD_DRV_LOG(ERR, "failed to kick backend: %s",
+				    strerror(errno));
+		return;
+	} else if (!virtio_with_feature(&dev->hw, VIRTIO_F_NOTIFICATION_DATA)) {
+		rte_write16(vq->vq_queue_index, vq->notify_addr);
+		return;
+	}
+
+	if (virtio_with_packed_queue(&dev->hw)) {
+		/* Bit[0:15]: vq queue index
+		 * Bit[16:30]: avail index
+		 * Bit[31]: avail wrap counter
+		 */
+		notify_data = ((uint32_t)(!!(vq->vq_packed.cached_flags &
+				VRING_PACKED_DESC_F_AVAIL)) << 31) |
+				((uint32_t)vq->vq_avail_idx << 16) |
+				vq->vq_queue_index;
+	} else {
+		/* Bit[0:15]: vq queue index
+		 * Bit[16:31]: avail index
+		 */
+		notify_data = ((uint32_t)vq->vq_avail_idx << 16) |
+				vq->vq_queue_index;
+	}
+	rte_write32(notify_data, vq->notify_addr);
 }
 
 int
@@ -1065,6 +1134,7 @@ virtio_user_dev_create_shadow_cvq(struct virtio_user_dev *dev, struct virtqueue 
 
 	scvq->cq.notify_queue = &virtio_user_control_queue_notify;
 	scvq->cq.notify_cookie = dev;
+	scvq->notify_addr = vq->notify_addr;
 	dev->scvq = scvq;
 
 	return 0;

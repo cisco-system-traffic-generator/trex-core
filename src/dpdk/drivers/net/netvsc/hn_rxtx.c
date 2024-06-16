@@ -116,7 +116,7 @@ hn_update_packet_stats(struct hn_stats *stats, const struct rte_mbuf *m)
 		uint32_t bin;
 
 		/* count zeros, and offset into correct bin */
-		bin = (sizeof(s) * 8) - __builtin_clz(s) - 5;
+		bin = (sizeof(s) * 8) - rte_clz32(s) - 5;
 		stats->size_bins[bin]++;
 	} else {
 		if (s < 64)
@@ -612,7 +612,9 @@ static void hn_rxpkt(struct hn_rx_queue *rxq, struct hn_rx_bufinfo *rxb,
 					   RTE_PTYPE_L4_MASK);
 
 	if (info->vlan_info != HN_NDIS_VLAN_INFO_INVALID) {
-		m->vlan_tci = info->vlan_info;
+		m->vlan_tci = RTE_VLAN_TCI_MAKE(NDIS_VLAN_INFO_ID(info->vlan_info),
+						NDIS_VLAN_INFO_PRI(info->vlan_info),
+						NDIS_VLAN_INFO_CFI(info->vlan_info));
 		m->ol_flags |= RTE_MBUF_F_RX_VLAN_STRIPPED | RTE_MBUF_F_RX_VLAN;
 
 		/* NDIS always strips tag, put it back if necessary */
@@ -1332,7 +1334,9 @@ static void hn_encap(struct rndis_packet_msg *pkt,
 	if (m->ol_flags & RTE_MBUF_F_TX_VLAN) {
 		pi_data = hn_rndis_pktinfo_append(pkt, NDIS_VLAN_INFO_SIZE,
 						  NDIS_PKTINFO_TYPE_VLAN);
-		*pi_data = m->vlan_tci;
+		*pi_data = NDIS_VLAN_INFO_MAKE(RTE_VLAN_TCI_ID(m->vlan_tci),
+					       RTE_VLAN_TCI_PRI(m->vlan_tci),
+					       RTE_VLAN_TCI_DEI(m->vlan_tci));
 	}
 
 	if (m->ol_flags & RTE_MBUF_F_TX_TCP_SEG) {

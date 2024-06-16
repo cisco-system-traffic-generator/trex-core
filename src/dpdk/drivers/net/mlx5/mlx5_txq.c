@@ -64,7 +64,7 @@ txq_free_elts(struct mlx5_txq_ctrl *txq_ctrl)
 	const uint16_t elts_m = elts_n - 1;
 	uint16_t elts_head = txq_ctrl->txq.elts_head;
 	uint16_t elts_tail = txq_ctrl->txq.elts_tail;
-	struct rte_mbuf *(*elts)[elts_n] = &txq_ctrl->txq.elts;
+	struct rte_mbuf *(*elts)[] = &txq_ctrl->txq.elts;
 
 	DRV_LOG(DEBUG, "port %u Tx queue %u freeing WRs",
 		PORT_ID(txq_ctrl->priv), txq_ctrl->txq.idx);
@@ -1203,7 +1203,7 @@ mlx5_txq_release(struct rte_eth_dev *dev, uint16_t idx)
 	if (priv->txqs == NULL || (*priv->txqs)[idx] == NULL)
 		return 0;
 	txq_ctrl = container_of((*priv->txqs)[idx], struct mlx5_txq_ctrl, txq);
-	if (__atomic_sub_fetch(&txq_ctrl->refcnt, 1, __ATOMIC_RELAXED) > 1)
+	if (__atomic_fetch_sub(&txq_ctrl->refcnt, 1, __ATOMIC_RELAXED) - 1 > 1)
 		return 1;
 	if (txq_ctrl->obj) {
 		priv->obj_ops.txq_obj_release(txq_ctrl->obj);
@@ -1310,8 +1310,16 @@ rte_pmd_mlx5_external_sq_enable(uint16_t port_id, uint32_t sq_num)
 		return -rte_errno;
 	}
 #ifdef HAVE_MLX5_HWS_SUPPORT
-	if (priv->sh->config.dv_flow_en == 2)
-		return mlx5_flow_hw_esw_create_sq_miss_flow(dev, sq_num);
+	if (priv->sh->config.dv_flow_en == 2) {
+		if (mlx5_flow_hw_esw_create_sq_miss_flow(dev, sq_num, true))
+			return -rte_errno;
+		if (priv->sh->config.repr_matching &&
+		    mlx5_flow_hw_tx_repr_matching_flow(dev, sq_num, true)) {
+			mlx5_flow_hw_esw_destroy_sq_miss_flow(dev, sq_num);
+			return -rte_errno;
+		}
+		return 0;
+	}
 #endif
 	flow = mlx5_flow_create_devx_sq_miss_flow(dev, sq_num);
 	if (flow > 0)
@@ -1381,6 +1389,11 @@ int mlx5_map_aggr_tx_affinity(struct rte_eth_dev *dev, uint16_t tx_queue_id,
 	struct mlx5_priv *priv;
 
 	priv = dev->data->dev_private;
+	if (!mlx5_devx_obj_ops_en(priv->sh)) {
+		DRV_LOG(ERR, "Tx affinity mapping isn't supported by Verbs API.");
+		rte_errno = ENOTSUP;
+		return -rte_errno;
+	}
 	txq = (*priv->txqs)[tx_queue_id];
 	if (!txq)
 		return -1;

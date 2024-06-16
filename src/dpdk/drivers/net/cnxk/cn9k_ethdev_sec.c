@@ -100,6 +100,36 @@ static struct rte_cryptodev_capabilities cn9k_eth_sec_crypto_caps[] = {
 			}, }
 		}, }
 	},
+	{	/* AES CCM */
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,
+		{.sym = {
+			.xform_type = RTE_CRYPTO_SYM_XFORM_AEAD,
+			{.aead = {
+				.algo = RTE_CRYPTO_AEAD_AES_CCM,
+				.block_size = 16,
+				.key_size = {
+					.min = 16,
+					.max = 32,
+					.increment = 8
+				},
+				.digest_size = {
+					.min = 16,
+					.max = 16,
+					.increment = 0
+				},
+				.aad_size = {
+					.min = 8,
+					.max = 12,
+					.increment = 4
+				},
+				.iv_size = {
+					.min = 11,
+					.max = 13,
+					.increment = 1
+				}
+			}, }
+		}, }
+	},
 	{	/* AES CBC */
 		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,
 		{.sym = {
@@ -317,6 +347,39 @@ static const struct rte_security_capability cn9k_eth_sec_capabilities[] = {
 					.iv_gen_disable = 1,
 					.esn = 1
 				}
+		},
+		.crypto_capabilities = cn9k_eth_sec_crypto_caps,
+		.ol_flags = RTE_SECURITY_TX_OLOAD_NEED_MDATA
+	},
+	{	/* IPsec Inline Protocol ESP Transport Ingress */
+		.action = RTE_SECURITY_ACTION_TYPE_INLINE_PROTOCOL,
+		.protocol = RTE_SECURITY_PROTOCOL_IPSEC,
+		.ipsec = {
+			.proto = RTE_SECURITY_IPSEC_SA_PROTO_ESP,
+			.mode = RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT,
+			.direction = RTE_SECURITY_IPSEC_SA_DIR_INGRESS,
+			.replay_win_sz_max = CNXK_ON_AR_WIN_SIZE_MAX,
+			.options = {
+				.udp_encap = 1,
+				.esn = 1,
+			},
+		},
+		.crypto_capabilities = cn9k_eth_sec_crypto_caps,
+		.ol_flags = RTE_SECURITY_TX_OLOAD_NEED_MDATA
+	},
+	{	/* IPsec Inline Protocol ESP Transport Egress */
+		.action = RTE_SECURITY_ACTION_TYPE_INLINE_PROTOCOL,
+		.protocol = RTE_SECURITY_PROTOCOL_IPSEC,
+		.ipsec = {
+			.proto = RTE_SECURITY_IPSEC_SA_PROTO_ESP,
+			.mode = RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT,
+			.direction = RTE_SECURITY_IPSEC_SA_DIR_EGRESS,
+			.replay_win_sz_max = CNXK_ON_AR_WIN_SIZE_MAX,
+			.options = {
+				.iv_gen_disable = 1,
+				.udp_encap = 1,
+				.esn = 1,
+			},
 		},
 		.crypto_capabilities = cn9k_eth_sec_crypto_caps,
 		.ol_flags = RTE_SECURITY_TX_OLOAD_NEED_MDATA

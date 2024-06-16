@@ -19,6 +19,7 @@
 #include "rte_vdpa.h"
 #include "vdpa_driver.h"
 #include "vhost.h"
+#include "iotlb.h"
 
 /** Double linked list of vDPA devices. */
 TAILQ_HEAD(vdpa_device_list, rte_vdpa_device);
@@ -84,8 +85,8 @@ rte_vdpa_register_device(struct rte_device *rte_dev,
 			!ops->get_protocol_features || !ops->dev_conf ||
 			!ops->dev_close || !ops->set_vring_state ||
 			!ops->set_features) {
-		VHOST_LOG_CONFIG(rte_dev->name, ERR,
-			"Some mandatory vDPA ops aren't implemented\n");
+		VHOST_CONFIG_LOG(rte_dev->name, ERR,
+			"Some mandatory vDPA ops aren't implemented");
 		return NULL;
 	}
 
@@ -107,8 +108,8 @@ rte_vdpa_register_device(struct rte_device *rte_dev,
 	if (ops->get_dev_type) {
 		ret = ops->get_dev_type(dev, &dev->type);
 		if (ret) {
-			VHOST_LOG_CONFIG(rte_dev->name, ERR,
-					 "Failed to get vdpa dev type.\n");
+			VHOST_CONFIG_LOG(rte_dev->name, ERR,
+					 "Failed to get vdpa dev type.");
 			ret = -1;
 			goto out_unlock;
 		}
@@ -147,7 +148,6 @@ rte_vdpa_unregister_device(struct rte_vdpa_device *dev)
 
 int
 rte_vdpa_relay_vring_used(int vid, uint16_t qid, void *vring_m)
-	__rte_no_thread_safety_analysis /* FIXME: requires iotlb_lock? */
 {
 	struct virtio_net *dev = get_device(vid);
 	uint16_t idx, idx_m, desc_id;
@@ -193,17 +193,21 @@ rte_vdpa_relay_vring_used(int vid, uint16_t qid, void *vring_m)
 			if (unlikely(nr_descs > vq->size))
 				return -1;
 
+			vhost_user_iotlb_rd_lock(vq);
 			desc_ring = (struct vring_desc *)(uintptr_t)
 				vhost_iova_to_vva(dev, vq,
 						vq->desc[desc_id].addr, &dlen,
 						VHOST_ACCESS_RO);
+			vhost_user_iotlb_rd_unlock(vq);
 			if (unlikely(!desc_ring))
 				return -1;
 
 			if (unlikely(dlen < vq->desc[desc_id].len)) {
+				vhost_user_iotlb_rd_lock(vq);
 				idesc = vhost_alloc_copy_ind_table(dev, vq,
 						vq->desc[desc_id].addr,
 						vq->desc[desc_id].len);
+				vhost_user_iotlb_rd_unlock(vq);
 				if (unlikely(!idesc))
 					return -1;
 
@@ -220,9 +224,12 @@ rte_vdpa_relay_vring_used(int vid, uint16_t qid, void *vring_m)
 			if (unlikely(nr_descs-- == 0))
 				goto fail;
 			desc = desc_ring[desc_id];
-			if (desc.flags & VRING_DESC_F_WRITE)
+			if (desc.flags & VRING_DESC_F_WRITE) {
+				vhost_user_iotlb_rd_lock(vq);
 				vhost_log_write_iova(dev, vq, desc.addr,
 						     desc.len);
+				vhost_user_iotlb_rd_unlock(vq);
+			}
 			desc_id = desc.next;
 		} while (desc.flags & VRING_DESC_F_NEXT);
 
@@ -235,7 +242,8 @@ rte_vdpa_relay_vring_used(int vid, uint16_t qid, void *vring_m)
 	}
 
 	/* used idx is the synchronization point for the split vring */
-	__atomic_store_n(&vq->used->idx, idx_m, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit((unsigned short __rte_atomic *)&vq->used->idx,
+		idx_m, rte_memory_order_release);
 
 	if (dev->features & (1ULL << VIRTIO_RING_F_EVENT_IDX))
 		vring_used_event(s_vring) = idx_m;

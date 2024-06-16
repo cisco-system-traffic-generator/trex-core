@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2022 Intel Corporation
+ * Copyright(c) 2001-2023 Intel Corporation
  */
 
 #ifndef _ICE_SCHED_H_
@@ -37,6 +37,11 @@
 #define ICE_PSM_CLK_416MHZ_IN_HZ 416666667
 #define ICE_PSM_CLK_446MHZ_IN_HZ 446428571
 #define ICE_PSM_CLK_390MHZ_IN_HZ 390625000
+
+#define PSM_CLK_SRC_367_MHZ 0x0
+#define PSM_CLK_SRC_416_MHZ 0x1
+#define PSM_CLK_SRC_446_MHZ 0x2
+#define PSM_CLK_SRC_390_MHZ 0x3
 
 struct rl_profile_params {
 	u32 bw;			/* in Kbps */
@@ -112,7 +117,8 @@ ice_sched_find_node_by_teid(struct ice_sched_node *start_node, u32 teid);
 /* Add a scheduling node into SW DB for given info */
 enum ice_status
 ice_sched_add_node(struct ice_port_info *pi, u8 layer,
-		   struct ice_aqc_txsched_elem_data *info);
+		   struct ice_aqc_txsched_elem_data *info,
+		   struct ice_sched_node *prealloc_node);
 void ice_free_sched_node(struct ice_port_info *pi, struct ice_sched_node *node);
 struct ice_sched_node *ice_sched_get_tc_node(struct ice_port_info *pi, u8 tc);
 struct ice_sched_node *
@@ -231,5 +237,10 @@ enum ice_status ice_replay_vsi_agg(struct ice_hw *hw, u16 vsi_handle);
 enum ice_status ice_sched_replay_root_node_bw(struct ice_port_info *pi);
 enum ice_status
 ice_sched_replay_q_bw(struct ice_port_info *pi, struct ice_q_ctx *q_ctx);
-
+enum ice_status
+ice_sched_set_node_bw_lmt(struct ice_port_info *pi, struct ice_sched_node *node,
+			  enum ice_rl_type rl_type, u32 bw);
+enum ice_status
+ice_sched_cfg_node_bw_alloc(struct ice_hw *hw, struct ice_sched_node *node,
+			    enum ice_rl_type rl_type, u16 bw_alloc);
 #endif /* _ICE_SCHED_H_ */

@@ -3,8 +3,10 @@
  */
 
 #include <cnxk_ethdev.h>
+#include <cnxk_mempool.h>
 
 #define CNXK_NIX_INL_META_POOL_NAME "NIX_INL_META_POOL"
+#define CN10K_HW_POOL_OPS_NAME "cn10k_hwpool_ops"
 
 #define CNXK_NIX_INL_SELFTEST	      "selftest"
 #define CNXK_NIX_INL_IPSEC_IN_MIN_SPI "ipsec_in_min_spi"
@@ -14,6 +16,7 @@
 #define CNXK_NIX_INL_META_BUF_SZ      "meta_buf_sz"
 #define CNXK_NIX_SOFT_EXP_POLL_FREQ   "soft_exp_poll_freq"
 #define CNXK_MAX_IPSEC_RULES	"max_ipsec_rules"
+#define CNXK_NIX_INL_RX_INJ_ENABLE	"rx_inj_ena"
 
 /* Default soft expiry poll freq in usec */
 #define CNXK_NIX_SOFT_EXP_POLL_FREQ_DFLT 100
@@ -34,7 +37,7 @@ bitmap_ctzll(uint64_t slab)
 	if (slab == 0)
 		return 0;
 
-	return __builtin_ctzll(slab);
+	return rte_ctz64(slab);
 }
 
 int
@@ -43,7 +46,6 @@ cnxk_nix_inl_meta_pool_cb(uint64_t *aura_handle, uintptr_t *mpool, uint32_t buf_
 {
 	const char *mp_name = NULL;
 	struct rte_pktmbuf_pool_private mbp_priv;
-	struct npa_aura_s *aura;
 	struct rte_mempool *mp;
 	uint16_t first_skip;
 	int rc;
@@ -65,7 +67,6 @@ cnxk_nix_inl_meta_pool_cb(uint64_t *aura_handle, uintptr_t *mpool, uint32_t buf_
 			return -EINVAL;
 		}
 
-		plt_free(mp->pool_config);
 		rte_mempool_free(mp);
 
 		*aura_handle = 0;
@@ -84,22 +85,12 @@ cnxk_nix_inl_meta_pool_cb(uint64_t *aura_handle, uintptr_t *mpool, uint32_t buf_
 		return -EIO;
 	}
 
-	/* Indicate to allocate zero aura */
-	aura = plt_zmalloc(sizeof(struct npa_aura_s), 0);
-	if (!aura) {
-		rc = -ENOMEM;
-		goto free_mp;
-	}
-	aura->ena = 1;
-	if (!mempool_name)
-		aura->pool_addr = 0;
-	else
-		aura->pool_addr = 1; /* Any non zero value, so that alloc from next free Index */
-
-	rc = rte_mempool_set_ops_byname(mp, rte_mbuf_platform_mempool_ops(), aura);
+	rc = rte_mempool_set_ops_byname(mp, rte_mbuf_platform_mempool_ops(),
+					mempool_name ?
+					NULL : PLT_PTR_CAST(CNXK_MEMPOOL_F_ZERO_AURA));
 	if (rc) {
 		plt_err("Failed to setup mempool ops for meta, rc=%d", rc);
-		goto free_aura;
+		goto free_mp;
 	}
 
 	/* Init mempool private area */
@@ -113,17 +104,76 @@ cnxk_nix_inl_meta_pool_cb(uint64_t *aura_handle, uintptr_t *mpool, uint32_t buf_
 	rc = rte_mempool_populate_default(mp);
 	if (rc < 0) {
 		plt_err("Failed to create inline meta pool, rc=%d", rc);
-		goto free_aura;
+		goto free_mp;
 	}
 
 	rte_mempool_obj_iter(mp, rte_pktmbuf_init, NULL);
 	*aura_handle = mp->pool_id;
 	*mpool = (uintptr_t)mp;
 	return 0;
-free_aura:
-	plt_free(aura);
 free_mp:
 	rte_mempool_free(mp);
+	return rc;
+}
+
+/* Create Aura and link with Global mempool for 1:N Pool:Aura case */
+int
+cnxk_nix_inl_custom_meta_pool_cb(uintptr_t pmpool, uintptr_t *mpool, const char *mempool_name,
+				 uint64_t *aura_handle, uint32_t buf_sz, uint32_t nb_bufs,
+				 bool destroy)
+{
+	struct rte_mempool *hp;
+	int rc;
+
+	/* Destroy the mempool if requested */
+	if (destroy) {
+		hp = rte_mempool_lookup(mempool_name);
+		if (!hp)
+			return -ENOENT;
+
+		if (hp->pool_id != *aura_handle) {
+			plt_err("Meta pool aura mismatch");
+			return -EINVAL;
+		}
+
+		rte_mempool_free(hp);
+		plt_free(hp->pool_config);
+
+		*aura_handle = 0;
+		*mpool = 0;
+		return 0;
+	}
+
+	/* Need to make it similar to rte_pktmbuf_pool() for sake of OOP
+	 * support.
+	 */
+	hp = rte_mempool_create_empty(mempool_name, nb_bufs, buf_sz, 0,
+				      sizeof(struct rte_pktmbuf_pool_private),
+				      SOCKET_ID_ANY, 0);
+	if (!hp) {
+		plt_err("Failed to create inline meta pool");
+		return -EIO;
+	}
+
+	rc = rte_mempool_set_ops_byname(hp, CN10K_HW_POOL_OPS_NAME, (void *)pmpool);
+
+	if (rc) {
+		plt_err("Failed to setup ops, rc=%d", rc);
+		goto free_hp;
+	}
+
+	/* Populate buffer */
+	rc = rte_mempool_populate_default(hp);
+	if (rc < 0) {
+		plt_err("Failed to populate pool, rc=%d", rc);
+		goto free_hp;
+	}
+
+	*aura_handle = hp->pool_id;
+	*mpool = (uintptr_t)hp;
+	return 0;
+free_hp:
+	rte_mempool_free(hp);
 	return rc;
 }
 
@@ -139,6 +189,19 @@ parse_max_ipsec_rules(const char *key, const char *value, void *extra_args)
 		return -EINVAL;
 
 	*(uint32_t *)extra_args = val;
+
+	return 0;
+}
+
+static int
+parse_inl_rx_inj_ena(const char *key, const char *value, void *extra_args)
+{
+	RTE_SET_USED(key);
+	uint32_t val;
+
+	val = atoi(value);
+
+	*(uint8_t *)extra_args = !!(val == 1);
 
 	return 0;
 }
@@ -235,7 +298,7 @@ cnxk_eth_sec_sess_get_by_sess(struct cnxk_eth_dev *dev,
 static unsigned int
 cnxk_eth_sec_session_get_size(void *device __rte_unused)
 {
-	return sizeof(struct cnxk_eth_sec_sess);
+	return RTE_MAX(sizeof(struct cnxk_macsec_sess), sizeof(struct cnxk_eth_sec_sess));
 }
 
 struct rte_security_ops cnxk_eth_sec_ops = {
@@ -303,6 +366,7 @@ nix_inl_parse_devargs(struct rte_devargs *devargs,
 	struct rte_kvargs *kvlist;
 	uint32_t nb_meta_bufs = 0;
 	uint32_t meta_buf_sz = 0;
+	uint8_t rx_inj_ena = 0;
 	uint8_t selftest = 0;
 
 	memset(&cpt_channel, 0, sizeof(cpt_channel));
@@ -329,6 +393,7 @@ nix_inl_parse_devargs(struct rte_devargs *devargs,
 	rte_kvargs_process(kvlist, CNXK_NIX_SOFT_EXP_POLL_FREQ,
 			   &parse_val_u32, &soft_exp_poll_freq);
 	rte_kvargs_process(kvlist, CNXK_MAX_IPSEC_RULES, &parse_max_ipsec_rules, &max_ipsec_rules);
+	rte_kvargs_process(kvlist, CNXK_NIX_INL_RX_INJ_ENABLE, &parse_inl_rx_inj_ena, &rx_inj_ena);
 	rte_kvargs_free(kvlist);
 
 null_devargs:
@@ -342,6 +407,8 @@ null_devargs:
 	inl_dev->meta_buf_sz = meta_buf_sz;
 	inl_dev->soft_exp_poll_freq = soft_exp_poll_freq;
 	inl_dev->max_ipsec_rules = max_ipsec_rules;
+	if (roc_feature_nix_has_rx_inject())
+		inl_dev->rx_inj_ena = rx_inj_ena;
 	return 0;
 exit:
 	return -EINVAL;
@@ -469,4 +536,5 @@ RTE_PMD_REGISTER_PARAM_STRING(cnxk_nix_inl,
 			      CNXK_NIX_INL_NB_META_BUFS "=<1-U32_MAX>"
 			      CNXK_NIX_INL_META_BUF_SZ "=<1-U32_MAX>"
 			      CNXK_NIX_SOFT_EXP_POLL_FREQ "=<0-U32_MAX>"
-			      CNXK_MAX_IPSEC_RULES "=<1-4095>");
+			      CNXK_MAX_IPSEC_RULES "=<1-4095>"
+			      CNXK_NIX_INL_RX_INJ_ENABLE "=1");

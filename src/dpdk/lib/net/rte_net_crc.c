@@ -70,11 +70,11 @@ static const rte_net_crc_handler handlers_neon[] = {
 
 static uint16_t max_simd_bitwidth;
 
-#define NET_LOG(level, fmt, args...)					\
-	rte_log(RTE_LOG_ ## level, libnet_logtype, "%s(): " fmt "\n",	\
-		__func__, ## args)
-
 RTE_LOG_REGISTER_DEFAULT(libnet_logtype, INFO);
+#define RTE_LOGTYPE_NET libnet_logtype
+
+#define NET_LOG(level, ...) \
+	RTE_LOG_LINE_PREFIX(level, NET, "%s(): ", __func__, __VA_ARGS__)
 
 /* Scalar handling */
 
@@ -179,7 +179,7 @@ avx512_vpclmulqdq_get_handlers(void)
 			max_simd_bitwidth >= RTE_VECT_SIMD_512)
 		return handlers_avx512;
 #endif
-	NET_LOG(INFO, "Requirements not met, can't use AVX512\n");
+	NET_LOG(INFO, "Requirements not met, can't use AVX512");
 	return NULL;
 }
 
@@ -205,7 +205,7 @@ sse42_pclmulqdq_get_handlers(void)
 			max_simd_bitwidth >= RTE_VECT_SIMD_128)
 		return handlers_sse42;
 #endif
-	NET_LOG(INFO, "Requirements not met, can't use SSE\n");
+	NET_LOG(INFO, "Requirements not met, can't use SSE");
 	return NULL;
 }
 
@@ -231,7 +231,7 @@ neon_pmull_get_handlers(void)
 			max_simd_bitwidth >= RTE_VECT_SIMD_128)
 		return handlers_neon;
 #endif
-	NET_LOG(INFO, "Requirements not met, can't use NEON\n");
+	NET_LOG(INFO, "Requirements not met, can't use NEON");
 	return NULL;
 }
 

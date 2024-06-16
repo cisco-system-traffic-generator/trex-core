@@ -1708,8 +1708,7 @@ i40e_flow_parse_fdir_pattern(struct rte_eth_dev *dev,
 
 				ether_type = rte_be_to_cpu_16(eth_spec->hdr.ether_type);
 
-				if (next_type == RTE_FLOW_ITEM_TYPE_VLAN ||
-				    ether_type == RTE_ETHER_TYPE_IPV4 ||
+				if (ether_type == RTE_ETHER_TYPE_IPV4 ||
 				    ether_type == RTE_ETHER_TYPE_IPV6 ||
 				    ether_type == i40e_get_outer_vlan(dev)) {
 					rte_flow_error_set(error, EINVAL,
@@ -2521,14 +2520,22 @@ i40e_flow_parse_fdir_filter(struct rte_eth_dev *dev,
 
 	if (pf->fdir.fdir_vsi == NULL) {
 		/* Enable fdir when fdir flow is added at first time. */
-		ret = trex_i40e_fdir_setup(pf, dev);
+#ifdef TREX_PATCH
+        ret = trex_i40e_fdir_setup(pf, dev);
+#else
+		ret = i40e_fdir_setup(pf);
+#endif
 		if (ret != I40E_SUCCESS) {
 			rte_flow_error_set(error, ENOTSUP,
 					   RTE_FLOW_ERROR_TYPE_HANDLE,
 					   NULL, "Failed to setup fdir.");
 			return -rte_errno;
 		}
-		ret = trex_i40e_fdir_configure(dev);
+#ifdef TREX_PATCH
+        ret = trex_i40e_fdir_configure(dev);
+#else
+		ret = i40e_fdir_configure(dev);
+#endif
 		if (ret < 0) {
 			rte_flow_error_set(error, ENOTSUP,
 					   RTE_FLOW_ERROR_TYPE_HANDLE,

@@ -1,6 +1,7 @@
 EXPERIMENTAL {
 	global:
 
+	# added in 22.11
 	rte_ml_dequeue_burst;
 	rte_ml_dev_close;
 	rte_ml_dev_configure;
@@ -23,8 +24,6 @@ EXPERIMENTAL {
 	rte_ml_dev_xstats_reset;
 	rte_ml_enqueue_burst;
 	rte_ml_io_dequantize;
-	rte_ml_io_input_size_get;
-	rte_ml_io_output_size_get;
 	rte_ml_io_quantize;
 	rte_ml_model_info_get;
 	rte_ml_model_load;
@@ -51,7 +50,6 @@ INTERNAL {
 
 	rte_ml_io_type_size_get;
 	rte_ml_io_type_to_str;
-	rte_ml_io_format_to_str;
 	rte_ml_io_float32_to_int8;
 	rte_ml_io_int8_to_float32;
 	rte_ml_io_float32_to_uint8;
@@ -60,6 +58,14 @@ INTERNAL {
 	rte_ml_io_int16_to_float32;
 	rte_ml_io_float32_to_uint16;
 	rte_ml_io_uint16_to_float32;
+	rte_ml_io_float32_to_int32;
+	rte_ml_io_int32_to_float32;
+	rte_ml_io_float32_to_uint32;
+	rte_ml_io_uint32_to_float32;
+	rte_ml_io_float32_to_int64;
+	rte_ml_io_int64_to_float32;
+	rte_ml_io_float32_to_uint64;
+	rte_ml_io_uint64_to_float32;
 	rte_ml_io_float32_to_float16;
 	rte_ml_io_float16_to_float32;
 	rte_ml_io_float32_to_bfloat16;

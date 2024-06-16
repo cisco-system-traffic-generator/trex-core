@@ -27,7 +27,6 @@
 #include <rte_eal.h>
 #include <rte_per_lcore.h>
 #include <rte_lcore.h>
-#include <rte_atomic.h>
 #include <rte_branch_prediction.h>
 #include <rte_mempool.h>
 #include <rte_malloc.h>
@@ -858,7 +857,6 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 					rte_pktmbuf_free_seg(txe->mbuf);
 					txe->mbuf = NULL;
 				}
-
 #ifdef RTE_LIB_SECURITY 
 				ixgbe_set_xmit_ctx(txq, ctx_txd, tx_ol_req,
 					tx_offload,
@@ -868,7 +866,6 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 					tx_offload,
 					(uint64_t *)0);
 #endif	
-
 				txe->last_id = tx_last;
 				tx_id = txe->next_id;
 				txe = txn;
@@ -1826,11 +1823,22 @@ ixgbe_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
 		 * of accesses cannot be reordered by the compiler. If they were
 		 * not volatile, they could be reordered which could lead to
 		 * using invalid descriptor fields when read from rxd.
+		 *
+		 * Meanwhile, to prevent the CPU from executing out of order, we
+		 * need to use a proper memory barrier to ensure the memory
+		 * ordering below.
 		 */
 		rxdp = &rx_ring[rx_id];
 		staterr = rxdp->wb.upper.status_error;
 		if (!(staterr & rte_cpu_to_le_32(IXGBE_RXDADV_STAT_DD)))
 			break;
+
+		/*
+		 * Use acquire fence to ensure that status_error which includes
+		 * DD bit is loaded before loading of other descriptor words.
+		 */
+		rte_atomic_thread_fence(__ATOMIC_ACQUIRE);
+
 		rxd = *rxdp;
 
 		/*
@@ -2097,38 +2105,22 @@ ixgbe_recv_pkts_lro(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts,
 
 next_desc:
 		/*
-		 * The code in this whole file uses the volatile pointer to
-		 * ensure the read ordering of the status and the rest of the
-		 * descriptor fields (on the compiler level only!!!). This is so
-		 * UGLY - why not to just use the compiler barrier instead? DPDK
-		 * even has the rte_compiler_barrier() for that.
-		 *
-		 * But most importantly this is just wrong because this doesn't
-		 * ensure memory ordering in a general case at all. For
-		 * instance, DPDK is supposed to work on Power CPUs where
-		 * compiler barrier may just not be enough!
-		 *
-		 * I tried to write only this function properly to have a
-		 * starting point (as a part of an LRO/RSC series) but the
-		 * compiler cursed at me when I tried to cast away the
-		 * "volatile" from rx_ring (yes, it's volatile too!!!). So, I'm
-		 * keeping it the way it is for now.
-		 *
-		 * The code in this file is broken in so many other places and
-		 * will just not work on a big endian CPU anyway therefore the
-		 * lines below will have to be revisited together with the rest
-		 * of the ixgbe PMD.
-		 *
-		 * TODO:
-		 *    - Get rid of "volatile" and let the compiler do its job.
-		 *    - Use the proper memory barrier (rte_rmb()) to ensure the
-		 *      memory ordering below.
+		 * "Volatile" only prevents caching of the variable marked
+		 * volatile. Most important, "volatile" cannot prevent the CPU
+		 * from executing out of order. So, it is necessary to use a
+		 * proper memory barrier to ensure the memory ordering below.
 		 */
 		rxdp = &rx_ring[rx_id];
 		staterr = rte_le_to_cpu_32(rxdp->wb.upper.status_error);
 
 		if (!(staterr & IXGBE_RXDADV_STAT_DD))
 			break;
+
+		/*
+		 * Use acquire fence to ensure that status_error which includes
+		 * DD bit is loaded before loading of other descriptor words.
+		 */
+		rte_atomic_thread_fence(__ATOMIC_ACQUIRE);
 
 		rxd = *rxdp;
 
@@ -2566,6 +2558,9 @@ ixgbe_set_tx_function(struct rte_eth_dev *dev, struct ixgbe_tx_queue *txq)
 				(rte_eal_process_type() != RTE_PROC_PRIMARY ||
 					ixgbe_txq_vec_setup(txq) == 0)) {
 			PMD_INIT_LOG(DEBUG, "Vector tx enabled.");
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM)
+			dev->recycle_tx_mbufs_reuse = ixgbe_recycle_tx_mbufs_reuse_vec;
+#endif
 			dev->tx_pkt_burst = ixgbe_xmit_pkts_vec;
 		} else
 		dev->tx_pkt_burst = ixgbe_xmit_pkts_simple;
@@ -3392,6 +3387,7 @@ ixgbe_dev_clear_queues(struct rte_eth_dev *dev)
 		if (txq != NULL) {
 			txq->ops->release_mbufs(txq);
 			txq->ops->reset(txq);
+			dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 		}
 	}
 
@@ -3401,6 +3397,7 @@ ixgbe_dev_clear_queues(struct rte_eth_dev *dev)
 		if (rxq != NULL) {
 			ixgbe_rx_queue_release_mbufs(rxq);
 			ixgbe_reset_rx_queue(adapter, rxq);
+			dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 		}
 	}
 	/* If loopback mode was enabled, reconfigure the link accordingly */
@@ -3469,18 +3466,92 @@ static uint8_t rss_intel_key[40] = {
 	0x6A, 0x42, 0xB7, 0x3B, 0xBE, 0xAC, 0x01, 0xFA,
 };
 
+/*
+ * This function removes the rss configuration in the mrqe field of MRQC
+ * register and tries to maintain other configurations in the field, such
+ * DCB and Virtualization.
+ *
+ * The MRQC register supplied in section 8.2.3.7.12 of the Intel 82599
+ * datasheet. From the datasheet, we know that the mrqe field is an enum. So,
+ * masking the mrqe field with '~IXGBE_MRQC_RSSEN' may not completely disable
+ * rss configuration. For example, the value of mrqe is equal to 0101b when DCB
+ * and RSS with 4 TCs configured, however 'mrqe &= ~0x01' is equal to 0100b
+ * which corresponds to DCB and RSS with 8 TCs.
+ */
+static void
+ixgbe_mrqc_rss_remove(struct ixgbe_hw *hw)
+{
+	uint32_t mrqc;
+	uint32_t mrqc_reg;
+	uint32_t mrqe_val;
+
+	mrqc_reg = ixgbe_mrqc_reg_get(hw->mac.type);
+	mrqc = IXGBE_READ_REG(hw, mrqc_reg);
+	mrqe_val = mrqc & IXGBE_MRQC_MRQE_MASK;
+
+	switch (mrqe_val) {
+	case IXGBE_MRQC_RSSEN:
+		/* Completely disable rss */
+		mrqe_val = 0;
+		break;
+	case IXGBE_MRQC_RTRSS8TCEN:
+		mrqe_val = IXGBE_MRQC_RT8TCEN;
+		break;
+	case IXGBE_MRQC_RTRSS4TCEN:
+		mrqe_val = IXGBE_MRQC_RT4TCEN;
+		break;
+	case IXGBE_MRQC_VMDQRSS64EN:
+		mrqe_val = IXGBE_MRQC_VMDQEN;
+		break;
+	case IXGBE_MRQC_VMDQRSS32EN:
+		PMD_DRV_LOG(WARNING, "There is no regression for virtualization"
+			" and RSS with 32 pools among the MRQE configurations"
+			" after removing RSS, and left it unchanged.");
+		break;
+	default:
+		/* No rss configured, leave it as it is */
+		break;
+	}
+	mrqc = (mrqc & ~IXGBE_MRQC_MRQE_MASK) | mrqe_val;
+	IXGBE_WRITE_REG(hw, mrqc_reg, mrqc);
+}
+
 static void
 ixgbe_rss_disable(struct rte_eth_dev *dev)
 {
 	struct ixgbe_hw *hw;
-	uint32_t mrqc;
-	uint32_t mrqc_reg;
 
 	hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	/* Remove the rss configuration and maintain the other configurations */
+	ixgbe_mrqc_rss_remove(hw);
+}
+
+/*
+ * This function checks whether the rss is enabled or not by comparing the mrqe
+ * field with some RSS related enums and also considers the configurations for
+ * DCB + RSS and Virtualization + RSS. It is necessary for getting the correct
+ * rss hash configurations from the RSS Field Enable field of MRQC register
+ * when both RSS and DCB/VMDQ are used.
+ */
+static bool
+ixgbe_rss_enabled(struct ixgbe_hw *hw)
+{
+	uint32_t mrqc;
+	uint32_t mrqc_reg;
+	uint32_t mrqe_val;
+
 	mrqc_reg = ixgbe_mrqc_reg_get(hw->mac.type);
 	mrqc = IXGBE_READ_REG(hw, mrqc_reg);
-	mrqc &= ~IXGBE_MRQC_RSSEN;
-	IXGBE_WRITE_REG(hw, mrqc_reg, mrqc);
+	mrqe_val = mrqc & IXGBE_MRQC_MRQE_MASK;
+
+	if (mrqe_val == IXGBE_MRQC_RSSEN ||
+		mrqe_val == IXGBE_MRQC_RTRSS8TCEN ||
+		mrqe_val == IXGBE_MRQC_RTRSS4TCEN ||
+		mrqe_val == IXGBE_MRQC_VMDQRSS64EN ||
+		mrqe_val == IXGBE_MRQC_VMDQRSS32EN)
+		return true;
+
+	return false;
 }
 
 static void
@@ -3538,9 +3609,7 @@ ixgbe_dev_rss_hash_update(struct rte_eth_dev *dev,
 			  struct rte_eth_rss_conf *rss_conf)
 {
 	struct ixgbe_hw *hw;
-	uint32_t mrqc;
 	uint64_t rss_hf;
-	uint32_t mrqc_reg;
 
 	hw = IXGBE_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 
@@ -3549,7 +3618,6 @@ ixgbe_dev_rss_hash_update(struct rte_eth_dev *dev,
 			"NIC.");
 		return -ENOTSUP;
 	}
-	mrqc_reg = ixgbe_mrqc_reg_get(hw->mac.type);
 
 	/*
 	 * Excerpt from section 7.1.2.8 Receive-Side Scaling (RSS):
@@ -3561,8 +3629,7 @@ ixgbe_dev_rss_hash_update(struct rte_eth_dev *dev,
 	 * disabled at initialization time.
 	 */
 	rss_hf = rss_conf->rss_hf & IXGBE_RSS_OFFLOAD_ALL;
-	mrqc = IXGBE_READ_REG(hw, mrqc_reg);
-	if (!(mrqc & IXGBE_MRQC_RSSEN)) { /* RSS disabled */
+	if (!ixgbe_rss_enabled(hw)) { /* RSS disabled */
 		if (rss_hf != 0) /* Enable RSS */
 			return -(EINVAL);
 		return 0; /* Nothing to do */
@@ -3602,12 +3669,14 @@ ixgbe_dev_rss_hash_conf_get(struct rte_eth_dev *dev,
 		}
 	}
 
-	/* Get RSS functions configured in MRQC register */
-	mrqc = IXGBE_READ_REG(hw, mrqc_reg);
-	if ((mrqc & IXGBE_MRQC_RSSEN) == 0) { /* RSS is disabled */
+	if (!ixgbe_rss_enabled(hw)) { /* RSS is disabled */
 		rss_conf->rss_hf = 0;
 		return 0;
 	}
+
+	/* Get RSS functions configured in MRQC register */
+	mrqc = IXGBE_READ_REG(hw, mrqc_reg);
+
 	rss_hf = 0;
 	if (mrqc & IXGBE_MRQC_RSS_FIELD_IPV4)
 		rss_hf |= RTE_ETH_RSS_IPV4;
@@ -4830,7 +4899,10 @@ ixgbe_set_rx_function(struct rte_eth_dev *dev)
 			PMD_INIT_LOG(DEBUG, "Using Vector Scattered Rx "
 					    "callback (port=%d).",
 				     dev->data->port_id);
-
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM)
+			dev->recycle_rx_descriptors_refill =
+				ixgbe_recycle_rx_descriptors_refill_vec;
+#endif
 			dev->rx_pkt_burst = ixgbe_recv_scattered_pkts_vec;
 		} else if (adapter->rx_bulk_alloc_allowed) {
 			PMD_INIT_LOG(DEBUG, "Using a Scattered with bulk "
@@ -4859,7 +4931,9 @@ ixgbe_set_rx_function(struct rte_eth_dev *dev)
 				    "burst size no less than %d (port=%d).",
 			     RTE_IXGBE_DESCS_PER_LOOP,
 			     dev->data->port_id);
-
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM)
+		dev->recycle_rx_descriptors_refill = ixgbe_recycle_rx_descriptors_refill_vec;
+#endif
 		dev->rx_pkt_burst = ixgbe_recv_pkts_vec;
 	} else if (adapter->rx_bulk_alloc_allowed) {
 		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
@@ -5483,8 +5557,11 @@ ixgbe_dev_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		rxdctl = IXGBE_READ_REG(hw, IXGBE_RXDCTL(rxq->reg_idx));
 	} while (--poll_ms && (rxdctl & IXGBE_RXDCTL_ENABLE));
 	if (!poll_ms)
+#ifdef TREX_PATCH
 		PMD_INIT_LOG(DEBUG, "Could not disable Rx Queue %d", rx_queue_id);
-
+#else
+		PMD_INIT_LOG(ERR, "Could not disable Rx Queue %d", rx_queue_id);
+#endif
 	rte_delay_us(RTE_IXGBE_WAIT_100_US);
 
 	ixgbe_rx_queue_release_mbufs(rxq);
@@ -5631,6 +5708,31 @@ ixgbe_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	qinfo->conf.tx_deferred_start = txq->tx_deferred_start;
 }
 
+void
+ixgbe_recycle_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
+	struct rte_eth_recycle_rxq_info *recycle_rxq_info)
+{
+	struct ixgbe_rx_queue *rxq;
+	struct ixgbe_adapter *adapter = dev->data->dev_private;
+
+	rxq = dev->data->rx_queues[queue_id];
+
+	recycle_rxq_info->mbuf_ring = (void *)rxq->sw_ring;
+	recycle_rxq_info->mp = rxq->mb_pool;
+	recycle_rxq_info->mbuf_ring_size = rxq->nb_rx_desc;
+	recycle_rxq_info->receive_tail = &rxq->rx_tail;
+
+	if (adapter->rx_vec_allowed) {
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM)
+		recycle_rxq_info->refill_requirement = RTE_IXGBE_RXQ_REARM_THRESH;
+		recycle_rxq_info->refill_head = &rxq->rxrearm_start;
+#endif
+	} else {
+		recycle_rxq_info->refill_requirement = rxq->rx_free_thresh;
+		recycle_rxq_info->refill_head = &rxq->rx_free_trigger;
+	}
+}
+
 /*
  * [VF] Initializes Receive Unit.
  */
@@ -5751,6 +5853,25 @@ ixgbevf_dev_rx_init(struct rte_eth_dev *dev)
 		IXGBE_PSRTYPE_RQPL_SHIFT;
 	IXGBE_WRITE_REG(hw, IXGBE_VFPSRTYPE, psrtype);
 
+	/* Initialize the rss for x550_vf cards if enabled */
+	switch (hw->mac.type) {
+	case ixgbe_mac_X550_vf:
+	case ixgbe_mac_X550EM_x_vf:
+	case ixgbe_mac_X550EM_a_vf:
+		switch (dev->data->dev_conf.rxmode.mq_mode) {
+		case RTE_ETH_MQ_RX_RSS:
+		case RTE_ETH_MQ_RX_DCB_RSS:
+		case RTE_ETH_MQ_RX_VMDQ_RSS:
+			ixgbe_rss_configure(dev);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+
 	ixgbe_set_rx_function(dev);
 
 	return 0;
@@ -5838,6 +5959,8 @@ ixgbevf_dev_rxtx_start(struct rte_eth_dev *dev)
 		} while (--poll_ms && !(txdctl & IXGBE_TXDCTL_ENABLE));
 		if (!poll_ms)
 			PMD_INIT_LOG(ERR, "Could not enable Tx Queue %d", i);
+		else
+			dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
 	}
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
 
@@ -5855,6 +5978,8 @@ ixgbevf_dev_rxtx_start(struct rte_eth_dev *dev)
 		} while (--poll_ms && !(rxdctl & IXGBE_RXDCTL_ENABLE));
 		if (!poll_ms)
 			PMD_INIT_LOG(ERR, "Could not enable Rx Queue %d", i);
+		else
+			dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
 		rte_wmb();
 		IXGBE_WRITE_REG(hw, IXGBE_VFRDT(i), rxq->nb_rx_desc - 1);
 

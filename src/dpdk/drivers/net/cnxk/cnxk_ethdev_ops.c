@@ -20,8 +20,7 @@ cnxk_nix_info_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *devinfo)
 	devinfo->max_tx_queues = RTE_MAX_QUEUES_PER_PORT;
 	devinfo->max_mac_addrs = dev->max_mac_entries;
 	devinfo->max_vfs = pci_dev->max_vfs;
-	devinfo->max_mtu = devinfo->max_rx_pktlen -
-				(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN);
+	devinfo->max_mtu = devinfo->max_rx_pktlen - CNXK_NIX_L2_OVERHEAD;
 	devinfo->min_mtu = devinfo->min_rx_bufsize - CNXK_NIX_L2_OVERHEAD;
 
 	devinfo->rx_offload_capa = dev->rx_offload_capa;
@@ -71,6 +70,10 @@ cnxk_nix_info_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *devinfo)
 			    RTE_ETH_DEV_CAPA_FLOW_RULE_KEEP;
 
 	devinfo->max_rx_mempools = CNXK_NIX_NUM_POOLS_MAX;
+	if (eth_dev->data->dev_flags & RTE_ETH_DEV_REPRESENTOR) {
+		devinfo->switch_info.name = eth_dev->device->name;
+		devinfo->switch_info.domain_id = dev->switch_domain_id;
+	}
 
 	return 0;
 }
@@ -308,7 +311,9 @@ cnxk_nix_flow_ctrl_set(struct rte_eth_dev *eth_dev,
 		fc_cfg.rq_cfg.tc = 0;
 		fc_cfg.rq_cfg.rq = rq->qid;
 		fc_cfg.rq_cfg.pool = rq->aura_handle;
+		fc_cfg.rq_cfg.spb_pool = rq->spb_aura_handle;
 		fc_cfg.rq_cfg.cq_drop = cq->drop_thresh;
+		fc_cfg.rq_cfg.pool_drop_pct = ROC_NIX_AURA_THRESH;
 
 		rc = roc_nix_fc_config_set(nix, &fc_cfg);
 		if (rc)
@@ -341,6 +346,10 @@ cnxk_nix_flow_ctrl_set(struct rte_eth_dev *eth_dev,
 		if (rc && rc != EEXIST)
 			return rc;
 	}
+
+	/* Skip mode set if it is we are in same state */
+	if (fc->rx_pause == rx_pause && fc->tx_pause == tx_pause)
+		return 0;
 
 	rc = roc_nix_fc_mode_set(nix, mode_map[fc_conf->mode]);
 	if (rc)
@@ -468,6 +477,8 @@ cnxk_nix_mac_addr_add(struct rte_eth_dev *eth_dev, struct rte_ether_addr *addr,
 		return rc;
 	}
 
+	dev->dmac_idx_map[index] = rc;
+
 	/* Enable promiscuous mode at NIX level */
 	roc_nix_npc_promisc_ena_dis(nix, true);
 	dev->dmac_filter_enable = true;
@@ -484,11 +495,49 @@ cnxk_nix_mac_addr_del(struct rte_eth_dev *eth_dev, uint32_t index)
 	struct roc_nix *nix = &dev->nix;
 	int rc;
 
-	rc = roc_nix_mac_addr_del(nix, index);
+	rc = roc_nix_mac_addr_del(nix, dev->dmac_idx_map[index]);
 	if (rc)
 		plt_err("Failed to delete mac address, rc=%d", rc);
 
 	dev->dmac_filter_count--;
+}
+
+int
+cnxk_nix_sq_flush(struct rte_eth_dev *eth_dev)
+{
+	struct cnxk_eth_dev *dev = cnxk_eth_pmd_priv(eth_dev);
+	struct rte_eth_dev_data *data = eth_dev->data;
+	int i, rc = 0;
+
+	/* Flush all tx queues */
+	for (i = 0; i < eth_dev->data->nb_tx_queues; i++) {
+		struct roc_nix_sq *sq = &dev->sqs[i];
+
+		if (eth_dev->data->tx_queues[i] == NULL)
+			continue;
+
+		rc = roc_nix_tm_sq_aura_fc(sq, false);
+		if (rc) {
+			plt_err("Failed to disable sqb aura fc, rc=%d", rc);
+			goto exit;
+		}
+
+		/* Wait for sq entries to be flushed */
+		rc = roc_nix_tm_sq_flush_spin(sq);
+		if (rc) {
+			plt_err("Failed to drain sq, rc=%d\n", rc);
+			goto exit;
+		}
+		if (data->tx_queue_state[i] == RTE_ETH_QUEUE_STATE_STARTED) {
+			rc = roc_nix_tm_sq_aura_fc(sq, true);
+			if (rc) {
+				plt_err("Failed to enable sq aura fc, txq=%u, rc=%d", i, rc);
+				goto exit;
+			}
+		}
+	}
+exit:
+	return rc;
 }
 
 int
@@ -498,8 +547,9 @@ cnxk_nix_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 	struct cnxk_eth_dev *dev = cnxk_eth_pmd_priv(eth_dev);
 	struct rte_eth_dev_data *data = eth_dev->data;
 	struct roc_nix *nix = &dev->nix;
+	struct cnxk_eth_rxq_sp *rxq_sp;
+	uint32_t buffsz = 0;
 	int rc = -EINVAL;
-	uint32_t buffsz;
 
 	frame_size += CNXK_NIX_TIMESYNC_RX_OFFSET * dev->ptp_en;
 
@@ -515,8 +565,24 @@ cnxk_nix_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 		goto exit;
 	}
 
-	buffsz = data->min_rx_buf_size - RTE_PKTMBUF_HEADROOM;
-	old_frame_size = data->mtu + CNXK_NIX_L2_OVERHEAD;
+	if (!eth_dev->data->nb_rx_queues)
+		goto skip_buffsz_check;
+
+	/* Perform buff size check */
+	if (data->min_rx_buf_size) {
+		buffsz = data->min_rx_buf_size;
+	} else if (eth_dev->data->rx_queues && eth_dev->data->rx_queues[0]) {
+		rxq_sp = cnxk_eth_rxq_to_sp(data->rx_queues[0]);
+
+		if (rxq_sp->qconf.mp)
+			buffsz = rte_pktmbuf_data_room_size(rxq_sp->qconf.mp);
+	}
+
+	/* Skip validation if RQ's are not yet setup */
+	if (!buffsz)
+		goto skip_buffsz_check;
+
+	buffsz -= RTE_PKTMBUF_HEADROOM;
 
 	/* Refuse MTU that requires the support of scattered packets
 	 * when this feature has not been enabled before.
@@ -534,21 +600,22 @@ cnxk_nix_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
 		goto exit;
 	}
 
-	frame_size -= RTE_ETHER_CRC_LEN;
-
-	/* Update mtu on Tx */
-	rc = roc_nix_mac_mtu_set(nix, frame_size);
-	if (rc) {
-		plt_err("Failed to set MTU, rc=%d", rc);
-		goto exit;
+skip_buffsz_check:
+	old_frame_size = data->mtu + CNXK_NIX_L2_OVERHEAD;
+	/* if new MTU was smaller than old one, then flush all SQs before MTU change */
+	if (old_frame_size > frame_size) {
+		if (data->dev_started) {
+			plt_err("Reducing MTU is not supported when device started");
+			goto exit;
+		}
+		cnxk_nix_sq_flush(eth_dev);
 	}
 
-	/* Sync same frame size on Rx */
+	frame_size -= RTE_ETHER_CRC_LEN;
+
+	/* Set frame size on Rx */
 	rc = roc_nix_mac_max_rx_len_set(nix, frame_size);
 	if (rc) {
-		/* Rollback to older mtu */
-		roc_nix_mac_mtu_set(nix,
-				    old_frame_size - RTE_ETHER_CRC_LEN);
 		plt_err("Failed to max Rx frame length, rc=%d", rc);
 		goto exit;
 	}
@@ -1147,7 +1214,9 @@ nix_priority_flow_ctrl_rq_conf(struct rte_eth_dev *eth_dev, uint16_t qid,
 	fc_cfg.rq_cfg.enable = !!tx_pause;
 	fc_cfg.rq_cfg.rq = rq->qid;
 	fc_cfg.rq_cfg.pool = rxq->qconf.mp->pool_id;
+	fc_cfg.rq_cfg.spb_pool = rq->spb_aura_handle;
 	fc_cfg.rq_cfg.cq_drop = cq->drop_thresh;
+	fc_cfg.rq_cfg.pool_drop_pct = ROC_NIX_AURA_THRESH;
 	rc = roc_nix_fc_config_set(nix, &fc_cfg);
 	if (rc)
 		return rc;
@@ -1255,4 +1324,14 @@ nix_priority_flow_ctrl_sq_conf(struct rte_eth_dev *eth_dev, uint16_t qid,
 	rc = roc_nix_pfc_mode_set(nix, &pfc_cfg);
 exit:
 	return rc;
+}
+
+int
+cnxk_nix_tx_descriptor_dump(const struct rte_eth_dev *eth_dev, uint16_t qid, uint16_t offset,
+			    uint16_t num, FILE *file)
+{
+	struct cnxk_eth_dev *dev = cnxk_eth_pmd_priv(eth_dev);
+	struct roc_nix *nix = &dev->nix;
+
+	return roc_nix_sq_desc_dump(nix, qid, offset, num, file);
 }

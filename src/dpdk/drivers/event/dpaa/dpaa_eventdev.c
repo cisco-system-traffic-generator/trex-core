@@ -353,12 +353,15 @@ dpaa_event_dev_info_get(struct rte_eventdev *dev,
 	dev_info->max_num_events =
 		DPAA_EVENT_MAX_NUM_EVENTS;
 	dev_info->event_dev_cap =
+		RTE_EVENT_DEV_CAP_ATOMIC |
+		RTE_EVENT_DEV_CAP_PARALLEL |
 		RTE_EVENT_DEV_CAP_DISTRIBUTED_SCHED |
 		RTE_EVENT_DEV_CAP_BURST_MODE |
 		RTE_EVENT_DEV_CAP_MULTIPLE_QUEUE_PORT |
 		RTE_EVENT_DEV_CAP_NONSEQ_MODE |
 		RTE_EVENT_DEV_CAP_CARRY_FLOW_ID |
 		RTE_EVENT_DEV_CAP_MAINTENANCE_FREE;
+	dev_info->max_profiles_per_port = 1;
 }
 
 static int
@@ -993,14 +996,14 @@ dpaa_event_check_flags(const char *params)
 }
 
 static int
-dpaa_event_dev_create(const char *name, const char *params)
+dpaa_event_dev_create(const char *name, const char *params, struct rte_vdev_device *vdev)
 {
 	struct rte_eventdev *eventdev;
 	struct dpaa_eventdev *priv;
 
 	eventdev = rte_event_pmd_vdev_init(name,
 					   sizeof(struct dpaa_eventdev),
-					   rte_socket_id());
+					   rte_socket_id(), vdev);
 	if (eventdev == NULL) {
 		DPAA_EVENTDEV_ERR("Failed to create eventdev vdev %s", name);
 		goto fail;
@@ -1024,7 +1027,7 @@ dpaa_event_dev_create(const char *name, const char *params)
 	eventdev->txa_enqueue = dpaa_eventdev_txa_enqueue;
 	eventdev->txa_enqueue_same_dest	= dpaa_eventdev_txa_enqueue_same_dest;
 
-	RTE_LOG(INFO, PMD, "%s eventdev added", name);
+	DPAA_EVENTDEV_INFO("%s eventdev added", name);
 
 	/* For secondary processes, the primary has done all the work */
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
@@ -1050,7 +1053,7 @@ dpaa_event_dev_probe(struct rte_vdev_device *vdev)
 
 	params = rte_vdev_device_args(vdev);
 
-	return dpaa_event_dev_create(name, params);
+	return dpaa_event_dev_create(name, params, vdev);
 }
 
 static int

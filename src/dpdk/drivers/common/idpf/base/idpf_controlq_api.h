@@ -1,17 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2022 Intel Corporation
+ * Copyright(c) 2001-2023 Intel Corporation
  */
 
 #ifndef _IDPF_CONTROLQ_API_H_
 #define _IDPF_CONTROLQ_API_H_
 
-#ifdef __KERNEL__
-#include "idpf_mem.h"
-#else /* !__KERNEL__ */
 #include "idpf_osdep.h"
-
-#include <rte_compat.h>
-#endif /* !__KERNEL__ */
 
 struct idpf_hw;
 
@@ -27,10 +21,7 @@ enum idpf_ctlq_type {
 	IDPF_CTLQ_TYPE_RDMA_COMPL	= 7
 };
 
-/*
- * Generic Control Queue Structures
- */
-
+/* Generic Control Queue Structures */
 struct idpf_ctlq_reg {
 	/* used for queue tracking */
 	u32 head;
@@ -63,9 +54,13 @@ struct idpf_ctlq_msg {
 		u16 status;	/* when receiving a message */
 	};
 	union {
+#ifndef __KERNEL__
+#define FILL_OPCODE_V1(msg, opcode) ((msg).cookie.cfg.mbx.chnl_opcode = opcode)
+#define FILL_RETVAL_V1(msg, retval) ((msg).cookie.cfg.mbx.chnl_retval = retval)
+#endif /* __KERNEL__ */
 		struct {
-			u32 chnl_retval;
 			u32 chnl_opcode;
+			u32 chnl_retval;
 		} mbx;
 	} cookie;
 	union {
@@ -79,6 +74,11 @@ struct idpf_ctlq_msg {
 			u8 context[IDPF_INDIRECT_CTX_SIZE];
 			struct idpf_dma_mem *payload;
 		} indirect;
+		struct {
+			u32 rsvd;
+			u16 data;
+			u16 flags;
+		} sw_cookie;
 	} ctx;
 };
 
@@ -154,10 +154,7 @@ enum idpf_mbx_opc {
 	idpf_mbq_opc_send_msg_to_peer_drv	= 0x0804,
 };
 
-/*
- * API supported for control queue management
- */
-
+/* API supported for control queue management */
 /* Will init all required q including default mb.  "q_info" is an array of
  * create_info structs equal to the number of control queues to be created.
  */
@@ -187,6 +184,10 @@ int idpf_ctlq_send(struct idpf_hw *hw,
 int idpf_ctlq_recv(struct idpf_ctlq_info *cq, u16 *num_q_msg,
 		   struct idpf_ctlq_msg *q_msg);
 
+/* Reclaims all descriptors on HW write back */
+int idpf_ctlq_clean_sq_force(struct idpf_ctlq_info *cq, u16 *clean_count,
+			     struct idpf_ctlq_msg *msg_status[]);
+
 /* Reclaims send descriptors on HW write back */
 int idpf_ctlq_clean_sq(struct idpf_ctlq_info *cq, u16 *clean_count,
 		       struct idpf_ctlq_msg *msg_status[]);
@@ -198,6 +199,6 @@ int idpf_ctlq_post_rx_buffs(struct idpf_hw *hw,
 			    struct idpf_dma_mem **buffs);
 
 /* Will destroy all q including the default mb */
-int idpf_ctlq_deinit(struct idpf_hw *hw);
+void idpf_ctlq_deinit(struct idpf_hw *hw);
 
 #endif /* _IDPF_CONTROLQ_API_H_ */

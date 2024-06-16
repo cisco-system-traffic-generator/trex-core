@@ -71,7 +71,11 @@ static struct rte_event_dev_info evdev_dlb2_default_info = {
 	.max_num_events = DLB2_MAX_NUM_LDB_CREDITS,
 	.max_single_link_event_port_queue_pairs =
 		DLB2_MAX_NUM_DIR_PORTS(DLB2_HW_V2),
-	.event_dev_cap = (RTE_EVENT_DEV_CAP_EVENT_QOS |
+	.event_dev_cap = (RTE_EVENT_DEV_CAP_ATOMIC |
+			  RTE_EVENT_DEV_CAP_ORDERED |
+			  RTE_EVENT_DEV_CAP_PARALLEL |
+			  RTE_EVENT_DEV_CAP_EVENT_QOS |
+			  RTE_EVENT_DEV_CAP_NONSEQ_MODE |
 			  RTE_EVENT_DEV_CAP_DISTRIBUTED_SCHED |
 			  RTE_EVENT_DEV_CAP_QUEUE_ALL_TYPES |
 			  RTE_EVENT_DEV_CAP_BURST_MODE |
@@ -79,6 +83,7 @@ static struct rte_event_dev_info evdev_dlb2_default_info = {
 			  RTE_EVENT_DEV_CAP_RUNTIME_PORT_LINK |
 			  RTE_EVENT_DEV_CAP_MULTIPLE_QUEUE_PORT |
 			  RTE_EVENT_DEV_CAP_MAINTENANCE_FREE),
+	.max_profiles_per_port = 1,
 };
 
 struct process_local_port_data
@@ -115,63 +120,6 @@ dlb2_init_queue_depth_thresholds(struct dlb2_eventdev *dlb2,
 			dlb2->ev_queues[q].depth_threshold =
 				qid_depth_thresholds[q];
 	}
-}
-
-/* override defaults with value(s) provided on command line */
-static void
-dlb2_init_cq_weight(struct dlb2_eventdev *dlb2, int *cq_weight)
-{
-	int q;
-
-	for (q = 0; q < DLB2_MAX_NUM_PORTS_ALL; q++)
-		dlb2->ev_ports[q].cq_weight = cq_weight[q];
-}
-
-static int
-set_cq_weight(const char *key __rte_unused,
-	      const char *value,
-	      void *opaque)
-{
-	struct dlb2_cq_weight *cq_weight = opaque;
-	int first, last, weight, i;
-
-	if (value == NULL || opaque == NULL) {
-		DLB2_LOG_ERR("NULL pointer\n");
-		return -EINVAL;
-	}
-
-	/* command line override may take one of the following 3 forms:
-	 * qid_depth_thresh=all:<threshold_value> ... all queues
-	 * qid_depth_thresh=qidA-qidB:<threshold_value> ... a range of queues
-	 * qid_depth_thresh=qid:<threshold_value> ... just one queue
-	 */
-	if (sscanf(value, "all:%d", &weight) == 1) {
-		first = 0;
-		last = DLB2_MAX_NUM_PORTS_ALL - 1;
-	} else if (sscanf(value, "%d-%d:%d", &first, &last, &weight) == 3) {
-		/* we have everything we need */
-	} else if (sscanf(value, "%d:%d", &first, &weight) == 2) {
-		last = first;
-	} else {
-		DLB2_LOG_ERR("Error parsing ldb port qe weight devarg. Should be all:val, qid-qid:val, or qid:val\n");
-		return -EINVAL;
-	}
-
-	if (first > last || first < 0 ||
-		last >= DLB2_MAX_NUM_PORTS_ALL) {
-		DLB2_LOG_ERR("Error parsing ldb port qe weight arg, invalid port value\n");
-		return -EINVAL;
-	}
-
-	if (weight < 0 || weight > DLB2_MAX_CQ_DEPTH_OVERRIDE) {
-		DLB2_LOG_ERR("Error parsing ldb port qe weight devarg, must be < cq depth\n");
-		return -EINVAL;
-	}
-
-	for (i = first; i <= last; i++)
-		cq_weight->limit[i] = weight; /* indexed by qid */
-
-	return 0;
 }
 
 /* override defaults with value(s) provided on command line */
@@ -215,7 +163,6 @@ static int
 dlb2_hw_query_resources(struct dlb2_eventdev *dlb2)
 {
 	struct dlb2_hw_dev *handle = &dlb2->qm_instance;
-	struct dlb2_hw_resource_info *dlb2_info = &handle->info;
 	int num_ldb_ports;
 	int ret;
 
@@ -276,8 +223,6 @@ dlb2_hw_query_resources(struct dlb2_eventdev *dlb2)
 
 	handle->info.hw_rsrc_max.reorder_window_size =
 		dlb2->hw_rsrc_query_results.num_hist_list_entries;
-
-	rte_memcpy(dlb2_info, &handle->info.hw_rsrc_max, sizeof(*dlb2_info));
 
 	return 0;
 }
@@ -396,7 +341,6 @@ set_max_enq_depth(const char *key __rte_unused,
 
 	return 0;
 }
-
 
 static int
 set_max_num_events(const char *key __rte_unused,
@@ -663,6 +607,26 @@ set_default_ldb_port_allocation(const char *key __rte_unused,
 		*default_ldb_port_allocation = true;
 	else
 		*default_ldb_port_allocation = false;
+
+	return 0;
+}
+
+static int
+set_enable_cq_weight(const char *key __rte_unused,
+		      const char *value,
+		      void *opaque)
+{
+	bool *enable_cq_weight = opaque;
+
+	if (value == NULL || opaque == NULL) {
+		DLB2_LOG_ERR("NULL pointer\n");
+		return -EINVAL;
+	}
+
+	if ((*value == 'y') || (*value == 'Y'))
+		*enable_cq_weight = true;
+	else
+		*enable_cq_weight = false;
 
 	return 0;
 }
@@ -1644,26 +1608,20 @@ dlb2_hw_create_ldb_port(struct dlb2_eventdev *dlb2,
 
 	qm_port->id = qm_port_id;
 
-	if (dlb2->version == DLB2_HW_V2) {
-		qm_port->cached_ldb_credits = 0;
-		qm_port->cached_dir_credits = 0;
-		if (ev_port->cq_weight) {
-			struct dlb2_enable_cq_weight_args
-				cq_weight_args = { {0} };
+	if (dlb2->version == DLB2_HW_V2_5 && (dlb2->enable_cq_weight == true)) {
+		struct dlb2_enable_cq_weight_args cq_weight_args = { {0} };
+		cq_weight_args.port_id = qm_port->id;
+		cq_weight_args.limit = dequeue_depth;
+		ret = dlb2_iface_enable_cq_weight(handle, &cq_weight_args);
 
-			cq_weight_args.port_id = qm_port->id;
-			cq_weight_args.limit = ev_port->cq_weight;
-			ret = dlb2_iface_enable_cq_weight(handle, &cq_weight_args);
-			if (ret < 0) {
-				DLB2_LOG_ERR("dlb2: dlb2_dir_port_create error, ret=%d (driver status: %s)\n",
+		if (ret < 0) {
+			DLB2_LOG_ERR("dlb2: dlb2_dir_port_create error, ret=%d (driver status: %s)\n",
 					ret,
 					dlb2_error_strings[cfg.response.  status]);
-				goto error_exit;
-			}
+			goto error_exit;
 		}
-		qm_port->cq_weight = ev_port->cq_weight;
+		qm_port->cq_weight = dequeue_depth;
 	} else {
-		qm_port->cached_credits = 0;
 		qm_port->cq_weight = 0;
 	}
 
@@ -1679,7 +1637,7 @@ dlb2_hw_create_ldb_port(struct dlb2_eventdev *dlb2,
 	else
 		qm_port->cq_depth_mask = qm_port->cq_depth - 1;
 
-	qm_port->gen_bit_shift = __builtin_popcount(qm_port->cq_depth_mask);
+	qm_port->gen_bit_shift = rte_popcount32(qm_port->cq_depth_mask);
 	/* starting value of gen bit - it toggles at wrap time */
 	qm_port->gen_bit = 1;
 
@@ -1893,7 +1851,7 @@ dlb2_hw_create_dir_port(struct dlb2_eventdev *dlb2,
 	else
 		qm_port->cq_depth_mask = cfg.cq_depth - 1;
 
-	qm_port->gen_bit_shift = __builtin_popcount(qm_port->cq_depth_mask);
+	qm_port->gen_bit_shift = rte_popcount32(qm_port->cq_depth_mask);
 	/* starting value of gen bit - it toggles at wrap time */
 	qm_port->gen_bit = 1;
 	dlb2_hw_cq_bitmask_init(qm_port, qm_port->cq_depth);
@@ -3695,7 +3653,7 @@ dlb2_recv_qe_sparse(struct dlb2_port *qm_port, struct dlb2_dequeue_qe *qe)
 	/* Mask off gen bits we don't care about */
 	gen_bits &= and_mask;
 
-	return __builtin_popcount(gen_bits);
+	return rte_popcount32(gen_bits);
 }
 
 static inline void
@@ -3946,7 +3904,7 @@ dlb2_recv_qe_sparse_vec(struct dlb2_port *qm_port, void *events,
 	 */
 	uint64_t rolling = qm_port->cq_rolling_mask & 0xF;
 	uint64_t qe_xor_bits = (qe_gen_bits ^ rolling);
-	uint32_t count_new = __builtin_popcount(qe_xor_bits);
+	uint32_t count_new = rte_popcount32(qe_xor_bits);
 	count_new = RTE_MIN(count_new, max_events);
 	if (!count_new)
 		return 0;
@@ -4008,7 +3966,8 @@ dlb2_hw_dequeue_sparse(struct dlb2_eventdev *dlb2,
 	else
 		timeout = dlb2->global_dequeue_wait_ticks;
 
-	start_ticks = rte_get_timer_cycles();
+	if (timeout != 0)
+		start_ticks = rte_get_timer_cycles();
 
 	use_scalar = use_scalar || (max_num & 0x3);
 
@@ -4122,7 +4081,7 @@ dlb2_recv_qe(struct dlb2_port *qm_port, struct dlb2_dequeue_qe *qe,
 	/* Mask off gen bits we don't care about */
 	gen_bits &= and_mask[*offset];
 
-	return __builtin_popcount(gen_bits);
+	return rte_popcount32(gen_bits);
 }
 
 static inline int16_t
@@ -4156,7 +4115,8 @@ dlb2_hw_dequeue(struct dlb2_eventdev *dlb2,
 	else
 		timeout = dlb2->global_dequeue_wait_ticks;
 
-	start_ticks = rte_get_timer_cycles();
+	if (timeout != 0)
+		start_ticks = rte_get_timer_cycles();
 
 	while (num < max_num) {
 		struct dlb2_dequeue_qe qes[DLB2_NUM_QES_PER_CACHE_LINE];
@@ -4621,6 +4581,7 @@ dlb2_primary_eventdev_probe(struct rte_eventdev *dev,
 	dlb2->hw_credit_quanta = dlb2_args->hw_credit_quanta;
 	dlb2->default_depth_thresh = dlb2_args->default_depth_thresh;
 	dlb2->vector_opts_enabled = dlb2_args->vector_opts_enabled;
+	dlb2->enable_cq_weight = dlb2_args->enable_cq_weight;
 
 
 	if (dlb2_args->max_cq_depth != 0)
@@ -4640,9 +4601,6 @@ dlb2_primary_eventdev_probe(struct rte_eventdev *dev,
 
 	dlb2_init_queue_depth_thresholds(dlb2,
 					 dlb2_args->qid_depth_thresholds.val);
-
-	dlb2_init_cq_weight(dlb2,
-			    dlb2_args->cq_weight.limit);
 
 	dlb2_init_port_cos(dlb2,
 			   dlb2_args->port_cos.cos_id);
@@ -4774,20 +4732,19 @@ dlb2_parse_params(const char *params,
 					     DLB2_VECTOR_OPTS_ENAB_ARG,
 					     DLB2_MAX_CQ_DEPTH,
 					     DLB2_MAX_ENQ_DEPTH,
-					     DLB2_CQ_WEIGHT,
 					     DLB2_PORT_COS,
 					     DLB2_COS_BW,
 					     DLB2_PRODUCER_COREMASK,
 					     DLB2_DEFAULT_LDB_PORT_ALLOCATION_ARG,
+					     DLB2_ENABLE_CQ_WEIGHT_ARG,
 					     NULL };
 
 	if (params != NULL && params[0] != '\0') {
 		struct rte_kvargs *kvlist = rte_kvargs_parse(params, args);
 
 		if (kvlist == NULL) {
-			RTE_LOG(INFO, PMD,
-				"Ignoring unsupported parameters when creating device '%s'\n",
-				name);
+			DLB2_LOG_INFO("Ignoring unsupported parameters when creating device '%s'",
+				      name);
 		} else {
 			int ret = rte_kvargs_process(kvlist, NUMA_NODE_ARG,
 						     set_numa_node,
@@ -4927,17 +4884,6 @@ dlb2_parse_params(const char *params,
 			}
 
 			ret = rte_kvargs_process(kvlist,
-					DLB2_CQ_WEIGHT,
-					set_cq_weight,
-					&dlb2_args->cq_weight);
-			if (ret != 0) {
-				DLB2_LOG_ERR("%s: Error parsing cq weight on",
-					     name);
-				rte_kvargs_free(kvlist);
-				return ret;
-			}
-
-			ret = rte_kvargs_process(kvlist,
 					DLB2_PORT_COS,
 					set_port_cos,
 					&dlb2_args->port_cos);
@@ -4978,6 +4924,17 @@ dlb2_parse_params(const char *params,
 						 &dlb2_args->default_ldb_port_allocation);
 			if (ret != 0) {
 				DLB2_LOG_ERR("%s: Error parsing ldb default port allocation arg",
+					     name);
+				rte_kvargs_free(kvlist);
+				return ret;
+			}
+
+			ret = rte_kvargs_process(kvlist,
+						 DLB2_ENABLE_CQ_WEIGHT_ARG,
+						 set_enable_cq_weight,
+						 &dlb2_args->enable_cq_weight);
+			if (ret != 0) {
+				DLB2_LOG_ERR("%s: Error parsing enable_cq_weight arg",
 					     name);
 				rte_kvargs_free(kvlist);
 				return ret;

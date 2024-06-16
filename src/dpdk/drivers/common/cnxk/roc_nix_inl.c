@@ -7,6 +7,7 @@
 
 uint32_t soft_exp_consumer_cnt;
 roc_nix_inl_meta_pool_cb_t meta_pool_cb;
+roc_nix_inl_custom_meta_pool_cb_t custom_meta_pool_cb;
 
 PLT_STATIC_ASSERT(ROC_NIX_INL_ON_IPSEC_INB_SA_SZ ==
 		  1UL << ROC_NIX_INL_ON_IPSEC_INB_SA_SZ_LOG2);
@@ -33,13 +34,14 @@ nix_inl_meta_aura_destroy(struct roc_nix *roc_nix)
 		return -EINVAL;
 
 	inl_cfg = &idev->inl_cfg;
-	if (roc_nix->local_meta_aura_ena) {
+
+	if (!roc_nix->local_meta_aura_ena || roc_nix->custom_meta_aura_ena) {
+		meta_aura = &inl_cfg->meta_aura;
+	} else {
 		meta_aura = &roc_nix->meta_aura_handle;
 		snprintf(mempool_name, sizeof(mempool_name), "NIX_INL_META_POOL_%d",
 			 roc_nix->port_id + 1);
 		mp_name = mempool_name;
-	} else {
-		meta_aura = &inl_cfg->meta_aura;
 	}
 
 	/* Destroy existing Meta aura */
@@ -72,7 +74,7 @@ nix_inl_meta_aura_destroy(struct roc_nix *roc_nix)
 
 static int
 nix_inl_meta_aura_create(struct idev_cfg *idev, struct roc_nix *roc_nix, uint16_t first_skip,
-			 uint64_t *meta_aura)
+			 uint64_t *meta_aura, bool is_local_metaaura)
 {
 	uint64_t mask = BIT_ULL(ROC_NPA_BUF_TYPE_PACKET_IPSEC);
 	struct idev_nix_inl_cfg *inl_cfg;
@@ -89,7 +91,7 @@ nix_inl_meta_aura_create(struct idev_cfg *idev, struct roc_nix *roc_nix, uint16_
 	inl_cfg = &idev->inl_cfg;
 	nix_inl_dev = idev->nix_inl_dev;
 
-	if (roc_nix->local_meta_aura_ena) {
+	if (is_local_metaaura) {
 		/* Per LF Meta Aura */
 		inl_rq_id = nix_inl_dev->nb_rqs > 1 ? port_id : 0;
 		inl_rq = &nix_inl_dev->rqs[inl_rq_id];
@@ -131,11 +133,106 @@ nix_inl_meta_aura_create(struct idev_cfg *idev, struct roc_nix *roc_nix, uint16_
 	}
 	roc_nix->meta_mempool = mp;
 
-	if (!roc_nix->local_meta_aura_ena) {
+	plt_nix_dbg("Created meta aura %p(%s)for port %d", (void *)*meta_aura, mp_name,
+		    roc_nix->port_id);
+
+	if (!is_local_metaaura) {
 		inl_cfg->buf_sz = buf_sz;
 		inl_cfg->nb_bufs = nb_bufs;
+		inl_cfg->meta_mempool = mp;
 	} else
 		roc_nix->buf_sz = buf_sz;
+
+	return 0;
+}
+
+static int
+nix_inl_custom_meta_aura_destroy(struct roc_nix *roc_nix)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct idev_nix_inl_cfg *inl_cfg;
+	char mempool_name[24] = {'\0'};
+	char *mp_name = NULL;
+	uint64_t *meta_aura;
+	int rc;
+
+	if (!idev)
+		return -EINVAL;
+
+	inl_cfg = &idev->inl_cfg;
+	meta_aura = &roc_nix->meta_aura_handle;
+	snprintf(mempool_name, sizeof(mempool_name), "NIX_INL_META_POOL_%d",
+		 roc_nix->port_id + 1);
+	mp_name = mempool_name;
+
+	/* Destroy existing Meta aura */
+	if (*meta_aura) {
+		uint64_t avail, limit;
+
+		/* Check if all buffers are back to pool */
+		avail = roc_npa_aura_op_available(*meta_aura);
+		limit = roc_npa_aura_op_limit_get(*meta_aura);
+		if (avail != limit)
+			plt_warn("Not all buffers are back to meta pool,"
+				 " %" PRIu64 " != %" PRIu64, avail, limit);
+
+		rc = custom_meta_pool_cb(inl_cfg->meta_mempool, &roc_nix->meta_mempool, mp_name,
+					 meta_aura, 0, 0, true);
+		if (rc) {
+			plt_err("Failed to destroy meta aura, rc=%d", rc);
+			return rc;
+		}
+
+		roc_nix->buf_sz = 0;
+	}
+
+	return 0;
+}
+
+static int
+nix_inl_custom_meta_aura_create(struct idev_cfg *idev, struct roc_nix *roc_nix, uint16_t first_skip,
+				uint64_t *meta_aura)
+{
+	uint64_t mask = BIT_ULL(ROC_NPA_BUF_TYPE_PACKET_IPSEC);
+	struct idev_nix_inl_cfg *inl_cfg;
+	struct nix_inl_dev *nix_inl_dev;
+	char mempool_name[24] = {'\0'};
+	uint32_t nb_bufs, buf_sz;
+	char *mp_name = NULL;
+	uintptr_t mp;
+	int rc;
+
+	inl_cfg = &idev->inl_cfg;
+	nix_inl_dev = idev->nix_inl_dev;
+
+	/* Override meta buf count from devargs if present */
+	if (nix_inl_dev && nix_inl_dev->nb_meta_bufs)
+		nb_bufs = nix_inl_dev->nb_meta_bufs;
+	else
+		nb_bufs = roc_npa_buf_type_limit_get(mask);
+
+	/* Override meta buf size from devargs if present */
+	if (nix_inl_dev && nix_inl_dev->meta_buf_sz)
+		buf_sz = nix_inl_dev->meta_buf_sz;
+	else
+		buf_sz = first_skip + NIX_INL_META_SIZE;
+
+	/* Create Metapool name */
+	snprintf(mempool_name, sizeof(mempool_name), "NIX_INL_META_POOL_%d",
+		 roc_nix->port_id + 1);
+	mp_name = mempool_name;
+
+	/* Allocate meta aura */
+	rc = custom_meta_pool_cb(inl_cfg->meta_mempool, &mp, mp_name, meta_aura,
+				 buf_sz, nb_bufs, false);
+	if (rc) {
+		plt_err("Failed to allocate meta aura, rc=%d", rc);
+		return rc;
+	}
+
+	/* Overwrite */
+	roc_nix->meta_mempool = mp;
+	roc_nix->buf_sz = buf_sz;
 
 	return 0;
 }
@@ -225,6 +322,7 @@ roc_nix_inl_meta_aura_check(struct roc_nix *roc_nix, struct roc_nix_rq *rq)
 	struct nix *nix = roc_nix_to_nix_priv(roc_nix);
 	struct idev_cfg *idev = idev_get_cfg();
 	struct idev_nix_inl_cfg *inl_cfg;
+	bool is_local_metaaura;
 	bool aura_setup = false;
 	uint64_t *meta_aura;
 	int rc;
@@ -235,18 +333,39 @@ roc_nix_inl_meta_aura_check(struct roc_nix *roc_nix, struct roc_nix_rq *rq)
 	inl_cfg = &idev->inl_cfg;
 
 	/* Create meta aura if not present */
-	if (roc_nix->local_meta_aura_ena)
-		meta_aura = &roc_nix->meta_aura_handle;
-	else
+	if (!roc_nix->local_meta_aura_ena || roc_nix->custom_meta_aura_ena) {
 		meta_aura = &inl_cfg->meta_aura;
+		is_local_metaaura = false;
+	} else {
+		meta_aura = &roc_nix->meta_aura_handle;
+		is_local_metaaura = true;
+	}
 
 	if (!(*meta_aura)) {
-		rc = nix_inl_meta_aura_create(idev, roc_nix, rq->first_skip, meta_aura);
+		rc = nix_inl_meta_aura_create(idev, roc_nix, rq->first_skip, meta_aura,
+					      is_local_metaaura);
 		if (rc)
 			return rc;
 
 		aura_setup = true;
 	}
+
+	if (roc_nix->custom_meta_aura_ena) {
+		/* Create metaura for 1:N pool:aura */
+		if (!custom_meta_pool_cb)
+			return -EFAULT;
+
+		meta_aura = &roc_nix->meta_aura_handle;
+		if (!(*meta_aura)) {
+			rc = nix_inl_custom_meta_aura_create(idev, roc_nix, rq->first_skip,
+							     meta_aura);
+			if (rc)
+				return rc;
+
+			aura_setup = true;
+		}
+	}
+
 	/* Update rq meta aura handle */
 	rq->meta_aura_handle = *meta_aura;
 
@@ -260,7 +379,7 @@ roc_nix_inl_meta_aura_check(struct roc_nix *roc_nix, struct roc_nix_rq *rq)
 		 */
 		if (aura_setup && nix->rqs[0] && nix->rqs[0]->tc != ROC_NIX_PFC_CLASS_INVALID)
 			roc_nix_fc_npa_bp_cfg(roc_nix, roc_nix->meta_aura_handle,
-					      true, true, nix->rqs[0]->tc);
+					      true, false, nix->rqs[0]->tc, ROC_NIX_AURA_THRESH);
 	} else {
 		rc = nix_inl_global_meta_buffer_validate(idev, rq);
 		if (rc)
@@ -355,6 +474,34 @@ roc_nix_inl_outb_lf_base_get(struct roc_nix *roc_nix)
 	return (struct roc_cpt_lf *)nix->cpt_lf_base;
 }
 
+struct roc_cpt_lf *
+roc_nix_inl_inb_inj_lf_get(struct roc_nix *roc_nix)
+{
+	struct nix *nix;
+	struct idev_cfg *idev = idev_get_cfg();
+	struct nix_inl_dev *inl_dev = NULL;
+	struct roc_cpt_lf *lf = NULL;
+
+	if (!idev)
+		return NULL;
+
+	inl_dev = idev->nix_inl_dev;
+
+	if (!inl_dev && roc_nix == NULL)
+		return NULL;
+
+	nix = roc_nix_to_nix_priv(roc_nix);
+
+	if (nix->inb_inl_dev && inl_dev && inl_dev->attach_cptlf &&
+	    inl_dev->rx_inj_ena)
+		return &inl_dev->cpt_lf[inl_dev->nb_cptlf - 1];
+
+	lf = roc_nix_inl_outb_lf_base_get(roc_nix);
+	if (lf)
+		lf += roc_nix->outb_nb_crypto_qs;
+	return lf;
+}
+
 uintptr_t
 roc_nix_inl_outb_sa_base_get(struct roc_nix *roc_nix)
 {
@@ -391,6 +538,35 @@ roc_nix_inl_inb_sa_base_get(struct roc_nix *roc_nix, bool inb_inl_dev)
 	}
 
 	return (uintptr_t)nix->inb_sa_base;
+}
+
+bool
+roc_nix_inl_inb_rx_inject_enable(struct roc_nix *roc_nix, bool inb_inl_dev)
+{
+	struct idev_cfg *idev = idev_get_cfg();
+	struct nix_inl_dev *inl_dev;
+	struct nix *nix = NULL;
+
+	if (idev == NULL)
+		return 0;
+
+	if (!inb_inl_dev && roc_nix == NULL)
+		return 0;
+
+	if (roc_nix) {
+		nix = roc_nix_to_nix_priv(roc_nix);
+		if (!nix->inl_inb_ena)
+			return 0;
+	}
+
+	if (inb_inl_dev) {
+		inl_dev = idev->nix_inl_dev;
+		if (inl_dev && inl_dev->attach_cptlf && inl_dev->rx_inj_ena &&
+		    roc_nix->rx_inj_ena)
+			return true;
+	}
+
+	return roc_nix->rx_inj_ena;
 }
 
 uint32_t
@@ -501,8 +677,7 @@ roc_nix_reassembly_configure(uint32_t max_wait_time, uint16_t max_frags)
 		return -EFAULT;
 
 	PLT_SET_USED(max_frags);
-	if (idev == NULL)
-		return -ENOTSUP;
+
 	roc_cpt = idev->cpt;
 	if (!roc_cpt) {
 		plt_err("Cannot support inline inbound, cryptodev not probed");
@@ -599,15 +774,107 @@ exit:
 	return rc;
 }
 
+static void
+nix_inl_eng_caps_get(struct nix *nix)
+{
+	struct roc_cpt_lf *lf = nix->cpt_lf_base;
+	uintptr_t lmt_base = lf->lmt_base;
+	union cpt_res_s res, *hw_res;
+	struct cpt_inst_s inst;
+	uint64_t *rptr;
+
+	hw_res = plt_zmalloc(sizeof(*hw_res), ROC_CPT_RES_ALIGN);
+	if (hw_res == NULL) {
+		plt_err("Couldn't allocate memory for result address");
+		return;
+	}
+
+	rptr = plt_zmalloc(ROC_ALIGN, 0);
+	if (rptr == NULL) {
+		plt_err("Couldn't allocate memory for rptr");
+		plt_free(hw_res);
+		return;
+	}
+
+	/* Fill CPT_INST_S for LOAD_FVC/HW_CRYPTO_SUPPORT microcode op */
+	memset(&inst, 0, sizeof(struct cpt_inst_s));
+	inst.res_addr = (uint64_t)hw_res;
+	inst.rptr = (uint64_t)rptr;
+	inst.w4.s.opcode_major = ROC_LOADFVC_MAJOR_OP;
+	inst.w4.s.opcode_minor = ROC_LOADFVC_MINOR_OP;
+	inst.w7.s.egrp = ROC_CPT_DFLT_ENG_GRP_SE;
+
+	/* Use 1 min timeout for the poll */
+	const uint64_t timeout = plt_tsc_cycles() + 60 * plt_tsc_hz();
+
+	if (roc_model_is_cn9k()) {
+		uint64_t lmt_status;
+
+		hw_res->cn9k.compcode = CPT_COMP_NOT_DONE;
+		plt_io_wmb();
+
+		do {
+			roc_lmt_mov_seg((void *)lmt_base, &inst, 4);
+			lmt_status = roc_lmt_submit_ldeor(lf->io_addr);
+		} while (lmt_status != 0);
+
+		/* Wait until CPT instruction completes */
+		do {
+			res.u64[0] = __atomic_load_n(&hw_res->u64[0], __ATOMIC_RELAXED);
+			if (unlikely(plt_tsc_cycles() > timeout))
+				break;
+		} while (res.cn9k.compcode == CPT_COMP_NOT_DONE);
+
+		if (res.cn9k.compcode != CPT_COMP_GOOD) {
+			plt_err("LOAD FVC operation timed out");
+			return;
+		}
+	} else {
+		uint64_t lmt_arg, io_addr;
+		uint16_t lmt_id;
+
+		hw_res->cn10k.compcode = CPT_COMP_NOT_DONE;
+
+		/* Use this reserved LMT line as no one else is using it */
+		lmt_id = roc_plt_control_lmt_id_get();
+		lmt_base += ((uint64_t)lmt_id << ROC_LMT_LINE_SIZE_LOG2);
+
+		memcpy((void *)lmt_base, &inst, sizeof(inst));
+
+		lmt_arg = ROC_CN10K_CPT_LMT_ARG | (uint64_t)lmt_id;
+		io_addr = lf->io_addr | ROC_CN10K_CPT_INST_DW_M1 << 4;
+
+		roc_lmt_submit_steorl(lmt_arg, io_addr);
+		plt_io_wmb();
+
+		/* Wait until CPT instruction completes */
+		do {
+			res.u64[0] = __atomic_load_n(&hw_res->u64[0], __ATOMIC_RELAXED);
+			if (unlikely(plt_tsc_cycles() > timeout))
+				break;
+		} while (res.cn10k.compcode == CPT_COMP_NOT_DONE);
+
+		if (res.cn10k.compcode != CPT_COMP_GOOD || res.cn10k.uc_compcode) {
+			plt_err("LOAD FVC operation timed out");
+			goto exit;
+		}
+	}
+
+	nix->cpt_eng_caps = plt_be_to_cpu_64(*rptr);
+exit:
+	plt_free(rptr);
+	plt_free(hw_res);
+}
+
 int
 roc_nix_inl_inb_init(struct roc_nix *roc_nix)
 {
 	struct nix *nix = roc_nix_to_nix_priv(roc_nix);
+	struct roc_cpt_inline_ipsec_inb_cfg cfg;
 	struct idev_cfg *idev = idev_get_cfg();
+	struct nix_inl_dev *inl_dev;
+	uint16_t bpids[ROC_NIX_MAX_BPID_CNT];
 	struct roc_cpt *roc_cpt;
-	uint16_t opcode;
-	uint16_t param1;
-	uint16_t param2;
 	int rc;
 
 	if (idev == NULL)
@@ -624,9 +891,9 @@ roc_nix_inl_inb_init(struct roc_nix *roc_nix)
 	}
 
 	if (roc_model_is_cn9k()) {
-		param1 = (ROC_ONF_IPSEC_INB_MAX_L2_SZ >> 3) & 0xf;
-		param2 = ROC_IE_ON_INB_IKEV2_SINGLE_SA_SUPPORT;
-		opcode =
+		cfg.param1 = (ROC_ONF_IPSEC_INB_MAX_L2_SZ >> 3) & 0xf;
+		cfg.param2 = ROC_IE_ON_INB_IKEV2_SINGLE_SA_SUPPORT;
+		cfg.opcode =
 			((ROC_IE_ON_INB_MAX_CTX_LEN << 8) |
 			 (ROC_IE_ON_MAJOR_OP_PROCESS_INBOUND_IPSEC | (1 << 6)));
 	} else {
@@ -634,26 +901,42 @@ roc_nix_inl_inb_init(struct roc_nix *roc_nix)
 
 		u.u16 = 0;
 		u.s.esp_trailer_disable = 1;
-		param1 = u.u16;
-		param2 = 0;
-		opcode = (ROC_IE_OT_MAJOR_OP_PROCESS_INBOUND_IPSEC | (1 << 6));
+		cfg.param1 = u.u16;
+		cfg.param2 = 0;
+		cfg.opcode = (ROC_IE_OT_MAJOR_OP_PROCESS_INBOUND_IPSEC | (1 << 6));
+		rc = roc_nix_bpids_alloc(roc_nix, ROC_NIX_INTF_TYPE_CPT_NIX, 1, bpids);
+		if (rc > 0) {
+			nix->cpt_nixbpid = bpids[0];
+			cfg.bpid = nix->cpt_nixbpid;
+		}
+
+		if (roc_errata_cpt_has_ctx_fetch_issue()) {
+			cfg.ctx_ilen_valid = true;
+			cfg.ctx_ilen = (ROC_NIX_INL_OT_IPSEC_INB_HW_SZ / 128) - 1;
+		}
 	}
 
 	/* Do onetime Inbound Inline config in CPTPF */
-	rc = roc_cpt_inline_ipsec_inb_cfg(roc_cpt, param1, param2, opcode);
+	rc = roc_cpt_inline_ipsec_inb_cfg(roc_cpt, &cfg);
 	if (rc && rc != -EEXIST) {
 		plt_err("Failed to setup inbound lf, rc=%d", rc);
 		return rc;
 	}
+	nix->cpt_eng_caps = roc_cpt->hw_caps[CPT_ENG_TYPE_SE].u;
 
 	/* Setup Inbound SA table */
 	rc = nix_inl_inb_sa_tbl_setup(roc_nix);
 	if (rc)
 		return rc;
 
+	inl_dev = idev->nix_inl_dev;
+
+	roc_nix->custom_meta_aura_ena = (roc_nix->local_meta_aura_ena &&
+					 ((inl_dev && inl_dev->is_multi_channel) ||
+					  roc_nix->custom_sa_action));
 	if (!roc_model_is_cn9k() && !roc_errata_nix_no_meta_aura()) {
 		nix->need_meta_aura = true;
-		if (!roc_nix->local_meta_aura_ena)
+		if (!roc_nix->local_meta_aura_ena || roc_nix->custom_meta_aura_ena)
 			idev->inl_cfg.refs++;
 	}
 
@@ -675,15 +958,17 @@ roc_nix_inl_inb_fini(struct roc_nix *roc_nix)
 		return -EFAULT;
 
 	nix->inl_inb_ena = false;
+
 	if (nix->need_meta_aura) {
 		nix->need_meta_aura = false;
-		if (roc_nix->local_meta_aura_ena) {
-			nix_inl_meta_aura_destroy(roc_nix);
-		} else {
+		if (!roc_nix->local_meta_aura_ena || roc_nix->custom_meta_aura_ena)
 			idev->inl_cfg.refs--;
-			if (!idev->inl_cfg.refs)
-				nix_inl_meta_aura_destroy(roc_nix);
-		}
+
+		if (roc_nix->custom_meta_aura_ena)
+			nix_inl_custom_meta_aura_destroy(roc_nix);
+
+		if (!idev->inl_cfg.refs)
+			nix_inl_meta_aura_destroy(roc_nix);
 	}
 
 	if (roc_feature_nix_has_inl_rq_mask()) {
@@ -710,7 +995,10 @@ roc_nix_inl_outb_init(struct roc_nix *roc_nix)
 	struct dev *dev = &nix->dev;
 	struct msix_offset_rsp *rsp;
 	struct nix_inl_dev *inl_dev;
+	bool ctx_ilen_valid = false;
 	size_t sa_sz, ring_sz;
+	uint8_t ctx_ilen = 0;
+	bool rx_inj = false;
 	uint16_t sso_pffunc;
 	uint8_t eng_grpmask;
 	uint64_t blkaddr, i;
@@ -728,6 +1016,12 @@ roc_nix_inl_outb_init(struct roc_nix *roc_nix)
 
 	/* Retrieve inline device if present */
 	inl_dev = idev->nix_inl_dev;
+	if (roc_nix->rx_inj_ena && !(nix->inb_inl_dev && inl_dev && inl_dev->attach_cptlf &&
+				     inl_dev->rx_inj_ena)) {
+		nb_lf++;
+		rx_inj = true;
+	}
+
 	sso_pffunc = inl_dev ? inl_dev->dev.pf_func : idev_sso_pffunc_get();
 	/* Use sso_pffunc if explicitly requested */
 	if (roc_nix->ipsec_out_sso_pffunc)
@@ -746,12 +1040,18 @@ roc_nix_inl_outb_init(struct roc_nix *roc_nix)
 		return rc;
 	}
 
+	if (!roc_model_is_cn9k() && roc_errata_cpt_has_ctx_fetch_issue()) {
+		ctx_ilen = (ROC_NIX_INL_OT_IPSEC_OUTB_HW_SZ / 128) - 1;
+		ctx_ilen_valid = true;
+	}
+
 	/* Alloc CPT LF */
 	eng_grpmask = (1ULL << ROC_CPT_DFLT_ENG_GRP_SE |
 		       1ULL << ROC_CPT_DFLT_ENG_GRP_SE_IE |
 		       1ULL << ROC_CPT_DFLT_ENG_GRP_AE);
 	rc = cpt_lfs_alloc(dev, eng_grpmask, blkaddr,
-			   !roc_nix->ipsec_out_sso_pffunc);
+			   !roc_nix->ipsec_out_sso_pffunc, ctx_ilen_valid, ctx_ilen,
+			   rx_inj, nb_lf - 1);
 	if (rc) {
 		plt_err("Failed to alloc CPT LF resources, rc=%d", rc);
 		goto lf_detach;
@@ -864,6 +1164,8 @@ skip_sa_alloc:
 		}
 	}
 
+	/* Fetch engine capabilities */
+	nix_inl_eng_caps_get(nix);
 	return 0;
 
 lf_fini:
@@ -1159,7 +1461,7 @@ roc_nix_inl_rq_ena_dis(struct roc_nix *roc_nix, bool enable)
 		return -EFAULT;
 
 	if (roc_feature_nix_has_inl_rq_mask()) {
-		rc = nix_inl_rq_mask_cfg(roc_nix, true);
+		rc = nix_inl_rq_mask_cfg(roc_nix, enable);
 		if (rc) {
 			plt_err("Failed to get rq mask rc=%d", rc);
 			return rc;
@@ -1209,17 +1511,18 @@ roc_nix_inl_inb_set(struct roc_nix *roc_nix, bool ena)
 
 	if (ena) {
 		nix->need_meta_aura = true;
-		if (!roc_nix->local_meta_aura_ena)
+		if (!roc_nix->local_meta_aura_ena || roc_nix->custom_meta_aura_ena)
 			idev->inl_cfg.refs++;
 	} else if (nix->need_meta_aura) {
 		nix->need_meta_aura = false;
-		if (roc_nix->local_meta_aura_ena) {
-			nix_inl_meta_aura_destroy(roc_nix);
-		} else {
+		if (!roc_nix->local_meta_aura_ena || roc_nix->custom_meta_aura_ena)
 			idev->inl_cfg.refs--;
-			if (!idev->inl_cfg.refs)
-				nix_inl_meta_aura_destroy(roc_nix);
-		}
+
+		if (roc_nix->custom_meta_aura_ena)
+			nix_inl_custom_meta_aura_destroy(roc_nix);
+
+		if (!idev->inl_cfg.refs)
+			nix_inl_meta_aura_destroy(roc_nix);
 	}
 }
 
@@ -1394,7 +1697,7 @@ roc_nix_inl_sa_sync(struct roc_nix *roc_nix, void *sa, bool inb,
 	if (inb && get_inl_lf) {
 		outb_lf = NULL;
 		if (inl_dev && inl_dev->attach_cptlf)
-			outb_lf = &inl_dev->cpt_lf;
+			outb_lf = &inl_dev->cpt_lf[0];
 	}
 
 	if (outb_lf) {
@@ -1458,7 +1761,7 @@ roc_nix_inl_ctx_write(struct roc_nix *roc_nix, void *sa_dptr, void *sa_cptr,
 	if (inb && get_inl_lf) {
 		outb_lf = NULL;
 		if (inl_dev && inl_dev->attach_cptlf)
-			outb_lf = &inl_dev->cpt_lf;
+			outb_lf = &inl_dev->cpt_lf[0];
 	}
 
 	if (outb_lf) {
@@ -1563,4 +1866,18 @@ void
 roc_nix_inl_meta_pool_cb_register(roc_nix_inl_meta_pool_cb_t cb)
 {
 	meta_pool_cb = cb;
+}
+
+uint64_t
+roc_nix_inl_eng_caps_get(struct roc_nix *roc_nix)
+{
+	struct nix *nix = roc_nix_to_nix_priv(roc_nix);
+
+	return nix->cpt_eng_caps;
+}
+
+void
+roc_nix_inl_custom_meta_pool_cb_register(roc_nix_inl_custom_meta_pool_cb_t cb)
+{
+	custom_meta_pool_cb = cb;
 }

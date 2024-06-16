@@ -98,6 +98,7 @@ struct mlx5_hws_cnt_pool_caches {
 };
 
 struct mlx5_hws_cnt_pool {
+	LIST_ENTRY(mlx5_hws_cnt_pool) next;
 	struct mlx5_hws_cnt_pool_cfg cfg __rte_cache_aligned;
 	struct mlx5_hws_cnt_dcs_mng dcs_mng __rte_cache_aligned;
 	uint32_t query_gen __rte_cache_aligned;
@@ -108,6 +109,7 @@ struct mlx5_hws_cnt_pool {
 	struct rte_ring *wait_reset_list;
 	struct mlx5_hws_cnt_pool_caches *cache;
 	uint64_t time_of_last_age_check;
+	struct mlx5_priv *priv;
 } __rte_cache_aligned;
 
 /* HWS AGE status. */
@@ -386,7 +388,7 @@ __mlx5_hws_cnt_pool_enqueue_revert(struct rte_ring *r, unsigned int n,
 
 	MLX5_ASSERT(r->prod.sync_type == RTE_RING_SYNC_ST);
 	MLX5_ASSERT(r->cons.sync_type == RTE_RING_SYNC_ST);
-	current_head = __atomic_load_n(&r->prod.head, __ATOMIC_RELAXED);
+	current_head = rte_atomic_load_explicit(&r->prod.head, rte_memory_order_relaxed);
 	MLX5_ASSERT(n <= r->capacity);
 	MLX5_ASSERT(n <= rte_ring_count(r));
 	revert2head = current_head - n;
@@ -394,7 +396,7 @@ __mlx5_hws_cnt_pool_enqueue_revert(struct rte_ring *r, unsigned int n,
 	__rte_ring_get_elem_addr(r, revert2head, sizeof(cnt_id_t), n,
 			&zcd->ptr1, &zcd->n1, &zcd->ptr2);
 	/* Update tail */
-	__atomic_store_n(&r->prod.tail, revert2head, __ATOMIC_RELEASE);
+	rte_atomic_store_explicit(&r->prod.tail, revert2head, rte_memory_order_release);
 	return n;
 }
 
@@ -506,6 +508,7 @@ mlx5_hws_cnt_pool_get(struct mlx5_hws_cnt_pool *cpool, uint32_t *queue,
 		__hws_cnt_query_raw(cpool, *cnt_id,
 				    &cpool->pool[iidx].reset.hits,
 				    &cpool->pool[iidx].reset.bytes);
+		cpool->pool[iidx].share = 0;
 		MLX5_ASSERT(!cpool->pool[iidx].in_used);
 		cpool->pool[iidx].in_used = true;
 		cpool->pool[iidx].age_idx = age_idx;
@@ -551,6 +554,35 @@ mlx5_hws_cnt_pool_get(struct mlx5_hws_cnt_pool *cpool, uint32_t *queue,
 	cpool->pool[iidx].in_used = true;
 	cpool->pool[iidx].age_idx = age_idx;
 	return 0;
+}
+
+/**
+ * Decide if the given queue can be used to perform counter allocation/deallcation
+ * based on counter configuration
+ *
+ * @param[in] priv
+ *   Pointer to the port private data structure.
+ * @param[in] queue
+ *   Pointer to the queue index.
+ *
+ * @return
+ *   @p queue if cache related to the queue can be used. NULL otherwise.
+ */
+static __rte_always_inline uint32_t *
+mlx5_hws_cnt_get_queue(struct mlx5_priv *priv, uint32_t *queue)
+{
+	if (priv && priv->hws_cpool) {
+		/* Do not use queue cache if counter pool is shared. */
+		if (priv->shared_refcnt || priv->hws_cpool->cfg.host_cpool != NULL)
+			return NULL;
+		/* Do not use queue cache if counter cache is disabled. */
+		if (priv->hws_cpool->cache == NULL)
+			return NULL;
+		return queue;
+	}
+	/* This case should not be reached if counter pool was successfully configured. */
+	MLX5_ASSERT(false);
+	return NULL;
 }
 
 static __rte_always_inline unsigned int

@@ -4,6 +4,7 @@
  *
  */
 /* System headers */
+#include <stdalign.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include <unistd.h>
@@ -307,7 +308,7 @@ int rte_dpaa_portal_init(void *arg)
 	static const struct rte_mbuf_dynfield dpaa_seqn_dynfield_desc = {
 		.name = DPAA_SEQN_DYNFIELD_NAME,
 		.size = sizeof(dpaa_seqn_t),
-		.align = __alignof__(dpaa_seqn_t),
+		.align = alignof(dpaa_seqn_t),
 	};
 	unsigned int cpu, lcore = rte_lcore_id();
 	int ret;
@@ -791,6 +792,10 @@ dpaa_bus_dev_iterate(const void *start, const char *str,
 
 	/* Now that name=device_name format is available, split */
 	dup = strdup(str);
+	if (dup == NULL) {
+		DPAA_BUS_DEBUG("Dup string (%s) failed!\n", str);
+		return NULL;
+	}
 	dev_name = dup + strlen("name=");
 
 	if (start != NULL) {

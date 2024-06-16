@@ -1,4 +1,4 @@
-DPDK_23 {
+DPDK_24 {
 	global:
 
 	rte_pci_dump;
@@ -17,16 +17,27 @@ DPDK_23 {
 EXPERIMENTAL {
 	global:
 
+	# added in 20.11
 	rte_pci_find_ext_capability;
 
 	# added in 21.08
 	rte_pci_set_bus_master;
+
+	# added in 23.07
+	rte_pci_mmio_read;
+	rte_pci_mmio_write;
+
+	# added in 23.11
+	rte_pci_find_capability;
+	rte_pci_find_next_capability;
+	rte_pci_has_capability_list;
 };
 
 INTERNAL {
 	global:
 
 	rte_pci_get_sysfs_path;
+	rte_pci_pasid_set_state;
 	rte_pci_register;
 	rte_pci_unregister;
 };

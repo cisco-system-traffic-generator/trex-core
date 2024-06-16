@@ -18,7 +18,7 @@ roc_npa_lf_init_cb_register(roc_npa_lf_init_cb_t cb)
 }
 
 void
-roc_npa_aura_op_range_set(uint64_t aura_handle, uint64_t start_iova,
+roc_npa_pool_op_range_set(uint64_t aura_handle, uint64_t start_iova,
 			  uint64_t end_iova)
 {
 	const uint64_t start = roc_npa_aura_handle_to_base(aura_handle) +
@@ -32,11 +32,44 @@ roc_npa_aura_op_range_set(uint64_t aura_handle, uint64_t start_iova,
 	PLT_ASSERT(lf);
 	lim = lf->aura_lim;
 
+	/* Change the range bookkeeping in software as well as in hardware */
 	lim[reg].ptr_start = PLT_MIN(lim[reg].ptr_start, start_iova);
 	lim[reg].ptr_end = PLT_MAX(lim[reg].ptr_end, end_iova);
 
 	roc_store_pair(lim[reg].ptr_start, reg, start);
 	roc_store_pair(lim[reg].ptr_end, reg, end);
+}
+
+void
+roc_npa_aura_op_range_set(uint64_t aura_handle, uint64_t start_iova,
+			  uint64_t end_iova)
+{
+	uint64_t reg = roc_npa_aura_handle_to_aura(aura_handle);
+	struct npa_lf *lf = idev_npa_obj_get();
+	struct npa_aura_lim *lim;
+
+	PLT_ASSERT(lf);
+	lim = lf->aura_lim;
+
+	/* Change only the bookkeeping in software */
+	lim[reg].ptr_start = PLT_MIN(lim[reg].ptr_start, start_iova);
+	lim[reg].ptr_end = PLT_MAX(lim[reg].ptr_end, end_iova);
+}
+
+void
+roc_npa_aura_op_range_get(uint64_t aura_handle, uint64_t *start_iova,
+			  uint64_t *end_iova)
+{
+	uint64_t aura_id = roc_npa_aura_handle_to_aura(aura_handle);
+	struct npa_aura_lim *lim;
+	struct npa_lf *lf;
+
+	lf = idev_npa_obj_get();
+	PLT_ASSERT(lf);
+
+	lim = lf->aura_lim;
+	*start_iova = lim[aura_id].ptr_start;
+	*end_iova = lim[aura_id].ptr_end;
 }
 
 static int
@@ -86,6 +119,36 @@ exit:
 }
 
 static int
+npa_aura_init(struct mbox *m_box, uint32_t aura_id, struct npa_aura_s *aura)
+{
+	struct npa_aq_enq_req *aura_init_req;
+	struct npa_aq_enq_rsp *aura_init_rsp;
+	struct mbox *mbox;
+	int rc = -ENOSPC;
+
+	mbox = mbox_get(m_box);
+	aura_init_req = mbox_alloc_msg_npa_aq_enq(mbox);
+	if (aura_init_req == NULL)
+		goto exit;
+	aura_init_req->aura_id = aura_id;
+	aura_init_req->ctype = NPA_AQ_CTYPE_AURA;
+	aura_init_req->op = NPA_AQ_INSTOP_INIT;
+	mbox_memcpy(&aura_init_req->aura, aura, sizeof(*aura));
+
+	rc = mbox_process_msg(mbox, (void **)&aura_init_rsp);
+	if (rc < 0)
+		goto exit;
+
+	if (aura_init_rsp->hdr.rc == 0)
+		rc = 0;
+	else
+		rc = NPA_ERR_AURA_POOL_INIT;
+exit:
+	mbox_put(mbox);
+	return rc;
+}
+
+static int
 npa_aura_pool_fini(struct mbox *m_box, uint32_t aura_id, uint64_t aura_handle)
 {
 	struct npa_aq_enq_req *aura_req, *pool_req;
@@ -122,6 +185,8 @@ npa_aura_pool_fini(struct mbox *m_box, uint32_t aura_id, uint64_t aura_handle)
 	aura_req->op = NPA_AQ_INSTOP_WRITE;
 	aura_req->aura.ena = 0;
 	aura_req->aura_mask.ena = ~aura_req->aura_mask.ena;
+	aura_req->aura.bp_ena = 0;
+	aura_req->aura_mask.bp_ena = ~aura_req->aura_mask.bp_ena;
 
 	rc = mbox_process(mbox);
 	if (rc < 0)
@@ -134,8 +199,60 @@ npa_aura_pool_fini(struct mbox *m_box, uint32_t aura_id, uint64_t aura_handle)
 	off = mbox->rx_start + pool_rsp->hdr.next_msgoff;
 	aura_rsp = (struct npa_aq_enq_rsp *)((uintptr_t)mdev->mbase + off);
 
-	if (aura_rsp->hdr.rc != 0 || pool_rsp->hdr.rc != 0)
-		return NPA_ERR_AURA_POOL_FINI;
+	if (aura_rsp->hdr.rc != 0 || pool_rsp->hdr.rc != 0) {
+		rc = NPA_ERR_AURA_POOL_FINI;
+		goto exit;
+	}
+
+	/* Sync NDC-NPA for LF */
+	ndc_req = mbox_alloc_msg_ndc_sync_op(mbox);
+	if (ndc_req == NULL) {
+		rc = -ENOSPC;
+		goto exit;
+	}
+	ndc_req->npa_lf_sync = 1;
+	rc = mbox_process(mbox);
+	if (rc) {
+		plt_err("Error on NDC-NPA LF sync, rc %d", rc);
+		rc = NPA_ERR_AURA_POOL_FINI;
+		goto exit;
+	}
+	rc = 0;
+exit:
+	mbox_put(mbox);
+	return rc;
+}
+
+static int
+npa_aura_fini(struct mbox *m_box, uint32_t aura_id)
+{
+	struct npa_aq_enq_req *aura_req;
+	struct npa_aq_enq_rsp *aura_rsp;
+	struct ndc_sync_op *ndc_req;
+	struct mbox *mbox;
+	int rc = -ENOSPC;
+
+	/* Procedure for disabling an aura/pool */
+	plt_delay_us(10);
+
+	mbox = mbox_get(m_box);
+	aura_req = mbox_alloc_msg_npa_aq_enq(mbox);
+	if (aura_req == NULL)
+		goto exit;
+	aura_req->aura_id = aura_id;
+	aura_req->ctype = NPA_AQ_CTYPE_AURA;
+	aura_req->op = NPA_AQ_INSTOP_WRITE;
+	aura_req->aura.ena = 0;
+	aura_req->aura_mask.ena = ~aura_req->aura_mask.ena;
+
+	rc = mbox_process_msg(mbox, (void **)&aura_rsp);
+	if (rc < 0)
+		goto exit;
+
+	if (aura_rsp->hdr.rc != 0) {
+		rc = NPA_ERR_AURA_POOL_FINI;
+		goto exit;
+	}
 
 	/* Sync NDC-NPA for LF */
 	ndc_req = mbox_alloc_msg_ndc_sync_op(mbox);
@@ -283,7 +400,7 @@ bitmap_ctzll(uint64_t slab)
 	if (slab == 0)
 		return 0;
 
-	return __builtin_ctzll(slab);
+	return plt_ctz64(slab);
 }
 
 static int
@@ -400,7 +517,11 @@ npa_aura_pool_pair_alloc(struct npa_lf *lf, const uint32_t block_size,
 	/* Update pool fields */
 	pool->stack_base = mz->iova;
 	pool->ena = 1;
-	pool->buf_size = block_size / ROC_ALIGN;
+	/* In opaque mode buffer size must be 0 */
+	if (!pool->nat_align)
+		pool->buf_size = 0;
+	else
+		pool->buf_size = block_size / ROC_ALIGN;
 	pool->stack_max_pages = stack_size;
 	pool->shift = plt_log2_u32(block_count);
 	pool->shift = pool->shift < 8 ? 0 : pool->shift - 8;
@@ -420,6 +541,8 @@ npa_aura_pool_pair_alloc(struct npa_lf *lf, const uint32_t block_size,
 	if (rc)
 		goto stack_mem_free;
 
+	lf->aura_attr[aura_id].shift = aura->shift;
+	lf->aura_attr[aura_id].limit = aura->limit;
 	*aura_handle = roc_npa_aura_handle_gen(aura_id, lf->base);
 	/* Update aura count */
 	roc_npa_aura_op_cnt_set(*aura_handle, 0, block_count);
@@ -493,6 +616,110 @@ error:
 	return rc;
 }
 
+static int
+npa_aura_alloc(struct npa_lf *lf, const uint32_t block_count, int pool_id,
+	       struct npa_aura_s *aura, uint64_t *aura_handle, uint32_t flags)
+{
+	int rc, aura_id;
+
+	/* Sanity check */
+	if (!lf || !aura || !aura_handle)
+		return NPA_ERR_PARAM;
+
+	roc_npa_dev_lock();
+	/* Get aura_id from resource bitmap */
+	aura_id = find_free_aura(lf, flags);
+	if (aura_id < 0) {
+		roc_npa_dev_unlock();
+		return NPA_ERR_AURA_ID_ALLOC;
+	}
+
+	/* Mark aura as reserved */
+	plt_bitmap_clear(lf->npa_bmp, aura_id);
+
+	roc_npa_dev_unlock();
+	rc = (aura_id < 0 || pool_id >= (int)lf->nr_pools ||
+	      aura_id >= (int)BIT_ULL(6 + lf->aura_sz)) ?
+			NPA_ERR_AURA_ID_ALLOC :
+			0;
+	if (rc)
+		goto exit;
+
+	/* Update aura fields */
+	aura->pool_addr = pool_id; /* AF will translate to associated poolctx */
+	aura->ena = 1;
+	aura->shift = plt_log2_u32(block_count);
+	aura->shift = aura->shift < 8 ? 0 : aura->shift - 8;
+	aura->limit = block_count;
+	aura->pool_caching = 1;
+	aura->err_int_ena = BIT(NPA_AURA_ERR_INT_AURA_ADD_OVER);
+	aura->err_int_ena |= BIT(NPA_AURA_ERR_INT_AURA_ADD_UNDER);
+	aura->err_int_ena |= BIT(NPA_AURA_ERR_INT_AURA_FREE_UNDER);
+	aura->err_int_ena |= BIT(NPA_AURA_ERR_INT_POOL_DIS);
+	aura->avg_con = 0;
+	/* Many to one reduction */
+	aura->err_qint_idx = aura_id % lf->qints;
+
+	/* Issue AURA_INIT and POOL_INIT op */
+	rc = npa_aura_init(lf->mbox, aura_id, aura);
+	if (rc)
+		return rc;
+
+	lf->aura_attr[aura_id].shift = aura->shift;
+	lf->aura_attr[aura_id].limit = aura->limit;
+	*aura_handle = roc_npa_aura_handle_gen(aura_id, lf->base);
+
+	return 0;
+
+exit:
+	return rc;
+}
+
+int
+roc_npa_aura_create(uint64_t *aura_handle, uint32_t block_count,
+		    struct npa_aura_s *aura, int pool_id, uint32_t flags)
+{
+	struct npa_aura_s defaura;
+	struct idev_cfg *idev;
+	struct npa_lf *lf;
+	int rc;
+
+	lf = idev_npa_obj_get();
+	if (lf == NULL) {
+		rc = NPA_ERR_DEVICE_NOT_BOUNDED;
+		goto error;
+	}
+
+	idev = idev_get_cfg();
+	if (idev == NULL) {
+		rc = NPA_ERR_ALLOC;
+		goto error;
+	}
+
+	if (flags & ROC_NPA_ZERO_AURA_F && !lf->zero_aura_rsvd) {
+		rc = NPA_ERR_ALLOC;
+		goto error;
+	}
+
+	if (aura == NULL) {
+		memset(&defaura, 0, sizeof(struct npa_aura_s));
+		aura = &defaura;
+	}
+
+	rc = npa_aura_alloc(lf, block_count, pool_id, aura, aura_handle, flags);
+	if (rc) {
+		plt_err("Failed to alloc aura rc=%d", rc);
+		goto error;
+	}
+
+	plt_npa_dbg("lf=%p aura_handle=0x%" PRIx64, lf, *aura_handle);
+
+	/* Just hold the reference of the object */
+	__atomic_fetch_add(&idev->npa_refcnt, 1, __ATOMIC_SEQ_CST);
+error:
+	return rc;
+}
+
 int
 roc_npa_aura_limit_modify(uint64_t aura_handle, uint16_t aura_limit)
 {
@@ -518,6 +745,9 @@ roc_npa_aura_limit_modify(uint64_t aura_handle, uint16_t aura_limit)
 	aura_req->aura.limit = aura_limit;
 	aura_req->aura_mask.limit = ~(aura_req->aura_mask.limit);
 	rc = mbox_process(mbox);
+	if (rc)
+		goto exit;
+	lf->aura_attr[aura_req->aura_id].limit = aura_req->aura.limit;
 exit:
 	mbox_put(mbox);
 	return rc;
@@ -555,6 +785,45 @@ roc_npa_pool_destroy(uint64_t aura_handle)
 	rc = npa_aura_pool_pair_free(lf, aura_handle);
 	if (rc)
 		plt_err("Failed to destroy pool or aura rc=%d", rc);
+
+	/* Release the reference of npa */
+	rc |= npa_lf_fini();
+	return rc;
+}
+
+static int
+npa_aura_free(struct npa_lf *lf, uint64_t aura_handle)
+{
+	int aura_id, rc;
+
+	if (!lf || !aura_handle)
+		return NPA_ERR_PARAM;
+
+	aura_id = roc_npa_aura_handle_to_aura(aura_handle);
+	rc = npa_aura_fini(lf->mbox, aura_id);
+
+	if (rc)
+		return rc;
+
+	memset(&lf->aura_attr[aura_id], 0, sizeof(struct npa_aura_attr));
+
+	roc_npa_dev_lock();
+	plt_bitmap_set(lf->npa_bmp, aura_id);
+	roc_npa_dev_unlock();
+
+	return rc;
+}
+
+int
+roc_npa_aura_destroy(uint64_t aura_handle)
+{
+	struct npa_lf *lf = idev_npa_obj_get();
+	int rc = 0;
+
+	plt_npa_dbg("lf=%p aura_handle=0x%" PRIx64, lf, aura_handle);
+	rc = npa_aura_free(lf, aura_handle);
+	if (rc)
+		plt_err("Failed to destroy aura rc=%d", rc);
 
 	/* Release the reference of npa */
 	rc |= npa_lf_fini();
@@ -628,6 +897,64 @@ roc_npa_zero_aura_handle(void)
 	if (lf->zero_aura_rsvd)
 		return roc_npa_aura_handle_gen(0, lf->base);
 	return 0;
+}
+
+int
+roc_npa_aura_bp_configure(uint64_t aura_handle, uint16_t bpid, uint8_t bp_intf, uint8_t bp_thresh,
+			  bool enable)
+{
+	uint32_t aura_id = roc_npa_aura_handle_to_aura(aura_handle);
+	struct npa_lf *lf = idev_npa_obj_get();
+	struct npa_aq_enq_req *req;
+	struct mbox *mbox;
+	int rc = 0;
+
+	plt_npa_dbg("Setting BPID %u BP_INTF 0x%x BP_THRESH %u enable %u on aura %" PRIx64,
+		    bpid, bp_intf, bp_thresh, enable, aura_handle);
+
+	if (lf == NULL)
+		return NPA_ERR_PARAM;
+
+	mbox = mbox_get(lf->mbox);
+	req = mbox_alloc_msg_npa_aq_enq(mbox);
+	if (req == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+
+	req->aura_id = aura_id;
+	req->ctype = NPA_AQ_CTYPE_AURA;
+	req->op = NPA_AQ_INSTOP_WRITE;
+
+	if (enable) {
+		if (bp_intf & 0x1) {
+			req->aura.nix0_bpid = bpid;
+			req->aura_mask.nix0_bpid = ~(req->aura_mask.nix0_bpid);
+		} else {
+			req->aura.nix1_bpid = bpid;
+			req->aura_mask.nix1_bpid = ~(req->aura_mask.nix1_bpid);
+		}
+		req->aura.bp = bp_thresh;
+		req->aura_mask.bp = ~(req->aura_mask.bp);
+	} else {
+		req->aura.bp = 0;
+		req->aura_mask.bp = ~(req->aura_mask.bp);
+	}
+
+	req->aura.bp_ena = bp_intf;
+	req->aura_mask.bp_ena = ~(req->aura_mask.bp_ena);
+
+	rc = mbox_process(mbox);
+	if (rc)
+		goto fail;
+
+	lf->aura_attr[aura_id].nix0_bpid = req->aura.nix0_bpid;
+	lf->aura_attr[aura_id].nix1_bpid = req->aura.nix1_bpid;
+	lf->aura_attr[aura_id].bp_ena = req->aura.bp_ena;
+	lf->aura_attr[aura_id].bp = req->aura.bp;
+fail:
+	mbox_put(mbox);
+	return rc;
 }
 
 static inline int
@@ -946,7 +1273,7 @@ npa_lf_fini(void)
 		return NPA_ERR_ALLOC;
 
 	/* Not the last PCI device */
-	if (__atomic_sub_fetch(&idev->npa_refcnt, 1, __ATOMIC_SEQ_CST) != 0)
+	if (__atomic_fetch_sub(&idev->npa_refcnt, 1, __ATOMIC_SEQ_CST) - 1 != 0)
 		return 0;
 
 	npa_unregister_irqs(idev->npa);

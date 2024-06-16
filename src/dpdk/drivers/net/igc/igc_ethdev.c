@@ -107,6 +107,7 @@ static const struct rte_eth_desc_lim tx_desc_lim = {
 
 static const struct rte_pci_id pci_id_igc_map[] = {
 	{ RTE_PCI_DEVICE(IGC_INTEL_VENDOR_ID, IGC_DEV_ID_I225_LM) },
+	{ RTE_PCI_DEVICE(IGC_INTEL_VENDOR_ID, IGC_DEV_ID_I225_LMVP) },
 	{ RTE_PCI_DEVICE(IGC_INTEL_VENDOR_ID, IGC_DEV_ID_I225_V)  },
 	{ RTE_PCI_DEVICE(IGC_INTEL_VENDOR_ID, IGC_DEV_ID_I225_I)  },
 	{ RTE_PCI_DEVICE(IGC_INTEL_VENDOR_ID, IGC_DEV_ID_I225_IT)  },
@@ -206,7 +207,8 @@ static int eth_igc_infos_get(struct rte_eth_dev *dev,
 			struct rte_eth_dev_info *dev_info);
 static int eth_igc_led_on(struct rte_eth_dev *dev);
 static int eth_igc_led_off(struct rte_eth_dev *dev);
-static const uint32_t *eth_igc_supported_ptypes_get(struct rte_eth_dev *dev);
+static const uint32_t *eth_igc_supported_ptypes_get(struct rte_eth_dev *dev,
+						    size_t *no_of_elements);
 static int eth_igc_rar_set(struct rte_eth_dev *dev,
 		struct rte_ether_addr *mac_addr, uint32_t index, uint32_t pool);
 static void eth_igc_rar_clear(struct rte_eth_dev *dev, uint32_t index);
@@ -1649,7 +1651,8 @@ eth_igc_led_off(struct rte_eth_dev *dev)
 }
 
 static const uint32_t *
-eth_igc_supported_ptypes_get(__rte_unused struct rte_eth_dev *dev)
+eth_igc_supported_ptypes_get(__rte_unused struct rte_eth_dev *dev,
+			     size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		/* refers to rx_desc_pkt_info_to_pkt_type() */
@@ -1666,9 +1669,9 @@ eth_igc_supported_ptypes_get(__rte_unused struct rte_eth_dev *dev)
 		RTE_PTYPE_INNER_L3_IPV6_EXT,
 		RTE_PTYPE_INNER_L4_TCP,
 		RTE_PTYPE_INNER_L4_UDP,
-		RTE_PTYPE_UNKNOWN
 	};
 
+	*no_of_elements = RTE_DIM(ptypes);
 	return ptypes;
 }
 
@@ -2852,7 +2855,7 @@ eth_igc_timesync_disable(struct rte_eth_dev *dev)
 	IGC_WRITE_REG(hw, IGC_TSYNCRXCTL, 0);
 
 	val = IGC_READ_REG(hw, IGC_RXPBS);
-	val &= IGC_RXPBS_CFG_TS_EN;
+	val &= ~IGC_RXPBS_CFG_TS_EN;
 	IGC_WRITE_REG(hw, IGC_RXPBS, val);
 
 	val = IGC_READ_REG(hw, IGC_SRRCTL(0));

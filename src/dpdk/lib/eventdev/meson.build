@@ -7,16 +7,11 @@ if is_windows
     subdir_done()
 endif
 
-if is_linux
-    cflags += '-DLINUX'
-else
-    cflags += '-DBSD'
-endif
-
 sources = files(
         'eventdev_private.c',
         'eventdev_trace_points.c',
         'rte_event_crypto_adapter.c',
+        'rte_event_dma_adapter.c',
         'rte_event_eth_rx_adapter.c',
         'rte_event_eth_tx_adapter.c',
         'rte_event_ring.c',
@@ -25,6 +20,7 @@ sources = files(
 )
 headers = files(
         'rte_event_crypto_adapter.h',
+        'rte_event_dma_adapter.h',
         'rte_event_eth_rx_adapter.h',
         'rte_event_eth_tx_adapter.h',
         'rte_event_ring.h',
@@ -42,5 +38,5 @@ driver_sdk_headers += files(
         'event_timer_adapter_pmd.h',
 )
 
-deps += ['ring', 'ethdev', 'hash', 'mempool', 'mbuf', 'timer', 'cryptodev']
+deps += ['ring', 'ethdev', 'hash', 'mempool', 'mbuf', 'timer', 'cryptodev', 'dmadev']
 deps += ['telemetry']

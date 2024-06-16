@@ -276,14 +276,14 @@ idpf_qc_single_tx_queue_reset(struct idpf_tx_queue *txq)
 	}
 
 	txe = txq->sw_ring;
-	size = sizeof(struct idpf_flex_tx_desc) * txq->nb_tx_desc;
+	size = sizeof(struct idpf_base_tx_desc) * txq->nb_tx_desc;
 	for (i = 0; i < size; i++)
 		((volatile char *)txq->tx_ring)[i] = 0;
 
 	prev = (uint16_t)(txq->nb_tx_desc - 1);
 	for (i = 0; i < txq->nb_tx_desc; i++) {
-		txq->tx_ring[i].qw1.cmd_dtype =
-			rte_cpu_to_le_16(IDPF_TX_DESC_DTYPE_DESC_DONE);
+		txq->tx_ring[i].qw1 =
+			rte_cpu_to_le_64(IDPF_TX_DESC_DTYPE_DESC_DONE);
 		txe[i].mbuf =  NULL;
 		txe[i].last_id = i;
 		txe[prev].next_id = i;
@@ -871,6 +871,7 @@ idpf_dp_splitq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	uint16_t nb_to_clean;
 	uint16_t nb_tx = 0;
 	uint64_t ol_flags;
+	uint8_t cmd_dtype;
 	uint16_t nb_ctx;
 
 	if (unlikely(txq == NULL) || unlikely(!txq->q_started))
@@ -902,6 +903,7 @@ idpf_dp_splitq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		if (txq->nb_free < tx_pkt->nb_segs)
 			break;
 
+		cmd_dtype = 0;
 		ol_flags = tx_pkt->ol_flags;
 		tx_offload.l2_len = tx_pkt->l2_len;
 		tx_offload.l3_len = tx_pkt->l3_len;
@@ -910,6 +912,9 @@ idpf_dp_splitq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		/* Calculate the number of context descriptors needed. */
 		nb_ctx = idpf_calc_context_desc(ol_flags);
 		nb_used = tx_pkt->nb_segs + nb_ctx;
+
+		if (ol_flags & IDPF_TX_CKSUM_OFFLOAD_MASK)
+			cmd_dtype = IDPF_TXD_FLEX_FLOW_CMD_CS_EN;
 
 		/* context descriptor */
 		if (nb_ctx != 0) {
@@ -933,8 +938,8 @@ idpf_dp_splitq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			/* Setup TX descriptor */
 			txd->buf_addr =
 				rte_cpu_to_le_64(rte_mbuf_data_iova(tx_pkt));
-			txd->qw1.cmd_dtype =
-				rte_cpu_to_le_16(IDPF_TX_DESC_DTYPE_FLEX_FLOW_SCHE);
+			cmd_dtype |= IDPF_TX_DESC_DTYPE_FLEX_FLOW_SCHE;
+			txd->qw1.cmd_dtype = cmd_dtype;
 			txd->qw1.rxr_bufsize = tx_pkt->data_len;
 			txd->qw1.compl_tag = sw_id;
 			tx_id++;
@@ -948,8 +953,6 @@ idpf_dp_splitq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		/* fill the last descriptor with End of Packet (EOP) bit */
 		txd->qw1.cmd_dtype |= IDPF_TXD_FLEX_FLOW_CMD_EOP;
 
-		if (ol_flags & IDPF_TX_CKSUM_OFFLOAD_MASK)
-			txd->qw1.cmd_dtype |= IDPF_TXD_FLEX_FLOW_CMD_CS_EN;
 		txq->nb_free = (uint16_t)(txq->nb_free - nb_used);
 		txq->nb_used = (uint16_t)(txq->nb_used + nb_used);
 
@@ -1307,17 +1310,16 @@ idpf_xmit_cleanup(struct idpf_tx_queue *txq)
 	uint16_t nb_tx_to_clean;
 	uint16_t i;
 
-	volatile struct idpf_flex_tx_desc *txd = txq->tx_ring;
+	volatile struct idpf_base_tx_desc *txd = txq->tx_ring;
 
 	desc_to_clean_to = (uint16_t)(last_desc_cleaned + txq->rs_thresh);
 	if (desc_to_clean_to >= nb_tx_desc)
 		desc_to_clean_to = (uint16_t)(desc_to_clean_to - nb_tx_desc);
 
 	desc_to_clean_to = sw_ring[desc_to_clean_to].last_id;
-	/* In the writeback Tx desccriptor, the only significant fields are the 4-bit DTYPE */
-	if ((txd[desc_to_clean_to].qw1.cmd_dtype &
-	     rte_cpu_to_le_16(IDPF_TXD_QW1_DTYPE_M)) !=
-	    rte_cpu_to_le_16(IDPF_TX_DESC_DTYPE_DESC_DONE)) {
+	if ((txd[desc_to_clean_to].qw1 &
+	     rte_cpu_to_le_64(IDPF_TXD_QW1_DTYPE_M)) !=
+	    rte_cpu_to_le_64(IDPF_TX_DESC_DTYPE_DESC_DONE)) {
 		TX_LOG(DEBUG, "TX descriptor %4u is not done "
 		       "(port=%d queue=%d)", desc_to_clean_to,
 		       txq->port_id, txq->queue_id);
@@ -1331,10 +1333,7 @@ idpf_xmit_cleanup(struct idpf_tx_queue *txq)
 		nb_tx_to_clean = (uint16_t)(desc_to_clean_to -
 					    last_desc_cleaned);
 
-	txd[desc_to_clean_to].qw1.cmd_dtype = 0;
-	txd[desc_to_clean_to].qw1.buf_size = 0;
-	for (i = 0; i < RTE_DIM(txd[desc_to_clean_to].qw1.flex.raw); i++)
-		txd[desc_to_clean_to].qw1.flex.raw[i] = 0;
+	txd[desc_to_clean_to].qw1 = 0;
 
 	txq->last_desc_cleaned = desc_to_clean_to;
 	txq->nb_free = (uint16_t)(txq->nb_free + nb_tx_to_clean);
@@ -1347,8 +1346,8 @@ uint16_t
 idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			  uint16_t nb_pkts)
 {
-	volatile struct idpf_flex_tx_desc *txd;
-	volatile struct idpf_flex_tx_desc *txr;
+	volatile struct idpf_base_tx_desc *txd;
+	volatile struct idpf_base_tx_desc *txr;
 	union idpf_tx_offload tx_offload = {0};
 	struct idpf_tx_entry *txe, *txn;
 	struct idpf_tx_entry *sw_ring;
@@ -1356,6 +1355,7 @@ idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 	struct rte_mbuf *tx_pkt;
 	struct rte_mbuf *m_seg;
 	uint64_t buf_dma_addr;
+	uint32_t td_offset;
 	uint64_t ol_flags;
 	uint16_t tx_last;
 	uint16_t nb_used;
@@ -1382,6 +1382,7 @@ idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 	for (nb_tx = 0; nb_tx < nb_pkts; nb_tx++) {
 		td_cmd = 0;
+		td_offset = 0;
 
 		tx_pkt = *tx_pkts++;
 		RTE_MBUF_PREFETCH_TO_FREE(txe->mbuf);
@@ -1426,6 +1427,9 @@ idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			}
 		}
 
+		if (ol_flags & IDPF_TX_CKSUM_OFFLOAD_MASK)
+			td_cmd |= IDPF_TX_FLEX_DESC_CMD_CS_EN;
+
 		if (nb_ctx != 0) {
 			/* Setup TX context descriptor if required */
 			volatile union idpf_flex_tx_ctx_desc *ctx_txd =
@@ -1462,9 +1466,10 @@ idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			slen = m_seg->data_len;
 			buf_dma_addr = rte_mbuf_data_iova(m_seg);
 			txd->buf_addr = rte_cpu_to_le_64(buf_dma_addr);
-			txd->qw1.buf_size = slen;
-			txd->qw1.cmd_dtype = rte_cpu_to_le_16(IDPF_TX_DESC_DTYPE_FLEX_DATA <<
-							      IDPF_FLEX_TXD_QW1_DTYPE_S);
+			txd->qw1 = rte_cpu_to_le_64(IDPF_TX_DESC_DTYPE_DATA |
+				((uint64_t)td_cmd  << IDPF_TXD_QW1_CMD_S) |
+				((uint64_t)td_offset << IDPF_TXD_QW1_OFFSET_S) |
+				((uint64_t)slen << IDPF_TXD_QW1_TX_BUF_SZ_S));
 
 			txe->last_id = tx_last;
 			tx_id = txe->next_id;
@@ -1473,7 +1478,7 @@ idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		} while (m_seg);
 
 		/* The last packet data descriptor needs End Of Packet (EOP) */
-		td_cmd |= IDPF_TX_FLEX_DESC_CMD_EOP;
+		td_cmd |= IDPF_TX_DESC_CMD_EOP;
 		txq->nb_used = (uint16_t)(txq->nb_used + nb_used);
 		txq->nb_free = (uint16_t)(txq->nb_free - nb_used);
 
@@ -1482,16 +1487,13 @@ idpf_dp_singleq_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			       "%4u (port=%d queue=%d)",
 			       tx_last, txq->port_id, txq->queue_id);
 
-			td_cmd |= IDPF_TX_FLEX_DESC_CMD_RS;
+			td_cmd |= IDPF_TX_DESC_CMD_RS;
 
 			/* Update txq RS bit counters */
 			txq->nb_used = 0;
 		}
 
-		if (ol_flags & IDPF_TX_CKSUM_OFFLOAD_MASK)
-			td_cmd |= IDPF_TX_FLEX_DESC_CMD_CS_EN;
-
-		txd->qw1.cmd_dtype |= rte_cpu_to_le_16(td_cmd << IDPF_FLEX_TXD_QW1_CMD_S);
+		txd->qw1 |= rte_cpu_to_le_16(td_cmd << IDPF_TXD_QW1_CMD_S);
 	}
 
 end_of_tx:

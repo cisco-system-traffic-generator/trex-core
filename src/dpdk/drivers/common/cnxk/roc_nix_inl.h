@@ -4,24 +4,6 @@
 #ifndef _ROC_NIX_INL_H_
 #define _ROC_NIX_INL_H_
 
-/* ONF INB HW area */
-#define ROC_NIX_INL_ONF_IPSEC_INB_HW_SZ                                        \
-	PLT_ALIGN(sizeof(struct roc_onf_ipsec_inb_sa), ROC_ALIGN)
-/* ONF INB SW reserved area */
-#define ROC_NIX_INL_ONF_IPSEC_INB_SW_RSVD 384
-#define ROC_NIX_INL_ONF_IPSEC_INB_SA_SZ                                        \
-	(ROC_NIX_INL_ONF_IPSEC_INB_HW_SZ + ROC_NIX_INL_ONF_IPSEC_INB_SW_RSVD)
-#define ROC_NIX_INL_ONF_IPSEC_INB_SA_SZ_LOG2 9
-
-/* ONF OUTB HW area */
-#define ROC_NIX_INL_ONF_IPSEC_OUTB_HW_SZ                                       \
-	PLT_ALIGN(sizeof(struct roc_onf_ipsec_outb_sa), ROC_ALIGN)
-/* ONF OUTB SW reserved area */
-#define ROC_NIX_INL_ONF_IPSEC_OUTB_SW_RSVD 128
-#define ROC_NIX_INL_ONF_IPSEC_OUTB_SA_SZ                                       \
-	(ROC_NIX_INL_ONF_IPSEC_OUTB_HW_SZ + ROC_NIX_INL_ONF_IPSEC_OUTB_SW_RSVD)
-#define ROC_NIX_INL_ONF_IPSEC_OUTB_SA_SZ_LOG2 8
-
 /* ON INB HW area */
 #define ROC_NIX_INL_ON_IPSEC_INB_HW_SZ                                         \
 	PLT_ALIGN(sizeof(struct roc_ie_on_inb_sa), ROC_ALIGN)
@@ -31,10 +13,10 @@
 	(ROC_NIX_INL_ON_IPSEC_INB_HW_SZ + ROC_NIX_INL_ON_IPSEC_INB_SW_RSVD)
 #define ROC_NIX_INL_ON_IPSEC_INB_SA_SZ_LOG2 10
 
-/* ONF OUTB HW area */
+/* ON OUTB HW area */
 #define ROC_NIX_INL_ON_IPSEC_OUTB_HW_SZ                                        \
 	PLT_ALIGN(sizeof(struct roc_ie_on_outb_sa), ROC_ALIGN)
-/* ONF OUTB SW reserved area */
+/* ON OUTB SW reserved area */
 #define ROC_NIX_INL_ON_IPSEC_OUTB_SW_RSVD 256
 #define ROC_NIX_INL_ON_IPSEC_OUTB_SA_SZ                                        \
 	(ROC_NIX_INL_ON_IPSEC_OUTB_HW_SZ + ROC_NIX_INL_ON_IPSEC_OUTB_SW_RSVD)
@@ -86,34 +68,6 @@ roc_nix_inl_on_ipsec_outb_sa_sw_rsvd(void *sa)
 	return PLT_PTR_ADD(sa, ROC_NIX_INL_ON_IPSEC_OUTB_HW_SZ);
 }
 
-static inline struct roc_onf_ipsec_inb_sa *
-roc_nix_inl_onf_ipsec_inb_sa(uintptr_t base, uint64_t idx)
-{
-	uint64_t off = idx << ROC_NIX_INL_ONF_IPSEC_INB_SA_SZ_LOG2;
-
-	return PLT_PTR_ADD(base, off);
-}
-
-static inline struct roc_onf_ipsec_outb_sa *
-roc_nix_inl_onf_ipsec_outb_sa(uintptr_t base, uint64_t idx)
-{
-	uint64_t off = idx << ROC_NIX_INL_ONF_IPSEC_OUTB_SA_SZ_LOG2;
-
-	return PLT_PTR_ADD(base, off);
-}
-
-static inline void *
-roc_nix_inl_onf_ipsec_inb_sa_sw_rsvd(void *sa)
-{
-	return PLT_PTR_ADD(sa, ROC_NIX_INL_ONF_IPSEC_INB_HW_SZ);
-}
-
-static inline void *
-roc_nix_inl_onf_ipsec_outb_sa_sw_rsvd(void *sa)
-{
-	return PLT_PTR_ADD(sa, ROC_NIX_INL_ONF_IPSEC_OUTB_HW_SZ);
-}
-
 /* Inline device SSO Work callback */
 typedef void (*roc_nix_inl_sso_work_cb_t)(uint64_t *gw, void *args,
 					  uint32_t soft_exp_event);
@@ -121,6 +75,9 @@ typedef void (*roc_nix_inl_sso_work_cb_t)(uint64_t *gw, void *args,
 typedef int (*roc_nix_inl_meta_pool_cb_t)(uint64_t *aura_handle,  uintptr_t *mpool,
 					  uint32_t blk_sz, uint32_t nb_bufs, bool destroy,
 					  const char *mempool_name);
+typedef int (*roc_nix_inl_custom_meta_pool_cb_t)(uintptr_t pmpool, uintptr_t *mpool,
+						 const char *mempool_name, uint64_t *aura_handle,
+						 uint32_t blk_sz, uint32_t nb_bufs, bool destroy);
 
 struct roc_nix_inl_dev {
 	/* Input parameters */
@@ -139,9 +96,10 @@ struct roc_nix_inl_dev {
 	uint32_t nb_meta_bufs;
 	uint32_t meta_buf_sz;
 	uint32_t max_ipsec_rules;
+	uint8_t rx_inj_ena; /* Rx Inject Enable */
 	/* End of input parameters */
 
-#define ROC_NIX_INL_MEM_SZ (1280)
+#define ROC_NIX_INL_MEM_SZ (1408)
 	uint8_t reserved[ROC_NIX_INL_MEM_SZ] __plt_cache_aligned;
 } __plt_cache_aligned;
 
@@ -155,6 +113,8 @@ void __roc_api roc_nix_inl_dev_unlock(void);
 int __roc_api roc_nix_inl_dev_xaq_realloc(uint64_t aura_handle);
 int __roc_api roc_nix_inl_dev_stats_get(struct roc_nix_stats *stats);
 uint16_t __roc_api roc_nix_inl_dev_pffunc_get(void);
+int __roc_api roc_nix_inl_dev_cpt_setup(bool use_inl_dev_sso);
+int __roc_api roc_nix_inl_dev_cpt_release(void);
 
 /* NIX Inline Inbound API */
 int __roc_api roc_nix_inl_inb_init(struct roc_nix *roc_nix);
@@ -162,6 +122,7 @@ int __roc_api roc_nix_inl_inb_fini(struct roc_nix *roc_nix);
 bool __roc_api roc_nix_inl_inb_is_enabled(struct roc_nix *roc_nix);
 uintptr_t __roc_api roc_nix_inl_inb_sa_base_get(struct roc_nix *roc_nix,
 						bool inl_dev_sa);
+bool __roc_api roc_nix_inl_inb_rx_inject_enable(struct roc_nix *roc_nix, bool inl_dev_sa);
 uint32_t __roc_api roc_nix_inl_inb_spi_range(struct roc_nix *roc_nix,
 					     bool inl_dev_sa, uint32_t *min,
 					     uint32_t *max);
@@ -191,6 +152,7 @@ bool __roc_api roc_nix_inl_outb_is_enabled(struct roc_nix *roc_nix);
 uintptr_t __roc_api roc_nix_inl_outb_sa_base_get(struct roc_nix *roc_nix);
 struct roc_cpt_lf *__roc_api
 roc_nix_inl_outb_lf_base_get(struct roc_nix *roc_nix);
+struct roc_cpt_lf *__roc_api roc_nix_inl_inb_inj_lf_get(struct roc_nix *roc_nix);
 uint16_t __roc_api roc_nix_inl_outb_sso_pffunc_get(struct roc_nix *roc_nix);
 int __roc_api roc_nix_inl_cb_register(roc_nix_inl_sso_work_cb_t cb, void *args);
 int __roc_api roc_nix_inl_cb_unregister(roc_nix_inl_sso_work_cb_t cb,
@@ -199,6 +161,7 @@ int __roc_api roc_nix_inl_outb_soft_exp_poll_switch(struct roc_nix *roc_nix,
 						    bool poll);
 uint64_t *__roc_api roc_nix_inl_outb_ring_base_get(struct roc_nix *roc_nix);
 void __roc_api roc_nix_inl_meta_pool_cb_register(roc_nix_inl_meta_pool_cb_t cb);
+void __roc_api roc_nix_inl_custom_meta_pool_cb_register(roc_nix_inl_custom_meta_pool_cb_t cb);
 
 /* NIX Inline/Outbound API */
 enum roc_nix_inl_sa_sync_op {
@@ -212,5 +175,6 @@ int __roc_api roc_nix_inl_sa_sync(struct roc_nix *roc_nix, void *sa, bool inb,
 int __roc_api roc_nix_inl_ctx_write(struct roc_nix *roc_nix, void *sa_dptr,
 				    void *sa_cptr, bool inb, uint16_t sa_len);
 void __roc_api roc_nix_inl_outb_cpt_lfs_dump(struct roc_nix *roc_nix, FILE *file);
+uint64_t __roc_api roc_nix_inl_eng_caps_get(struct roc_nix *roc_nix);
 
 #endif /* _ROC_NIX_INL_H_ */

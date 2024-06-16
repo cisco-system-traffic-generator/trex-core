@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2022 Intel Corporation
+ * Copyright(c) 2001-2023 Intel Corporation
  */
 
 #ifndef _IDPF_PROTOTYPE_H_
@@ -15,12 +15,12 @@
 #include "idpf_lan_pf_regs.h"
 #include "idpf_lan_vf_regs.h"
 #include "idpf_lan_txrx.h"
-#include "virtchnl.h"
+#include <virtchnl.h>
 
 #define APF
 
 int idpf_init_hw(struct idpf_hw *hw, struct idpf_ctlq_size ctlq_size);
-int idpf_deinit_hw(struct idpf_hw *hw);
+void idpf_deinit_hw(struct idpf_hw *hw);
 
 int idpf_clean_arq_element(struct idpf_hw *hw,
 			   struct idpf_arq_event_info *e,
@@ -40,6 +40,6 @@ int idpf_set_rss_key(struct idpf_hw *hw, u16 seid,
 int idpf_set_mac_type(struct idpf_hw *hw);
 
 int idpf_reset(struct idpf_hw *hw);
-int idpf_send_msg_to_cp(struct idpf_hw *hw, enum virtchnl_ops v_opcode,
+int idpf_send_msg_to_cp(struct idpf_hw *hw, int v_opcode,
 			int v_retval, u8 *msg, u16 msglen);
 #endif /* _IDPF_PROTOTYPE_H_ */

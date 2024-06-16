@@ -145,13 +145,13 @@ struct table_params {
 	size_t total_size;
 };
 
-struct table {
+struct __rte_cache_aligned table {
 	/* Table parameters. */
 	struct table_params params;
 
 	/* Table buckets. */
 	uint8_t buckets[];
-} __rte_cache_aligned;
+};
 
 /* The timeout (in cycles) is stored in the table as a 32-bit value by truncating its least
  * significant 32 bits. Therefore, to make sure the time is always advancing when adding the timeout
@@ -202,7 +202,7 @@ table_params_get(struct table_params *p, struct rte_swx_table_learner_params *pa
 
 	p->key_size_pow2 = rte_align64pow2(p->key_size);
 
-	p->key_size_log2 = __builtin_ctzll(p->key_size_pow2);
+	p->key_size_log2 = rte_ctz64(p->key_size_pow2);
 
 	p->key_offset = params->key_offset;
 
@@ -211,7 +211,7 @@ table_params_get(struct table_params *p, struct rte_swx_table_learner_params *pa
 
 	p->data_size_pow2 = rte_align64pow2(sizeof(uint64_t) + p->action_data_size);
 
-	p->data_size_log2 = __builtin_ctzll(p->data_size_pow2);
+	p->data_size_log2 = rte_ctz64(p->data_size_pow2);
 
 	/* Buckets. */
 	p->n_buckets = rte_align32pow2(params->n_keys_max);
@@ -224,7 +224,7 @@ table_params_get(struct table_params *p, struct rte_swx_table_learner_params *pa
 					 p->bucket_key_all_size +
 					 TABLE_KEYS_PER_BUCKET * p->data_size_pow2);
 
-	p->bucket_size_log2 = __builtin_ctzll(p->bucket_size);
+	p->bucket_size_log2 = rte_ctz64(p->bucket_size);
 
 	p->hash_func = params->hash_func ? params->hash_func : rte_hash_crc;
 

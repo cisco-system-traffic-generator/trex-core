@@ -2,8 +2,9 @@
  * Copyright(c) 2010-2014 Intel Corporation
  */
 
-#include <string.h>
+#include <stdalign.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <rte_common.h>
 #include <rte_malloc.h>
@@ -11,6 +12,8 @@
 #include <rte_lpm6.h>
 
 #include "rte_table_lpm_ipv6.h"
+
+#include "table_log.h"
 
 #define RTE_TABLE_LPM_MAX_NEXT_HOPS                        256
 
@@ -42,7 +45,7 @@ struct rte_table_lpm_ipv6 {
 
 	/* Next Hop Table (NHT) */
 	uint32_t nht_users[RTE_TABLE_LPM_MAX_NEXT_HOPS];
-	uint8_t nht[0] __rte_cache_aligned;
+	alignas(RTE_CACHE_LINE_SIZE) uint8_t nht[0];
 };
 
 static void *
@@ -56,29 +59,29 @@ rte_table_lpm_ipv6_create(void *params, int socket_id, uint32_t entry_size)
 
 	/* Check input parameters */
 	if (p == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: NULL input parameters\n", __func__);
+		TABLE_LOG(ERR, "%s: NULL input parameters", __func__);
 		return NULL;
 	}
 	if (p->n_rules == 0) {
-		RTE_LOG(ERR, TABLE, "%s: Invalid n_rules\n", __func__);
+		TABLE_LOG(ERR, "%s: Invalid n_rules", __func__);
 		return NULL;
 	}
 	if (p->number_tbl8s == 0) {
-		RTE_LOG(ERR, TABLE, "%s: Invalid n_rules\n", __func__);
+		TABLE_LOG(ERR, "%s: Invalid n_rules", __func__);
 		return NULL;
 	}
 	if (p->entry_unique_size == 0) {
-		RTE_LOG(ERR, TABLE, "%s: Invalid entry_unique_size\n",
+		TABLE_LOG(ERR, "%s: Invalid entry_unique_size",
 			__func__);
 		return NULL;
 	}
 	if (p->entry_unique_size > entry_size) {
-		RTE_LOG(ERR, TABLE, "%s: Invalid entry_unique_size\n",
+		TABLE_LOG(ERR, "%s: Invalid entry_unique_size",
 			__func__);
 		return NULL;
 	}
 	if (p->name == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: Table name is NULL\n",
+		TABLE_LOG(ERR, "%s: Table name is NULL",
 			__func__);
 		return NULL;
 	}
@@ -90,8 +93,8 @@ rte_table_lpm_ipv6_create(void *params, int socket_id, uint32_t entry_size)
 	lpm = rte_zmalloc_socket("TABLE", total_size, RTE_CACHE_LINE_SIZE,
 		socket_id);
 	if (lpm == NULL) {
-		RTE_LOG(ERR, TABLE,
-			"%s: Cannot allocate %u bytes for LPM IPv6 table\n",
+		TABLE_LOG(ERR,
+			"%s: Cannot allocate %u bytes for LPM IPv6 table",
 			__func__, total_size);
 		return NULL;
 	}
@@ -103,8 +106,8 @@ rte_table_lpm_ipv6_create(void *params, int socket_id, uint32_t entry_size)
 	lpm->lpm = rte_lpm6_create(p->name, socket_id, &lpm6_config);
 	if (lpm->lpm == NULL) {
 		rte_free(lpm);
-		RTE_LOG(ERR, TABLE,
-			"Unable to create low-level LPM IPv6 table\n");
+		TABLE_LOG(ERR,
+			"Unable to create low-level LPM IPv6 table");
 		return NULL;
 	}
 
@@ -124,7 +127,7 @@ rte_table_lpm_ipv6_free(void *table)
 
 	/* Check input parameters */
 	if (lpm == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: table parameter is NULL\n", __func__);
+		TABLE_LOG(ERR, "%s: table parameter is NULL", __func__);
 		return -EINVAL;
 	}
 
@@ -184,21 +187,21 @@ rte_table_lpm_ipv6_entry_add(
 
 	/* Check input parameters */
 	if (lpm == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: table parameter is NULL\n", __func__);
+		TABLE_LOG(ERR, "%s: table parameter is NULL", __func__);
 		return -EINVAL;
 	}
 	if (ip_prefix == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: ip_prefix parameter is NULL\n",
+		TABLE_LOG(ERR, "%s: ip_prefix parameter is NULL",
 			__func__);
 		return -EINVAL;
 	}
 	if (entry == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: entry parameter is NULL\n", __func__);
+		TABLE_LOG(ERR, "%s: entry parameter is NULL", __func__);
 		return -EINVAL;
 	}
 
 	if ((ip_prefix->depth == 0) || (ip_prefix->depth > 128)) {
-		RTE_LOG(ERR, TABLE, "%s: invalid depth (%d)\n", __func__,
+		TABLE_LOG(ERR, "%s: invalid depth (%d)", __func__,
 			ip_prefix->depth);
 		return -EINVAL;
 	}
@@ -213,7 +216,7 @@ rte_table_lpm_ipv6_entry_add(
 		uint8_t *nht_entry;
 
 		if (nht_find_free(lpm, &nht_pos) == 0) {
-			RTE_LOG(ERR, TABLE, "%s: NHT full\n", __func__);
+			TABLE_LOG(ERR, "%s: NHT full", __func__);
 			return -1;
 		}
 
@@ -224,7 +227,7 @@ rte_table_lpm_ipv6_entry_add(
 	/* Add rule to low level LPM table */
 	if (rte_lpm6_add(lpm->lpm, ip_prefix->ip, ip_prefix->depth,
 		nht_pos) < 0) {
-		RTE_LOG(ERR, TABLE, "%s: LPM IPv6 rule add failed\n", __func__);
+		TABLE_LOG(ERR, "%s: LPM IPv6 rule add failed", __func__);
 		return -1;
 	}
 
@@ -252,16 +255,16 @@ rte_table_lpm_ipv6_entry_delete(
 
 	/* Check input parameters */
 	if (lpm == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: table parameter is NULL\n", __func__);
+		TABLE_LOG(ERR, "%s: table parameter is NULL", __func__);
 		return -EINVAL;
 	}
 	if (ip_prefix == NULL) {
-		RTE_LOG(ERR, TABLE, "%s: ip_prefix parameter is NULL\n",
+		TABLE_LOG(ERR, "%s: ip_prefix parameter is NULL",
 			__func__);
 		return -EINVAL;
 	}
 	if ((ip_prefix->depth == 0) || (ip_prefix->depth > 128)) {
-		RTE_LOG(ERR, TABLE, "%s: invalid depth (%d)\n", __func__,
+		TABLE_LOG(ERR, "%s: invalid depth (%d)", __func__,
 			ip_prefix->depth);
 		return -EINVAL;
 	}
@@ -270,7 +273,7 @@ rte_table_lpm_ipv6_entry_delete(
 	status = rte_lpm6_is_rule_present(lpm->lpm, ip_prefix->ip,
 		ip_prefix->depth, &nht_pos);
 	if (status < 0) {
-		RTE_LOG(ERR, TABLE, "%s: LPM IPv6 algorithmic error\n",
+		TABLE_LOG(ERR, "%s: LPM IPv6 algorithmic error",
 			__func__);
 		return -1;
 	}
@@ -282,7 +285,7 @@ rte_table_lpm_ipv6_entry_delete(
 	/* Delete rule from the low-level LPM table */
 	status = rte_lpm6_delete(lpm->lpm, ip_prefix->ip, ip_prefix->depth);
 	if (status) {
-		RTE_LOG(ERR, TABLE, "%s: LPM IPv6 rule delete failed\n",
+		TABLE_LOG(ERR, "%s: LPM IPv6 rule delete failed",
 			__func__);
 		return -1;
 	}
@@ -310,12 +313,12 @@ rte_table_lpm_ipv6_lookup(
 	uint64_t pkts_out_mask = 0;
 	uint32_t i;
 
-	__rte_unused uint32_t n_pkts_in = __builtin_popcountll(pkts_mask);
+	__rte_unused uint32_t n_pkts_in = rte_popcount64(pkts_mask);
 	RTE_TABLE_LPM_IPV6_STATS_PKTS_IN_ADD(lpm, n_pkts_in);
 
 	pkts_out_mask = 0;
 	for (i = 0; i < (uint32_t)(RTE_PORT_IN_BURST_SIZE_MAX -
-		__builtin_clzll(pkts_mask)); i++) {
+		rte_clz64(pkts_mask)); i++) {
 		uint64_t pkt_mask = 1LLU << i;
 
 		if (pkt_mask & pkts_mask) {
@@ -335,7 +338,7 @@ rte_table_lpm_ipv6_lookup(
 	}
 
 	*lookup_hit_mask = pkts_out_mask;
-	RTE_TABLE_LPM_IPV6_STATS_PKTS_LOOKUP_MISS(lpm, n_pkts_in - __builtin_popcountll(pkts_out_mask));
+	RTE_TABLE_LPM_IPV6_STATS_PKTS_LOOKUP_MISS(lpm, n_pkts_in - rte_popcount64(pkts_out_mask));
 	return 0;
 }
 

@@ -348,7 +348,7 @@ dpaa_eth_dev_configure(struct rte_eth_dev *dev)
 }
 
 static const uint32_t *
-dpaa_supported_ptypes_get(struct rte_eth_dev *dev)
+dpaa_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	static const uint32_t ptypes[] = {
 		RTE_PTYPE_L2_ETHER,
@@ -363,13 +363,15 @@ dpaa_supported_ptypes_get(struct rte_eth_dev *dev)
 		RTE_PTYPE_L4_TCP,
 		RTE_PTYPE_L4_UDP,
 		RTE_PTYPE_L4_SCTP,
-		RTE_PTYPE_TUNNEL_ESP
+		RTE_PTYPE_TUNNEL_ESP,
 	};
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (dev->rx_pkt_burst == dpaa_eth_queue_rx)
+	if (dev->rx_pkt_burst == dpaa_eth_queue_rx) {
+		*no_of_elements = RTE_DIM(ptypes);
 		return ptypes;
+	}
 	return NULL;
 }
 
@@ -399,6 +401,7 @@ static void dpaa_interrupt_handler(void *param)
 static int dpaa_eth_dev_start(struct rte_eth_dev *dev)
 {
 	struct dpaa_if *dpaa_intf = dev->data->dev_private;
+	uint16_t i;
 
 	PMD_INIT_FUNC_TRACE();
 
@@ -413,12 +416,18 @@ static int dpaa_eth_dev_start(struct rte_eth_dev *dev)
 
 	fman_if_enable_rx(dev->process_private);
 
+	for (i = 0; i < dev->data->nb_rx_queues; i++)
+		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+	for (i = 0; i < dev->data->nb_tx_queues; i++)
+		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STARTED;
+
 	return 0;
 }
 
 static int dpaa_eth_dev_stop(struct rte_eth_dev *dev)
 {
 	struct fman_if *fif = dev->process_private;
+	uint16_t i;
 
 	PMD_INIT_FUNC_TRACE();
 	dev->data->dev_started = 0;
@@ -426,6 +435,11 @@ static int dpaa_eth_dev_stop(struct rte_eth_dev *dev)
 	if (!fif->is_shared_mac)
 		fman_if_disable_rx(fif);
 	dev->tx_pkt_burst = dpaa_eth_tx_drop_all;
+
+	for (i = 0; i < dev->data->nb_rx_queues; i++)
+		dev->data->rx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+	for (i = 0; i < dev->data->nb_tx_queues; i++)
+		dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
 
 	return 0;
 }
@@ -2084,8 +2098,8 @@ dpaa_dev_init(struct rte_eth_dev *eth_dev)
 	/* copy the primary mac address */
 	rte_ether_addr_copy(&fman_intf->mac_addr, &eth_dev->data->mac_addrs[0]);
 
-	RTE_LOG(INFO, PMD, "net: dpaa: %s: " RTE_ETHER_ADDR_PRT_FMT "\n",
-		dpaa_device->name, RTE_ETHER_ADDR_BYTES(&fman_intf->mac_addr));
+	DPAA_PMD_INFO("net: dpaa: %s: " RTE_ETHER_ADDR_PRT_FMT,
+		      dpaa_device->name, RTE_ETHER_ADDR_BYTES(&fman_intf->mac_addr));
 
 	if (!fman_intf->is_shared_mac) {
 		/* Configure error packet handling */
@@ -2154,7 +2168,7 @@ rte_dpaa_probe(struct rte_dpaa_driver *dpaa_drv,
 
 		ret = dpaa_dev_init_secondary(eth_dev);
 		if (ret != 0) {
-			RTE_LOG(ERR, PMD, "secondary dev init failed\n");
+			DPAA_PMD_ERR("secondary dev init failed");
 			return ret;
 		}
 

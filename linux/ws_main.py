@@ -27,7 +27,7 @@ SANITIZE_CC_VERSION = "4.9.0"
 
 GCC6_DIRS = ['/usr/local/gcc-6.2/bin', '/opt/rh/devtoolset-6/root/usr/bin']
 GCC7_DIRS = ['/usr/local/gcc-7.4/bin', '/opt/rh/devtoolset-7/root/usr/bin']
-GCC8_DIRS = ['/usr/local/gcc-8.3/bin']
+GCC8_DIRS = ['/usr/local/gcc-8.3/bin', '/opt/rh/devtoolset-8/root/usr/bin']
 
 
 class SrcGroup:

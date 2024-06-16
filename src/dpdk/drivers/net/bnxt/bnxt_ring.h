@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2021 Broadcom
+ * Copyright(c) 2014-2023 Broadcom
  * All rights reserved.
  */
 
@@ -24,7 +24,7 @@
 #define DB_KEY_TX_PUSH						(0x4 << 28)
 #define DB_LONG_TX_PUSH						(0x2 << 24)
 
-#define DEFAULT_CP_RING_SIZE	256
+#define DEFAULT_CP_RING_SIZE	4096
 #define DEFAULT_RX_RING_SIZE	256
 #define DEFAULT_TX_RING_SIZE	256
 
@@ -142,5 +142,4 @@ static inline void bnxt_db_cq(struct bnxt_cp_ring_info *cpr)
 		B_CP_DIS_DB(cpr, cp_raw_cons);
 	}
 }
-
 #endif

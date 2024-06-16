@@ -389,6 +389,9 @@ static int gve_adminq_issue_cmd(struct gve_priv *priv,
 	case GVE_ADMINQ_DECONFIGURE_DEVICE_RESOURCES:
 		priv->adminq_dcfg_device_resources_cnt++;
 		break;
+	case GVE_ADMINQ_CONFIGURE_RSS:
+		priv->adminq_cfg_rss_cnt++;
+		break;
 	case GVE_ADMINQ_SET_DRIVER_PARAMETER:
 		priv->adminq_set_driver_parameter_cnt++;
 		break;
@@ -400,6 +403,9 @@ static int gve_adminq_issue_cmd(struct gve_priv *priv,
 		break;
 	case GVE_ADMINQ_GET_PTYPE_MAP:
 		priv->adminq_get_ptype_map_cnt++;
+		break;
+	case GVE_ADMINQ_VERIFY_DRIVER_COMPATIBILITY:
+		priv->adminq_verify_driver_compatibility_cnt++;
 		break;
 	default:
 		PMD_DRV_LOG(ERR, "unknown AQ command opcode %d", opcode);
@@ -465,6 +471,22 @@ int gve_adminq_configure_device_resources(struct gve_priv *priv,
 	return gve_adminq_execute_cmd(priv, &cmd);
 }
 
+int gve_adminq_verify_driver_compatibility(struct gve_priv *priv,
+					   u64 driver_info_len,
+					   dma_addr_t driver_info_addr)
+{
+	union gve_adminq_command cmd;
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.opcode = cpu_to_be32(GVE_ADMINQ_VERIFY_DRIVER_COMPATIBILITY);
+	cmd.verify_driver_compatibility = (struct gve_adminq_verify_driver_compatibility) {
+		.driver_info_len = cpu_to_be64(driver_info_len),
+		.driver_info_addr = cpu_to_be64(driver_info_addr),
+	};
+
+	return gve_adminq_execute_cmd(priv, &cmd);
+}
+
 int gve_adminq_deconfigure_device_resources(struct gve_priv *priv)
 {
 	union gve_adminq_command cmd;
@@ -499,9 +521,9 @@ static int gve_adminq_create_tx_queue(struct gve_priv *priv, u32 queue_index)
 		cmd.create_tx_queue.tx_ring_size =
 			cpu_to_be16(txq->nb_tx_desc);
 		cmd.create_tx_queue.tx_comp_ring_addr =
-			cpu_to_be64(txq->complq->tx_ring_phys_addr);
+			cpu_to_be64(txq->compl_ring_phys_addr);
 		cmd.create_tx_queue.tx_comp_ring_size =
-			cpu_to_be16(priv->tx_compq_size);
+			cpu_to_be16(txq->sw_size);
 	}
 
 	return gve_adminq_issue_cmd(priv, &cmd);
@@ -547,15 +569,15 @@ static int gve_adminq_create_rx_queue(struct gve_priv *priv, u32 queue_index)
 		cmd.create_rx_queue.packet_buffer_size = cpu_to_be16(rxq->rx_buf_len);
 	} else {
 		cmd.create_rx_queue.rx_ring_size =
-			cpu_to_be16(priv->rx_desc_cnt);
+			cpu_to_be16(rxq->nb_rx_desc);
 		cmd.create_rx_queue.rx_desc_ring_addr =
-			cpu_to_be64(rxq->rx_ring_phys_addr);
+			cpu_to_be64(rxq->compl_ring_phys_addr);
 		cmd.create_rx_queue.rx_data_ring_addr =
-			cpu_to_be64(rxq->bufq->rx_ring_phys_addr);
+			cpu_to_be64(rxq->rx_ring_phys_addr);
 		cmd.create_rx_queue.packet_buffer_size =
 			cpu_to_be16(rxq->rx_buf_len);
 		cmd.create_rx_queue.rx_buff_ring_size =
-			cpu_to_be16(priv->rx_bufq_size);
+			cpu_to_be16(rxq->nb_rx_desc);
 		cmd.create_rx_queue.enable_rsc = !!(priv->enable_rsc);
 	}
 
@@ -919,3 +941,58 @@ err:
 	gve_free_dma_mem(&ptype_map_dma_mem);
 	return err;
 }
+
+int gve_adminq_configure_rss(struct gve_priv *priv,
+			     struct gve_rss_config *rss_config)
+{
+	struct gve_dma_mem indirection_table_dma_mem;
+	struct gve_dma_mem rss_key_dma_mem;
+	union gve_adminq_command cmd;
+	__be32 *indir = NULL;
+	u8 *key = NULL;
+	int err = 0;
+	int i;
+
+	if (!rss_config->indir_size || !rss_config->key_size)
+		return -EINVAL;
+
+	indir = gve_alloc_dma_mem(&indirection_table_dma_mem,
+				  rss_config->indir_size *
+					sizeof(*rss_config->indir));
+	if (!indir) {
+		err = -ENOMEM;
+		goto out;
+	}
+	for (i = 0; i < rss_config->indir_size; i++)
+		indir[i] = cpu_to_be32(rss_config->indir[i]);
+
+	key = gve_alloc_dma_mem(&rss_key_dma_mem,
+				rss_config->key_size *
+					sizeof(*rss_config->key));
+	if (!key) {
+		err = -ENOMEM;
+		goto out;
+	}
+	memcpy(key, rss_config->key, rss_config->key_size);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.opcode = cpu_to_be32(GVE_ADMINQ_CONFIGURE_RSS);
+	cmd.configure_rss = (struct gve_adminq_configure_rss) {
+		.hash_types = cpu_to_be16(rss_config->hash_types),
+		.halg = rss_config->alg,
+		.hkey_len = cpu_to_be16(rss_config->key_size),
+		.indir_len = cpu_to_be16(rss_config->indir_size),
+		.hkey_addr = cpu_to_be64(rss_key_dma_mem.pa),
+		.indir_addr = cpu_to_be64(indirection_table_dma_mem.pa),
+	};
+
+	err = gve_adminq_execute_cmd(priv, &cmd);
+
+out:
+	if (indir)
+		gve_free_dma_mem(&indirection_table_dma_mem);
+	if (key)
+		gve_free_dma_mem(&rss_key_dma_mem);
+	return err;
+}
+

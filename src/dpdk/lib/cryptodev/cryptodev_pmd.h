@@ -61,11 +61,11 @@ struct rte_cryptodev_pmd_init_params {
  * This structure is safe to place in shared memory to be common among
  * different processes in a multi-process configuration.
  */
-struct rte_cryptodev_data {
+struct __rte_cache_aligned rte_cryptodev_data {
 	/** Device ID for this instance */
 	uint8_t dev_id;
 	/** Socket ID where memory is allocated */
-	uint8_t socket_id;
+	int socket_id;
 	/** Unique identifier name */
 	char name[RTE_CRYPTODEV_NAME_MAX_LEN];
 
@@ -82,10 +82,10 @@ struct rte_cryptodev_data {
 
 	/** PMD-specific private data */
 	void *dev_private;
-} __rte_cache_aligned;
+};
 
 /** @internal The data structure associated with each crypto device. */
-struct rte_cryptodev {
+struct __rte_cache_aligned rte_cryptodev {
 	/** Pointer to PMD dequeue function. */
 	dequeue_pkt_burst_t dequeue_burst;
 	/** Pointer to PMD enqueue function. */
@@ -117,7 +117,7 @@ struct rte_cryptodev {
 	struct rte_cryptodev_cb_rcu *enq_cbs;
 	/** User application callback for post dequeue processing */
 	struct rte_cryptodev_cb_rcu *deq_cbs;
-} __rte_cache_aligned;
+};
 
 /** Global structure used for maintaining state of allocated crypto devices */
 struct rte_cryptodev_global {
@@ -151,9 +151,9 @@ struct rte_cryptodev_sym_session {
 	rte_iova_t driver_priv_data_iova;
 	/**< Session driver data IOVA address */
 
-	RTE_MARKER cacheline1 __rte_cache_min_aligned;
+	alignas(RTE_CACHE_LINE_MIN_SIZE) RTE_MARKER cacheline1;
 	/**< Second cache line - start of the driver session data */
-	uint8_t driver_priv_data[0];
+	uint8_t driver_priv_data[];
 	/**< Driver specific session data, variable size */
 };
 
@@ -390,7 +390,6 @@ typedef void (*cryptodev_asym_clear_session_t)(struct rte_cryptodev *dev,
  *
  * @return
  *  - Returns number of successfully processed packets.
- *
  */
 typedef uint32_t (*cryptodev_sym_cpu_crypto_process_t)
 	(struct rte_cryptodev *dev, struct rte_cryptodev_sym_session *sess,
@@ -535,7 +534,7 @@ rte_cryptodev_pmd_allocate(const char *name, int socket_id);
  *   - 0 on success, negative on error
  */
 __rte_internal
-extern int
+int
 rte_cryptodev_pmd_release_device(struct rte_cryptodev *cryptodev);
 
 
@@ -684,7 +683,7 @@ rte_cryptodev_session_event_mdata_get(struct rte_crypto_op *op);
  * @internal
  * Cryptodev asymmetric crypto session.
  */
-RTE_STD_C11 struct rte_cryptodev_asym_session {
+struct rte_cryptodev_asym_session {
 	uint8_t driver_id;
 	/**< Session driver ID. */
 	uint16_t max_priv_data_sz;

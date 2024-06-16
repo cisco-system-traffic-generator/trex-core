@@ -27,7 +27,11 @@
 #include "mlx5_common_mr.h"
 
 /* Reported driver name. */
+#ifdef TREX_PATCH
 #define MLX5_PCI_DRIVER_NAME "net_mlx5"
+#else
+#define MLX5_PCI_DRIVER_NAME "mlx5_pci"
+#endif
 #define MLX5_AUXILIARY_DRIVER_NAME "mlx5_auxiliary"
 
 /* Bit-field manipulation. */
@@ -169,6 +173,7 @@ struct mlx5_switch_info {
 	int32_t ctrl_num; /**< Controller number (valid for c#pf#vf# format). */
 	int32_t pf_num; /**< PF number (valid for pfxvfx format only). */
 	int32_t port_name; /**< Representor port name. */
+	int32_t mpesw_owner; /**< MPESW owner port number. */
 	uint64_t switch_id; /**< Switch identifier. */
 };
 
@@ -600,7 +605,7 @@ mlx5_dev_is_pci(const struct rte_device *dev);
  */
 __rte_internal
 bool
-mlx5_dev_is_vf_pci(struct rte_pci_device *pci_dev);
+mlx5_dev_is_vf_pci(const struct rte_pci_device *pci_dev);
 
 __rte_internal
 int
