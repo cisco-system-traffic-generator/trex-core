@@ -19,6 +19,9 @@ elif [ $RESULT -eq 2 ]; then
   echo "ERROR encountered while configuring TRex system"
   exit $RESULT
 
+elif [ $RESULT -eq 80 ]; then
+  EXTRA_INPUT_ARGS="--mana-so"
+
 elif [ $RESULT -eq 64 ]; then
   EXTRA_INPUT_ARGS="--ntacc-so"
 

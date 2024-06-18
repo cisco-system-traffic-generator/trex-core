@@ -147,6 +147,7 @@ def options(opt):
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
     opt.add_option('--no-bnxt', dest='no_bnxt', default=False, action='store_true', help="don't use bnxt dpdk driver. use with ./b configure --no-bnxt. no need to run build with it")
     opt.add_option('--no-mlx', dest='no_mlx', default=(True if march == 'aarch64' else False), action='store', help="don't use mlx4/mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
+    opt.add_option('--with-mana', dest='with_mana', default=False, action='store_true', help="Use Mana dpdk driver. Use with ./b configure --with-mana.")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
     opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
     opt.add_option('--new-memory', default=False, action='store_true', help="Build by new DPDK memory subsystem.")
@@ -823,6 +824,7 @@ def configure(conf):
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
     no_mlx          = conf.options.no_mlx
     no_bnxt         = conf.options.no_bnxt
+    with_mana       = conf.options.with_mana
     with_ntacc      = conf.options.with_ntacc
     with_bird       = conf.options.with_bird
     with_sanitized  = conf.options.sanitized
@@ -860,8 +862,14 @@ def configure(conf):
     if conf.env.TAP:
         conf.configure_tap(mandatory = False)
 
+    conf.env.WITH_MANA = with_mana
     conf.env.WITH_NTACC = with_ntacc
     conf.env.WITH_BIRD = with_bird
+
+    if with_mana:
+        conf.get_ld_search_path(mandatory = True)
+        conf.check_cxx(lib = 'mana', errmsg = 'Could not find library mana, will use internal version.', mandatory = False)
+        Logs.pprint('YELLOW', 'Building mana PMD')
 
     if with_ntacc:
         ntapi_ok = conf.check_ntapi(mandatory = False)
@@ -1752,6 +1760,17 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
 
             ])
 
+mana_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/',
+    src_list = [
+        'net/mana/gdma.c',
+        'net/mana/mana.c',
+        'net/mana/mp.c',
+        'net/mana/mr.c',
+        'net/mana/rx.c',
+        'net/mana/tx.c',
+    ])
+
 ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                 src_list=[
                  'filter_ntacc.c',
@@ -1924,6 +1943,10 @@ memif_dpdk_src = SrcGroup(
 
 libmnl =SrcGroups([
                 libmnl_src
+                ])
+
+mana_dpdk =SrcGroups([
+                mana_dpdk_src
                 ])
 
 ntacc_dpdk =SrcGroups([
@@ -2128,6 +2151,7 @@ dpdk_includes_path =''' ../src/
                         ../src/dpdk/drivers/net/ixgbe/base/
                         ../src/dpdk/drivers/net/igc/
                         ../src/dpdk/drivers/net/igc/base/
+                        ../src/dpdk/drivers/net/mana/
                         ../src/dpdk/drivers/net/mlx4/
                         ../src/dpdk/drivers/net/mlx5/
                         ../src/dpdk/drivers/net/ntacc/
@@ -2342,6 +2366,9 @@ class build_option:
     def get_dpdk_target (self):
         return self.update_executable_name("dpdk")
 
+    def get_mana_target (self):
+        return self.update_executable_name("mana")
+
     def get_ntacc_target (self):
         return self.update_executable_name("ntacc")
 
@@ -2353,6 +2380,9 @@ class build_option:
 
     def get_mlx4_target (self):
         return self.update_executable_name("mlx4")
+
+    def get_manaso_target (self):
+        return self.update_executable_name("libmana")+'.so'
 
     def get_ntaccso_target (self):
         return self.update_executable_name("libntacc")+'.so'
@@ -2626,6 +2656,17 @@ def build_prog (bld, build_obj):
             target   = build_obj.get_mlx4_target()
            )
 
+    if bld.env.WITH_MANA == True:
+        bld.shlib(
+            feature  = 'c',
+            includes = dpdk_includes_path +
+                       bld.env.dpdk_includes_verb_path,
+            cflags   = (cflags + DPDK_FLAGS),
+            use      = ['ibverbs', 'mana'],
+            source   = mana_dpdk.file_list(top),
+            target   = build_obj.get_mana_target()
+        )
+
     if bld.env.WITH_NTACC == True:
         bld.shlib(
           features='c',
@@ -2756,6 +2797,16 @@ def build(bld):
             bld.env.libmnl_path=' \n ../external_libs/libmnl/include/ \n'
             bld.env.mlx5_kw  = {}
 
+    if bld.env.WITH_MANA == True:
+        Logs.pprint('GREEN', 'Info: Using external libverbs libmana.')
+        if not bld.env.LD_SEARCH_PATH:
+            bld.fatal('LD_SEARCH_PATH is empty, run configure')
+        from waflib.Tools.ccroot import SYSTEM_LIB_PATHS
+        SYSTEM_LIB_PATHS.extend(bld.env.LD_SEARCH_PATH)
+
+        bld.read_shlib(name='ibverbs')
+        bld.read_shlib(name='mana')
+
     if bld.env.WITH_BIRD:
         bld(rule=build_bird, source='compile_bird.py', target='bird')
 
@@ -2808,6 +2859,11 @@ def install_single_system (bld, exec_p, build_obj):
                    where = exec_p)
 
     # SO libraries below
+
+    # MANA
+    do_create_link(src = os.path.realpath(o + build_obj.get_manaso_target()),
+                   name = build_obj.get_manaso_target(),
+                   where = so_path)
 
     # NTACC
     do_create_link(src = os.path.realpath(o + build_obj.get_ntaccso_target()),

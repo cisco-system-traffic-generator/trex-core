@@ -211,6 +211,7 @@ enum {
        OPT_STL_MODE,
        OPT_MLX4_SO,
        OPT_MLX5_SO,
+       OPT_MANA_SO,
        OPT_NTACC_SO,
        OPT_ASTF_SERVR_ONLY,
        OPT_ASTF_CLIENT_MASK,
@@ -296,6 +297,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_TSO_OFFLOAD_DISABLE,  "--tso-disable", SO_NONE   },
         { OPT_LRO_OFFLOAD_DISABLE,  "--lro-disable", SO_NONE   },
         { OPT_ACTIVE_FLOW,            "--active-flows",   SO_REQ_SEP  },
+        { OPT_MANA_SO,                "--mana-so", SO_NONE    },
         { OPT_NTACC_SO,               "--ntacc-so", SO_NONE    },
         { OPT_MLX5_SO,                "--mlx5-so", SO_NONE    },
         { OPT_MLX4_SO,                "--mlx4-so", SO_NONE    },
@@ -736,6 +738,10 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
 
             case OPT_RT:
                 po->preview.set_rt_prio_mode(true);
+                break;
+
+            case OPT_MANA_SO:
+                po->preview.set_mana_so_mode(true);
                 break;
 
             case OPT_NTACC_SO:
@@ -6637,6 +6643,13 @@ COLD_FUNC int  update_dpdk_args(void){
         SET_ARGS(bnxt_so_str.c_str());
     }
 #endif
+
+    if ( lpp->get_mana_so_mode() ){
+       std::string &mana_so_str = get_mana_so_string();
+       mana_so_str = "libmana-64" + std::string(g_image_postfix) + ".so";
+       SET_ARGS("-d");
+       SET_ARGS(mana_so_str.c_str());
+    }
 
     if ( lpp->get_ntacc_so_mode() ){
         std::string &ntacc_so_str = get_ntacc_so_string();

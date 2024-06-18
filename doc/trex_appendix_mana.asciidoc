@@ -1,0 +1,33 @@
+MANA support
+===========
+:quotes.++:
+:numbered: 
+:web_server_url: http://trex-tgn.cisco.com/trex
+:local_web_server_url: csi-wiki-01:8181/trex
+:toclevels: 4
+
+include::trex_ga.asciidoc[]
+
+== Overview
+
+* Supported from TRex version v3.05.
+* This driver does not come with trex pkg and should be build by the user.
+* This driver is not included in our regression testing suite. As a result, there may be untested scenarios or issues that have not been identified.
+
+== Configuration And Build
+
+[source,bash]
+----
+[bash]>cd linux_dpdk/
+[bash]>./b configure --no-ofed-check --with-mana
+[bash]>./b build
+[bash]>cd ../scripts/
+[bash]>sudo ./azure_mana_trex_setup.sh
+----
+
+== Running 
+
+[source,bash]
+----
+[bash]>sudo ./t-rex-64 -i -c 1 --no-ofed-check
+----

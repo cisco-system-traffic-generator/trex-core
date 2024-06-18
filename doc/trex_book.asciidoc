@@ -154,6 +154,7 @@ To test it you can run `sudo dmidecode -t memory | grep CHANNEL` and check CHANN
 | Amazon ENA | paravirtualized    | + | - | Amazon Cloud
 | MS Failsafe | paravirtualized    | + | - | Azure with DPDK mlx5 support 
 | memif | shared memory rings | + | - | see link:https://doc.dpdk.org/guides/nics/memif.html[memif] support multi core for STL. ASTF only one core
+| MANA | paravirtualized    | - | - | Microsoft Azure
 |=================
 
 [NOTE]
@@ -2425,6 +2426,9 @@ link:trex_appendix_software_mode.html[software mode]
 
 anchor:azure[]
 link:trex_appendix_azure.html[Azure DPDK support]
+
+anchor:mana_support[]
+link:trex_appendix_mana.html[Mana support]
 
 
 

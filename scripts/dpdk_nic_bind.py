@@ -79,7 +79,7 @@ devices = {}
 # list of supported DPDK drivers
 # ,
 
-dpdk_and_kernel=[ "mlx5_core", "mlx5_ib", 'mlx4_core', 'mlx4_ib' ]
+dpdk_and_kernel=[ "mlx5_core", "mlx5_ib", 'mlx4_core', 'mlx4_ib', "mana", "mana_ib" ]
 
 if march == 'ppc64le':
     dpdk_drivers = ["vfio-pci"]

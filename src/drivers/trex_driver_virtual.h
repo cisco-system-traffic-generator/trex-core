@@ -198,6 +198,21 @@ private:
 
 
 
+class CTRexExtendedDriverMana : public CTRexExtendedDriverVirtBase {
+public:
+    CTRexExtendedDriverMana();
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverMana() );
+    }
+
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats) {
+        return get_extended_stats_fixed(_if, stats, 4, 4);
+    };
+
+    virtual void update_configuration(port_cfg_t * cfg);
+    static std::string mana_so_str;
+};
+
 /* wan't verified by us, software mode  */
 class CTRexExtendedDriverMlnx4 : public CTRexExtendedDriverVirtBase {
 public:

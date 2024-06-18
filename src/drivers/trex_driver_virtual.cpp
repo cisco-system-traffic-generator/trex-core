@@ -29,6 +29,12 @@ std::string& get_mlx4_so_string(void) {
     return CTRexExtendedDriverMlnx4::mlx4_so_str;
 }
 
+std::string CTRexExtendedDriverMana::mana_so_str = "";
+
+std::string& get_mana_so_string(void) {
+    return CTRexExtendedDriverMana::mana_so_str;
+}
+
 TRexPortAttr* CTRexExtendedDriverVirtBase::create_port_attr(tvpid_t tvpid, repid_t repid) {
     return new DpdkTRexPortAttr(tvpid, repid, true, true, true, false, true);
 }
@@ -230,6 +236,18 @@ bool CTRexExtendedDriverNetvsc::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStat
 }
 
 void CTRexExtendedDriverNetvsc::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
+    cfg->m_port_conf.rxmode.offloads = 0;
+    cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
+    cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
+    cfg->tx_offloads.common_best_effort = 0;
+}
+
+CTRexExtendedDriverMana::CTRexExtendedDriverMana(){
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
+}
+
+void CTRexExtendedDriverMana::update_configuration(port_cfg_t * cfg){
     CTRexExtendedDriverVirtBase::update_configuration(cfg);
     cfg->m_port_conf.rxmode.offloads = 0;
     cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_MULTI_SEGS;

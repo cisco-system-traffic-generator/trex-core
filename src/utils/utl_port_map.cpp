@@ -168,6 +168,10 @@ int CPciPorts::set_cfg_input(dpdk_input_args_t & vec,
         /* already there */
         if ( it != map_name.end() ){
             /* exist */
+            if ( iname == "7870:00:00.0" ) {
+            /* Allow exception for MANA PCI as same PCI address for all ports */
+                return(0);
+        }
             err="ERROR two key with the same value  "+ iname;
             return(-1);
         }

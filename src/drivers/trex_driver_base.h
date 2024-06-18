@@ -246,6 +246,7 @@ std::string& get_bnxt_so_string(void);
 std::string& get_ntacc_so_string(void);
 std::string& get_mlx5_so_string(void);
 std::string& get_mlx4_so_string(void);
+std::string& get_mana_so_string(void);
 
 
 #endif /* TREX_DRIVER_BASE_H */

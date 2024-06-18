@@ -40,9 +40,11 @@ march = os.uname()[4]
 # 32  : no errors - mlx5 share object should be loaded
 # 48  : no errors - both mlx4/mlx5 share object should be loaded
 # 64  : no errors - napatech 3GD should be running
+# 80  : no errors - mana shared object shoould be loaded
 MLX4_EXIT_CODE = 16
 MLX5_EXIT_CODE = 32
 NTACC_EXIT_CODE = 64
+MANA_EXIT_CODE = 80
 class VFIOBindErr(Exception): pass
 class PCIgenericBindErr(Exception): pass
 
@@ -967,6 +969,7 @@ Other network devices
 
 
         Broadcom_cnt=0;
+        Mana_cnt=0
         # check how many mellanox cards we have
         Mellanox_cnt=0;
         mlx5_present=0;
@@ -993,6 +996,8 @@ Other network devices
                     mlx4_present = MLX4_EXIT_CODE
             if 'Broadcom' in self.m_devices[key]['Vendor_str']:
                 Broadcom_cnt += 1
+            if 'Microsoft' in self.m_devices[key]['Vendor_str']:
+                Mana_cnt += 1
 
         if not (pa() and pa().dump_interfaces):
             if (Mellanox_cnt > 0) and ((Mellanox_cnt + dummy_cnt) != len(if_list)):
@@ -1103,6 +1108,8 @@ Other network devices
                         raise DpdkSetup('Unable to bind interfaces to driver igb_uio.')
         elif Mellanox_cnt:
             return mlx5_present + mlx4_present
+        elif Mana_cnt:
+            return MANA_EXIT_CODE
         elif Napatech_cnt:
             return NTACC_EXIT_CODE
 
