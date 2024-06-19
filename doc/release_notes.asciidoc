@@ -32,6 +32,7 @@ endif::backend-docbook[]
 
 * Fixed net_bonding breakage caused by the upgrade to DPDK 24.03.
 ** Updated net_bonding API terminology in TRex configuration from "slave" to "member".
+* Add libarchive to the default package 
 
 
 == Release 3.05 ==
@@ -44,7 +45,6 @@ endif::backend-docbook[]
 
 * Upgrade to DPDK 23.03 for new Cloud drivers 
 ** iavf works now for i40evf 
-
 
 == Release 3.03 ==
 
