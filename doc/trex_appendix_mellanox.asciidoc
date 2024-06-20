@@ -288,6 +288,20 @@ TRex uses flow director filter to steer specific packets to specific queues.
 To support that, we change IPv4.TOS/Ipv6.TC  LSB to *1* for packets we want to handle by software (Other packets will be dropped). So latency packets will have this bit turned on (This is true for all NIC types, not only for ConnectX-4).
 This means that if the DUT for some reason clears this bit (change TOS LSB to 0, e.g. change it from 0x3 to 0x2 for example) some TRex features (latency measurement for example) will not work properly.
 
+== QoS Settings
+
+QoS features on the NIC may cause backpressure to the software Trex when switching too frequently between different VLAN priorities on the Tx datapath in the NIC. See link:https://mails.dpdk.org/archives/users/2024-April/007635.html[dpdk-users] for the source.
+
+For example, this may happen when creating multiple VLAN streams with different VLAN priorities. Setting the QoS parameters in the NIC can be done via the following commands.
+
+[source,bash]
+----
+sudo mlnx_qos -i <iface> --trust=dscp
+for dscp in {0..63}; do sudo mlnx_qos -i <iface> --dscp2prio set,$dscp,0; sleep 0.001;done
+----
+
+Verified in NIC model: MCX516A-CCAT; firmware version: 16.34.1002; Trex version v3.02 and v3.04; OFED version 5.7-1.0.2.0.
+
 == Which NIC to buy?
 
 For CX-4, it is better to have MCX456A-ECAT(dual 100gb ports) and *not* the  MCX455A-ECAT (single 100gb port).
