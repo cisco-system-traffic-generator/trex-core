@@ -227,6 +227,7 @@ enum {
        OPT_DISABLE_IEEE_1588,
        OPT_LATENCY_DIAG,
        OPT_DEFER_START_QUEUES,
+       OPT_GARP_IGNORE,
 
        /* no more pass this */
        OPT_MAX
@@ -328,6 +329,7 @@ static CSimpleOpt::SOption parser_options[] =
         { OPT_DISABLE_IEEE_1588,      "--disable-ieee-1588", SO_NONE},
         { OPT_LATENCY_DIAG,           "--latency-diag", SO_NONE},
         { OPT_DEFER_START_QUEUES,     "--defer-start-queues", SO_NONE},
+        { OPT_GARP_IGNORE,            "--ignore-garp", SO_NONE},
 
         SO_END_OF_OPTIONS
     };
@@ -365,6 +367,7 @@ static int COLD_FUNC  usage() {
     printf("                               so we do not call them by default for now. Leaving this as option in case someone thinks it is helpful for him \n");
     printf("                               This it temporary option. Will be removed in the future \n");
     printf(" -d                         : Duration of the test in sec (default is 3600). Look also at --nc \n");
+    printf(" --ignore-garp              : Ignore received gratuitous ARPs for setting port addresses during setup. Default is false.\n");
     printf(" -e                         : Like -p but src/dst IP will be chosen according to the port (i.e. on client port send all packets with client src and server dest, and vice versa on server port \n");
     printf(" --flip                     : Each flow will be sent both from client to server and server to client. This can achieve better port utilization when flow traffic is asymmetric \n");
     printf(" --hdrh                     : Report latency using high dynamic range histograms (http://hdrhistogram.org)\n");
@@ -979,6 +982,9 @@ COLD_FUNC static int parse_options(int argc, char *argv[], bool first_time ) {
                 break;
             case OPT_DEFER_START_QUEUES:
                 po->preview.set_defer_start_queues(true);
+                break;
+            case OPT_GARP_IGNORE:
+                po->m_garp_ignore = true;
                 break;
 
             default:
