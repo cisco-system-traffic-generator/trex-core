@@ -824,11 +824,11 @@ Configuration example:
 [source,bash]
 ----
     ...
-    interfaces: [ '--vdev=net_bonding0,mode=0,slave=d8:00.0,slave=d8:00.1', 'dummy' ]
+    interfaces: [ '--vdev=net_bonding0,mode=0,member=d8:00.0,member=d8:00.1', 'dummy' ]
     ...
 ----
 
-The bonded device inherits attributes from the first slave device. All slave devices should have same speed and duplex.
+The bonded device inherits attributes from the first member device. All member devices should have same speed and duplex.
 
 NOTE: When mode 4 is used, more settle time could be needed. Use -w command line option to give enough time for it.
 

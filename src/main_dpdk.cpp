@@ -6481,7 +6481,7 @@ COLD_FUNC void check_pdev_vdev_dummy() {
                 split_str_by_delimiter(iface, ',', vdev_opts);
                 list_vdevs[if_index] = vdev_opts[0].substr(vdev_opts[0].find("=")+1);
 
-                std::string match_str = "slave=";
+                std::string match_str = "member=";
                 for (auto vdev_opt : vdev_opts) {
                     if ( vdev_opt.find(match_str.c_str()) != std::string::npos ) {
                         found_devs_in_vdev = true;

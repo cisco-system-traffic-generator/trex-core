@@ -26,6 +26,14 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+
+
+== Release 3.06 ==
+
+* Fixed net_bonding breakage caused by the upgrade to DPDK 24.03.
+** Updated net_bonding API terminology in TRex configuration from "slave" to "member".
+
+
 == Release 3.05 ==
 
 * Upgrade to DPDK 24.03 for new Cloud drivers 
