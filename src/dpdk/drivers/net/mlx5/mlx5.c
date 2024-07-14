@@ -2894,8 +2894,6 @@ mlx5_port_args_config(struct mlx5_priv *priv, struct mlx5_kvargs_ctrl *mkvlist,
 		config->max_dump_files_num = 128;
     }
 #endif
-	if (config->max_dump_files_num == 0)
-		config->max_dump_files_num = 128;
 	/* Detect minimal data bytes to inline. */
 	mlx5_set_min_inline(priv);
 	DRV_LOG(DEBUG, "VLAN insertion in WQE is %ssupported.",
