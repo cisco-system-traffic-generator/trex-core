@@ -151,6 +151,7 @@ def options(opt):
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
     opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
     opt.add_option('--new-memory', default=False, action='store_true', help="Build by new DPDK memory subsystem.")
+    opt.add_option('--with-archive', default=False, action='store_true', help="Build with lib archive")
     opt.add_option('--no-ver', action = 'store_true', help = "Don't update version file.")
     opt.add_option('--no-old', action = 'store_true', help = "Don't build old targets.")
     opt.add_option('--private', dest='private', action = 'store_true', help = "private publish, do not replace latest/be_latest image with this image")
@@ -830,6 +831,7 @@ def configure(conf):
     with_sanitized  = conf.options.sanitized
     new_memory      = conf.options.new_memory
     
+    
     configure_sanitized(conf, with_sanitized)
             
     conf.env.NO_MLX = no_mlx
@@ -887,8 +889,9 @@ def configure(conf):
         write_file(os.path.join(conf.bldnode.abspath(), H_DPDK_CONFIG), s)
 
     conf.env.DPDK_WITH_ARCHIVE = False
-    if conf.check_cxx(lib = 'archive', errmsg = 'Could not find libarchive', mandatory = False):
-        conf.env.DPDK_WITH_ARCHIVE = True
+    if conf.options.with_archive:
+       if conf.check_cxx(lib = 'archive', errmsg = 'Could not find libarchive', mandatory = False):
+           conf.env.DPDK_WITH_ARCHIVE = True
 
 def search_in_paths(paths):
     for path in paths:
