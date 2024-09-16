@@ -745,12 +745,12 @@ Other network devices
         mount_output = subprocess.check_output('mount', stderr = subprocess.STDOUT).decode(errors='replace')
         nodes = 2
 
-        if 'hugetlbfs' not in mount_output:
+        if '/mnt/huge type hugetlbfs' not in mount_output:
             huge_mnt_dir = '/mnt/huge'
             if not os.path.isdir(huge_mnt_dir):
                 print("Creating huge node")
                 os.makedirs(huge_mnt_dir)
-            os.system('mount -t hugetlbfs nodev %s' % huge_mnt_dir)
+            os.system('mount -t hugetlbfs -o pagesize=1G nodev %s' % huge_mnt_dir)
 
         if map_driver.args.ignore_numa:
             nodes = 1
