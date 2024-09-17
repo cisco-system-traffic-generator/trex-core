@@ -52,6 +52,7 @@ BGP_MASK            = 2
 DHCP_MASK           = 4
 TRANSPORT_MASK      = 8
 MDNS_MASK           = 16
+BFD_MASK            = 32
 ALL_MASK            = 255  # all bits are on
 
 
@@ -2236,6 +2237,7 @@ class TRexClient(object):
                     DHCP_MASK       = 4
                     TRANSPORT       = 8
                     MDNS            = 16
+                    BFD_MASK        = 32
                     ALL_MASK        = 255
 
             :raises:
@@ -2992,7 +2994,7 @@ class TRexClient(object):
                 3 arguments: enable, filtered & mask to use in set_service_mode
         """
 
-        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all or opts.allow_emu or opts.allow_dhcp or opts.allow_transport
+        filtered = opts.allow_no_tcp_udp or opts.allow_bgp or opts.allow_all or opts.allow_emu or opts.allow_dhcp or opts.allow_transport or opts.allow_bfd
 
         mask = 0
         if filtered:
@@ -3010,6 +3012,8 @@ class TRexClient(object):
                 mask |= NO_TCP_UDP_MASK
             if opts.allow_transport:
                 mask |= TRANSPORT_MASK
+            if opts.allow_bfd:
+                mask |= BFD_MASK
 
         else:
             mask = None
