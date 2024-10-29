@@ -562,6 +562,7 @@ TEST(tuple_gen_2,GenerateTuple2) {
         EXPECT_EQ(result_src, (uint32_t)(0x10000001+i%15));
         EXPECT_EQ(result_dest, (uint32_t) (((0x30000001+i)) ) );
     }
+    gen.Delete();
 }
 
 
