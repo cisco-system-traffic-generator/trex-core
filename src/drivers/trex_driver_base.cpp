@@ -151,7 +151,7 @@ CTRexExtendedDriverDb::CTRexExtendedDriverDb() {
     register_driver(std::string("net_vmxnet3"), CTRexExtendedDriverVmxnet3::create);
     register_driver(std::string("net_virtio"), CTRexExtendedDriverVirtio::create);
     register_driver(std::string("net_ena"),CTRexExtendedDriverVirtio::create);
-    register_driver(std::string("net_mana"),CTRexExtendedDriverVirtio::create);
+    register_driver(std::string("net_gve"), CTRexExtendedDriverGve::create);
     register_driver(std::string("net_iavf"), CTRexExtendedDriverIavf::create);
     register_driver(std::string("net_i40e_vf"), CTRexExtendedDriverIavf::create);
     register_driver(std::string("net_ixgbe_vf"), CTRexExtendedDriverIxgbevf::create);

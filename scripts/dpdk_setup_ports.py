@@ -1150,6 +1150,7 @@ Other network devices
             'net_virtio': 'virtio-pci',
             'net_enic': 'enic',
             'net_bnxt': 'bnxt_en',
+            'net_gve': 'gve',
         }
         nics_info = dpdk_nic_bind.get_info_from_trex(dpdk_interfaces)
         if not nics_info:

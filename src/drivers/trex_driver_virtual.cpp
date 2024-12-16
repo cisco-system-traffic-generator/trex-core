@@ -227,6 +227,27 @@ CTRexExtendedDriverNetvsc::CTRexExtendedDriverNetvsc(){
     m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
 }
 
+CTRexExtendedDriverGve::CTRexExtendedDriverGve(){
+    m_cap = tdCAP_ONE_QUE | tdCAP_MULTI_QUE;
+}
+
+TRexPortAttr* CTRexExtendedDriverGve::create_port_attr(tvpid_t tvpid,repid_t repid){
+    return new DpdkTRexPortAttr(tvpid, repid, true, false, true, false, false);
+}
+
+bool CTRexExtendedDriverGve::get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats){
+    return get_extended_stats_fixed(_if, stats, 4, 4);
+}
+
+void CTRexExtendedDriverGve::update_configuration(port_cfg_t * cfg){
+    CTRexExtendedDriverVirtBase::update_configuration(cfg);
+    cfg->m_port_conf.rxmode.offloads = 0;
+    //cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
+    //cfg->tx_offloads.common_required |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
+    cfg->tx_offloads.common_best_effort = 0;
+}
+
+
 TRexPortAttr* CTRexExtendedDriverNetvsc::create_port_attr(tvpid_t tvpid,repid_t repid){
     return new DpdkTRexPortAttr(tvpid, repid, true, false, true, false, false);
 }

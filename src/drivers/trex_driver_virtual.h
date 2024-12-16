@@ -140,6 +140,21 @@ public:
     virtual void update_configuration(port_cfg_t * cfg);
 };
 
+class CTRexExtendedDriverGve : public CTRexExtendedDriverVirtBase {
+public:
+    CTRexExtendedDriverGve();
+    static CTRexExtendedDriverBase * create(){
+        return ( new CTRexExtendedDriverGve() );
+    }
+    virtual bool is_support_for_rx_scatter_gather(){
+             return (true);
+    }
+
+    virtual TRexPortAttr* create_port_attr(tvpid_t tvpid,repid_t repid);
+    virtual bool get_extended_stats(CPhyEthIF * _if,CPhyEthIFStats *stats);
+    virtual void update_configuration(port_cfg_t * cfg);
+};
+
 class CTRexExtendedDriverNetvsc : public CTRexExtendedDriverVirtBase {
 public:
     CTRexExtendedDriverNetvsc();
