@@ -26,8 +26,6 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
-
-
 == Release 3.06 ==
 
 * Fixed net_bonding breakage caused by the upgrade to DPDK 24.03.
@@ -39,7 +37,6 @@ endif::backend-docbook[]
 
 * Upgrade to DPDK 24.03 for new Cloud drivers 
 ** add mana driver 
-
 
 == Release 3.04 ==
 

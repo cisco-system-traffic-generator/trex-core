@@ -99,7 +99,7 @@ then
 else
 	rm -f "${temp}" "${temp}.o"
 	printf "\
-/* %s is not defined. */
+#undef %s
 
 " "${macro}" >> "${file}" &&
 	printf 'Not defining %s.\n' "${macro}"
