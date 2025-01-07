@@ -8,7 +8,7 @@ The *modes*:
 
 1. *On* : All the packets are forwarded to rx to be processed by Client or Capture.
 2. *Off* - Only latency packets are forwarded. Before v2.66 non TCP UDP were forward to rx in software mode after v2.66 (including) only in filter mode those packets are forwarded for more flexibility.
-3. *Filter* [bgp, no_tcp_udp, emu, transport, mdns, dhcp, all] - In this case specific packets are forwarded to rx. An example can be BGP packets for BIRD. It is relevant only for software mode, `--software`
+3. *Filter* [bgp, bfd, no_tcp_udp, emu, transport, mdns, dhcp, all] - In this case specific packets are forwarded to rx. An example can be BGP packets for BIRD. It is relevant only for software mode, `--software`
 Using filter mode you would be able to run TCP/UDP traffic in high rate while keeping the routing protocols function. The performance would be as good as "off", the only penalty comes from the software mode that requires all packets to be processed in the rx side. 
 
 [NOTE]
@@ -35,8 +35,8 @@ Service mode can be useful when writing Python plugins for emulation (example: I
 ----
 
 trex>service --help
-usage: service [-h] [-p PORTS [PORTS ...] | -a] [--bgp] [--dhcp] [--mdns]
-               [--emu] [--tran] [--no-tcp-udp] [--all] [--off]
+usage: service [-h] [-p PORTS [PORTS ...] | -a] [--bgp] [--bfd] [--dhcp]
+               [--mdns] [--emu] [--tran] [--no-tcp-udp] [--all] [--off]
 
 Configures port for service mode. In service mode ports will reply to ARP,
 PING and etc.
@@ -49,6 +49,7 @@ optional arguments:
                         ports
 
   --bgp                 filter mode with bgp packets forward to rx
+  --bfd                 filter mode with bfd packets forward to rx
   --dhcp                filter mode with dhcpv4/dhcpv6 packets forward to rx
   --mdns                filter mode with mDNS packets forward to rx
   --emu                 filter mode for all emu services rx
