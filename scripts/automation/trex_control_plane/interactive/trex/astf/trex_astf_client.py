@@ -54,6 +54,7 @@ class ASTFClient(STLClient):
                  server = "localhost",
                  sync_port = 4501,
                  async_port = 4500,
+                 max_ports = 4,
                  verbose_level = "error",
                  logger = None,
                  sync_timeout = None,
@@ -74,6 +75,9 @@ class ASTFClient(STLClient):
 
               async_port : int 
                 the ASYNC port (subscriber port)
+
+              max_ports : int
+                maximum amount of ports to show
 
               verbose_level: str
                 one of "none", "critical", "error", "info", "debug"
@@ -99,6 +103,7 @@ class ASTFClient(STLClient):
                             server,
                             sync_port,
                             async_port,
+                            max_ports,
                             verbose_level,
                             logger,
                             sync_timeout,
