@@ -6,7 +6,7 @@
 ########## Reporting results #########
 
 elk:
-    server: sceasr-b20
+    server: csi-trex-34
     port: 9200
 
 google:
