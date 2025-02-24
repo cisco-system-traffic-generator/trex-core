@@ -67,13 +67,13 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
 
     # transmitting ports 
     for port_id in dir_0:
-        streams = STLProfile.load_py(profile, direction=0, port_id=port_id, **profile_tunables).get_streams()
+        streams = STLProfile.load_py(profile, client=c, direction=0, port_id=port_id, **profile_tunables).get_streams()
     c.add_streams(streams, ports=dir_0) 
 
     # if traffic is bi-directional -> add streams to second direction as well.
     if bi_dir:
         for port_id in dir_1:
-            streams = STLProfile.load_py(profile, direction=1, port_id=port_id, **profile_tunables).get_streams()
+            streams = STLProfile.load_py(profile, client=c, direction=1, port_id=port_id, **profile_tunables).get_streams()
         c.add_streams(streams, ports=dir_1)
 
     config = ndr.NdrBenchConfig(**configs)
