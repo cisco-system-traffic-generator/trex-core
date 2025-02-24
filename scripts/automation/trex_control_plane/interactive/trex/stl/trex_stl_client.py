@@ -2964,6 +2964,7 @@ class STLClient(TRexClient):
                 profile_name = str(profile)
                 port_id = int(profile)
                 profile = STLProfile.load(opts.file[0],
+                                          client = self,
                                           direction = port_id % 2,
                                           port_id = port_id,
                                           **tunable_dict)
