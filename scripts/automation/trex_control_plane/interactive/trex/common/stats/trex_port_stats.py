@@ -223,10 +223,11 @@ class PortXStats(AbstractStats):
     def _pre_update(self, snapshot):
         values = snapshot['xstats_values']
 
-        if len(values) != len(self.names):
-            raise TRexError('Length of get_xstats_names: %s and get_port_xstats_values: %s' % (len(self.names), len(values)))
+        # DPDK might report more available names than values
+        # See https://doc.dpdk.org/api-23.03/rte__ethdev_8h.html#a300d75b583c1f5acfe5b162a5d8c0ac1
+        names = self.names[:len(values)]
 
-        snapshot = OrderedDict([(key, val) for key, val in zip(self.names, values)])
+        snapshot = OrderedDict([(key, val) for key, val in zip(names, values)])
 
         return snapshot
 
