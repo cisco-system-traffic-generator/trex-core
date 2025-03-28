@@ -2537,8 +2537,11 @@ class build_option:
             base_flags += [
                 '-fsanitize=address',
                 '-fsanitize=leak',
-                '-static-libasan',
             ]
+            if self.is_clang():
+                base_flags += ['-static-libsan']
+            else:
+                base_flags += ['-static-libasan']
         return base_flags
 
 
