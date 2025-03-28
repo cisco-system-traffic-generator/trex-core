@@ -28,9 +28,9 @@ try:
 except:
     from html.parser import HTMLParser
 
-    
+
 # HTML injector for TOC and DISQUS
-from HTMLInjector import HTMLInjector
+from HTMLInjector import HTMLInjectors
 
 
 class CTocNode:
@@ -43,7 +43,7 @@ class CTocNode:
 
         # by default, link_fmt will formatted as in-page links
         self.link_fmt = link_fmt if link_fmt else lambda x: '#' + x
-        
+
     def get_link (self):
         if self.link==None:
             name=self.name
@@ -53,11 +53,11 @@ class CTocNode:
             for c in l:
                 if c.isalpha() or c.isspace():
                     s+=c
-    
+
             link = '_'.join(s.lower().split());
         else:
             link = self.link
-            
+
         return self.link_fmt(link)
 
 
@@ -114,10 +114,10 @@ class TocHTMLParser(HTMLParser):
 
     def set_level (self,level,node):
         assert(node!=None);
-        assert(isinstance(node,CTocNode)==True); 
+        assert(isinstance(node,CTocNode)==True);
         self.d[str(level)]=node
 
-        # in case we change from high to low level remove the higher level 
+        # in case we change from high to low level remove the higher level
         if level<self.last_level:
             for l in range(level+1,self.last_level+1):
                 self.d.pop(str(l),None)
@@ -159,21 +159,21 @@ class TocHTMLParser(HTMLParser):
         if self.attrs:
             for obj in self.attrs:
                 if obj[0]=='id':
-                    return obj[1] 
+                    return obj[1]
         else:
             return None
 
 
     def handle_data(self, data):
         if self.state:
-            
+
            level=self.level
 
            cnode=self.get_level(level-1)
 
            n=cnode.add_new_child(data,level,self.get_id());
            assert(n!=None);
-           self.set_level(level,n) 
+           self.set_level(level,n)
            self.last_level=level
 
     def dump_as_json (self):
@@ -223,8 +223,8 @@ def ascii_doc_scan(self):
                     depnodes.append(k)
                     node_lst.append(k)
     return [depnodes, ()]
-        
-        
+
+
 
 def scansize(self):
     name = 'image::%s\\{PIC\\}\\[.*,(width|height)=(\\d+)' % self.inputs[0].name[:-4]
@@ -274,11 +274,11 @@ def configure(conf):
     conf.find_program('source-highlight', path_list=search_path, var='SRC_HIGHLIGHT')
     conf.find_program('dblatex', path_list=search_path, var='DBLATEX')
     conf.find_program('a2x', path_list=search_path, var='A2X')
-    
+
     # asciidoctor
     conf.find_program('asciidoctor', path_list=search_path, var='ASCIIDOCTOR')
     conf.find_file('multipage-html5-converter.rb', path_list=search_path)
-    
+
 
 def convert_to_pdf(task):
     input_file = task.outputs[0].abspath()
@@ -301,9 +301,9 @@ def convert_to_html_toc_book (task, disqus=False, generator='asciidoc', docinfo 
 
     input_file = task.inputs[0].abspath()
 
-    json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json' 
-    tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp' 
-    json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json' 
+    json_out_file = os.path.splitext(task.outputs[0].abspath())[0]+'.json'
+    tmp = os.path.splitext(task.outputs[0].abspath())[0]+'.tmp'
+    json_out_file_short = os.path.splitext(task.outputs[0].name)[0]+'.json'
     cmd='{0} -a stylesheet={1} -a  icons=true {2} -d book  -o {3} {4}'.format(
             tools[generator],
             task.inputs[1].abspath(),
@@ -319,13 +319,13 @@ def convert_to_html_toc_book (task, disqus=False, generator='asciidoc', docinfo 
 
     in_file  = tmp
     out_file = task.outputs[0].abspath()
-    
+
     # inject TOC and DISQUS if needed
     with HTMLInjector(in_file, out_file) as injector:
         injector.inject_toc(json_out_file_short)
         if disqus:
             injector.inject_disqus(os.path.split(out_file)[1])
-    
+
 
     return os.system('rm {0}'.format(tmp));
 
@@ -339,40 +339,40 @@ def convert_to_html_toc_book_no_docinfo(task):
 # the pages
 # also a 'main' hook will be added
 def multipage_strip_hierarchy (in_file, out_file):
-    
+
     with open(in_file) as f:
         lines = f.readlines()
-    
+
     for i, line in enumerate(lines):
         if re.match("==+ [^ ].*", line):
             prefix, name = line.split(' ', 1)
             lines[i] = '== {0}\n'.format(name)
-            
-                
-    # add a hook                
+
+
+    # add a hook
     lines.append('\n== main\n')
-    
+
     with open(out_file, "w") as f:
         f.write(''.join(lines))
-    
-    
-    
+
+
+
 # generate an asciidoctor chunk book for a target
 def convert_to_asciidoctor_chunk_book(task, title, css):
-    
+
     in_file          = task.inputs[0].abspath()
     src_dir          = os.path.dirname(in_file)
     out_dir          = os.path.splitext(task.outputs[0].abspath())[0]
     target_name      = os.path.basename(out_dir)
 
-    
+
     css = os.path.abspath(css)
 
     # build chunked with no hierarchy
     with tempfile.NamedTemporaryFile() as tmp_file:
         # strip the hierarchy to make sure all pages are generated
         multipage_strip_hierarchy(in_file, tmp_file.name)
-    
+
         multipage_backend = os.path.join('./extensions', 'multipage-html5-converter.rb')
         cmd = '{0} -a stylesheet={1} -r {2} -b multipage_html5 -D {3} {4} -o {5}.html -B {6}'.format(
                 task.env['ASCIIDOCTOR'][0],
@@ -386,8 +386,8 @@ def convert_to_asciidoctor_chunk_book(task, title, css):
         res = os.system(cmd)
         if res != 0:
             return (1)
-    
-    
+
+
     # build single only to get the TOC
     with tempfile.NamedTemporaryFile() as tmp_file:
         cmd = '{0} -a toc=left -b html5 -o {2} {3}'.format(
@@ -395,21 +395,21 @@ def convert_to_asciidoctor_chunk_book(task, title, css):
                 multipage_backend,
                 tmp_file.name,
                 in_file)
-    
+
         res = os.system( cmd )
         if res != 0:
             return (1)
-        
+
         # create TOC JSON in the library
         create_toc_json(tmp_file.name, os.path.join(out_dir, 'toc.json'), link_fmt = lambda link : '{0}{1}.html'.format(target_name, link))
-  
-    
+
+
     # iterate over all files and inject DISQUS if the pattern matches
     for filename in [f for f in os.listdir(out_dir) if f.endswith('.html')]:
         with HTMLInjector(os.path.join(out_dir, filename)) as injector:
             injector.inject_disqus(page_id = filename)
-        
-    
+
+
     # add TOC and disqus to the main page
     main = '{0}_main.html'.format(target_name)
 
@@ -423,7 +423,7 @@ def convert_to_asciidoctor_chunk_book(task, title, css):
     os.remove(os.path.join(out_dir, main))
 
     return 0
-        
+
 
 
 def convert_to_pdf_book(task):
@@ -435,7 +435,7 @@ def convert_to_pdf_book(task):
 def ensure_dir(f):
     if not os.path.exists(f):
         os.makedirs(f)
-    
+
 
 def my_copy(task):
     input_file = task.outputs[0].get_src()
@@ -526,7 +526,7 @@ def build_cp_docs (task):
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
-        bld= "html", 
+        bld= "html",
         src= ".",
         dst= out_dir)
     if Logs.verbose:
@@ -549,8 +549,8 @@ def build_stl_cp_docs (task):
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
-        bld= "html", 
-        src= ".", 
+        bld= "html",
+        src= ".",
         dst= out_dir)
     if Logs.verbose:
         print(build_doc_cmd)
@@ -573,8 +573,8 @@ def build_astf_cp_docs (task):
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
-        bld= "html", 
-        src= ".", 
+        bld= "html",
+        src= ".",
         dst= out_dir)
     if Logs.verbose:
         print(build_doc_cmd)
@@ -597,8 +597,8 @@ def build_ndr_cp_docs (task):
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
-        bld= "html", 
-        src= ".", 
+        bld= "html",
+        src= ".",
         dst= out_dir)
     if Logs.verbose:
         print(build_doc_cmd)
@@ -620,8 +620,8 @@ def build_emu_cp_docs (task):
         sph= task.env['SPHINX'][0],
         add= additional_args,
         ver= '' if Logs.verbose else '-q',
-        bld= "html", 
-        src= ".", 
+        bld= "html",
+        src= ".",
         dst= out_dir)
     if Logs.verbose:
         print(build_doc_cmd)
@@ -664,25 +664,25 @@ def build(bld):
     for x in bld.path.ant_glob('images\\**\**.png'):
             x1 = os.path.relpath(str(x), str(bld.path))
             bld(rule=my_copy, target=x1)
-            bld.add_group() 
+            bld.add_group()
 
     for x in bld.path.ant_glob('yaml\\**\**.yaml'):
             x1 = os.path.relpath(str(x), str(bld.path))
             bld(rule=my_copy, target=x1)
-            bld.add_group() 
+            bld.add_group()
 
 
 
     for x in bld.path.ant_glob('video\\**\**.mp4'):
             x1 = os.path.relpath(str(x), str(bld.path))
             bld(rule=my_copy, target=x1)
-            bld.add_group() 
+            bld.add_group()
 
 
     for x in bld.path.ant_glob('images\\**\**.jpg'):
         x1 = os.path.relpath(str(x), str(bld.path))
         bld(rule=my_copy, target=x1)
-        bld.add_group() 
+        bld.add_group()
 
     if bld.options.performance or bld.options.performance_detailed:
         bld(rule=create_analytic_report)
@@ -742,7 +742,7 @@ def build(bld):
 
     bld(rule=convert_to_pdf_book, source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.pdf', scan=ascii_doc_scan)
 
-    # with nice TOC 
+    # with nice TOC
     bld(rule=convert_to_html_toc_book,
         source='trex_vm_manual.asciidoc waf.css', target='trex_vm_manual.html',scan=ascii_doc_scan)
 
@@ -816,10 +816,10 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_rpc_server_spec.asciidoc waf.css', target='trex_rpc_server_spec.html',scan=ascii_doc_scan);
-        
+
     bld(rule=convert_to_html_toc_book,
         source='trex_scapy_rpc_server.asciidoc waf.css', target='trex_scapy_rpc_server.html',scan=ascii_doc_scan);
-    
+
     bld(rule=convert_to_html_toc_book,
         source='analyticsBlog.asciidoc waf.css', target='analyticsBlog.html',scan=ascii_doc_scan);
 
@@ -832,7 +832,7 @@ def build(bld):
 
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_control_plane_design_phase1.asciidoc waf.css', target='trex_control_plane_design_phase1.html', scan=ascii_doc_scan)
-        
+
     bld(rule='${ASCIIDOC}   -a stylesheet=${SRC[1].abspath()} -a  icons=true -a toc2 -a max-width=55em  -o ${TGT} ${SRC[0].abspath()}',
         source='trex_control_plane_peek.asciidoc waf.css', target='trex_control_plane_peek.html', scan=ascii_doc_scan)
 
@@ -860,7 +860,7 @@ class Env(object):
             print("You should define $",name)
             raise Exception("Env error");
         return (s);
-    
+
     @staticmethod
     def get_release_path () :
         s= Env().get_env('TREX_LOCAL_PUBLISH_PATH');
@@ -877,7 +877,7 @@ class Env(object):
         s= Env().get_env('TREX_WEB_SERVER');
         return  s;
 
-    # extral web 
+    # extral web
     @staticmethod
     def get_trex_ex_web_key() :
         s= Env().get_env('TREX_EX_WEB_KEY');
@@ -906,7 +906,7 @@ class Env(object):
 
 
 def release(bld):
-    # copy all the files to our web server 
+    # copy all the files to our web server
     core_dir = Env().get_trex_core()
     release_dir = core_dir +"/scripts/doc/";
     os.system('mkdir -p '+release_dir)
@@ -938,12 +938,12 @@ def rsync_ext(bld, src, dst):
 
 
 def publish(bld):
-    # copy all the files to internal web server 
+    # copy all the files to internal web server
     rsync_int(bld, '', '')
 
 
 def publish_ext(bld):
-    # copy all the files to external web server 
+    # copy all the files to external web server
     rsync_ext(bld, '', '')
 
 
@@ -967,11 +967,11 @@ def publish_perf(bld):
 
     rsync_int(bld, 'images/_comparison_stats_table.csv', 'images/')
     rsync_ext(bld, 'images/_comparison_stats_table.csv', 'images/')
-    
+
 
 
 def publish_test(bld):
-    # copy all the files to our web server 
+    # copy all the files to our web server
     remote_dir = "%s:%s" % ( Env().get_local_web_server(), Env().get_remote_release_path ()+'../test/')
     os.system('rsync -av --del --rsh=ssh build/ %s' % (remote_dir))
 
@@ -981,15 +981,15 @@ def publish_both(bld):
     publish(bld)
     publish_ext(bld)
 
-         
+
 def test(bld):
-    # copy all the files to our web server 
+    # copy all the files to our web server
     #toc_fixup_file ('build/trex_stateless.tmp',
     #                'build/trex_stateless.html',
     #                'trex_stateless.json')
     pass
     #print build_disqus("my_html")
-  
+
 
 def run (bld):
     import BaseHTTPServer, SimpleHTTPServer
