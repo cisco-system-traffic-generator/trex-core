@@ -2884,6 +2884,7 @@ TEST_F(gt_ring, ring1) {
         uint32_t *p;
         assert(my.Dequeue(p)==0);
         EXPECT_EQ_UINT32(*p, i);
+        delete p;
     }
     uint32_t *p;
     assert(my.Dequeue(p)!=0);
