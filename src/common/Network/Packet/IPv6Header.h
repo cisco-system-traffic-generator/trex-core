@@ -205,13 +205,13 @@ IPv6Header::setTrafficClass(uint16_t argTrafficClass)
 //--------------------------------
 inline uint32_t IPv6Header::getFlowLabel()
 {
-    return  getMaskBit32(PKT_NTOHL(myVer_TrafficClass_FlowLabel), 12, 31);
+    return  getMaskBit32(PKT_NTOHL(myVer_TrafficClass_FlowLabel), 20, 31);
 }
 
 inline void  IPv6Header::setFlowLabel(uint32_t argFlowLabel)
 {
     uint32_t myFlowLabel = PKT_HTONL(myVer_TrafficClass_FlowLabel);
-    setMaskBit32(myFlowLabel, 12, 31, argFlowLabel);
+    setMaskBit32(myFlowLabel, 20, 31, argFlowLabel);
     myVer_TrafficClass_FlowLabel = PKT_NTOHL(myFlowLabel);
 }
 
