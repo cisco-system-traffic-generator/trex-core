@@ -531,10 +531,6 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                             && (rcv_addr = port->find_next_hop(ntohl(arp->m_arp_tip), vlan_id))
                             && !CGlobalInfo::m_options.m_garp_ignore) {
                             rcv_addr->set_mac((uint8_t *)&arp->m_arp_sha);
-                            fprintf(stdout, "RX grat ARP request for something we need on port:%d sip:%s, tip:%s\n",
-                                    port_id,
-                                    ip_to_str(ntohl(arp->m_arp_sip)).c_str(), 
-                                    ip_to_str(ntohl(arp->m_arp_tip)).c_str());
                         }
                     }
                 } else {
