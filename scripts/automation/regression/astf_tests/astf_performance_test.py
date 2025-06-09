@@ -20,7 +20,10 @@ class ASTFPerformanceTests(ASTFProfile_Test):
             cls.skip("%s not part of astf performance setups: %s" % (cls.setup, astf_performance_setups))
 
     def get_scenario(self):
-        return self.get_tst_name().removeprefix("test_performance_")
+        name = self.get_tst_name()
+        if name.startswith("test_performance_"):
+            return name[len("test_performance_"):]
+        return name
 
     def run_performance(self, profile_name, m, is_udp, is_tcp, mpps_per_core_golden, ipv6 =False, check_counters=True, nc = False):
         c = self.c
