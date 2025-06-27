@@ -2119,11 +2119,13 @@ class ASTFProfile(object):
                 for c in all_cap_info:
                     payload_percent = c["prog_c"].payload_len * 100.0 / total_payload
 
-                    target_cps = c["l7_percent"] / payload_percent
 
-                    if target_cps < 0.5: # avoid format error
-                        target_cps = 0.5
+                    # the 10 here is because Trex doesnt like CPS under 0.5
+                    # so we try to go up an order of magnitude
+                    # since most users will just multiply this again with the global multiplier after
+                    target_cps = c["l7_percent"] / payload_percent * 10.0
 
+                    c["cps"] = target_cps
                     percent_sum += c["l7_percent"]
                 if percent_sum != 100:
                     raise ASTFError("l7_percent values must sum up to 100")
