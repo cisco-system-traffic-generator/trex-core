@@ -2115,6 +2115,7 @@ class ASTFProfile(object):
             #
             # final_cps = expected_percent / trafic_percent
             if mode == "l7_percent":
+                lowest = 1
                 percent_sum = 0
                 for c in all_cap_info:
                     payload_percent = c["prog_c"].payload_len * 100.0 / total_payload
@@ -2123,12 +2124,20 @@ class ASTFProfile(object):
                     # the 10 here is because Trex doesnt like CPS under 0.5
                     # so we try to go up an order of magnitude
                     # since most users will just multiply this again with the global multiplier after
-                    target_cps = c["l7_percent"] / payload_percent * 10.0
+                    target_cps = c["l7_percent"] / payload_percent
 
                     c["cps"] = target_cps
+
+                    if target_cps < lowest:
+                        lowest = target_cps
                     percent_sum += c["l7_percent"]
                 if percent_sum != 100:
                     raise ASTFError("l7_percent values must sum up to 100")
+                # normalize it all so that lowest = 1
+                mult = 1 / lowest
+                for c in all_cap_info:
+                    c["cps"] = c["cps"] * mult
+
 
             for c in all_cap_info:
                 temp_c = ASTFTCPClientTemplate(program=c["prog_c"], glob_info=c["glob_c"], ip_gen=c["ip_gen"], port=c["d_port"],
