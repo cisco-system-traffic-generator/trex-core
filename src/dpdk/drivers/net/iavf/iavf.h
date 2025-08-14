@@ -564,4 +564,10 @@ void iavf_dev_watchdog_enable(struct iavf_adapter *adapter);
 void iavf_dev_watchdog_disable(struct iavf_adapter *adapter);
 void iavf_handle_hw_reset(struct rte_eth_dev *dev);
 void iavf_set_no_poll(struct iavf_adapter *adapter, bool link_change);
+
+/**
+ * Destroy security context
+ */
+int iavf_security_ctx_destroy(struct iavf_adapter *adapterv);
+
 #endif /* _IAVF_ETHDEV_H_ */
