@@ -125,11 +125,6 @@ int iavf_ipsec_crypto_set_security_capabililites(struct iavf_security_ctx
 int iavf_security_get_pkt_md_offset(struct iavf_adapter *adapter);
 
 /**
- * Destroy security context
- */
-int iavf_security_ctx_destroy(struct iavf_adapter *adapterv);
-
-/**
  * Verify that the inline IPsec Crypto action is valid for this device
  */
 uint32_t
