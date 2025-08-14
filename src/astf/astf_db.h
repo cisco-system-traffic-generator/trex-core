@@ -283,11 +283,10 @@ inline bool operator< (const CTcpDataAssocParams& lhs, const CTcpDataAssocParams
 class CTcpDataAssocTransHelp {
     friend class CTcpDataAssocTranslation;
 
-    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx) {
+    CTcpDataAssocTransHelp(const CTcpDataAssocParams& params, CEmulAppProgram *prog, CTcpTuneables *tune, uint32_t temp_idx)
+        : m_server_info(prog, tune, temp_idx)
+    {
         m_params = params;
-        m_server_info.m_prog = prog;
-        m_server_info.m_tune = tune;
-        m_server_info.m_temp_idx = temp_idx;
     }
 
  private:
