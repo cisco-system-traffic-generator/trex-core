@@ -47,7 +47,6 @@
 #include "base/ixgbe_phy.h"
 #include "base/ixgbe_osdep.h"
 #include "ixgbe_regs.h"
-int trex_ixgbe_fdir_configure(struct rte_eth_dev *dev);
 
 /*
  * High threshold controlling when to start sending XOFF frames. Must be at
