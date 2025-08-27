@@ -1421,10 +1421,32 @@ class EMUClient(object):
 
         for ns_chunk in ns_keys_gen:
             for ns_key in ns_chunk:
+                self.stop_autotriggers_ns(ns_key)
                 c_keys = self.get_all_clients_for_ns(ns_key)
                 self.remove_clients(c_keys, max_rate)
             self.remove_ns(ns_chunk)
     
+        return RC_OK()
+
+    @client_api('command', True)
+    def stop_autotriggers_ns(self, ns_key):
+        """
+            Stops autotriggers for given namespace (useful when removing profile).
+
+            :parameters:
+
+                ns_key: EMUNamespaceKey
+                    see :class:`trex.emu.trex_emu_profile.EMUNamespaceKey`
+
+            :raises:
+                + :exc:`TRexError`
+        """
+        ver_args = [{'name': 'ns_key', 'arg': ns_key, 't': EMUNamespaceKey}]
+        EMUValidator.verify(ver_args)
+
+        data = ns_key.conv_to_dict(True)
+        self._send_chunks(cmd = 'ctx_stop_autotriggers', data = data)
+
         return RC_OK()
 
     # Default Plugins
@@ -2103,3 +2125,4 @@ class EMUClient(object):
             raise TRexError(rc.err())
 
         return rc.data()
+
