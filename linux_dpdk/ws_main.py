@@ -2102,6 +2102,7 @@ elif march == 'aarch64':
                        '-DRTE_MACHINE_SHA1',
                        '-DRTE_MACHINE_SHA2',
                        '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_EVTSTRM,RTE_CPUFLAG_NEON,RTE_CPUFLAG_CRC32,RTE_CPUFLAG_AES,RTE_CPUFLAG_PMULL,RTE_CPUFLAG_SHA1,RTE_CPUFLAG_SHA2',
+                       '-DTREX_USE_BPFJIT',
                        ]
     common_flags_old = common_flags + [
                        '-march=native',
@@ -2115,6 +2116,7 @@ elif march == 'aarch64':
                        '-DRTE_MACHINE_SHA1',
                        '-DRTE_MACHINE_SHA2',
                        '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_NEON,RTE_CPUFLAG_CRC32,RTE_CPUFLAG_AES,RTE_CPUFLAG_PMULL,RTE_CPUFLAG_SHA1,RTE_CPUFLAG_SHA2',
+                       '-DTREX_USE_BPFJIT',
                        ]
 
 elif march == 'ppc64le':
@@ -2605,8 +2607,10 @@ def build_prog (bld, build_obj):
                     dpdk_src_aarch64
                     ])
 
-        # software BPF
-        bpf = SrcGroups([bpf_src])
+        # BPF + JIT
+        bpf = SrcGroups([
+                    bpf_src,
+                    bpfjit_src])
 
     elif march == 'ppc64le':
         bp_dpdk = SrcGroups([
