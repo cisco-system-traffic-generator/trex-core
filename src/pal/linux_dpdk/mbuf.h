@@ -23,6 +23,7 @@ limitations under the License.
 
 
 #include <rte_config.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <rte_mbuf.h>
 #include <rte_random.h>

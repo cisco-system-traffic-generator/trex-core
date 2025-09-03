@@ -798,10 +798,16 @@ def configure(conf):
 
     conf.find_program('strings')
     so = ['/usr/lib/x86_64-linux-gnu/libstdc++.so.6','/usr/lib64/libstdc++.so.6']
-    our_so =  '../scripts/so/x86_64/libstdc++.so.6'
-    d_so =  '../scripts/so/x86_64/_libstdc++.so.6'
+    our_so =  f'../scripts/so/{march}/libstdc++.so.6'
+    d_so =  f'../scripts/so/{march}/_libstdc++.so.6'
     ver = check_version_glibc(so)
-    if ver > 3424:
+
+    our_so_version = {
+        'x86_64': 3424,
+        'aarch64': 3433,
+    }
+
+    if ver > our_so_version[march]:
         Logs.pprint('YELLOW', 'you have newer {} libstdc++.so remove the old one, do not commit this \n'.format(ver))
         try:
           os.system("mv %s %s " %(our_so,d_so))
