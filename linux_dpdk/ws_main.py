@@ -1385,7 +1385,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  #af_packet
                  'drivers/net/af_packet/rte_eth_af_packet.c',
 
-                #  #Amazone ENA
+                 #Amazon ENA
                  'drivers/net/ena/ena_ethdev.c',
                  'drivers/net/ena/ena_rss.c',
                  'drivers/net/ena/base/ena_com.c',
@@ -1476,6 +1476,12 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                 #  #libs
                  'lib/eal/common/arch/arm/rte_cpuflags.c',
                  'lib/eal/common/arch/arm/rte_cycles.c',
+
+                 #Amazon ENA
+                 'drivers/net/ena/ena_ethdev.c',
+                 'drivers/net/ena/ena_rss.c',
+                 'drivers/net/ena/base/ena_com.c',
+                 'drivers/net/ena/base/ena_eth_com.c',
 
                  ])
 
