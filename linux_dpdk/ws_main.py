@@ -1331,30 +1331,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                 'drivers/net/ice/ice_tm.c',
 
                  #ixgbe
-                 'drivers/net/ixgbe/base/ixgbe_82598.c',
-                 'drivers/net/ixgbe/base/ixgbe_82599.c',
-                 'drivers/net/ixgbe/base/ixgbe_api.c',
-                 'drivers/net/ixgbe/base/ixgbe_common.c',
-                 'drivers/net/ixgbe/base/ixgbe_dcb.c',
-                 'drivers/net/ixgbe/base/ixgbe_dcb_82598.c',
-                 'drivers/net/ixgbe/base/ixgbe_dcb_82599.c',
-                 'drivers/net/ixgbe/base/ixgbe_hv_vf.c',
-                 'drivers/net/ixgbe/base/ixgbe_mbx.c',
-                 'drivers/net/ixgbe/base/ixgbe_phy.c',
-                 'drivers/net/ixgbe/base/ixgbe_vf.c',
-                 'drivers/net/ixgbe/base/ixgbe_x540.c',
-                 'drivers/net/ixgbe/base/ixgbe_x550.c',
-                 'drivers/net/ixgbe/ixgbe_ethdev.c',
-                 'drivers/net/ixgbe/ixgbe_fdir.c',
-                 'drivers/net/ixgbe/ixgbe_flow.c',
-                 'drivers/net/ixgbe/ixgbe_pf.c',
-                 'drivers/net/ixgbe/ixgbe_rxtx.c',
                  'drivers/net/ixgbe/ixgbe_rxtx_vec_sse.c',
-                 'drivers/net/ixgbe/ixgbe_recycle_mbufs_vec_common.c',
-                 #'drivers/net/ixgbe/ixgbe_ipsec.c',
-                 'drivers/net/ixgbe/ixgbe_tm.c',
-                 'drivers/net/ixgbe/ixgbe_vf_representor.c',
-                 'drivers/net/ixgbe/rte_pmd_ixgbe.c',
 
                  #i40e
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
@@ -1472,6 +1449,9 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_neon.c',
 
+                 #ixgbe
+                 'drivers/net/ixgbe/ixgbe_rxtx_vec_neon.c',
+
                  #i40e
                  'drivers/net/i40e/i40e_rxtx_vec_neon.c',
 
@@ -1490,6 +1470,7 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
 
 dpdk_src_aarch64_ext = SrcGroup(dir='src',
         src_list=[
+                    'drivers/trex_ixgbe_fdir.c',
                     'drivers/trex_i40e_fdir.c',
                   ]
 )
@@ -1745,6 +1726,33 @@ libmnl_src = SrcGroup(
         'attr.c',
     ])
 
+ixgbe_dpdk_src = SrcGroup(
+    dir = 'src/dpdk/drivers/net/ixgbe',
+    src_list = [
+                 'base/ixgbe_82598.c',
+                 'base/ixgbe_82599.c',
+                 'base/ixgbe_api.c',
+                 'base/ixgbe_common.c',
+                 'base/ixgbe_dcb.c',
+                 'base/ixgbe_dcb_82598.c',
+                 'base/ixgbe_dcb_82599.c',
+                 'base/ixgbe_hv_vf.c',
+                 'base/ixgbe_mbx.c',
+                 'base/ixgbe_phy.c',
+                 'base/ixgbe_vf.c',
+                 'base/ixgbe_x540.c',
+                 'base/ixgbe_x550.c',
+                 'ixgbe_ethdev.c',
+                 'ixgbe_fdir.c',
+                 'ixgbe_flow.c',
+                 'ixgbe_pf.c',
+                 'ixgbe_rxtx.c',
+                 'ixgbe_recycle_mbufs_vec_common.c',
+                 'ixgbe_tm.c',
+                 'ixgbe_vf_representor.c',
+                 'rte_pmd_ixgbe.c',
+    ])
+
 i40e_dpdk_src = SrcGroup(
     dir = 'src/dpdk/drivers/net/i40e',
     src_list = [
@@ -1982,6 +1990,10 @@ mana_dpdk =SrcGroups([
 
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
+                ])
+
+ixgbe_dpdk =SrcGroups([
+                ixgbe_dpdk_src
                 ])
 
 i40e_dpdk =SrcGroups([
@@ -2607,6 +2619,7 @@ def build_prog (bld, build_obj):
         bp_dpdk = SrcGroups([
                     dpdk_src,
                     i40e_dpdk_src,
+                    ixgbe_dpdk_src,
                     dpdk_src_x86_64,
                     dpdk_src_x86_64_ext
                     ])
@@ -2623,6 +2636,7 @@ def build_prog (bld, build_obj):
         bp_dpdk = SrcGroups([
                     dpdk_src,
                     i40e_dpdk_src,
+                    ixgbe_dpdk_src,
                     dpdk_src_aarch64,
                     dpdk_src_aarch64_ext
                     ])
