@@ -1358,7 +1358,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
 
                  #i40e
                  'drivers/net/i40e/i40e_rxtx_vec_sse.c',
-                 'drivers/net/i40e/i40e_recycle_mbufs_vec_common.c',
 
                  #igc
                  'drivers/net/igc/base/igc_api.c',
@@ -1477,6 +1476,9 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  'lib/eal/common/arch/arm/rte_cpuflags.c',
                  'lib/eal/common/arch/arm/rte_cycles.c',
 
+                 #i40e
+                 'drivers/net/i40e/i40e_rxtx_vec_neon.c',
+
                  #Amazon ENA
                  'drivers/net/ena/ena_ethdev.c',
                  'drivers/net/ena/ena_rss.c',
@@ -1484,6 +1486,13 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ena/base/ena_eth_com.c',
 
                  ])
+
+
+dpdk_src_aarch64_ext = SrcGroup(dir='src',
+        src_list=[
+                    'drivers/trex_i40e_fdir.c',
+                  ]
+)
 
 
 dpdk_src_ppc64le = SrcGroup(dir='src/dpdk/',
@@ -1756,6 +1765,7 @@ i40e_dpdk_src = SrcGroup(
         'i40e_tm.c',
         'i40e_vf_representor.c',
         'rte_pmd_i40e.c',
+        'i40e_recycle_mbufs_vec_common.c',
     ])
 
 mlx5_x86_64_dpdk_src = SrcGroup(
@@ -2286,7 +2296,7 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 if march == 'x86_64':
     DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2403_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="24.1"']
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2403_x86_64_aarch64/rte_config.h']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2403_x86_64_aarch64/rte_config.h']
 elif march == 'ppc64le':
     DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2403_x86_64_ppc64le/rte_config.h']
 
@@ -2612,7 +2622,9 @@ def build_prog (bld, build_obj):
     elif march == 'aarch64':
         bp_dpdk = SrcGroups([
                     dpdk_src,
-                    dpdk_src_aarch64
+                    i40e_dpdk_src,
+                    dpdk_src_aarch64,
+                    dpdk_src_aarch64_ext
                     ])
 
         # BPF + JIT
