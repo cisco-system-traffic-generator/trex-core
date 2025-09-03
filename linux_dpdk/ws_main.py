@@ -1354,6 +1354,19 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_sse.c',
 
+                 #iavf
+                 'drivers/net/iavf/iavf_ethdev.c',
+                 'drivers/net/iavf/iavf_rxtx.c',
+                 'drivers/net/iavf/iavf_vchnl.c',
+                 'drivers/net/iavf/iavf_tm.c',
+                 'drivers/net/iavf/iavf_generic_flow.c',
+                 'drivers/net/iavf/iavf_hash.c',
+                 'drivers/net/iavf/iavf_fdir.c',
+                 'drivers/common/iavf/iavf_adminq.c',
+                 'drivers/common/iavf/iavf_common.c',
+                 'drivers/common/iavf/iavf_impl.c',
+                 'drivers/net/iavf/iavf_rxtx_vec_sse.c',
+
                  #vmxnet3
                  'drivers/net/vmxnet3/vmxnet3_ethdev.c',
                  'drivers/net/vmxnet3/vmxnet3_rxtx.c',
@@ -1414,13 +1427,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'lib/ip_frag/rte_ip_frag_common.c',
                  'lib/ip_frag/ip_frag_internal.c',
 
-                 #bonding
-                 'drivers/net/bonding/rte_eth_bond_api.c',
-                 'drivers/net/bonding/rte_eth_bond_pmd.c',
-                 'drivers/net/bonding/rte_eth_bond_flow.c',
-                 'drivers/net/bonding/rte_eth_bond_args.c',
-                 'drivers/net/bonding/rte_eth_bond_8023ad.c',
-                 'drivers/net/bonding/rte_eth_bond_alb.c',
 
                  ])
 
@@ -1490,7 +1496,7 @@ dpdk_src_ppc64le = SrcGroup(dir='src/dpdk/',
 
 dpdk_src = SrcGroup(dir='src/dpdk/',
                 src_list=[
-                '../dpdk_funcs.c',
+                 '../dpdk_funcs.c',
                  'drivers/bus/auxiliary/auxiliary_common.c',
                  'drivers/bus/auxiliary/auxiliary_params.c',
                  'drivers/bus/pci/pci_common.c',
@@ -1507,7 +1513,7 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/bus/vmbus/vmbus_common_uio.c',
                  'drivers/bus/vmbus/linux/vmbus_bus.c',
                  'drivers/bus/vmbus/linux/vmbus_uio.c',
-                'drivers/mempool/ring/rte_mempool_ring.c',
+                 'drivers/mempool/ring/rte_mempool_ring.c',
                  #'drivers/mempool/stack/rte_mempool_stack.c', # requires dpdk/lib/librte_stack/rte_stack.h
 
 
@@ -1540,6 +1546,14 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/e1000/igb_pf.c',
                  'drivers/net/e1000/igb_rxtx.c',
 
+                 #bonding
+                 'drivers/net/bonding/rte_eth_bond_api.c',
+                 'drivers/net/bonding/rte_eth_bond_pmd.c',
+                 'drivers/net/bonding/rte_eth_bond_flow.c',
+                 'drivers/net/bonding/rte_eth_bond_args.c',
+                 'drivers/net/bonding/rte_eth_bond_8023ad.c',
+                 'drivers/net/bonding/rte_eth_bond_alb.c',
+
                  #memif
                  'drivers/net/memif/memif_socket.c',
                  'drivers/net/memif/rte_eth_memif.c',
@@ -1561,21 +1575,9 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'drivers/net/virtio/virtio_user/vhost_user.c',
                  'drivers/net/virtio/virtio_user/virtio_user_dev.c',
 
-                 'drivers/net/iavf/iavf_ethdev.c',
-                 'drivers/net/iavf/iavf_rxtx.c',
-                 'drivers/net/iavf/iavf_vchnl.c',
-                 'drivers/net/iavf/iavf_tm.c',
-                 'drivers/net/iavf/iavf_generic_flow.c',
-                 'drivers/net/iavf/iavf_hash.c',
-                 'drivers/net/iavf/iavf_fdir.c',
-                 'drivers/net/iavf/iavf_rxtx_vec_sse.c',
-
-                 'drivers/common/iavf/iavf_adminq.c',
-                 'drivers/common/iavf/iavf_common.c',
-                 'drivers/common/iavf/iavf_impl.c',
 
                  #libs
-                'lib/rcu/rte_rcu_qsbr.c',
+                 'lib/rcu/rte_rcu_qsbr.c',
 
                  'lib/cfgfile/rte_cfgfile.c',
 
