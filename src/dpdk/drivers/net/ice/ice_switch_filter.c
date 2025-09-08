@@ -1594,6 +1594,7 @@ invalid:
 			return -rte_errno;
 
 		case RTE_FLOW_ACTION_TYPE_DROP:
+			rule_info->add_dir_lkup = 1;
 			rule_info->sw_act.fltr_act = ICE_DROP_PACKET;
 			break;
 
@@ -1676,6 +1677,7 @@ ice_switch_parse_action(struct ice_pf *pf,
 			break;
 
 		case RTE_FLOW_ACTION_TYPE_DROP:
+			rule_info->add_dir_lkup = 1;
 			rule_info->sw_act.fltr_act =
 				ICE_DROP_PACKET;
 			break;
