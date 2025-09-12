@@ -211,7 +211,7 @@ def find_module(mod):
 
     # check for a copy based off current path
     drivers_dir = '/lib/modules/%s/kernel/drivers' % kernel_ver
-    find_out = check_output(["find", drivers_dir, "-name", mod + ".ko\*"], universal_newlines = True)
+    find_out = check_output(["find", drivers_dir, "-name", mod + ".ko\\*"], universal_newlines = True)
     if find_out: #something matched
         path = find_out.splitlines()[0]
         if exists(path):
@@ -819,7 +819,7 @@ def get_info_from_trex(pci_addr_list):
         else:
             print('Error upon running TRex to get interfaces info:\n%s' % stdout)
         sys.exit(-1)
-    pci_mac_str = 'PCI: (\S+).+?MAC: (\S+).+?Driver: (\S*)'
+    pci_mac_str = 'PCI: (\\S+).+?MAC: (\\S+).+?Driver: (\\S*)'
     pci_mac_re = re.compile(pci_mac_str)
     for line in stdout.splitlines():
         match = pci_mac_re.match(line)
@@ -879,8 +879,8 @@ KILO = 1000
 MEGA = 1000000
 GIGA = 1000000000
 TERA = 1000000000000
-MEMORY_SIZE_RE = re.compile('(\d+)\s*(.?)b?$')
-BANK_LOCATOR_RE = re.compile('(node|cpu) (\d+) channel (\d+)')
+MEMORY_SIZE_RE = re.compile('(\\d+)\\s*(.?)b?$')
+BANK_LOCATOR_RE = re.compile('(node|cpu) (\\d+) channel (\\d+)')
 def parse_memory_section(section, flag_hypervisor):
     numa = channel = size = None
     for line in section.splitlines():

@@ -61,7 +61,7 @@ def if_list_remove_sub_if(if_list):
 
 class ConfigCreator(object):
     mandatory_interface_fields = ['Slot_str', 'Device_str', 'NUMA']
-    _2hex_re = '[\da-fA-F]{2}'
+    _2hex_re = '[\\da-fA-F]{2}'
     mac_re = re.compile('^({0}:){{5}}{0}$'.format(_2hex_re))
 
     if march == 'ppc64le':
@@ -510,7 +510,7 @@ Other network devices
     def check_ofed_version (self):
         ofed_info='/usr/bin/ofed_info'
 
-        ofed_ver_re = re.compile('.*[-](\d)(\d)?[.](\d)(\d)?[-].*')
+        ofed_ver_re = re.compile('.*[-](\\d)(\\d)?[.](\\d)(\\d)?[-].*')
 
         ofed_ver = 52
         ofed_ver_show = '5.2'
@@ -862,7 +862,7 @@ Other network devices
         if not if_list:
             return
         af_names = []
-        ifname_re = re.compile('iface\s*=\s*([^\s,]+)')
+        ifname_re = re.compile('iface\\s*=\\s*([^\\s,]+)')
         found_vdev  = False
         found_pdev  = False
         for iface in if_list:
