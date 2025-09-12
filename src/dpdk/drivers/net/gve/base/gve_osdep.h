@@ -5,6 +5,8 @@
 #ifndef _GVE_OSDEP_H_
 #define _GVE_OSDEP_H_
 
+#include <sys/types.h>
+
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,16 +35,6 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-
-typedef rte_be16_t __sum16;
-
-typedef rte_be16_t __be16;
-typedef rte_be32_t __be32;
-typedef rte_be64_t __be64;
-
-typedef rte_le16_t __le16;
-typedef rte_le32_t __le32;
-typedef rte_le64_t __le64;
 
 typedef rte_iova_t dma_addr_t;
 
