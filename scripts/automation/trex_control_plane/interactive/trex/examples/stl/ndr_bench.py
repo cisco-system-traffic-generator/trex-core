@@ -7,7 +7,7 @@ import argparse
 import sys
 import time
 import math
-import imp
+import importlib
 from copy import deepcopy
 
 
@@ -218,7 +218,7 @@ class NdrBenchConfig:
         try:
             file    = os.path.basename(plugin_file).split('.')[0]
             module = __import__(file, globals(), locals(), [], 0)
-            imp.reload(module) # reload the update 
+            importlib.reload(module) # reload the update
 
             plugin = module.register()
 
