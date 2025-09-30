@@ -27,6 +27,56 @@ static s32 txgbe_mta_vector(struct txgbe_hw *hw, u8 *mc_addr);
 static s32 txgbe_get_san_mac_addr_offset(struct txgbe_hw *hw,
 					 u16 *san_mac_offset);
 
+static s32 txgbe_is_lldp(struct txgbe_hw *hw)
+{
+	u32 tmp = 0, lldp_flash_data = 0, i;
+	s32 err = 0;
+
+	if ((hw->fw_version & TXGBE_FW_MASK) >= TXGBE_FW_GET_LLDP) {
+		err = txgbe_hic_get_lldp(hw);
+		if (err == 0)
+			return 0;
+	}
+
+	for (i = 0; i < 1024; i++) {
+		err = txgbe_flash_read_dword(hw, TXGBE_LLDP_REG + i * 4, &tmp);
+		if (err)
+			return err;
+
+		if (tmp == BIT_MASK32)
+			break;
+		lldp_flash_data = tmp;
+	}
+
+	if (lldp_flash_data & MS(hw->bus.lan_id, 1))
+		hw->lldp_enabled = true;
+	else
+		hw->lldp_enabled = false;
+
+	return 0;
+}
+
+static void txgbe_disable_lldp(struct txgbe_hw *hw)
+{
+	s32 status = 0;
+
+	if ((hw->fw_version & TXGBE_FW_MASK) < TXGBE_FW_SUPPORT_LLDP)
+		return;
+
+	status = txgbe_is_lldp(hw);
+	if (status) {
+		PMD_INIT_LOG(INFO, "Can not get LLDP status.");
+	} else if (hw->lldp_enabled) {
+		status = txgbe_hic_set_lldp(hw, false);
+		if (!status)
+			PMD_INIT_LOG(INFO,
+				"LLDP detected on port %d, turn it off by default.",
+				hw->port_id);
+		else
+			PMD_INIT_LOG(INFO, "Can not set LLDP status.");
+	}
+}
+
 /**
  * txgbe_device_supports_autoneg_fc - Check if device supports autonegotiation
  * of flow control
@@ -176,6 +226,15 @@ s32 txgbe_setup_fc(struct txgbe_hw *hw)
 				      TXGBE_MD_DEV_AUTO_NEG, reg_cu);
 	}
 
+	/*
+	 * Reconfig mac ctrl frame fwd rule to make sure it still
+	 * working after port stop/start.
+	 */
+	wr32m(hw, TXGBE_MACRXFLT, TXGBE_MACRXFLT_CTL_MASK,
+	      (hw->fc.mac_ctrl_frame_fwd ?
+	       TXGBE_MACRXFLT_CTL_NOPS : TXGBE_MACRXFLT_CTL_DROP));
+	txgbe_flush(hw);
+
 	DEBUGOUT("Set up FC; reg = 0x%08X", reg);
 out:
 	return err;
@@ -271,6 +330,8 @@ s32 txgbe_init_hw(struct txgbe_hw *hw)
 
 	/* Get firmware version */
 	hw->phy.get_fw_version(hw, &hw->fw_version);
+
+	txgbe_disable_lldp(hw);
 
 	/* Reset the hardware */
 	status = hw->mac.reset_hw(hw);
@@ -462,7 +523,7 @@ void txgbe_set_lan_id_multi_port(struct txgbe_hw *hw)
  **/
 s32 txgbe_stop_hw(struct txgbe_hw *hw)
 {
-	u32 reg_val;
+	s32 status = 0;
 	u16 i;
 
 	/*
@@ -484,16 +545,26 @@ s32 txgbe_stop_hw(struct txgbe_hw *hw)
 	wr32(hw, TXGBE_ICR(0), TXGBE_ICR_MASK);
 	wr32(hw, TXGBE_ICR(1), TXGBE_ICR_MASK);
 
-	/* Disable the transmit unit.  Each queue must be disabled. */
-	for (i = 0; i < hw->mac.max_tx_queues; i++)
-		wr32(hw, TXGBE_TXCFG(i), TXGBE_TXCFG_FLUSH);
+	wr32(hw, TXGBE_BMECTL, 0x3);
 
 	/* Disable the receive unit by stopping each queue */
-	for (i = 0; i < hw->mac.max_rx_queues; i++) {
-		reg_val = rd32(hw, TXGBE_RXCFG(i));
-		reg_val &= ~TXGBE_RXCFG_ENA;
-		wr32(hw, TXGBE_RXCFG(i), reg_val);
-	}
+	for (i = 0; i < hw->mac.max_rx_queues; i++)
+		wr32(hw, TXGBE_RXCFG(i), 0);
+
+	/* flush all queues disables */
+	txgbe_flush(hw);
+	msec_delay(2);
+
+	/* Prevent the PCI-E bus from hanging by disabling PCI-E master
+	 * access and verify no pending requests
+	 */
+	status = txgbe_set_pcie_master(hw, false);
+	if (status)
+		return status;
+
+	/* Disable the transmit unit.  Each queue must be disabled. */
+	for (i = 0; i < hw->mac.max_tx_queues; i++)
+		wr32(hw, TXGBE_TXCFG(i), 0);
 
 	/* flush all queues disables */
 	txgbe_flush(hw);
@@ -1172,6 +1243,38 @@ out:
 		hw->fc.fc_was_autonegged = false;
 		hw->fc.current_mode = hw->fc.requested_mode;
 	}
+}
+
+s32 txgbe_set_pcie_master(struct txgbe_hw *hw, bool enable)
+{
+	struct rte_pci_device *pci_dev = (struct rte_pci_device *)hw->back;
+	s32 status = 0;
+	u32 i;
+
+	if (rte_pci_set_bus_master(pci_dev, enable) < 0) {
+		DEBUGOUT("Cannot configure PCI bus master.");
+		return -1;
+	}
+
+	if (enable)
+		goto out;
+
+	/* Exit if master requests are blocked */
+	if (!(rd32(hw, TXGBE_BMEPEND)))
+		goto out;
+
+	/* Poll for master request bit to clear */
+	for (i = 0; i < TXGBE_PCI_MASTER_DISABLE_TIMEOUT; i++) {
+		usec_delay(100);
+		if (!(rd32(hw, TXGBE_BMEPEND)))
+			goto out;
+	}
+
+	DEBUGOUT("PCIe transaction pending bit also did not clear.");
+	status = TXGBE_ERR_MASTER_REQUESTS_PENDING;
+
+out:
+	return status;
 }
 
 /**
@@ -2012,9 +2115,7 @@ void txgbe_set_pba(struct txgbe_hw *hw, int num_pb, u32 headroom,
 	u32 rxpktsize, txpktsize, txpbthresh;
 
 	UNREFERENCED_PARAMETER(hw);
-
-	/* Reserve headroom */
-	pbsize -= headroom;
+	UNREFERENCED_PARAMETER(headroom);
 
 	if (!num_pb)
 		num_pb = 1;
@@ -2391,6 +2492,16 @@ s32 txgbe_init_shared_code(struct txgbe_hw *hw)
 	return status;
 }
 
+bool txgbe_is_pf(struct txgbe_hw *hw)
+{
+	switch (hw->mac.type) {
+	case txgbe_mac_raptor:
+		return true;
+	default:
+		return false;
+	}
+}
+
 /**
  *  txgbe_set_mac_type - Sets MAC type
  *  @hw: pointer to the HW structure
@@ -2626,9 +2737,9 @@ out:
  * 1. to be sector address, when implemented erase sector command
  * 2. to be flash address when implemented read, write flash address
  *
- * Return 0 on success, return 1 on failure.
+ * Return 0 on success, return TXGBE_ERR_TIMEOUT on failure.
  */
-u32 txgbe_fmgr_cmd_op(struct txgbe_hw *hw, u32 cmd, u32 cmd_addr)
+s32 txgbe_fmgr_cmd_op(struct txgbe_hw *hw, u32 cmd, u32 cmd_addr)
 {
 	u32 cmd_val, i;
 
@@ -2643,22 +2754,24 @@ u32 txgbe_fmgr_cmd_op(struct txgbe_hw *hw, u32 cmd, u32 cmd_addr)
 	}
 
 	if (i == TXGBE_SPI_TIMEOUT)
-		return 1;
+		return TXGBE_ERR_TIMEOUT;
 
 	return 0;
 }
 
-u32 txgbe_flash_read_dword(struct txgbe_hw *hw, u32 addr)
+s32 txgbe_flash_read_dword(struct txgbe_hw *hw, u32 addr, u32 *data)
 {
-	u32 status;
+	s32 status;
 
 	status = txgbe_fmgr_cmd_op(hw, 1, addr);
-	if (status == 0x1) {
+	if (status < 0) {
 		DEBUGOUT("Read flash timeout.");
 		return status;
 	}
 
-	return rd32(hw, TXGBE_SPIDAT);
+	*data = rd32(hw, TXGBE_SPIDAT);
+
+	return 0;
 }
 
 /**

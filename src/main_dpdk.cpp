@@ -69,7 +69,7 @@
 #include "tunnels/tunnel_handler.h"
 
 extern "C" {
-#include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
+#include "dpdk/drivers/net/intel/ixgbe/base/ixgbe_type.h"
 }
 
 #include "trex_messaging.h"
@@ -5321,7 +5321,7 @@ COLD_FUNC int CGlobalTRex::run_in_rx_core(void){
 
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
 
-    rte_thread_setname(pthread_self(), "TRex RX");
+    rte_thread_set_name(rte_thread_self(), "TRex RX");
 
     /* set RT mode if set */
     if (lp->get_rt_prio_mode()) {
@@ -5344,7 +5344,7 @@ COLD_FUNC int CGlobalTRex::run_in_core(virtual_thread_id_t virt_core_id){
     CPreviewMode *lp = &CGlobalInfo::m_options.preview;
 
     ss << "Trex DP core " << int(virt_core_id);
-    rte_thread_setname(pthread_self(), ss.str().c_str());
+    rte_thread_set_name(rte_thread_self(), ss.str().c_str());
 
     /* set RT mode if set */
     if (lp->get_rt_prio_mode()) {
@@ -6844,7 +6844,9 @@ COLD_FUNC void dump_interfaces_info() {
 
     for (uint8_t port_id=0; port_id<m_max_ports; port_id++) {
         // PCI, MAC and Driver
-        rte_eth_dev_info_get(port_id, &dev_info);
+        if (rte_eth_dev_info_get(port_id, &dev_info) != 0) {
+            dev_info.driver_name = "N/A";
+        }
         rte_eth_macaddr_get(port_id, &mac_addr);
         rte_ether_format_addr(mac_str, sizeof (mac_str), &mac_addr);
         bool ret = fill_pci_dev(&dev_info, &pci_dev);
@@ -7582,7 +7584,9 @@ COLD_FUNC bool DpdkTRexPortAttr::update_link_status_nowait(){
     CPlatformYamlInfo *cg=&global_platform_cfg_info;
     rte_eth_link new_link;
     bool changed = false;
-    rte_eth_link_get_nowait(m_repid, &new_link);
+    if (rte_eth_link_get_nowait(m_repid, &new_link) != 0) {
+        return false;
+    }
 
     if (cg->m_port_speed) {
         new_link.link_speed = cg->m_port_speed;
@@ -7748,7 +7752,7 @@ void CGlobalTRex::register_signals() {
 
 COLD_FUNC int CGlobalTRex::run_in_master() {
 
-  // rte_thread_setname(pthread_self(), "TRex Control");
+  // rte_thread_set_name(rte_thread_self(), "TRex Control");
 
   m_stx->launch_control_plane();
 

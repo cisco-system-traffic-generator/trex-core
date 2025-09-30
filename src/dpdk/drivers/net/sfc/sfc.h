@@ -67,6 +67,8 @@ struct sfc_dp_rx;
 struct sfc_port {
 	unsigned int			lsc_seq;
 
+	efx_phy_lane_count_t		phy_lane_count_active;
+	efx_phy_lane_count_t		phy_lane_count_req;
 	uint32_t			phy_adv_cap_mask;
 	uint32_t			phy_adv_cap;
 	uint32_t			fec_cfg;
@@ -309,6 +311,8 @@ struct sfc_adapter {
 	uint32_t			rxd_wait_timeout_ns;
 
 	bool				switchdev;
+
+	bool				link_ev_need_poll;
 };
 
 static inline struct sfc_adapter_shared *

@@ -663,7 +663,8 @@ static int bnxt_stats_get_ext(struct rte_eth_dev *eth_dev,
 
 		bnxt_fill_rte_eth_stats_ext(bnxt_stats, &ring_stats, i, true);
 		bnxt_stats->rx_nombuf +=
-				__atomic_load_n(&rxq->rx_mbuf_alloc_fail, __ATOMIC_RELAXED);
+				rte_atomic_load_explicit(&rxq->rx_mbuf_alloc_fail,
+							 rte_memory_order_relaxed);
 	}
 
 	num_q_stats = RTE_MIN(bp->tx_cp_nr_rings,
@@ -724,7 +725,8 @@ int bnxt_stats_get_op(struct rte_eth_dev *eth_dev,
 
 		bnxt_fill_rte_eth_stats(bnxt_stats, &ring_stats, i, true);
 		bnxt_stats->rx_nombuf +=
-				__atomic_load_n(&rxq->rx_mbuf_alloc_fail, __ATOMIC_RELAXED);
+				rte_atomic_load_explicit(&rxq->rx_mbuf_alloc_fail,
+							 rte_memory_order_relaxed);
 	}
 
 	num_q_stats = RTE_MIN(bp->tx_cp_nr_rings,
@@ -744,6 +746,9 @@ int bnxt_stats_get_op(struct rte_eth_dev *eth_dev,
 			return rc;
 
 		bnxt_fill_rte_eth_stats(bnxt_stats, &ring_stats, i, false);
+		bnxt_stats->oerrors +=
+				rte_atomic_load_explicit(&txq->tx_mbuf_drop,
+							 rte_memory_order_relaxed);
 	}
 
 	return rc;
@@ -779,7 +784,7 @@ int bnxt_stats_reset_op(struct rte_eth_dev *eth_dev)
 		return ret;
 
 	if (!eth_dev->data->dev_started) {
-		PMD_DRV_LOG(ERR, "Device Initialization not complete!\n");
+		PMD_DRV_LOG_LINE(ERR, "Device Initialization not complete!");
 		return -EINVAL;
 	}
 
@@ -788,6 +793,12 @@ int bnxt_stats_reset_op(struct rte_eth_dev *eth_dev)
 		struct bnxt_rx_queue *rxq = bp->rx_queues[i];
 
 		rxq->rx_mbuf_alloc_fail = 0;
+	}
+
+	for (i = 0; i < bp->tx_cp_nr_rings; i++) {
+		struct bnxt_tx_queue *txq = bp->tx_queues[i];
+
+		txq->tx_mbuf_drop = 0;
 	}
 
 	bnxt_clear_prev_stat(bp);
@@ -1178,13 +1189,13 @@ int bnxt_dev_xstats_reset_op(struct rte_eth_dev *eth_dev)
 
 	if (BNXT_VF(bp) || !BNXT_SINGLE_PF(bp) ||
 	    !(bp->flags & BNXT_FLAG_PORT_STATS)) {
-		PMD_DRV_LOG(ERR, "Operation not supported\n");
+		PMD_DRV_LOG_LINE(ERR, "Operation not supported");
 		return -ENOTSUP;
 	}
 
 	ret = bnxt_hwrm_port_clr_stats(bp);
 	if (ret != 0)
-		PMD_DRV_LOG(ERR, "Failed to reset xstats: %s\n",
+		PMD_DRV_LOG_LINE(ERR, "Failed to reset xstats: %s",
 			    strerror(-ret));
 
 	bnxt_clear_prev_stat(bp);

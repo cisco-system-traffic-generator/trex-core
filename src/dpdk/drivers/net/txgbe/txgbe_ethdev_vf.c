@@ -129,6 +129,7 @@ txgbevf_negotiate_api(struct txgbe_hw *hw)
 
 	/* start with highest supported, proceed down */
 	static const int sup_ver[] = {
+		txgbe_mbox_api_21,
 		txgbe_mbox_api_13,
 		txgbe_mbox_api_12,
 		txgbe_mbox_api_11,
@@ -157,6 +158,59 @@ generate_random_mac_addr(struct rte_ether_addr *mac_addr)
 	memcpy(&mac_addr->addr_bytes[3], &random, 3);
 }
 
+int
+txgbevf_inject_5tuple_filter(struct rte_eth_dev *dev,
+			     struct txgbe_5tuple_filter *filter)
+{
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+	uint32_t mask = TXGBE_5TFCTL0_MASK;
+	uint16_t index = filter->index;
+	uint32_t msg[TXGBEVF_5T_MAX];
+	int err;
+
+	memset(msg, 0, sizeof(*msg));
+
+	/* 0 means compare */
+	mask &= ~TXGBE_5TFCTL0_MPOOL;
+	if (filter->filter_info.src_ip_mask == 0)
+		mask &= ~TXGBE_5TFCTL0_MSADDR;
+	if (filter->filter_info.dst_ip_mask == 0)
+		mask &= ~TXGBE_5TFCTL0_MDADDR;
+	if (filter->filter_info.src_port_mask == 0)
+		mask &= ~TXGBE_5TFCTL0_MSPORT;
+	if (filter->filter_info.dst_port_mask == 0)
+		mask &= ~TXGBE_5TFCTL0_MDPORT;
+	if (filter->filter_info.proto_mask == 0)
+		mask &= ~TXGBE_5TFCTL0_MPROTO;
+
+	msg[TXGBEVF_5T_CTRL0] = mask;
+	msg[TXGBEVF_5T_CTRL0] |= TXGBE_5TFCTL0_ENA;
+	msg[TXGBEVF_5T_CTRL0] |= TXGBE_5TFCTL0_PROTO(filter->filter_info.proto);
+	msg[TXGBEVF_5T_CTRL0] |= TXGBE_5TFCTL0_PRI(filter->filter_info.priority);
+	msg[TXGBEVF_5T_CTRL1] = TXGBE_5TFCTL1_QP(filter->queue);
+	msg[TXGBEVF_5T_PORT] = TXGBE_5TFPORT_DST(be_to_le16(filter->filter_info.dst_port));
+	msg[TXGBEVF_5T_PORT] |= TXGBE_5TFPORT_SRC(be_to_le16(filter->filter_info.src_port));
+	msg[TXGBEVF_5T_DA] = be_to_le32(filter->filter_info.dst_ip);
+	msg[TXGBEVF_5T_SA] = be_to_le32(filter->filter_info.src_ip);
+
+	err = txgbevf_add_5tuple_filter(hw, msg, index);
+	if (err)
+		PMD_DRV_LOG(ERR, "VF request PF to add 5tuple filters failed.");
+
+	return err;
+}
+
+void
+txgbevf_remove_5tuple_filter(struct rte_eth_dev *dev, u16 index)
+{
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+	int err;
+
+	err = txgbevf_del_5tuple_filter(hw, index);
+	if (err)
+		PMD_DRV_LOG(ERR, "VF request PF to delete 5tuple filters failed.");
+}
+
 /*
  * Virtual Function device init
  */
@@ -173,6 +227,7 @@ eth_txgbevf_dev_init(struct rte_eth_dev *eth_dev)
 	struct txgbe_hwstrip *hwstrip = TXGBE_DEV_HWSTRIP(eth_dev);
 	struct rte_ether_addr *perm_addr =
 			(struct rte_ether_addr *)hw->mac.perm_addr;
+	struct txgbe_filter_info *filter_info = TXGBE_DEV_FILTER(eth_dev);
 
 	PMD_INIT_FUNC_TRACE();
 
@@ -206,7 +261,7 @@ eth_txgbevf_dev_init(struct rte_eth_dev *eth_dev)
 		return 0;
 	}
 
-	__atomic_clear(&ad->link_thread_running, __ATOMIC_SEQ_CST);
+	rte_atomic_store_explicit(&ad->link_thread_running, 0, rte_memory_order_seq_cst);
 	rte_eth_copy_pci_info(eth_dev, pci_dev);
 
 	hw->device_id = pci_dev->id.device_id;
@@ -295,6 +350,8 @@ eth_txgbevf_dev_init(struct rte_eth_dev *eth_dev)
 	err = hw->mac.start_hw(hw);
 	if (err) {
 		PMD_INIT_LOG(ERR, "VF Initialization Failure: %d", err);
+		rte_free(eth_dev->data->mac_addrs);
+		eth_dev->data->mac_addrs = NULL;
 		return -EIO;
 	}
 
@@ -305,6 +362,16 @@ eth_txgbevf_dev_init(struct rte_eth_dev *eth_dev)
 				   txgbevf_dev_interrupt_handler, eth_dev);
 	rte_intr_enable(intr_handle);
 	txgbevf_intr_enable(eth_dev);
+
+	/* initialize filter info */
+	memset(filter_info, 0,
+	       sizeof(struct txgbe_filter_info));
+
+	/* initialize 5tuple filter list */
+	TAILQ_INIT(&filter_info->fivetuple_list);
+
+	/* initialize flow filter lists */
+	txgbe_filterlist_init();
 
 	PMD_INIT_LOG(DEBUG, "port %d vendorID=0x%x deviceID=0x%x mac.type=%s",
 		     eth_dev->data->port_id, pci_dev->id.vendor_id,
@@ -603,6 +670,7 @@ txgbevf_dev_configure(struct rte_eth_dev *dev)
 	 * allocation or vector Rx preconditions we will reset it.
 	 */
 	adapter->rx_bulk_alloc_allowed = true;
+	adapter->rx_vec_allowed = true;
 
 	return 0;
 }
@@ -670,8 +738,10 @@ txgbevf_dev_start(struct rte_eth_dev *dev)
 		 * now only one vector is used for Rx queue
 		 */
 		intr_vector = 1;
-		if (rte_intr_efd_enable(intr_handle, intr_vector))
+		if (rte_intr_efd_enable(intr_handle, intr_vector)) {
+			txgbe_dev_clear_queues(dev);
 			return -1;
+		}
 	}
 
 	if (rte_intr_dp_is_en(intr_handle)) {
@@ -679,6 +749,7 @@ txgbevf_dev_start(struct rte_eth_dev *dev)
 						   dev->data->nb_rx_queues)) {
 			PMD_INIT_LOG(ERR, "Failed to allocate %d rx_queues"
 				     " intr_vec", dev->data->nb_rx_queues);
+			txgbe_dev_clear_queues(dev);
 			return -ENOMEM;
 		}
 	}
@@ -788,6 +859,12 @@ txgbevf_dev_close(struct rte_eth_dev *dev)
 	rte_intr_callback_unregister(intr_handle,
 				     txgbevf_dev_interrupt_handler, dev);
 
+	/* Remove all ntuple filters of the device */
+	txgbe_ntuple_filter_uninit(dev);
+
+	/* clear all the filters list */
+	txgbe_filterlist_flush();
+
 	return ret;
 }
 
@@ -858,7 +935,7 @@ txgbevf_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 }
 
 static void
-txgbevf_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
+txgbevf_vlan_strip_q_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 {
 	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
 	uint32_t ctrl;
@@ -869,18 +946,26 @@ txgbevf_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 		return;
 
 	ctrl = rd32(hw, TXGBE_RXCFG(queue));
-	txgbe_dev_save_rx_queue(hw, queue);
 	if (on)
 		ctrl |= TXGBE_RXCFG_VLAN;
 	else
 		ctrl &= ~TXGBE_RXCFG_VLAN;
-	wr32(hw, TXGBE_RXCFG(queue), 0);
-	msec_delay(100);
-	txgbe_dev_store_rx_queue(hw, queue);
-	wr32m(hw, TXGBE_RXCFG(queue),
-		TXGBE_RXCFG_VLAN | TXGBE_RXCFG_ENA, ctrl);
+	wr32(hw, TXGBE_RXCFG(queue), ctrl);
 
 	txgbe_vlan_hw_strip_bitmap_set(dev, queue, on);
+}
+
+static void
+txgbevf_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
+{
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+
+	if (!hw->adapter_stopped) {
+		PMD_DRV_LOG(ERR, "Please stop port first");
+		return;
+	}
+
+	txgbevf_vlan_strip_q_set(dev, queue, on);
 }
 
 static int
@@ -895,7 +980,7 @@ txgbevf_vlan_offload_config(struct rte_eth_dev *dev, int mask)
 		for (i = 0; i < dev->data->nb_rx_queues; i++) {
 			rxq = dev->data->rx_queues[i];
 			on = !!(rxq->offloads &	RTE_ETH_RX_OFFLOAD_VLAN_STRIP);
-			txgbevf_vlan_strip_queue_set(dev, i, on);
+			txgbevf_vlan_strip_q_set(dev, i, on);
 		}
 	}
 
@@ -905,6 +990,13 @@ txgbevf_vlan_offload_config(struct rte_eth_dev *dev, int mask)
 static int
 txgbevf_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 {
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+
+	if (!hw->adapter_stopped && (mask & RTE_ETH_VLAN_STRIP_MASK)) {
+		PMD_DRV_LOG(ERR, "Please stop port first");
+		return -EPERM;
+	}
+
 	txgbe_config_vlan_strip_on_all_queues(dev, mask);
 
 	txgbevf_vlan_offload_config(dev, mask);
@@ -965,7 +1057,7 @@ txgbevf_set_ivar_map(struct txgbe_hw *hw, int8_t direction,
 		wr32(hw, TXGBE_VFIVARMISC, tmp);
 	} else {
 		/* rx or tx cause */
-		/* Workaround for ICR lost */
+		msix_vector |= TXGBE_VFIVAR_VLD; /* Workaround for ICR lost */
 		idx = ((16 * (queue & 1)) + (8 * direction));
 		tmp = rd32(hw, TXGBE_VFIVAR(queue >> 1));
 		tmp &= ~(0xFF << idx);
@@ -1201,9 +1293,13 @@ static int
 txgbevf_dev_promiscuous_disable(struct rte_eth_dev *dev)
 {
 	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+	int mode = TXGBEVF_XCAST_MODE_NONE;
 	int ret;
 
-	switch (hw->mac.update_xcast_mode(hw, TXGBEVF_XCAST_MODE_NONE)) {
+	if (dev->data->all_multicast)
+		mode = TXGBEVF_XCAST_MODE_ALLMULTI;
+
+	switch (hw->mac.update_xcast_mode(hw, mode)) {
 	case 0:
 		ret = 0;
 		break;
@@ -1223,6 +1319,9 @@ txgbevf_dev_allmulticast_enable(struct rte_eth_dev *dev)
 {
 	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
 	int ret;
+
+	if (dev->data->promiscuous)
+		return 0;
 
 	switch (hw->mac.update_xcast_mode(hw, TXGBEVF_XCAST_MODE_ALLMULTI)) {
 	case 0:
@@ -1244,6 +1343,9 @@ txgbevf_dev_allmulticast_disable(struct rte_eth_dev *dev)
 {
 	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
 	int ret;
+
+	if (dev->data->promiscuous)
+		return 0;
 
 	switch (hw->mac.update_xcast_mode(hw, TXGBEVF_XCAST_MODE_MULTI)) {
 	case 0:
@@ -1325,6 +1427,14 @@ txgbevf_dev_interrupt_handler(void *param)
 	txgbevf_dev_interrupt_action(dev);
 }
 
+static int
+txgbevf_dev_flow_ops_get(__rte_unused struct rte_eth_dev *dev,
+			 const struct rte_flow_ops **ops)
+{
+	*ops = &txgbe_flow_ops;
+	return 0;
+}
+
 /*
  * dev_ops for virtual function, bare necessities for basic vf
  * operation have been implemented
@@ -1369,6 +1479,7 @@ static const struct eth_dev_ops txgbevf_eth_dev_ops = {
 	.rss_hash_update      = txgbe_dev_rss_hash_update,
 	.rss_hash_conf_get    = txgbe_dev_rss_hash_conf_get,
 	.tx_done_cleanup      = txgbe_dev_tx_done_cleanup,
+	.flow_ops_get         = txgbevf_dev_flow_ops_get,
 };
 
 RTE_PMD_REGISTER_PCI(net_txgbe_vf, rte_txgbevf_pmd);

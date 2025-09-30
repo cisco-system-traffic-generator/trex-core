@@ -31,10 +31,6 @@
 
 #define HN_RX_EXTMBUF_ENABLE	0
 
-#ifndef PAGE_MASK
-#define PAGE_MASK (rte_mem_page_size() - 1)
-#endif
-
 struct hn_data;
 struct hn_txdesc;
 
@@ -94,12 +90,12 @@ struct hn_rx_queue {
 
 
 /* multi-packet data from host */
-struct hn_rx_bufinfo {
+struct __rte_cache_aligned hn_rx_bufinfo {
 	struct vmbus_channel *chan;
 	struct hn_rx_queue *rxq;
 	uint64_t	xactid;
 	struct rte_mbuf_ext_shared_info shinfo;
-} __rte_cache_aligned;
+};
 
 #define HN_INVALID_PORT	UINT16_MAX
 

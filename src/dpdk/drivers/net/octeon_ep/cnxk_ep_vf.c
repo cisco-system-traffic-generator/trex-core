@@ -102,7 +102,7 @@ cnxk_ep_vf_setup_iq_regs(struct otx_ep_device *otx_ep, uint32_t iq_no)
 	}
 
 	if (loop < 0) {
-		otx_ep_err("IDLE bit is not set\n");
+		otx_ep_err("IDLE bit is not set");
 		return -EIO;
 	}
 
@@ -134,7 +134,7 @@ cnxk_ep_vf_setup_iq_regs(struct otx_ep_device *otx_ep, uint32_t iq_no)
 	} while (reg_val != 0 && loop--);
 
 	if (loop < 0) {
-		otx_ep_err("INST CNT REGISTER is not zero\n");
+		otx_ep_err("INST CNT REGISTER is not zero");
 		return -EIO;
 	}
 
@@ -150,10 +150,10 @@ cnxk_ep_vf_setup_iq_regs(struct otx_ep_device *otx_ep, uint32_t iq_no)
 	rte_write64(ism_addr, (uint8_t *)otx_ep->hw_addr +
 		    CNXK_EP_R_IN_CNTS_ISM(iq_no));
 	iq->inst_cnt_ism =
-		(uint32_t *)((uint8_t *)otx_ep->ism_buffer_mz->addr
+		(uint32_t __rte_atomic *)((uint8_t *)otx_ep->ism_buffer_mz->addr
 			     + CNXK_EP_IQ_ISM_OFFSET(iq_no));
 	otx_ep_err("SDP_R[%d] INST Q ISM virt: %p, dma: 0x%" PRIX64, iq_no,
-		   (void *)iq->inst_cnt_ism, ism_addr);
+		   (void *)(uintptr_t)iq->inst_cnt_ism, ism_addr);
 	*iq->inst_cnt_ism = 0;
 	iq->inst_cnt_prev = 0;
 	iq->partial_ih = ((uint64_t)otx_ep->pkind) << 36;
@@ -181,7 +181,7 @@ cnxk_ep_vf_setup_oq_regs(struct otx_ep_device *otx_ep, uint32_t oq_no)
 	}
 
 	if (loop < 0) {
-		otx_ep_err("OUT CNT REGISTER value is zero\n");
+		otx_ep_err("OUT CNT REGISTER value is zero");
 		return -EIO;
 	}
 
@@ -217,7 +217,7 @@ cnxk_ep_vf_setup_oq_regs(struct otx_ep_device *otx_ep, uint32_t oq_no)
 	}
 
 	if (loop < 0) {
-		otx_ep_err("Packets credit register value is not cleared\n");
+		otx_ep_err("Packets credit register value is not cleared");
 		return -EIO;
 	}
 
@@ -235,10 +235,10 @@ cnxk_ep_vf_setup_oq_regs(struct otx_ep_device *otx_ep, uint32_t oq_no)
 	rte_write64(ism_addr, (uint8_t *)otx_ep->hw_addr +
 		    CNXK_EP_R_OUT_CNTS_ISM(oq_no));
 	droq->pkts_sent_ism =
-		(uint32_t *)((uint8_t *)otx_ep->ism_buffer_mz->addr
+		(uint32_t __rte_atomic *)((uint8_t *)otx_ep->ism_buffer_mz->addr
 			     + CNXK_EP_OQ_ISM_OFFSET(oq_no));
 	otx_ep_err("SDP_R[%d] OQ ISM virt: %p dma: 0x%" PRIX64,
-		    oq_no, (void *)droq->pkts_sent_ism, ism_addr);
+		    oq_no, (void *)(uintptr_t)droq->pkts_sent_ism, ism_addr);
 	*droq->pkts_sent_ism = 0;
 	droq->pkts_sent_prev = 0;
 
@@ -250,7 +250,7 @@ cnxk_ep_vf_setup_oq_regs(struct otx_ep_device *otx_ep, uint32_t oq_no)
 	}
 
 	if (loop < 0) {
-		otx_ep_err("Packets sent register value is not cleared\n");
+		otx_ep_err("Packets sent register value is not cleared");
 		return -EIO;
 	}
 
@@ -280,7 +280,7 @@ cnxk_ep_vf_enable_iq(struct otx_ep_device *otx_ep, uint32_t q_no)
 	}
 
 	if (loop < 0) {
-		otx_ep_err("INSTR DBELL not coming back to 0\n");
+		otx_ep_err("INSTR DBELL not coming back to 0");
 		return -EIO;
 	}
 
@@ -408,6 +408,8 @@ cnxk_ep_vf_setup_device(struct otx_ep_device *otx_ep)
 
 	/* Get IOQs (RPVF] count */
 	reg_val = oct_ep_read64(otx_ep->hw_addr + CNXK_EP_R_IN_CONTROL(0));
+	if (reg_val == UINT64_MAX)
+		return -ENODEV;
 
 	otx_ep->sriov_info.rings_per_vf =
 		((reg_val >> CNXK_EP_R_IN_CTL_RPVF_POS) & CNXK_EP_R_IN_CTL_RPVF_MASK);

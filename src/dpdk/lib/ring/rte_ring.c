@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <sys/queue.h>
 
+#include <eal_export.h>
 #include <rte_common.h>
 #include <rte_log.h>
 #include <rte_memzone.h>
@@ -52,6 +53,7 @@ EAL_REGISTER_TAILQ(rte_ring_tailq)
 #define HTD_MAX_DEF	8
 
 /* return the size of memory occupied by a ring */
+RTE_EXPORT_SYMBOL(rte_ring_get_memsize_elem)
 ssize_t
 rte_ring_get_memsize_elem(unsigned int esize, unsigned int count)
 {
@@ -79,6 +81,7 @@ rte_ring_get_memsize_elem(unsigned int esize, unsigned int count)
 }
 
 /* return the size of memory occupied by a ring */
+RTE_EXPORT_SYMBOL(rte_ring_get_memsize)
 ssize_t
 rte_ring_get_memsize(unsigned int count)
 {
@@ -118,6 +121,7 @@ reset_headtail(void *p)
 	}
 }
 
+RTE_EXPORT_SYMBOL(rte_ring_reset)
 void
 rte_ring_reset(struct rte_ring *r)
 {
@@ -176,6 +180,7 @@ get_sync_type(uint32_t flags, enum rte_ring_sync_type *prod_st,
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_ring_init)
 int
 rte_ring_init(struct rte_ring *r, const char *name, unsigned int count,
 	unsigned int flags)
@@ -243,6 +248,7 @@ rte_ring_init(struct rte_ring *r, const char *name, unsigned int count,
 }
 
 /* create the ring for a given element size */
+RTE_EXPORT_SYMBOL(rte_ring_create_elem)
 struct rte_ring *
 rte_ring_create_elem(const char *name, unsigned int esize, unsigned int count,
 		int socket_id, unsigned int flags)
@@ -312,6 +318,7 @@ rte_ring_create_elem(const char *name, unsigned int esize, unsigned int count,
 }
 
 /* create the ring */
+RTE_EXPORT_SYMBOL(rte_ring_create)
 struct rte_ring *
 rte_ring_create(const char *name, unsigned int count, int socket_id,
 		unsigned int flags)
@@ -321,6 +328,7 @@ rte_ring_create(const char *name, unsigned int count, int socket_id,
 }
 
 /* free the ring */
+RTE_EXPORT_SYMBOL(rte_ring_free)
 void
 rte_ring_free(struct rte_ring *r)
 {
@@ -364,23 +372,105 @@ rte_ring_free(struct rte_ring *r)
 	rte_free(te);
 }
 
+static const char *
+ring_get_sync_type(const enum rte_ring_sync_type st)
+{
+	switch (st) {
+	case RTE_RING_SYNC_ST:
+		return "ST";
+	case RTE_RING_SYNC_MT:
+		return "MT";
+	case RTE_RING_SYNC_MT_RTS:
+		return "MT_RTS";
+	case RTE_RING_SYNC_MT_HTS:
+		return "MT_HTS";
+	default:
+		return "unknown";
+	}
+}
+
+static void
+ring_dump_ht_headtail(FILE *f, const char *prefix,
+		const struct rte_ring_headtail *ht)
+{
+	fprintf(f, "%ssync_type=%s\n", prefix,
+			ring_get_sync_type(ht->sync_type));
+	fprintf(f, "%shead=%"PRIu32"\n", prefix, ht->head);
+	fprintf(f, "%stail=%"PRIu32"\n", prefix, ht->tail);
+}
+
+static void
+ring_dump_rts_headtail(FILE *f, const char *prefix,
+		const struct rte_ring_rts_headtail *rts)
+{
+	fprintf(f, "%ssync_type=%s\n", prefix,
+			ring_get_sync_type(rts->sync_type));
+	fprintf(f, "%shead.pos=%"PRIu32"\n", prefix, rts->head.val.pos);
+	fprintf(f, "%shead.cnt=%"PRIu32"\n", prefix, rts->head.val.cnt);
+	fprintf(f, "%stail.pos=%"PRIu32"\n", prefix, rts->tail.val.pos);
+	fprintf(f, "%stail.cnt=%"PRIu32"\n", prefix, rts->tail.val.cnt);
+	fprintf(f, "%shtd_max=%"PRIu32"\n", prefix, rts->htd_max);
+}
+
+static void
+ring_dump_hts_headtail(FILE *f, const char *prefix,
+		const struct rte_ring_hts_headtail *hts)
+{
+	fprintf(f, "%ssync_type=%s\n", prefix,
+			ring_get_sync_type(hts->sync_type));
+	fprintf(f, "%shead=%"PRIu32"\n", prefix, hts->ht.pos.head);
+	fprintf(f, "%stail=%"PRIu32"\n", prefix, hts->ht.pos.tail);
+}
+
+RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_ring_headtail_dump, 25.03)
+void
+rte_ring_headtail_dump(FILE *f, const char *prefix,
+		const struct rte_ring_headtail *r)
+{
+	if (f == NULL || r == NULL)
+		return;
+
+	prefix = (prefix != NULL) ? prefix : "";
+
+	switch (r->sync_type) {
+	case RTE_RING_SYNC_ST:
+	case RTE_RING_SYNC_MT:
+		ring_dump_ht_headtail(f, prefix, r);
+		break;
+	case RTE_RING_SYNC_MT_RTS:
+		ring_dump_rts_headtail(f, prefix,
+				(const struct rte_ring_rts_headtail *)r);
+		break;
+	case RTE_RING_SYNC_MT_HTS:
+		ring_dump_hts_headtail(f, prefix,
+				(const struct rte_ring_hts_headtail *)r);
+		break;
+	default:
+		RING_LOG(ERR, "Invalid ring sync type detected");
+	}
+}
+
 /* dump the status of the ring on the console */
+RTE_EXPORT_SYMBOL(rte_ring_dump)
 void
 rte_ring_dump(FILE *f, const struct rte_ring *r)
 {
+	if (f == NULL || r == NULL)
+		return;
+
 	fprintf(f, "ring <%s>@%p\n", r->name, r);
 	fprintf(f, "  flags=%x\n", r->flags);
 	fprintf(f, "  size=%"PRIu32"\n", r->size);
 	fprintf(f, "  capacity=%"PRIu32"\n", r->capacity);
-	fprintf(f, "  ct=%"PRIu32"\n", r->cons.tail);
-	fprintf(f, "  ch=%"PRIu32"\n", r->cons.head);
-	fprintf(f, "  pt=%"PRIu32"\n", r->prod.tail);
-	fprintf(f, "  ph=%"PRIu32"\n", r->prod.head);
 	fprintf(f, "  used=%u\n", rte_ring_count(r));
 	fprintf(f, "  avail=%u\n", rte_ring_free_count(r));
+
+	rte_ring_headtail_dump(f, "  cons.", &(r->cons));
+	rte_ring_headtail_dump(f, "  prod.", &(r->prod));
 }
 
 /* dump the status of all rings on the console */
+RTE_EXPORT_SYMBOL(rte_ring_list_dump)
 void
 rte_ring_list_dump(FILE *f)
 {
@@ -399,6 +489,7 @@ rte_ring_list_dump(FILE *f)
 }
 
 /* search a ring from its name */
+RTE_EXPORT_SYMBOL(rte_ring_lookup)
 struct rte_ring *
 rte_ring_lookup(const char *name)
 {

@@ -21,9 +21,7 @@
 
 #include "trex_driver_igc.h"
 #include "trex_driver_defines.h"
-#include "dpdk/drivers/net/igc/base/igc_regs.h"
-#include "dpdk/drivers/net/igc/igc_filter.h"
-//#include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
+#include "dpdk/drivers/net/intel/e1000/igc_filter.h"
 #include "trex_rte_eth_ctrl.h"
 
 

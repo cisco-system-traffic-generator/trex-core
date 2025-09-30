@@ -80,14 +80,12 @@ cnxk_rep_link_update(struct rte_eth_dev *ethdev, int wait_to_complete)
 	PLT_SET_USED(wait_to_complete);
 
 	memset(&link, 0, sizeof(link));
-	if (ethdev->data->dev_started)
+	if (ethdev->data->dev_started) {
 		link.link_status = RTE_ETH_LINK_UP;
-	else
-		link.link_status = RTE_ETH_LINK_DOWN;
-
-	link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
-	link.link_autoneg = RTE_ETH_LINK_FIXED;
-	link.link_speed = RTE_ETH_SPEED_NUM_UNKNOWN;
+		link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
+		link.link_autoneg = RTE_ETH_LINK_FIXED;
+		link.link_speed = RTE_ETH_SPEED_NUM_UNKNOWN;
+	}
 
 	return rte_eth_linkstatus_set(ethdev, &link);
 }
@@ -234,6 +232,7 @@ int
 cnxk_rep_dev_start(struct rte_eth_dev *ethdev)
 {
 	struct cnxk_rep_dev *rep_dev = cnxk_rep_pmd_priv(ethdev);
+	struct rte_eth_link link;
 	int rc = 0, qid;
 
 	ethdev->rx_pkt_burst = cnxk_rep_rx_burst;
@@ -278,6 +277,13 @@ cnxk_rep_dev_start(struct rte_eth_dev *ethdev)
 
 	rep_dev->parent_dev->repr_cnt.nb_repr_started++;
 
+	link.link_status = RTE_ETH_LINK_UP;
+	link.link_duplex = RTE_ETH_LINK_FULL_DUPLEX;
+	link.link_autoneg = RTE_ETH_LINK_FIXED;
+	link.link_speed = RTE_ETH_SPEED_NUM_UNKNOWN;
+	rte_eth_linkstatus_set(ethdev, &link);
+	ethdev->data->dev_started = 1;
+
 	return 0;
 fail:
 	return rc;
@@ -293,12 +299,18 @@ int
 cnxk_rep_dev_stop(struct rte_eth_dev *ethdev)
 {
 	struct cnxk_rep_dev *rep_dev = cnxk_rep_pmd_priv(ethdev);
+	struct rte_eth_link link;
 
 	ethdev->rx_pkt_burst = cnxk_rep_rx_burst_dummy;
 	ethdev->tx_pkt_burst = cnxk_rep_tx_burst_dummy;
 	cnxk_rep_rx_queue_stop(ethdev, 0);
 	cnxk_rep_tx_queue_stop(ethdev, 0);
 	rep_dev->parent_dev->repr_cnt.nb_repr_started--;
+
+	/* Bring down link status internally */
+	memset(&link, 0, sizeof(link));
+	rte_eth_linkstatus_set(ethdev, &link);
+	ethdev->data->dev_started = 0;
 
 	return 0;
 }
@@ -821,6 +833,37 @@ cnxk_rep_xstats_get_names_by_id(__rte_unused struct rte_eth_dev *eth_dev, const 
 	return n;
 }
 
+int
+cnxk_rep_mtu_set(struct rte_eth_dev *eth_dev, uint16_t mtu)
+{
+	struct cnxk_rep_dev *rep_dev = cnxk_rep_pmd_priv(eth_dev);
+	uint32_t frame_size = mtu + CNXK_NIX_L2_OVERHEAD;
+	int rc = -EINVAL;
+
+	/* Check if MTU is within the allowed range */
+	if ((frame_size - RTE_ETHER_CRC_LEN) < NIX_MIN_HW_FRS) {
+		plt_err("MTU is lesser than minimum");
+		goto exit;
+	}
+
+	if ((frame_size - RTE_ETHER_CRC_LEN) >
+	    ((uint32_t)roc_nix_max_pkt_len(&rep_dev->parent_dev->nix))) {
+		plt_err("MTU is greater than maximum");
+		goto exit;
+	}
+
+	frame_size -= RTE_ETHER_CRC_LEN;
+
+	/* Set frame size on Rx */
+	rc = roc_nix_mac_max_rx_len_set(&rep_dev->parent_dev->nix, frame_size);
+	if (rc) {
+		plt_err("Failed to max Rx frame length, rc=%d", rc);
+		goto exit;
+	}
+exit:
+	return rc;
+}
+
 /* CNXK platform representor dev ops */
 struct eth_dev_ops cnxk_rep_dev_ops = {
 	.dev_infos_get = cnxk_rep_dev_info_get,
@@ -844,5 +887,6 @@ struct eth_dev_ops cnxk_rep_dev_ops = {
 	.xstats_reset = cnxk_rep_xstats_reset,
 	.xstats_get_names = cnxk_rep_xstats_get_names,
 	.xstats_get_by_id = cnxk_rep_xstats_get_by_id,
-	.xstats_get_names_by_id = cnxk_rep_xstats_get_names_by_id
+	.xstats_get_names_by_id = cnxk_rep_xstats_get_names_by_id,
+	.mtu_set = cnxk_rep_mtu_set
 };

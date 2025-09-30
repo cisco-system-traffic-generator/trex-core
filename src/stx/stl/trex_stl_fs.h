@@ -65,22 +65,22 @@ class CRxCore;
 #define NSEC_PER_SEC        1000000000L
 
 /* Structs used for PTP handling. */
-struct tstamp {
+struct __rte_packed_begin tstamp {
 	uint16_t   sec_msb;
 	uint32_t   sec_lsb;
 	uint32_t   ns;
-}  __rte_packed;
+}  __rte_packed_end;
 
 struct clock_id {
 	uint8_t id[8];
 };
 
-struct port_id {
+struct __rte_packed_begin port_id {
 	struct clock_id        clock_id;
 	uint16_t               port_number;
-}  __rte_packed;
+}  __rte_packed_end;
 
-struct ptp_header {
+struct __rte_packed_begin ptp_header {
 	uint8_t              msg_type;
 	uint8_t              ver;
 	uint16_t             message_length;
@@ -93,12 +93,12 @@ struct ptp_header {
 	uint16_t             seq_id;
 	uint8_t              control;
 	int8_t               log_message_interval;
-} __rte_packed;
+} __rte_packed_end;
 
-struct sync_msg {
+struct __rte_packed_begin sync_msg {
 	struct ptp_header   hdr;
 	struct tstamp       origin_tstamp;
-} __rte_packed;
+} __rte_packed_end;
 
 struct flow_stat_payload_header {
     uint8_t magic;
@@ -109,7 +109,7 @@ struct flow_stat_payload_header {
     bool is_valid_ts(hr_time_t now);
 };
 
-struct flow_stat_payload_header_ieee_1588 {
+struct __rte_packed_begin flow_stat_payload_header_ieee_1588 {
     /*
      * Intentionally kept at the begining.
      * The PTP packet has to begin in the
@@ -118,7 +118,7 @@ struct flow_stat_payload_header_ieee_1588 {
      */
     struct sync_msg ptp_message;
     struct flow_stat_payload_header fsp_hdr;
-} __rte_packed;
+} __rte_packed_end;
 
 class TrexFStatEx : public TrexException {
  public:

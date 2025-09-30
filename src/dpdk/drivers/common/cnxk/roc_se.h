@@ -331,6 +331,7 @@ struct roc_se_ctx {
 	/* auth_iv_offset passed to PDCP_CHAIN opcode based on FVC bit */
 	uint8_t pdcp_iv_offset;
 	union cpt_inst_w4 template_w4;
+	uint8_t *auth_key;
 	/* Below fields are accessed by hardware */
 	struct se_ctx_s {
 		/* Word0 */
@@ -355,7 +356,6 @@ struct roc_se_ctx {
 			struct roc_se_sm_context sm_ctx;
 		};
 	} se_ctx __plt_aligned(ROC_ALIGN);
-	uint8_t *auth_key;
 } __plt_aligned(ROC_ALIGN);
 
 struct roc_se_fc_params {
@@ -405,7 +405,6 @@ int __roc_api roc_se_auth_key_set(struct roc_se_ctx *se_ctx, roc_se_auth_type ty
 int __roc_api roc_se_ciph_key_set(struct roc_se_ctx *se_ctx, roc_se_cipher_type type,
 				  const uint8_t *key, uint16_t key_len);
 
-void __roc_api roc_se_ctx_swap(struct roc_se_ctx *se_ctx);
 void __roc_api roc_se_ctx_init(struct roc_se_ctx *se_ctx);
 
 void __roc_api roc_se_hmac_opad_ipad_gen(roc_se_auth_type auth_type, const uint8_t *key,

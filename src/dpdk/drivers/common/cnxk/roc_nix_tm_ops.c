@@ -8,6 +8,7 @@
 int
 roc_nix_tm_sq_aura_fc(struct roc_nix_sq *sq, bool enable)
 {
+	struct npa_cn20k_aq_enq_req *req_cn20k;
 	struct npa_aq_enq_req *req;
 	struct npa_aq_enq_rsp *rsp;
 	uint64_t aura_handle;
@@ -25,7 +26,12 @@ roc_nix_tm_sq_aura_fc(struct roc_nix_sq *sq, bool enable)
 	mbox = mbox_get(lf->mbox);
 	/* Set/clear sqb aura fc_ena */
 	aura_handle = sq->aura_handle;
-	req = mbox_alloc_msg_npa_aq_enq(mbox);
+	if (roc_model_is_cn20k()) {
+		req_cn20k = mbox_alloc_msg_npa_cn20k_aq_enq(mbox);
+		req = (struct npa_aq_enq_req *)req_cn20k;
+	} else {
+		req = mbox_alloc_msg_npa_aq_enq(mbox);
+	}
 	if (req == NULL)
 		goto exit;
 
@@ -52,7 +58,12 @@ roc_nix_tm_sq_aura_fc(struct roc_nix_sq *sq, bool enable)
 
 	/* Read back npa aura ctx */
 	if (enable) {
-		req = mbox_alloc_msg_npa_aq_enq(mbox);
+		if (roc_model_is_cn20k()) {
+			req_cn20k = mbox_alloc_msg_npa_cn20k_aq_enq(mbox);
+			req = (struct npa_aq_enq_req *)req_cn20k;
+		} else {
+			req = mbox_alloc_msg_npa_aq_enq(mbox);
+		}
 		if (req == NULL) {
 			rc = -ENOSPC;
 			goto exit;
@@ -504,7 +515,7 @@ roc_nix_tm_hierarchy_disable(struct roc_nix *roc_nix)
 		/* Wait for sq entries to be flushed */
 		rc = roc_nix_tm_sq_flush_spin(sq);
 		if (rc) {
-			plt_err("Failed to drain sq, rc=%d\n", rc);
+			plt_err("Failed to drain sq, rc=%d", rc);
 			goto cleanup;
 		}
 	}
@@ -1283,15 +1294,19 @@ roc_nix_tm_rsrc_max(bool pf, uint16_t schq[ROC_TM_LVL_MAX])
 
 		switch (hw_lvl) {
 		case NIX_TXSCH_LVL_SMQ:
-			max = (roc_model_is_cn9k() ?
-					     NIX_CN9K_TXSCH_LVL_SMQ_MAX :
-					     NIX_TXSCH_LVL_SMQ_MAX);
+			max = (roc_model_is_cn9k() ? NIX_CN9K_TXSCH_LVL_SMQ_MAX :
+				(roc_model_is_cn10k() ? NIX_CN10K_TXSCH_LVL_SMQ_MAX :
+				 NIX_TXSCH_LVL_SMQ_MAX));
 			break;
 		case NIX_TXSCH_LVL_TL4:
-			max = NIX_TXSCH_LVL_TL4_MAX;
+			max = (roc_model_is_cn9k() ? NIX_CN9K_TXSCH_LVL_TL4_MAX :
+				(roc_model_is_cn10k() ? NIX_CN10K_TXSCH_LVL_TL4_MAX :
+							NIX_TXSCH_LVL_TL4_MAX));
 			break;
 		case NIX_TXSCH_LVL_TL3:
-			max = NIX_TXSCH_LVL_TL3_MAX;
+			max = (roc_model_is_cn9k() ? NIX_CN9K_TXSCH_LVL_TL3_MAX :
+				(roc_model_is_cn10k() ? NIX_CN10K_TXSCH_LVL_TL3_MAX :
+							NIX_TXSCH_LVL_TL3_MAX));
 			break;
 		case NIX_TXSCH_LVL_TL2:
 			max = pf ? NIX_TXSCH_LVL_TL2_MAX : 1;

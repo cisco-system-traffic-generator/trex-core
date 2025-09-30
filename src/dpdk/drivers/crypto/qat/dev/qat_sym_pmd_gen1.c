@@ -164,7 +164,7 @@ qat_sym_crypto_cap_get_gen1(struct qat_cryptodev_private *internals,
 	uint32_t legacy_size = sizeof(qat_sym_crypto_legacy_caps_gen1);
 	legacy_capa_num = legacy_size/sizeof(struct rte_cryptodev_capabilities);
 
-	if (unlikely(qat_legacy_capa))
+	if (unlikely(internals->qat_dev->options.legacy_alg))
 		size = size + legacy_size;
 
 	internals->capa_mz = rte_memzone_lookup(capa_memz_name);
@@ -184,7 +184,7 @@ qat_sym_crypto_cap_get_gen1(struct qat_cryptodev_private *internals,
 
 	struct rte_cryptodev_capabilities *capabilities;
 
-	if (unlikely(qat_legacy_capa)) {
+	if (unlikely(internals->qat_dev->options.legacy_alg)) {
 		capabilities = qat_sym_crypto_legacy_caps_gen1;
 		memcpy(addr, capabilities, legacy_size);
 		addr += legacy_capa_num;
@@ -248,9 +248,6 @@ qat_sym_build_op_cipher_gen1(void *in_op, struct qat_sym_session *ctx,
 		return -EINVAL;
 	}
 
-	if (ctx->is_zuc256)
-		zuc256_modify_iv(cipher_iv.va);
-
 	enqueue_one_cipher_job_gen1(ctx, req, &cipher_iv, ofs, total_len, op_cookie);
 
 	qat_sym_debug_log_dump(req, ctx, in_sgl.vec, in_sgl.num, &cipher_iv,
@@ -292,7 +289,7 @@ qat_sym_build_op_auth_gen1(void *in_op, struct qat_sym_session *ctx,
 	cdev = rte_cryptodev_pmd_get_dev(ctx->dev_id);
 	internals = cdev->data->dev_private;
 
-	if (internals->qat_dev->has_wireless_slice && !ctx->is_gmac)
+	if (internals->qat_dev->options.has_wireless_slice && !ctx->is_gmac)
 		ICP_QAT_FW_LA_CIPH_IV_FLD_FLAG_SET(
 				req->comn_hdr.serv_specif_flags, 0);
 
@@ -302,9 +299,6 @@ qat_sym_build_op_auth_gen1(void *in_op, struct qat_sym_session *ctx,
 		op->status = RTE_CRYPTO_OP_STATUS_INVALID_ARGS;
 		return -EINVAL;
 	}
-
-	if (ctx->is_zuc256)
-		zuc256_modify_iv(auth_iv.va);
 
 	enqueue_one_auth_job_gen1(ctx, req, &digest, &auth_iv, ofs,
 			total_len);
@@ -394,11 +388,6 @@ qat_sym_build_op_chain_gen1(void *in_op, struct qat_sym_session *ctx,
 	if (unlikely(total_len < 0)) {
 		op->status = RTE_CRYPTO_OP_STATUS_INVALID_ARGS;
 		return -EINVAL;
-	}
-
-	if (ctx->is_zuc256) {
-		zuc256_modify_iv(cipher_iv.va);
-		zuc256_modify_iv(auth_iv.va);
 	}
 
 	enqueue_one_chain_job_gen1(ctx, req, in_sgl.vec, in_sgl.num,
@@ -527,9 +516,6 @@ qat_sym_dp_enqueue_single_cipher_gen1(void *qp_data, uint8_t *drv_ctx,
 	if (unlikely(data_len < 0))
 		return -1;
 
-	if (ctx->is_zuc256)
-		zuc256_modify_iv(iv->va);
-
 	enqueue_one_cipher_job_gen1(ctx, req, iv, ofs, (uint32_t)data_len, cookie);
 
 	qat_sym_debug_log_dump(req, ctx, data, n_data_vecs, iv,
@@ -567,16 +553,20 @@ qat_sym_dp_enqueue_cipher_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 	for (i = 0; i < n; i++) {
 		struct qat_sym_op_cookie *cookie =
 			qp->op_cookies[tail >> tx_queue->trailz];
+		struct qat_sym_req_mid_info info = { };
+		union rte_crypto_sym_ofs temp_ofs = ofs;
+		int error = 0;
 
+		temp_ofs.ofs.auth = temp_ofs.ofs.cipher;
 		req  = (struct icp_qat_fw_la_bulk_req *)(
 			(uint8_t *)tx_queue->base_addr + tail);
 		rte_mov128((uint8_t *)req, (const uint8_t *)&(ctx->fw_req));
 
 		if (vec->dest_sgl) {
-			data_len = qat_sym_build_req_set_data(req,
-				user_data[i], cookie,
-				vec->src_sgl[i].vec, vec->src_sgl[i].num,
-				vec->dest_sgl[i].vec, vec->dest_sgl[i].num);
+			info = qat_sym_req_mid_set(&error, req, cookie, user_data[i],
+				&vec->src_sgl[i], &vec->dest_sgl[i], temp_ofs);
+			data_len = info.data_len;
+			ofs = info.ofs;
 		} else {
 			data_len = qat_sym_build_req_set_data(req,
 				user_data[i], cookie,
@@ -584,11 +574,8 @@ qat_sym_dp_enqueue_cipher_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 				vec->src_sgl[i].num, NULL, 0);
 		}
 
-		if (unlikely(data_len < 0))
+		if (unlikely(data_len < 0 || error))
 			break;
-
-		if (ctx->is_zuc256)
-			zuc256_modify_iv(vec->iv[i].va);
 
 		enqueue_one_cipher_job_gen1(ctx, req, &vec->iv[i], ofs,
 			(uint32_t)data_len, cookie);
@@ -640,9 +627,6 @@ qat_sym_dp_enqueue_single_auth_gen1(void *qp_data, uint8_t *drv_ctx,
 	if (unlikely(data_len < 0))
 		return -1;
 
-	if (ctx->is_zuc256)
-		zuc256_modify_iv(auth_iv->va);
-
 	if (ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_NULL) {
 		null_digest.iova = cookie->digest_null_phys_addr;
 		job_digest = &null_digest;
@@ -688,16 +672,20 @@ qat_sym_dp_enqueue_auth_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 	for (i = 0; i < n; i++) {
 		struct qat_sym_op_cookie *cookie =
 			qp->op_cookies[tail >> tx_queue->trailz];
+		struct qat_sym_req_mid_info info = { };
+		union rte_crypto_sym_ofs temp_ofs = ofs;
+		int error = 0;
 
+		temp_ofs.ofs.cipher = temp_ofs.ofs.auth;
 		req  = (struct icp_qat_fw_la_bulk_req *)(
 			(uint8_t *)tx_queue->base_addr + tail);
 		rte_mov128((uint8_t *)req, (const uint8_t *)&(ctx->fw_req));
 
 		if (vec->dest_sgl) {
-			data_len = qat_sym_build_req_set_data(req,
-				user_data[i], cookie,
-				vec->src_sgl[i].vec, vec->src_sgl[i].num,
-				vec->dest_sgl[i].vec, vec->dest_sgl[i].num);
+			info = qat_sym_req_mid_set(&error, req, cookie, user_data[i],
+				&vec->src_sgl[i], &vec->dest_sgl[i], temp_ofs);
+			data_len = info.data_len;
+			ofs = info.ofs;
 		} else {
 			data_len = qat_sym_build_req_set_data(req,
 				user_data[i], cookie,
@@ -705,11 +693,8 @@ qat_sym_dp_enqueue_auth_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 				vec->src_sgl[i].num, NULL, 0);
 		}
 
-		if (unlikely(data_len < 0))
+		if (unlikely(data_len < 0 || error))
 			break;
-
-		if (ctx->is_zuc256)
-			zuc256_modify_iv(vec->auth_iv[i].va);
 
 		if (ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_NULL) {
 			null_digest.iova = cookie->digest_null_phys_addr;
@@ -766,11 +751,6 @@ qat_sym_dp_enqueue_single_chain_gen1(void *qp_data, uint8_t *drv_ctx,
 	if (unlikely(data_len < 0))
 		return -1;
 
-	if (ctx->is_zuc256) {
-		zuc256_modify_iv(cipher_iv->va);
-		zuc256_modify_iv(auth_iv->va);
-	}
-
 	if (ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_NULL) {
 		null_digest.iova = cookie->digest_null_phys_addr;
 		job_digest = &null_digest;
@@ -819,16 +799,18 @@ qat_sym_dp_enqueue_chain_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 	for (i = 0; i < n; i++) {
 		struct qat_sym_op_cookie *cookie =
 			qp->op_cookies[tail >> tx_queue->trailz];
+		struct qat_sym_req_mid_info info = { };
+		int error = 0;
 
 		req  = (struct icp_qat_fw_la_bulk_req *)(
 			(uint8_t *)tx_queue->base_addr + tail);
 		rte_mov128((uint8_t *)req, (const uint8_t *)&(ctx->fw_req));
 
 		if (vec->dest_sgl) {
-			data_len = qat_sym_build_req_set_data(req,
-				user_data[i], cookie,
-				vec->src_sgl[i].vec, vec->src_sgl[i].num,
-				vec->dest_sgl[i].vec, vec->dest_sgl[i].num);
+			info = qat_sym_req_mid_set(&error, req, cookie, user_data[i],
+				&vec->src_sgl[i], &vec->dest_sgl[i], ofs);
+			data_len = info.data_len;
+			ofs = info.ofs;
 		} else {
 			data_len = qat_sym_build_req_set_data(req,
 				user_data[i], cookie,
@@ -836,13 +818,8 @@ qat_sym_dp_enqueue_chain_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 				vec->src_sgl[i].num, NULL, 0);
 		}
 
-		if (unlikely(data_len < 0))
+		if (unlikely(data_len < 0 || error))
 			break;
-
-		if (ctx->is_zuc256) {
-			zuc256_modify_iv(vec->iv[i].va);
-			zuc256_modify_iv(vec->auth_iv[i].va);
-		}
 
 		if (ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_NULL) {
 			null_digest.iova = cookie->digest_null_phys_addr;
@@ -942,16 +919,19 @@ qat_sym_dp_enqueue_aead_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 	for (i = 0; i < n; i++) {
 		struct qat_sym_op_cookie *cookie =
 			qp->op_cookies[tail >> tx_queue->trailz];
+		int error = 0;
 
 		req  = (struct icp_qat_fw_la_bulk_req *)(
 			(uint8_t *)tx_queue->base_addr + tail);
 		rte_mov128((uint8_t *)req, (const uint8_t *)&(ctx->fw_req));
 
 		if (vec->dest_sgl) {
-			data_len = qat_sym_build_req_set_data(req,
-				user_data[i], cookie,
-				vec->src_sgl[i].vec, vec->src_sgl[i].num,
-				vec->dest_sgl[i].vec, vec->dest_sgl[i].num);
+			data_len = qat_reqs_mid_set(&error, req, cookie, user_data[i],
+					&vec->src_sgl[i], &vec->dest_sgl[i], ofs);
+			/* In oop there is no offset, src/dst addresses are moved
+			 * to avoid overwriting the dst header
+			 */
+			ofs.ofs.cipher.head = 0;
 		} else {
 			data_len = qat_sym_build_req_set_data(req,
 				user_data[i], cookie,
@@ -959,7 +939,7 @@ qat_sym_dp_enqueue_aead_jobs_gen1(void *qp_data, uint8_t *drv_ctx,
 				vec->src_sgl[i].num, NULL, 0);
 		}
 
-		if (unlikely(data_len < 0))
+		if (unlikely(data_len < 0) || error)
 			break;
 
 		enqueue_one_aead_job_gen1(ctx, req, &vec->iv[i],

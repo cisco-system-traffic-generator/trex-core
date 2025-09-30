@@ -21,7 +21,7 @@
 
 #include "trex_driver_ixgbe.h"
 #include "trex_driver_defines.h"
-#include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
+#include "dpdk/drivers/net/intel/ixgbe/base/ixgbe_type.h"
 #include "trex_rte_eth_ctrl.h"
 
 

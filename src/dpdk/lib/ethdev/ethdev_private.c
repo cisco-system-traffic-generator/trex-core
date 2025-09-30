@@ -2,6 +2,7 @@
  * Copyright(c) 2018 Gaëtan Rivet
  */
 
+#include <eal_export.h>
 #include <rte_debug.h>
 
 #include "rte_ethdev.h"
@@ -285,6 +286,7 @@ eth_dev_fp_ops_setup(struct rte_eth_fp_ops *fpo,
 	fpo->txq.clbk = (void * __rte_atomic *)(uintptr_t)dev->pre_tx_burst_cbs;
 }
 
+RTE_EXPORT_SYMBOL(rte_eth_call_rx_callbacks)
 uint16_t
 rte_eth_call_rx_callbacks(uint16_t port_id, uint16_t queue_id,
 	struct rte_mbuf **rx_pkts, uint16_t nb_rx, uint16_t nb_pkts,
@@ -298,12 +300,17 @@ rte_eth_call_rx_callbacks(uint16_t port_id, uint16_t queue_id,
 		cb = cb->next;
 	}
 
-	rte_eth_trace_call_rx_callbacks(port_id, queue_id, (void **)rx_pkts,
-					nb_rx, nb_pkts);
+	if (unlikely(nb_rx))
+		rte_eth_trace_call_rx_callbacks_nonempty(port_id, queue_id, (void **)rx_pkts,
+						nb_rx, nb_pkts);
+	else
+		rte_eth_trace_call_rx_callbacks_empty(port_id, queue_id, (void **)rx_pkts,
+						nb_pkts);
 
 	return nb_rx;
 }
 
+RTE_EXPORT_SYMBOL(rte_eth_call_tx_callbacks)
 uint16_t
 rte_eth_call_tx_callbacks(uint16_t port_id, uint16_t queue_id,
 	struct rte_mbuf **tx_pkts, uint16_t nb_pkts, void *opaque)
@@ -336,7 +343,7 @@ eth_dev_shared_data_prepare(void)
 		/* Allocate port data and ownership shared memory. */
 		mz = rte_memzone_reserve(MZ_RTE_ETH_DEV_DATA,
 				sizeof(*eth_dev_shared_data),
-				rte_socket_id(), flags);
+				SOCKET_ID_ANY, flags);
 		if (mz == NULL) {
 			RTE_ETHDEV_LOG_LINE(ERR, "Cannot allocate ethdev shared data");
 			goto out;
@@ -394,7 +401,7 @@ eth_dev_rxq_release(struct rte_eth_dev *dev, uint16_t qid)
 		return;
 
 	if (dev->dev_ops->rx_queue_release != NULL)
-		(*dev->dev_ops->rx_queue_release)(dev, qid);
+		dev->dev_ops->rx_queue_release(dev, qid);
 	rxq[qid] = NULL;
 }
 
@@ -407,7 +414,7 @@ eth_dev_txq_release(struct rte_eth_dev *dev, uint16_t qid)
 		return;
 
 	if (dev->dev_ops->tx_queue_release != NULL)
-		(*dev->dev_ops->tx_queue_release)(dev, qid);
+		dev->dev_ops->tx_queue_release(dev, qid);
 	txq[qid] = NULL;
 }
 

@@ -189,6 +189,7 @@ struct roc_nix_fc_cfg {
 			uint32_t rq;
 			uint16_t tc;
 			uint16_t cq_drop;
+			uint16_t cq_bp;
 			bool enable;
 		} cq_cfg;
 
@@ -196,6 +197,7 @@ struct roc_nix_fc_cfg {
 			uint32_t rq;
 			uint16_t tc;
 			uint16_t cq_drop;
+			uint16_t cq_bp;
 			uint64_t pool;
 			uint64_t spb_pool;
 			uint64_t pool_drop_pct;
@@ -243,6 +245,7 @@ struct roc_nix_eeprom_info {
 #define ROC_NIX_LF_RX_CFG_LEN_IL3     BIT_ULL(39)
 #define ROC_NIX_LF_RX_CFG_LEN_OL4     BIT_ULL(40)
 #define ROC_NIX_LF_RX_CFG_LEN_OL3     BIT_ULL(41)
+#define ROC_NIX_LF_RX_CFG_APAD_MODE   BIT_ULL(42)
 
 #define ROC_NIX_LF_RX_CFG_RX_ERROR_MASK 0xFFFFFFFFFFF80000
 #define ROC_NIX_RE_PARTIAL		BIT_ULL(1)
@@ -354,6 +357,8 @@ struct roc_nix_rq {
 	bool lpb_drop_ena;
 	/* SPB aura drop enable */
 	bool spb_drop_ena;
+	/* XQE drop enable */
+	bool xqe_drop_ena;
 	/* End of Input parameters */
 	struct roc_nix *roc_nix;
 	uint64_t meta_aura_handle;
@@ -368,6 +373,7 @@ struct roc_nix_cq {
 	uint8_t stash_thresh;
 	/* End of Input parameters */
 	uint16_t drop_thresh;
+	uint16_t bp_thresh;
 	struct roc_nix *roc_nix;
 	uintptr_t door;
 	int64_t *status;
@@ -430,6 +436,7 @@ struct roc_nix_ipsec_cfg {
 	plt_iova_t iova;
 	uint16_t max_sa;
 	uint8_t tt;
+	int8_t res_addr_offset;
 };
 
 /* Link status update callback */
@@ -468,11 +475,19 @@ struct roc_nix {
 	uint32_t dwrr_mtu;
 	bool ipsec_out_sso_pffunc;
 	bool custom_sa_action;
+	int8_t res_addr_offset;
 	bool local_meta_aura_ena;
 	uint32_t meta_buf_sz;
 	bool force_rx_aura_bp;
 	bool custom_meta_aura_ena;
 	bool rx_inj_ena;
+	bool custom_inb_sa;
+	bool use_write_sa;
+	uint32_t root_sched_weight;
+	uint16_t inb_cfg_param1;
+	uint16_t inb_cfg_param2;
+	bool force_tail_drop;
+	bool dis_xqe_drop;
 	/* End of input parameters */
 	/* LMT line base for "Per Core Tx LMT line" mode*/
 	uintptr_t lmt_base;
@@ -484,9 +499,10 @@ struct roc_nix {
 	uintptr_t meta_mempool;
 	uint16_t rep_cnt;
 	uint16_t rep_pfvf_map[MAX_PFVF_REP];
+	bool reass_ena;
 	TAILQ_ENTRY(roc_nix) next;
 
-#define ROC_NIX_MEM_SZ (6 * 1070)
+#define ROC_NIX_MEM_SZ (6 * 1112)
 	uint8_t reserved[ROC_NIX_MEM_SZ] __plt_cache_aligned;
 } __plt_cache_aligned;
 
@@ -848,6 +864,7 @@ int __roc_api roc_nix_mac_link_info_get_cb_register(
 void __roc_api roc_nix_mac_link_info_get_cb_unregister(struct roc_nix *roc_nix);
 int __roc_api roc_nix_q_err_cb_register(struct roc_nix *roc_nix, q_err_get_t sq_err_handle);
 void __roc_api roc_nix_q_err_cb_unregister(struct roc_nix *roc_nix);
+int __roc_api roc_nix_mac_stats_reset(struct roc_nix *roc_nix);
 
 /* Ops */
 int __roc_api roc_nix_switch_hdr_set(struct roc_nix *roc_nix,
@@ -978,15 +995,11 @@ bool __roc_api roc_nix_ptp_is_enable(struct roc_nix *roc_nix);
 /* VLAN */
 int __roc_api
 roc_nix_vlan_mcam_entry_read(struct roc_nix *roc_nix, uint32_t index,
-			     struct npc_mcam_read_entry_rsp **rsp);
-int __roc_api roc_nix_vlan_mcam_entry_write(struct roc_nix *roc_nix,
-					    uint32_t index,
-					    struct mcam_entry *entry,
+			     void **rsp);
+int __roc_api roc_nix_vlan_mcam_entry_write(struct roc_nix *roc_nix, uint32_t index, void *entry,
 					    uint8_t intf, uint8_t enable);
-int __roc_api roc_nix_vlan_mcam_entry_alloc_and_write(struct roc_nix *roc_nix,
-						      struct mcam_entry *entry,
-						      uint8_t intf,
-						      uint8_t priority,
+int __roc_api roc_nix_vlan_mcam_entry_alloc_and_write(struct roc_nix *roc_nix, void *entry,
+						      uint8_t intf, uint8_t priority,
 						      uint8_t ref_entry);
 int __roc_api roc_nix_vlan_mcam_entry_free(struct roc_nix *roc_nix,
 					   uint32_t index);
@@ -1007,10 +1020,8 @@ int __roc_api roc_nix_mcast_mcam_entry_alloc(struct roc_nix *roc_nix,
 					     uint16_t index[]);
 int __roc_api roc_nix_mcast_mcam_entry_free(struct roc_nix *roc_nix,
 					    uint32_t index);
-int __roc_api roc_nix_mcast_mcam_entry_write(struct roc_nix *roc_nix,
-					     struct mcam_entry *entry,
-					     uint32_t index, uint8_t intf,
-					     uint64_t action);
+int __roc_api roc_nix_mcast_mcam_entry_write(struct roc_nix *roc_nix, void *entry, uint32_t index,
+					     uint8_t intf, uint64_t action);
 int __roc_api roc_nix_mcast_mcam_entry_ena_dis(struct roc_nix *roc_nix, uint32_t index,
 					       bool enable);
 int __roc_api roc_nix_mcast_list_setup(struct mbox *mbox, uint8_t intf, int nb_entries,

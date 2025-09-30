@@ -18,12 +18,12 @@
 #include <rte_byteorder.h>
 #include <bus_pci_driver.h>
 #include <rte_ethdev.h>
-#include "dpdk/drivers/net/i40e/base/i40e_register.h"
-#include "dpdk/drivers/net/i40e/base/i40e_status.h"
-#include "dpdk/drivers/net/i40e/base/i40e_osdep.h"
-#include "dpdk/drivers/net/i40e/base/i40e_type.h"
-#include "dpdk/drivers/net/i40e/base/virtchnl.h"
-#include "dpdk/drivers/net/i40e/i40e_ethdev.h"
+#include "dpdk/drivers/net/intel/i40e/base/i40e_register.h"
+#include "dpdk/drivers/net/intel/i40e/base/i40e_status.h"
+#include "dpdk/drivers/net/intel/i40e/base/i40e_osdep.h"
+#include "dpdk/drivers/net/intel/i40e/base/i40e_type.h"
+#include "dpdk/drivers/net/intel/i40e/base/virtchnl.h"
+#include "dpdk/drivers/net/intel/i40e/i40e_ethdev.h"
 #include "dpdk/drivers/bus/pci/rte_bus_pci.h"
 
 #include "dpdk_funcs.h"

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <dirent.h>
 
 #include <rte_errno.h>
 #include <rte_log.h>
@@ -14,6 +15,7 @@
 #include <rte_eal_memconfig.h>
 #include <rte_vfio.h>
 
+#include <eal_export.h>
 #include "eal_filesystem.h"
 #include "eal_memcfg.h"
 #include "eal_vfio.h"
@@ -515,6 +517,7 @@ get_vfio_cfg_by_container_fd(int container_fd)
 	return NULL;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_get_group_fd)
 int
 rte_vfio_get_group_fd(int iommu_group_num)
 {
@@ -713,6 +716,7 @@ vfio_sync_default_container(void)
 	return -1;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_clear_group)
 int
 rte_vfio_clear_group(int vfio_group_fd)
 {
@@ -736,6 +740,7 @@ rte_vfio_clear_group(int vfio_group_fd)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_setup_device)
 int
 rte_vfio_setup_device(const char *sysfs_base, const char *dev_addr,
 		int *vfio_dev_fd, struct vfio_device_info *device_info)
@@ -989,6 +994,7 @@ dev_get_info:
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_release_device)
 int
 rte_vfio_release_device(const char *sysfs_base, const char *dev_addr,
 		    int vfio_dev_fd)
@@ -1077,12 +1083,14 @@ out:
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_enable)
 int
 rte_vfio_enable(const char *modname)
 {
 	/* initialize group list */
 	int i, j;
 	int vfio_available;
+	DIR *dir;
 	const struct internal_config *internal_conf =
 		eal_get_internal_configuration();
 
@@ -1119,10 +1127,22 @@ rte_vfio_enable(const char *modname)
 		return 0;
 	}
 
+	/* VFIO directory might not exist (e.g., unprivileged containers) */
+	dir = opendir(VFIO_DIR);
+	if (dir == NULL) {
+		EAL_LOG(DEBUG,
+			"VFIO directory does not exist, skipping VFIO support...");
+		return 0;
+	}
+	closedir(dir);
+
 	if (internal_conf->process_type == RTE_PROC_PRIMARY) {
-		/* open a new container */
-		default_vfio_cfg->vfio_container_fd =
-				rte_vfio_get_container_fd();
+		if (vfio_mp_sync_setup() == -1) {
+			default_vfio_cfg->vfio_container_fd = -1;
+		} else {
+			/* open a new container */
+			default_vfio_cfg->vfio_container_fd = rte_vfio_get_container_fd();
+		}
 	} else {
 		/* get the default container from the primary process */
 		default_vfio_cfg->vfio_container_fd =
@@ -1140,6 +1160,7 @@ rte_vfio_enable(const char *modname)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_is_enabled)
 int
 rte_vfio_is_enabled(const char *modname)
 {
@@ -1222,6 +1243,7 @@ vfio_set_iommu_type(int vfio_container_fd)
 	return NULL;
 }
 
+RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_vfio_get_device_info, 24.03)
 int
 rte_vfio_get_device_info(const char *sysfs_base, const char *dev_addr,
 		int *vfio_dev_fd, struct vfio_device_info *device_info)
@@ -1281,6 +1303,7 @@ vfio_has_supported_extensions(int vfio_container_fd)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_get_container_fd)
 int
 rte_vfio_get_container_fd(void)
 {
@@ -1352,6 +1375,7 @@ rte_vfio_get_container_fd(void)
 	return -1;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_get_group_num)
 int
 rte_vfio_get_group_num(const char *sysfs_base,
 		const char *dev_addr, int *iommu_group_num)
@@ -2021,6 +2045,7 @@ out:
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_noiommu_is_enabled)
 int
 rte_vfio_noiommu_is_enabled(void)
 {
@@ -2053,6 +2078,7 @@ rte_vfio_noiommu_is_enabled(void)
 	return c == 'Y';
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_container_create)
 int
 rte_vfio_container_create(void)
 {
@@ -2078,6 +2104,7 @@ rte_vfio_container_create(void)
 	return vfio_cfgs[i].vfio_container_fd;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_container_destroy)
 int
 rte_vfio_container_destroy(int container_fd)
 {
@@ -2103,6 +2130,7 @@ rte_vfio_container_destroy(int container_fd)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_container_group_bind)
 int
 rte_vfio_container_group_bind(int container_fd, int iommu_group_num)
 {
@@ -2117,6 +2145,7 @@ rte_vfio_container_group_bind(int container_fd, int iommu_group_num)
 	return vfio_get_group_fd(vfio_cfg, iommu_group_num);
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_container_group_unbind)
 int
 rte_vfio_container_group_unbind(int container_fd, int iommu_group_num)
 {
@@ -2157,6 +2186,7 @@ rte_vfio_container_group_unbind(int container_fd, int iommu_group_num)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_container_dma_map)
 int
 rte_vfio_container_dma_map(int container_fd, uint64_t vaddr, uint64_t iova,
 		uint64_t len)
@@ -2177,6 +2207,7 @@ rte_vfio_container_dma_map(int container_fd, uint64_t vaddr, uint64_t iova,
 	return container_dma_map(vfio_cfg, vaddr, iova, len);
 }
 
+RTE_EXPORT_SYMBOL(rte_vfio_container_dma_unmap)
 int
 rte_vfio_container_dma_unmap(int container_fd, uint64_t vaddr, uint64_t iova,
 		uint64_t len)

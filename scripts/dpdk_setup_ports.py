@@ -22,7 +22,6 @@ import shlex
 import traceback
 from collections import defaultdict, OrderedDict
 import subprocess
-import platform
 import stat
 import time
 import shutil
@@ -544,16 +543,6 @@ Other network devices
                 print("No valid OFED version '%s' found." % (lines[0]))
                 sys.exit(-1);
 
-    def verify_ofed_os(self):
-        err_msg = 'Warning: Mellanox NICs were tested only with RedHat/CentOS 7.9\n'
-        err_msg += 'Correct usage with other Linux distributions is not guaranteed.'
-        try:
-            dist = platform.dist()
-            if dist[0] not in ('redhat', 'centos') or not dist[1].startswith('7.9'):
-                print(err_msg)
-        except Exception as e:
-            print('Error while determining OS type: %s' % e)
-
     def load_config_file (self):
 
         fcfg=self.m_cfg_file
@@ -902,7 +891,7 @@ Other network devices
 
     # verify that all interfaces of i40e NIC are in use by current instance of TRex
     def check_i40e_binds(self, if_list):
-        # i40e device IDs taked from dpdk/drivers/net/i40e/base/i40e_devids.h
+        # i40e device IDs taked from dpdk/drivers/net/intel/i40e/base/i40e_devids.h
         i40e_device_ids = [0x1572, 0x1574, 0x1580, 0x1581, 0x1583, 0x1584, 0x1585, 0x1586, 0x1587, 0x1588, 0x1589, 0x158A, 0x158B]
         iface_without_slash = set()
         for iface in if_list:
@@ -1008,7 +997,6 @@ Other network devices
 
         if self.get_only_mellanox_nics():
             if not pa().no_ofed_check:
-                self.verify_ofed_os()
                 self.check_ofed_version()
 
             for key in if_list:

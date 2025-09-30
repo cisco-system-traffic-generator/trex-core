@@ -1332,6 +1332,14 @@ enum MAD_FIELDS {
 	IB_PORT_EXT_NDR_FEC_MODE_ENABLED_F,
 	IB_PORT_EXT_NDR_FEC_MODE_LAST_F,
 
+	/*
+	 * More PortInfo fields (XDR)
+	 */
+	IB_PORT_LINK_SPEED_EXT_ACTIVE_2_F,
+	IB_PORT_LINK_SPEED_EXT_SUPPORTED_2_F,
+	IB_PORT_LINK_SPEED_EXT_ENABLED_2_F,
+	IB_PORT_LINK_SPEED_EXT_2_LAST_F,
+
 	IB_FIELD_LAST_		/* must be last */
 };
 
@@ -1399,6 +1407,16 @@ typedef struct ib_bm_call {
 	unsigned timeout;
 	uint64_t bkey;
 } ib_bm_call_t;
+
+typedef struct ibmad_ports_item {
+	struct ibmad_port *port;
+	char ca_name[20];
+} ibmad_ports_item_t;
+
+struct ibmad_ports_pair {
+	ibmad_ports_item_t smi;
+	ibmad_ports_item_t gsi;
+};
 
 #define IB_MIN_UCAST_LID	1
 #define IB_MAX_UCAST_LID	(0xc000-1)
@@ -1475,7 +1493,10 @@ int madrpc_set_retries(int retries);
 int madrpc_set_timeout(int timeout);
 struct ibmad_port *mad_rpc_open_port(char *dev_name, int dev_port,
 				     int *mgmt_classes, int num_classes);
+struct ibmad_ports_pair *mad_rpc_open_port2(char *dev_name, int dev_port,
+				     int *mgmt_classes, int num_classes, unsigned enforce_smi);
 void mad_rpc_close_port(struct ibmad_port *srcport);
+void mad_rpc_close_port2(struct  ibmad_ports_pair *srcport);
 
 /*
  * On redirection, the dport argument is updated with the redirection target,
@@ -1496,7 +1517,6 @@ int mad_get_timeout(const struct ibmad_port *srcport, int override_ms);
 int mad_get_retries(const struct ibmad_port *srcport);
 
 /* register.c */
-int mad_register_port_client(int port_id, int mgmt, uint8_t rmpp_version);
 int mad_register_client(int mgmt, uint8_t rmpp_version)
 	__attribute__((deprecated));
 int mad_register_server(int mgmt, uint8_t rmpp_version,
@@ -1668,7 +1688,8 @@ ib_mad_dump_fn mad_dump_int, mad_dump_uint, mad_dump_hex, mad_dump_rhex,
 	mad_dump_cc_congestioncontroltable,
 	mad_dump_cc_congestioncontroltableentry, mad_dump_cc_timestamp,
 	mad_dump_classportinfo, mad_dump_portsamples_result,
-	mad_dump_portinfo_ext, mad_dump_port_ext_speeds_counters_rsfec_active;
+	mad_dump_portinfo_ext, mad_dump_port_ext_speeds_counters_rsfec_active,
+	mad_dump_linkspeedext2, mad_dump_linkspeedextsup2, mad_dump_linkspeedexten2;
 
 void mad_dump_fields(char *buf, int bufsz, void *val, int valsz, int start,
 		     int end);

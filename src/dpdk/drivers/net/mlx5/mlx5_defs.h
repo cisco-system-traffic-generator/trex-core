@@ -183,6 +183,9 @@
 /* Maximum number of external Rx queues supported by rte_flow */
 #define MLX5_MAX_EXT_RX_QUEUES (UINT16_MAX - RTE_PMD_MLX5_EXTERNAL_RX_QUEUE_ID_MIN + 1)
 
+/* Maximum number of external Tx queues supported by rte_flow */
+#define MLX5_MAX_EXT_TX_QUEUES (UINT16_MAX - MLX5_EXTERNAL_TX_QUEUE_ID_MIN + 1)
+
 /*
  * Linux definition of static_assert is found in /usr/include/assert.h.
  * Windows does not require a redefinition.
@@ -192,5 +195,7 @@
 #endif
 
 #define MLX5_CNT_SVC_CYCLE_TIME_DEFAULT 500
+
+#define MLX5_SIZE_MOV16 16
 
 #endif /* RTE_PMD_MLX5_DEFS_H_ */

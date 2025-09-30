@@ -38,50 +38,43 @@ extern "C" {
 #endif
 
 /**
- * Flag definition (in bitmask form) for an argument.
+ * enum defining whether an argument takes a value or not.
  */
-enum rte_argparse_flag {
-	/*
-	 * Bits 0-1: represent the argument whether has value.
-	 */
-
-	/** The argument has no value. */
-	RTE_ARGPARSE_ARG_NO_VALUE = RTE_SHIFT_VAL64(1, 0),
+enum rte_argparse_value_required {
+	/** The argument takes no value. */
+	RTE_ARGPARSE_VALUE_NONE,
 	/** The argument must have a value. */
-	RTE_ARGPARSE_ARG_REQUIRED_VALUE = RTE_SHIFT_VAL64(2, 0),
+	RTE_ARGPARSE_VALUE_REQUIRED,
 	/** The argument has optional value. */
-	RTE_ARGPARSE_ARG_OPTIONAL_VALUE = RTE_SHIFT_VAL64(3, 0),
+	RTE_ARGPARSE_VALUE_OPTIONAL,
+};
 
-
-	/*
-	 * Bits 2-9: represent the value type which used when autosave
+/** enum defining the type of the argument, integer, boolean or just string */
+enum rte_argparse_value_type {
+	/** Argument takes no value, or value type not specified.
+	 * Should be used when argument is to be handled via callback.
 	 */
-
+	RTE_ARGPARSE_VALUE_TYPE_NONE = 0,
 	/** The argument's value is int type. */
-	RTE_ARGPARSE_ARG_VALUE_INT = RTE_SHIFT_VAL64(1, 2),
+	RTE_ARGPARSE_VALUE_TYPE_INT,
 	/** The argument's value is uint8 type. */
-	RTE_ARGPARSE_ARG_VALUE_U8 = RTE_SHIFT_VAL64(2, 2),
+	RTE_ARGPARSE_VALUE_TYPE_U8,
 	/** The argument's value is uint16 type. */
-	RTE_ARGPARSE_ARG_VALUE_U16 = RTE_SHIFT_VAL64(3, 2),
+	RTE_ARGPARSE_VALUE_TYPE_U16,
 	/** The argument's value is uint32 type. */
-	RTE_ARGPARSE_ARG_VALUE_U32 = RTE_SHIFT_VAL64(4, 2),
+	RTE_ARGPARSE_VALUE_TYPE_U32,
 	/** The argument's value is uint64 type. */
-	RTE_ARGPARSE_ARG_VALUE_U64 = RTE_SHIFT_VAL64(5, 2),
-	/** Max value type. */
-	RTE_ARGPARSE_ARG_VALUE_MAX = RTE_SHIFT_VAL64(6, 2),
+	RTE_ARGPARSE_VALUE_TYPE_U64,
+	/** The argument's value is string type. */
+	RTE_ARGPARSE_VALUE_TYPE_STR,
+	/** The argument's value is boolean flag type. */
+	RTE_ARGPARSE_VALUE_TYPE_BOOL,
+};
 
-
-	/**
-	 * Bit 10: flag for that argument support occur multiple times.
-	 * This flag can be set only when the argument is optional.
-	 * When this flag is set, the callback type must be used for parsing.
-	 */
-	RTE_ARGPARSE_ARG_SUPPORT_MULTI = RTE_BIT64(10),
-
-	/**
-	 * Bits 48-63: reserved for this library implementation usage.
-	 */
-	RTE_ARGPARSE_ARG_RESERVED_FIELD = RTE_GENMASK64(63, 48),
+/** Additional flags which may be specified for each argument */
+enum rte_argparse_arg_flags {
+	/** argument may be specified multiple times on the commandline */
+	RTE_ARGPARSE_FLAG_SUPPORT_MULTI = RTE_BIT32(0),
 };
 
 /**
@@ -90,8 +83,8 @@ enum rte_argparse_flag {
 struct rte_argparse_arg {
 	/**
 	 * Long name of the argument:
-	 * 1) If the argument is optional, it must start with '--'.
-	 * 2) If the argument is positional, it must not start with '-'.
+	 * 1) If the argument is optional, it must start with ``--``.
+	 * 2) If the argument is positional, it must not start with ``-``.
 	 * 3) Other case will be considered as error.
 	 */
 	const char *name_long;
@@ -108,10 +101,8 @@ struct rte_argparse_arg {
 
 	/**
 	 * Saver for the argument's value.
-	 * 1) If the filed is NULL, the callback way is used for parsing
-	 *    argument.
-	 * 2) If the field is not NULL, the autosave way is used for parsing
-	 *    argument.
+	 * 1) If this field is NULL, the callback is used for parsing argument.
+	 * 2) If this field is not NULL, the argument's value will be automatically saved.
 	 */
 	void *val_saver;
 	/**
@@ -126,8 +117,13 @@ struct rte_argparse_arg {
 	 */
 	void *val_set;
 
-	/** @see rte_argparse_flag */
-	uint64_t flags;
+	/** Specify if the argument takes a value, @see enum rte_argparse_value_required. */
+	enum rte_argparse_value_required value_required;
+	/** The type of the argument, @see enum rte_argparse_value_type. */
+	enum rte_argparse_value_type value_type;
+
+	/** any additional flags for this argument */
+	uint32_t flags;
 };
 
 /**
@@ -176,7 +172,8 @@ struct rte_argparse {
  * @warning
  * @b EXPERIMENTAL: this API may change without prior notice.
  *
- * Parse parameters.
+ * Parse parameters passed until all are processed,
+ * or until a "--" parameter is encountered.
  *
  * @param obj
  *   Parser object.
@@ -186,10 +183,11 @@ struct rte_argparse {
  *   Array of parameters points.
  *
  * @return
- *   0 on success. Otherwise negative value is returned.
+ *   number of arguments parsed (>= 0) on success.
+ *   Otherwise negative error code is returned.
  */
 __rte_experimental
-int rte_argparse_parse(struct rte_argparse *obj, int argc, char **argv);
+int rte_argparse_parse(const struct rte_argparse *obj, int argc, char **argv);
 
 /**
  * @warning
@@ -200,7 +198,7 @@ int rte_argparse_parse(struct rte_argparse *obj, int argc, char **argv);
  * @param str
  *   Input string.
  * @param val_type
- *   The value type, @see RTE_ARGPARSE_ARG_VALUE_INT or other type.
+ *   The value type, @see rte_argparse_value_type.
  * @param val
  *   Saver for the value.
  *
@@ -208,7 +206,7 @@ int rte_argparse_parse(struct rte_argparse *obj, int argc, char **argv);
  *   0 on success. Otherwise negative value is returned.
  */
 __rte_experimental
-int rte_argparse_parse_type(const char *str, uint64_t val_type, void *val);
+int rte_argparse_parse_type(const char *str, enum rte_argparse_value_type val_type, void *val);
 
 #ifdef __cplusplus
 }

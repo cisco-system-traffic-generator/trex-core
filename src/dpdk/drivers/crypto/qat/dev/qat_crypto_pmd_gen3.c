@@ -204,9 +204,8 @@ qat_sym_crypto_cap_get_gen3(struct qat_cryptodev_private *internals,
 	uint32_t legacy_size = sizeof(qat_sym_crypto_legacy_caps_gen3);
 	capa_num = size/sizeof(struct rte_cryptodev_capabilities);
 	legacy_capa_num = legacy_size/sizeof(struct rte_cryptodev_capabilities);
-	struct rte_cryptodev_capabilities *cap;
 
-	if (unlikely(qat_legacy_capa))
+	if (unlikely(internals->qat_dev->options.legacy_alg))
 		size = size + legacy_size;
 
 	internals->capa_mz = rte_memzone_lookup(capa_memz_name);
@@ -225,7 +224,7 @@ qat_sym_crypto_cap_get_gen3(struct qat_cryptodev_private *internals,
 				internals->capa_mz->addr;
 	struct rte_cryptodev_capabilities *capabilities;
 
-	if (unlikely(qat_legacy_capa)) {
+	if (unlikely(internals->qat_dev->options.legacy_alg)) {
 		capabilities = qat_sym_crypto_legacy_caps_gen3;
 		capa_num += legacy_capa_num;
 	} else {
@@ -233,7 +232,8 @@ qat_sym_crypto_cap_get_gen3(struct qat_cryptodev_private *internals,
 	}
 
 	for (i = 0; i < capa_num; i++, iter++) {
-		if (unlikely(qat_legacy_capa) && (i == legacy_capa_num)) {
+		if (unlikely(internals->qat_dev->options.legacy_alg) &&
+				(i == legacy_capa_num)) {
 			capabilities = qat_sym_crypto_caps_gen3;
 			addr += curr_capa;
 			curr_capa = 0;
@@ -257,15 +257,7 @@ qat_sym_crypto_cap_get_gen3(struct qat_cryptodev_private *internals,
 			continue;
 		}
 
-		if (slice_map & ICP_ACCEL_MASK_ZUC_256_SLICE && (
-			check_auth_capa(&capabilities[iter],
-				RTE_CRYPTO_AUTH_ZUC_EIA3) ||
-			check_cipher_capa(&capabilities[iter],
-				RTE_CRYPTO_CIPHER_ZUC_EEA3))) {
-			continue;
-		}
-
-		if (internals->qat_dev->has_wireless_slice && (
+		if (internals->qat_dev->options.has_wireless_slice && (
 			check_auth_capa(&capabilities[iter],
 				RTE_CRYPTO_AUTH_KASUMI_F9) ||
 			check_cipher_capa(&capabilities[iter],
@@ -278,27 +270,6 @@ qat_sym_crypto_cap_get_gen3(struct qat_cryptodev_private *internals,
 
 		memcpy(addr + curr_capa, capabilities + iter,
 			sizeof(struct rte_cryptodev_capabilities));
-
-		if (internals->qat_dev->has_wireless_slice && (
-			check_auth_capa(&capabilities[iter],
-				RTE_CRYPTO_AUTH_ZUC_EIA3))) {
-			cap = addr + curr_capa;
-			cap->sym.auth.key_size.max = 32;
-			cap->sym.auth.key_size.increment = 16;
-			cap->sym.auth.iv_size.max = 25;
-			cap->sym.auth.iv_size.increment = 1;
-			cap->sym.auth.digest_size.max = 16;
-			cap->sym.auth.digest_size.increment = 4;
-		}
-		if (internals->qat_dev->has_wireless_slice && (
-			check_cipher_capa(&capabilities[iter],
-				RTE_CRYPTO_CIPHER_ZUC_EEA3))) {
-			cap = addr + curr_capa;
-			cap->sym.cipher.key_size.max = 32;
-			cap->sym.cipher.key_size.increment = 16;
-			cap->sym.cipher.iv_size.max = 25;
-			cap->sym.cipher.iv_size.increment = 1;
-		}
 		curr_capa++;
 	}
 	internals->qat_dev_capabilities = internals->capa_mz->addr;
@@ -551,22 +522,14 @@ qat_sym_crypto_set_session_gen3(void *cdev, void *session)
 				ctx->qat_cipher_alg ==
 				ICP_QAT_HW_CIPHER_ALGO_ZUC_3G_128_EEA3)) {
 			qat_sym_session_set_ext_hash_flags_gen2(ctx, 0);
-		} else if ((internals->qat_dev->has_wireless_slice) &&
+		} else if ((internals->qat_dev->options.has_wireless_slice) &&
 				((ctx->aes_cmac ||
 				ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_NULL) &&
 				(ctx->qat_cipher_alg ==
 				ICP_QAT_HW_CIPHER_ALGO_SNOW_3G_UEA2 ||
 				ctx->qat_cipher_alg ==
-				ICP_QAT_HW_CIPHER_ALGO_ZUC_3G_128_EEA3 ||
-				ctx->qat_cipher_alg == ICP_QAT_HW_CIPHER_ALGO_ZUC_256))) {
+				ICP_QAT_HW_CIPHER_ALGO_ZUC_3G_128_EEA3))) {
 			qat_sym_session_set_ext_hash_flags_gen2(ctx, 0);
-		} else if ((internals->qat_dev->has_wireless_slice) &&
-			(ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_ZUC_256_MAC_32 ||
-				ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_ZUC_256_MAC_64 ||
-				ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_ZUC_256_MAC_128) &&
-				ctx->qat_cipher_alg != ICP_QAT_HW_CIPHER_ALGO_ZUC_256) {
-			qat_sym_session_set_ext_hash_flags_gen2(ctx,
-					1 << ICP_QAT_FW_AUTH_HDR_FLAG_ZUC_EIA3_BITPOS);
 		}
 
 		ret = 0;
@@ -643,16 +606,19 @@ qat_sym_dp_enqueue_aead_jobs_gen3(void *qp_data, uint8_t *drv_ctx,
 	for (i = 0; i < n; i++) {
 		struct qat_sym_op_cookie *cookie =
 			qp->op_cookies[tail >> tx_queue->trailz];
+		int error = 0;
 
 		req  = (struct icp_qat_fw_la_bulk_req *)(
 			(uint8_t *)tx_queue->base_addr + tail);
 		rte_mov128((uint8_t *)req, (const uint8_t *)&(ctx->fw_req));
 
 		if (vec->dest_sgl) {
-			data_len = qat_sym_build_req_set_data(req,
-				user_data[i], cookie,
-				vec->src_sgl[i].vec, vec->src_sgl[i].num,
-				vec->dest_sgl[i].vec, vec->dest_sgl[i].num);
+			data_len = qat_reqs_mid_set(&error, req, cookie, user_data[i],
+					&vec->src_sgl[i], &vec->dest_sgl[i], ofs);
+			/* In oop there is no offset, src/dst addresses are moved
+			 * to avoid overwriting the dst header
+			 */
+			ofs.ofs.cipher.head = 0;
 		} else {
 			data_len = qat_sym_build_req_set_data(req,
 				user_data[i], cookie,
@@ -660,7 +626,7 @@ qat_sym_dp_enqueue_aead_jobs_gen3(void *qp_data, uint8_t *drv_ctx,
 				vec->src_sgl[i].num, NULL, 0);
 		}
 
-		if (unlikely(data_len < 0))
+		if (unlikely(data_len < 0) || error)
 			break;
 
 		enqueue_one_aead_job_gen3(ctx, req, &vec->iv[i],

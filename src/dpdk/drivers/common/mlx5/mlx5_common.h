@@ -113,13 +113,26 @@ pmd_drv_log_basename(const char *s)
 
 #endif /* RTE_LIBRTE_MLX5_DEBUG */
 
+/**
+ * Returns true if debug mode is enabled for fast path operations.
+ */
+static inline bool
+mlx5_fp_debug_enabled(void)
+{
+#ifdef RTE_LIBRTE_MLX5_DEBUG
+	return true;
+#else
+	return false;
+#endif
+}
+
 /* Allocate a buffer on the stack and fill it with a printf format string. */
 #define MKSTR(name, ...) \
 	int mkstr_size_##name = snprintf(NULL, 0, "" __VA_ARGS__); \
-	char name[mkstr_size_##name + 1]; \
+	char *name = alloca(mkstr_size_##name + 1); \
 	\
 	memset(name, 0, mkstr_size_##name + 1); \
-	snprintf(name, sizeof(name), "" __VA_ARGS__)
+	snprintf(name, mkstr_size_##name + 1, "" __VA_ARGS__)
 
 enum {
 	PCI_VENDOR_ID_MELLANOX = 0x15b3,
@@ -144,6 +157,7 @@ enum {
 	PCI_DEVICE_ID_MELLANOX_CONNECTX6LX = 0x101f,
 	PCI_DEVICE_ID_MELLANOX_CONNECTX7 = 0x1021,
 	PCI_DEVICE_ID_MELLANOX_BLUEFIELD3 = 0Xa2dc,
+	PCI_DEVICE_ID_MELLANOX_CONNECTX8 = 0x1023,
 };
 
 /* Maximum number of simultaneous unicast MAC addresses. */
@@ -163,6 +177,19 @@ enum mlx5_nl_phys_port_name_type {
 	MLX5_PHYS_PORT_NAME_TYPE_PFHPF, /* pf0, kernel ver >= 5.7, HPF rep */
 	MLX5_PHYS_PORT_NAME_TYPE_PFSF, /* pf0sf0, kernel ver >= 5.0 */
 	MLX5_PHYS_PORT_NAME_TYPE_UNKNOWN, /* Unrecognized. */
+};
+
+struct mlx5_port_nl_info {
+	uint32_t ifindex;
+	uint8_t valid;
+};
+
+struct mlx5_dev_info {
+	uint32_t port_num;
+	uint32_t ibindex;
+	char ibname[MLX5_FS_NAME_MAX];
+	uint8_t probe_opt;
+	struct mlx5_port_nl_info *port_info;
 };
 
 /** Switch information returned by mlx5_nl_switch_info(). */
@@ -199,7 +226,7 @@ check_cqe_error(const uint8_t op_code)
 	/* Prevent speculative reading of other fields in CQE until
 	 * CQE is valid.
 	 */
-	rte_atomic_thread_fence(__ATOMIC_ACQUIRE);
+	rte_atomic_thread_fence(rte_memory_order_acquire);
 
 	if (unlikely(op_code == MLX5_CQE_RESP_ERR ||
 		     op_code == MLX5_CQE_REQ_ERR))
@@ -504,6 +531,7 @@ struct mlx5_common_dev_config {
 	int pd_handle; /* Protection Domain handle for importation.  */
 	unsigned int devx:1; /* Whether devx interface is available or not. */
 	unsigned int sys_mem_en:1; /* The default memory allocator. */
+	unsigned int probe_opt:1; /* Optimize probing . */
 	unsigned int mr_mempool_reg_en:1;
 	/* Allow/prevent implicit mempool memory registration. */
 	unsigned int mr_ext_memseg_en:1;
@@ -516,6 +544,7 @@ struct mlx5_common_device {
 	uint32_t classes_loaded;
 	void *ctx; /* Verbs/DV/DevX context. */
 	void *pd; /* Protection Domain. */
+	struct mlx5_dev_info dev_info; /* Device port info queried via netlink. */
 	uint32_t pdn; /* Protection Domain Number. */
 	struct mlx5_mr_share_cache mr_scache; /* Global shared MR cache. */
 	struct mlx5_common_dev_config config; /* Device configuration. */
@@ -625,6 +654,10 @@ void
 mlx5_devx_uar_release(struct mlx5_uar *uar);
 
 /* mlx5_common_os.c */
+
+__rte_internal
+void *
+mlx5_os_get_physical_device_ctx(struct mlx5_common_device *cdev);
 
 int mlx5_os_open_device(struct mlx5_common_device *cdev, uint32_t classes);
 int mlx5_os_pd_prepare(struct mlx5_common_device *cdev);

@@ -54,10 +54,6 @@
 #ifndef _RTE_MEMBER_H_
 #define _RTE_MEMBER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>
@@ -98,6 +94,10 @@ typedef uint16_t member_set_t;
 #else
 #include <rte_jhash.h>
 #define MEMBER_HASH_FUNC       rte_jhash
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /** @internal setsummary structure. */
@@ -342,6 +342,16 @@ struct rte_member_setsum *
 rte_member_find_existing(const char *name);
 
 /**
+ * De-allocate memory used by set-summary.
+ *
+ * @param setsum
+ *   Pointer to the set summary.
+ *   If setsum is NULL, no operation is performed.
+ */
+void
+rte_member_free(struct rte_member_setsum *setsum);
+
+/**
  * Create set-summary (SS).
  *
  * @param params
@@ -351,7 +361,8 @@ rte_member_find_existing(const char *name);
  *   Return value is NULL if the creation failed.
  */
 struct rte_member_setsum *
-rte_member_create(const struct rte_member_parameters *params);
+rte_member_create(const struct rte_member_parameters *params)
+	__rte_malloc __rte_dealloc(rte_member_free, 1);
 
 /**
  * Lookup key in set-summary (SS).
@@ -527,17 +538,6 @@ rte_member_query_count(const struct rte_member_setsum *setsum,
 int
 rte_member_report_heavyhitter(const struct rte_member_setsum *setsum,
 			      void **keys, uint64_t *counts);
-
-
-/**
- * De-allocate memory used by set-summary.
- *
- * @param setsum
- *   Pointer to the set summary.
- *   If setsum is NULL, no operation is performed.
- */
-void
-rte_member_free(struct rte_member_setsum *setsum);
 
 /**
  * Reset the set-summary tables. E.g. reset bits to be 0 in BF,

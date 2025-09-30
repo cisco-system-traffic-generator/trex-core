@@ -331,6 +331,8 @@ txgbe_pf_reset_hw(struct txgbe_hw *hw)
 	status = hw->mac.reset_hw(hw);
 
 	ctrl_ext = rd32(hw, TXGBE_PORTCTL);
+	/* let hardware know driver is loaded */
+	ctrl_ext |= TXGBE_PORTCTL_DRVLOAD;
 	/* Set PF Reset Done bit so PF/VF Mail Ops can work */
 	ctrl_ext |= TXGBE_PORTCTL_RSTDONE;
 	wr32(hw, TXGBE_PORTCTL, ctrl_ext);
@@ -595,23 +597,25 @@ eth_txgbe_dev_init(struct rte_eth_dev *eth_dev, void *init_params __rte_unused)
 		return 0;
 	}
 
-	__atomic_clear(&ad->link_thread_running, __ATOMIC_SEQ_CST);
+	rte_atomic_store_explicit(&ad->link_thread_running, 0, rte_memory_order_seq_cst);
 	rte_eth_copy_pci_info(eth_dev, pci_dev);
 
 	hw->hw_addr = (void *)pci_dev->mem_resource[0].addr;
 
 	/* Vendor and Device ID need to be set before init of shared code */
+	hw->back = pci_dev;
+	hw->port_id = eth_dev->data->port_id;
 	hw->device_id = pci_dev->id.device_id;
 	hw->vendor_id = pci_dev->id.vendor_id;
 	if (pci_dev->id.subsystem_vendor_id == PCI_VENDOR_ID_WANGXUN) {
 		hw->subsystem_device_id = pci_dev->id.subsystem_device_id;
 	} else {
-		u32 ssid;
+		u32 ssid = 0;
 
-		ssid = txgbe_flash_read_dword(hw, 0xFFFDC);
-		if (ssid == 0x1) {
+		err = txgbe_flash_read_dword(hw, 0xFFFDC, &ssid);
+		if (err) {
 			PMD_INIT_LOG(ERR,
-				"Read of internal subsystem device id failed\n");
+				"Read of internal subsystem device id failed");
 			return -ENODEV;
 		}
 		hw->subsystem_device_id = (u16)ssid >> 8 | (u16)ssid << 8;
@@ -734,6 +738,8 @@ eth_txgbe_dev_init(struct rte_eth_dev *eth_dev, void *init_params __rte_unused)
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate %d bytes needed to store MAC addresses",
 			     RTE_ETHER_ADDR_LEN * TXGBE_VMDQ_NUM_UC_MAC);
+		rte_free(eth_dev->data->mac_addrs);
+		eth_dev->data->mac_addrs = NULL;
 		return -ENOMEM;
 	}
 
@@ -820,7 +826,7 @@ eth_txgbe_dev_uninit(struct rte_eth_dev *eth_dev)
 	return 0;
 }
 
-static int txgbe_ntuple_filter_uninit(struct rte_eth_dev *eth_dev)
+int txgbe_ntuple_filter_uninit(struct rte_eth_dev *eth_dev)
 {
 	struct txgbe_filter_info *filter_info = TXGBE_DEV_FILTER(eth_dev);
 	struct txgbe_5tuple_filter *p_5tuple;
@@ -901,6 +907,7 @@ static int txgbe_fdir_filter_init(struct rte_eth_dev *eth_dev)
 	if (!fdir_info->hash_map) {
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate memory for fdir hash map!");
+		rte_hash_free(fdir_info->hash_handle);
 		return -ENOMEM;
 	}
 	fdir_info->mask_added = FALSE;
@@ -936,6 +943,7 @@ static int txgbe_l2_tn_filter_init(struct rte_eth_dev *eth_dev)
 	if (!l2_tn_info->hash_map) {
 		PMD_INIT_LOG(ERR,
 			"Failed to allocate memory for L2 TN hash map!");
+		rte_hash_free(l2_tn_info->hash_handle);
 		return -ENOMEM;
 	}
 	l2_tn_info->e_tag_en = FALSE;
@@ -963,7 +971,7 @@ static int eth_txgbe_pci_remove(struct rte_pci_device *pci_dev)
 	if (!ethdev)
 		return 0;
 
-	return rte_eth_dev_destroy(ethdev, eth_txgbe_dev_uninit);
+	return rte_eth_dev_pci_generic_remove(pci_dev, eth_txgbe_dev_uninit);
 }
 
 static struct rte_pci_driver rte_txgbe_pmd = {
@@ -999,41 +1007,25 @@ txgbe_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 }
 
 static void
-txgbe_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
+txgbe_vlan_strip_q_set(struct rte_eth_dev *dev, uint16_t queue, int on)
 {
-	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
-	struct txgbe_rx_queue *rxq;
-	bool restart;
-	uint32_t rxcfg, rxbal, rxbah;
-
 	if (on)
 		txgbe_vlan_hw_strip_enable(dev, queue);
 	else
 		txgbe_vlan_hw_strip_disable(dev, queue);
+}
 
-	rxq = dev->data->rx_queues[queue];
-	rxbal = rd32(hw, TXGBE_RXBAL(rxq->reg_idx));
-	rxbah = rd32(hw, TXGBE_RXBAH(rxq->reg_idx));
-	rxcfg = rd32(hw, TXGBE_RXCFG(rxq->reg_idx));
-	if (rxq->offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP) {
-		restart = (rxcfg & TXGBE_RXCFG_ENA) &&
-			!(rxcfg & TXGBE_RXCFG_VLAN);
-		rxcfg |= TXGBE_RXCFG_VLAN;
-	} else {
-		restart = (rxcfg & TXGBE_RXCFG_ENA) &&
-			(rxcfg & TXGBE_RXCFG_VLAN);
-		rxcfg &= ~TXGBE_RXCFG_VLAN;
-	}
-	rxcfg &= ~TXGBE_RXCFG_ENA;
+static void
+txgbe_vlan_strip_queue_set(struct rte_eth_dev *dev, uint16_t queue, int on)
+{
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
 
-	if (restart) {
-		/* set vlan strip for ring */
-		txgbe_dev_rx_queue_stop(dev, queue);
-		wr32(hw, TXGBE_RXBAL(rxq->reg_idx), rxbal);
-		wr32(hw, TXGBE_RXBAH(rxq->reg_idx), rxbah);
-		wr32(hw, TXGBE_RXCFG(rxq->reg_idx), rxcfg);
-		txgbe_dev_rx_queue_start(dev, queue);
+	if (!hw->adapter_stopped) {
+		PMD_DRV_LOG(ERR, "Please stop port first");
+		return;
 	}
+
+	txgbe_vlan_strip_q_set(dev, queue, on);
 }
 
 static int
@@ -1258,9 +1250,9 @@ txgbe_vlan_hw_strip_config(struct rte_eth_dev *dev)
 		rxq = dev->data->rx_queues[i];
 
 		if (rxq->offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
-			txgbe_vlan_strip_queue_set(dev, i, 1);
+			txgbe_vlan_strip_q_set(dev, i, 1);
 		else
-			txgbe_vlan_strip_queue_set(dev, i, 0);
+			txgbe_vlan_strip_q_set(dev, i, 0);
 	}
 }
 
@@ -1322,6 +1314,13 @@ txgbe_vlan_offload_config(struct rte_eth_dev *dev, int mask)
 static int
 txgbe_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 {
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+
+	if (!hw->adapter_stopped && (mask & RTE_ETH_VLAN_STRIP_MASK)) {
+		PMD_DRV_LOG(ERR, "Please stop port first");
+		return -EPERM;
+	}
+
 	txgbe_config_vlan_strip_on_all_queues(dev, mask);
 
 	txgbe_vlan_offload_config(dev, mask);
@@ -1544,6 +1543,7 @@ txgbe_dev_configure(struct rte_eth_dev *dev)
 	 * allocation Rx preconditions we will reset it.
 	 */
 	adapter->rx_bulk_alloc_allowed = true;
+	adapter->rx_vec_allowed = true;
 
 	return 0;
 }
@@ -1554,6 +1554,9 @@ static void txgbe_reinit_gpio_intr(struct txgbe_hw *hw)
 
 	wr32(hw, TXGBE_GPIOINTMASK, 0xFF);
 	reg = rd32(hw, TXGBE_GPIORAWINTSTAT);
+
+	if (reg & TXGBE_GPIOBIT_0)
+		wr32(hw, TXGBE_GPIOEOI, TXGBE_GPIOBIT_0);
 
 	if (reg & TXGBE_GPIOBIT_2)
 		wr32(hw, TXGBE_GPIOEOI, TXGBE_GPIOBIT_2);
@@ -1715,6 +1718,8 @@ txgbe_dev_start(struct rte_eth_dev *dev)
 	hw->mac.start_hw(hw);
 	hw->mac.get_link_status = true;
 	hw->dev_start = true;
+
+	txgbe_set_pcie_master(hw, true);
 
 	/* workaround for GPIO intr lost when mng_veto bit is set */
 	if (txgbe_check_reset_blocked(hw))
@@ -1934,6 +1939,7 @@ txgbe_dev_stop(struct rte_eth_dev *dev)
 	PMD_INIT_FUNC_TRACE();
 
 	rte_eal_alarm_cancel(txgbe_dev_detect_sfp, dev);
+	rte_eal_alarm_cancel(txgbe_tx_queue_clear_error, dev);
 	txgbe_dev_wait_setup_link_complete(dev, 0);
 
 	/* disable interrupts */
@@ -1978,6 +1984,8 @@ txgbe_dev_stop(struct rte_eth_dev *dev)
 
 	adapter->rss_reta_updated = 0;
 	wr32m(hw, TXGBE_LEDCTL, 0xFFFFFFFF, TXGBE_LEDCTL_SEL_MASK);
+
+	txgbe_set_pcie_master(hw, true);
 
 	hw->adapter_stopped = true;
 	dev->data->dev_started = 0;
@@ -2059,7 +2067,12 @@ txgbe_dev_close(struct rte_eth_dev *dev)
 
 	ret = txgbe_dev_stop(dev);
 
+	/* Let firmware take over control of hardware */
+	wr32m(hw, TXGBE_PORTCTL, TXGBE_PORTCTL_DRVLOAD, 0);
+
 	txgbe_dev_free_queues(dev);
+
+	txgbe_set_pcie_master(hw, false);
 
 	/* reprogram the RAR[0] in case user changed it. */
 	txgbe_set_rar(hw, 0, hw->mac.addr, 0, true);
@@ -2237,7 +2250,7 @@ txgbe_read_stats_registers(struct txgbe_hw *hw,
 	hw_stats->rx_total_bytes += rd64(hw, TXGBE_MACRXGBOCTL);
 
 	hw_stats->rx_broadcast_packets += rd64(hw, TXGBE_MACRXOCTL);
-	hw_stats->tx_broadcast_packets += rd32(hw, TXGBE_MACTXOCTL);
+	hw_stats->tx_broadcast_packets += rd64(hw, TXGBE_MACTXOCTL);
 
 	hw_stats->rx_size_64_packets += rd64(hw, TXGBE_MACRX1TO64L);
 	hw_stats->rx_size_65_to_127_packets += rd64(hw, TXGBE_MACRX65TO127L);
@@ -2256,7 +2269,8 @@ txgbe_read_stats_registers(struct txgbe_hw *hw,
 	hw_stats->tx_size_1024_to_max_packets +=
 			rd64(hw, TXGBE_MACTX1024TOMAXL);
 
-	hw_stats->rx_undersize_errors += rd64(hw, TXGBE_MACRXERRLENL);
+	hw_stats->rx_length_errors += rd64(hw, TXGBE_MACRXERRLENL);
+	hw_stats->rx_undersize_errors += rd32(hw, TXGBE_MACRXUNDERSIZE);
 	hw_stats->rx_oversize_cnt += rd32(hw, TXGBE_MACRXOVERSIZE);
 	hw_stats->rx_jabber_errors += rd32(hw, TXGBE_MACRXJABBER);
 
@@ -2334,6 +2348,7 @@ txgbe_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	struct txgbe_hw_stats *hw_stats = TXGBE_DEV_STATS(dev);
 	struct txgbe_stat_mappings *stat_mappings =
 			TXGBE_DEV_STAT_MAPPINGS(dev);
+	struct txgbe_tx_queue *txq;
 	uint32_t i, j;
 
 	txgbe_read_stats_registers(hw, hw_stats);
@@ -2388,6 +2403,11 @@ txgbe_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 
 	/* Tx Errors */
 	stats->oerrors  = 0;
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		txq = dev->data->tx_queues[i];
+		stats->oerrors += txq->desc_error;
+	}
+
 	return 0;
 }
 
@@ -2396,6 +2416,13 @@ txgbe_dev_stats_reset(struct rte_eth_dev *dev)
 {
 	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
 	struct txgbe_hw_stats *hw_stats = TXGBE_DEV_STATS(dev);
+	struct txgbe_tx_queue *txq;
+	uint32_t i;
+
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		txq = dev->data->tx_queues[i];
+		txq->desc_error = 0;
+	}
 
 	/* HW registers are cleared on read */
 	hw->offset_loaded = 0;
@@ -2671,7 +2698,9 @@ txgbe_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->max_rx_queues = (uint16_t)hw->mac.max_rx_queues;
 	dev_info->max_tx_queues = (uint16_t)hw->mac.max_tx_queues;
 	dev_info->min_rx_bufsize = 1024;
-	dev_info->max_rx_pktlen = 15872;
+	dev_info->max_rx_pktlen = TXGBE_MAX_MTU + TXGBE_ETH_OVERHEAD;
+	dev_info->min_mtu = RTE_ETHER_MIN_MTU;
+	dev_info->max_mtu = TXGBE_MAX_MTU;
 	dev_info->max_mac_addrs = hw->mac.num_rar_entries;
 	dev_info->max_hash_mac_addrs = TXGBE_VMDQ_NUM_UC_MAC;
 	dev_info->max_vfs = pci_dev->max_vfs;
@@ -2730,6 +2759,10 @@ const uint32_t *
 txgbe_dev_supported_ptypes_get(struct rte_eth_dev *dev, size_t *no_of_elements)
 {
 	if (dev->rx_pkt_burst == txgbe_recv_pkts ||
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM)
+	    dev->rx_pkt_burst == txgbe_recv_pkts_vec ||
+	    dev->rx_pkt_burst == txgbe_recv_scattered_pkts_vec ||
+#endif
 	    dev->rx_pkt_burst == txgbe_recv_pkts_lro_single_alloc ||
 	    dev->rx_pkt_burst == txgbe_recv_pkts_lro_bulk_alloc ||
 	    dev->rx_pkt_burst == txgbe_recv_pkts_bulk_alloc)
@@ -2752,7 +2785,7 @@ txgbe_dev_detect_sfp(void *param)
 		PMD_DRV_LOG(INFO, "SFP not present.");
 	} else if (err == 0) {
 		hw->mac.setup_sfp(hw);
-		PMD_DRV_LOG(INFO, "detected SFP+: %d\n", hw->phy.sfp_type);
+		PMD_DRV_LOG(INFO, "detected SFP+: %d", hw->phy.sfp_type);
 		txgbe_dev_setup_link_alarm_handler(dev);
 		txgbe_dev_link_update(dev, 0);
 	}
@@ -2767,6 +2800,8 @@ txgbe_dev_sfp_event(struct rte_eth_dev *dev)
 
 	wr32(hw, TXGBE_GPIOINTMASK, 0xFF);
 	reg = rd32(hw, TXGBE_GPIORAWINTSTAT);
+	if (reg & TXGBE_GPIOBIT_0)
+		wr32(hw, TXGBE_GPIOEOI, TXGBE_GPIOBIT_0);
 	if (reg & TXGBE_GPIOBIT_2) {
 		wr32(hw, TXGBE_GPIOEOI, TXGBE_GPIOBIT_2);
 		rte_eal_alarm_set(1000 * 100, txgbe_dev_detect_sfp, dev);
@@ -2823,6 +2858,60 @@ txgbe_dev_setup_link_alarm_handler(void *param)
 	intr->flags &= ~TXGBE_FLAG_NEED_LINK_CONFIG;
 }
 
+static void
+txgbe_do_reset(struct rte_eth_dev *dev)
+{
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+	struct txgbe_tx_queue *txq;
+	u32 i;
+
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		txq = dev->data->tx_queues[i];
+		txq->resetting = true;
+	}
+
+	rte_delay_ms(1);
+	wr32(hw, TXGBE_RST, TXGBE_RST_LAN(hw->bus.lan_id));
+	txgbe_flush(hw);
+
+	PMD_DRV_LOG(ERR, "Please manually restart the port %d",
+		dev->data->port_id);
+}
+
+static void
+txgbe_tx_ring_recovery(struct rte_eth_dev *dev)
+{
+	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
+	u32 desc_error[4] = {0, 0, 0, 0};
+	struct txgbe_tx_queue *txq;
+	u32 i;
+
+	/* check tdm fatal error */
+	for (i = 0; i < 4; i++) {
+		desc_error[i] = rd32(hw, TXGBE_TDM_DESC_FATAL(i));
+		if (desc_error[i] != 0) {
+			PMD_DRV_LOG(ERR, "TDM fatal error reg[%d]: 0x%x", i, desc_error[i]);
+			txgbe_do_reset(dev);
+			return;
+		}
+	}
+
+	/* check tdm non-fatal error */
+	for (i = 0; i < 4; i++)
+		desc_error[i] = rd32(hw, TXGBE_TDM_DESC_NONFATAL(i));
+
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		if (desc_error[i / 32] & (1 << i % 32)) {
+			PMD_DRV_LOG(ERR, "TDM non-fatal error, reset port[%d] queue[%d]",
+				dev->data->port_id, i);
+			dev->data->tx_queue_state[i] = RTE_ETH_QUEUE_STATE_STOPPED;
+			txq = dev->data->tx_queues[i];
+			txq->resetting = true;
+			rte_eal_alarm_set(1000, txgbe_tx_queue_clear_error, (void *)dev);
+		}
+	}
+}
+
 /*
  * If @timeout_ms was 0, it means that it will not return until link complete.
  * It returns 1 on complete, return 0 on timeout.
@@ -2834,7 +2923,7 @@ txgbe_dev_wait_setup_link_complete(struct rte_eth_dev *dev, uint32_t timeout_ms)
 	struct txgbe_adapter *ad = TXGBE_DEV_ADAPTER(dev);
 	uint32_t timeout = timeout_ms ? timeout_ms : WARNING_TIMEOUT;
 
-	while (__atomic_load_n(&ad->link_thread_running, __ATOMIC_SEQ_CST)) {
+	while (rte_atomic_load_explicit(&ad->link_thread_running, rte_memory_order_seq_cst)) {
 		msec_delay(1);
 		timeout--;
 
@@ -2859,7 +2948,7 @@ txgbe_dev_setup_link_thread_handler(void *param)
 
 	rte_thread_detach(rte_thread_self());
 	txgbe_dev_setup_link_alarm_handler(dev);
-	__atomic_clear(&ad->link_thread_running, __ATOMIC_SEQ_CST);
+	rte_atomic_store_explicit(&ad->link_thread_running, 0, rte_memory_order_seq_cst);
 	return 0;
 }
 
@@ -2876,6 +2965,7 @@ txgbe_dev_link_update_share(struct rte_eth_dev *dev,
 	bool link_up;
 	int err;
 	int wait = 1;
+	u32 reg;
 
 	memset(&link, 0, sizeof(link));
 	link.link_status = RTE_ETH_LINK_DOWN;
@@ -2908,7 +2998,8 @@ txgbe_dev_link_update_share(struct rte_eth_dev *dev,
 		} else if (hw->phy.media_type == txgbe_media_type_fiber &&
 				dev->data->dev_conf.intr_conf.lsc != 0) {
 			txgbe_dev_wait_setup_link_complete(dev, 0);
-			if (!__atomic_test_and_set(&ad->link_thread_running, __ATOMIC_SEQ_CST)) {
+			if (!rte_atomic_exchange_explicit(&ad->link_thread_running, 1,
+					rte_memory_order_seq_cst)) {
 				/* To avoid race condition between threads, set
 				 * the TXGBE_FLAG_NEED_LINK_CONFIG flag only
 				 * when there is no link thread running.
@@ -2918,7 +3009,8 @@ txgbe_dev_link_update_share(struct rte_eth_dev *dev,
 						"txgbe-link",
 						txgbe_dev_setup_link_thread_handler, dev) < 0) {
 					PMD_DRV_LOG(ERR, "Create link thread failed!");
-					__atomic_clear(&ad->link_thread_running, __ATOMIC_SEQ_CST);
+					rte_atomic_store_explicit(&ad->link_thread_running, 0,
+							rte_memory_order_seq_cst);
 				}
 			} else {
 				PMD_DRV_LOG(ERR,
@@ -2963,9 +3055,14 @@ txgbe_dev_link_update_share(struct rte_eth_dev *dev,
 	}
 
 	/* Re configure MAC RX */
-	if (hw->mac.type == txgbe_mac_raptor)
+	if (hw->mac.type == txgbe_mac_raptor) {
+		reg = rd32(hw, TXGBE_MACRXCFG);
+		wr32(hw, TXGBE_MACRXCFG, reg);
 		wr32m(hw, TXGBE_MACRXFLT, TXGBE_MACRXFLT_PROMISC,
 			TXGBE_MACRXFLT_PROMISC);
+		reg = rd32(hw, TXGBE_MAC_WDG_TIMEOUT);
+		wr32(hw, TXGBE_MAC_WDG_TIMEOUT, reg);
+	}
 
 	return rte_eth_linkstatus_set(dev, &link);
 }
@@ -3073,6 +3170,7 @@ txgbe_dev_misc_interrupt_setup(struct rte_eth_dev *dev)
 	intr->mask |= mask;
 	intr->mask_misc |= TXGBE_ICRMISC_GPIO;
 	intr->mask_misc |= TXGBE_ICRMISC_ANDONE;
+	intr->mask_misc |= TXGBE_ICRMISC_TXDESC;
 	return 0;
 }
 
@@ -3167,6 +3265,9 @@ txgbe_dev_interrupt_get_status(struct rte_eth_dev *dev,
 
 	if (eicr & TXGBE_ICRMISC_HEAT)
 		intr->flags |= TXGBE_FLAG_OVERHEAT;
+
+	if (eicr & TXGBE_ICRMISC_TXDESC)
+		intr->flags |= TXGBE_FLAG_TX_DESC_ERR;
 
 	((u32 *)hw->isb_mem)[TXGBE_ISB_MISC] = 0;
 
@@ -3285,6 +3386,11 @@ txgbe_dev_interrupt_action(struct rte_eth_dev *dev,
 	if (intr->flags & TXGBE_FLAG_OVERHEAT) {
 		txgbe_dev_overheat(dev);
 		intr->flags &= ~TXGBE_FLAG_OVERHEAT;
+	}
+
+	if (intr->flags & TXGBE_FLAG_TX_DESC_ERR) {
+		txgbe_tx_ring_recovery(dev);
+		intr->flags &= ~TXGBE_FLAG_TX_DESC_ERR;
 	}
 
 	PMD_DRV_LOG(DEBUG, "enable intr immediately");
@@ -3481,6 +3587,7 @@ txgbe_flow_ctrl_set(struct rte_eth_dev *dev, struct rte_eth_fc_conf *fc_conf)
 	hw->fc.low_water[0]   = fc_conf->low_water;
 	hw->fc.send_xon       = fc_conf->send_xon;
 	hw->fc.disable_fc_autoneg = !fc_conf->autoneg;
+	hw->fc.mac_ctrl_frame_fwd = fc_conf->mac_ctrl_frame_fwd;
 
 	err = txgbe_fc_enable(hw);
 
@@ -3683,12 +3790,8 @@ txgbe_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 		return -EINVAL;
 	}
 
-	if (hw->mode)
-		wr32m(hw, TXGBE_FRMSZ, TXGBE_FRMSZ_MAX_MASK,
-			TXGBE_FRAME_SIZE_MAX);
-	else
-		wr32m(hw, TXGBE_FRMSZ, TXGBE_FRMSZ_MAX_MASK,
-			TXGBE_FRMSZ_MAX(frame_size));
+	wr32m(hw, TXGBE_FRMSZ, TXGBE_FRMSZ_MAX_MASK,
+		TXGBE_FRMSZ_MAX(frame_size));
 
 	return 0;
 }
@@ -3839,13 +3942,13 @@ txgbe_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 	struct txgbe_hw *hw = TXGBE_DEV_HW(dev);
 
 	if (queue_id < 32) {
-		mask = rd32(hw, TXGBE_IMS(0));
-		mask &= (1 << queue_id);
-		wr32(hw, TXGBE_IMS(0), mask);
+		mask = rd32(hw, TXGBE_IMC(0));
+		mask |= (1 << queue_id);
+		wr32(hw, TXGBE_IMC(0), mask);
 	} else if (queue_id < 64) {
-		mask = rd32(hw, TXGBE_IMS(1));
-		mask &= (1 << (queue_id - 32));
-		wr32(hw, TXGBE_IMS(1), mask);
+		mask = rd32(hw, TXGBE_IMC(1));
+		mask |= (1 << (queue_id - 32));
+		wr32(hw, TXGBE_IMC(1), mask);
 	}
 	rte_intr_enable(intr_handle);
 
@@ -3860,11 +3963,11 @@ txgbe_dev_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t queue_id)
 
 	if (queue_id < 32) {
 		mask = rd32(hw, TXGBE_IMS(0));
-		mask &= ~(1 << queue_id);
+		mask |= (1 << queue_id);
 		wr32(hw, TXGBE_IMS(0), mask);
 	} else if (queue_id < 64) {
 		mask = rd32(hw, TXGBE_IMS(1));
-		mask &= ~(1 << (queue_id - 32));
+		mask |= (1 << (queue_id - 32));
 		wr32(hw, TXGBE_IMS(1), mask);
 	}
 
@@ -3898,7 +4001,7 @@ txgbe_set_ivar_map(struct txgbe_hw *hw, int8_t direction,
 		wr32(hw, TXGBE_IVARMISC, tmp);
 	} else {
 		/* rx or tx causes */
-		/* Workaround for ICR lost */
+		msix_vector |= TXGBE_IVAR_VLD; /* Workaround for ICR lost */
 		idx = ((16 * (queue & 1)) + (8 * direction));
 		tmp = rd32(hw, TXGBE_IVAR(queue >> 1));
 		tmp &= ~(0xFF << idx);
@@ -4004,6 +4107,7 @@ txgbe_syn_filter_set(struct rte_eth_dev *dev,
 	struct txgbe_filter_info *filter_info = TXGBE_DEV_FILTER(dev);
 	uint32_t syn_info;
 	uint32_t synqf;
+	uint16_t queue;
 
 	if (filter->queue >= TXGBE_MAX_RX_QUEUE_NUM)
 		return -EINVAL;
@@ -4013,7 +4117,11 @@ txgbe_syn_filter_set(struct rte_eth_dev *dev,
 	if (add) {
 		if (syn_info & TXGBE_SYNCLS_ENA)
 			return -EINVAL;
-		synqf = (uint32_t)TXGBE_SYNCLS_QPID(filter->queue);
+		if (RTE_ETH_DEV_SRIOV(dev).active)
+			queue = RTE_ETH_DEV_SRIOV(dev).def_pool_q_idx + filter->queue;
+		else
+			queue = filter->queue;
+		synqf = (uint32_t)TXGBE_SYNCLS_QPID(queue);
 		synqf |= TXGBE_SYNCLS_ENA;
 
 		if (filter->hig_pri)
@@ -4082,7 +4190,10 @@ txgbe_inject_5tuple_filter(struct rte_eth_dev *dev,
 	wr32(hw, TXGBE_5TFPORT(i), sdpqf);
 	wr32(hw, TXGBE_5TFCTL0(i), ftqf);
 
-	l34timir |= TXGBE_5TFCTL1_QP(filter->queue);
+	if (RTE_ETH_DEV_SRIOV(dev).active)
+		l34timir |= TXGBE_5TFCTL1_QP(RTE_ETH_DEV_SRIOV(dev).def_pool_q_idx + filter->queue);
+	else
+		l34timir |= TXGBE_5TFCTL1_QP(filter->queue);
 	wr32(hw, TXGBE_5TFCTL1(i), l34timir);
 }
 
@@ -4127,7 +4238,10 @@ txgbe_add_5tuple_filter(struct rte_eth_dev *dev,
 		return -ENOSYS;
 	}
 
-	txgbe_inject_5tuple_filter(dev, filter);
+	if (txgbe_is_pf(TXGBE_DEV_HW(dev)))
+		txgbe_inject_5tuple_filter(dev, filter);
+	else
+		txgbevf_inject_5tuple_filter(dev, filter);
 
 	return 0;
 }
@@ -4151,6 +4265,11 @@ txgbe_remove_5tuple_filter(struct rte_eth_dev *dev,
 				~(1 << (index % (sizeof(uint32_t) * NBBY)));
 	TAILQ_REMOVE(&filter_info->fivetuple_list, filter, entries);
 	rte_free(filter);
+
+	if (!txgbe_is_pf(TXGBE_DEV_HW(dev))) {
+		txgbevf_remove_5tuple_filter(dev, index);
+		return;
+	}
 
 	wr32(hw, TXGBE_5TFDADDR(index), 0);
 	wr32(hw, TXGBE_5TFSADDR(index), 0);
@@ -4366,7 +4485,17 @@ txgbe_add_del_ethertype_filter(struct rte_eth_dev *dev,
 	if (add) {
 		etqf = TXGBE_ETFLT_ENA;
 		etqf |= TXGBE_ETFLT_ETID(filter->ether_type);
-		etqs |= TXGBE_ETCLS_QPID(filter->queue);
+		if (RTE_ETH_DEV_SRIOV(dev).active) {
+			int pool, queue;
+
+			pool = RTE_ETH_DEV_SRIOV(dev).def_vmdq_idx;
+			queue = RTE_ETH_DEV_SRIOV(dev).def_pool_q_idx + filter->queue;
+			etqf |= TXGBE_ETFLT_POOLENA;
+			etqf |= TXGBE_ETFLT_POOL(pool);
+			etqs |= TXGBE_ETCLS_QPID(queue);
+		} else {
+			etqs |= TXGBE_ETCLS_QPID(filter->queue);
+		}
 		etqs |= TXGBE_ETCLS_QENA;
 
 		ethertype_filter.ethertype = filter->ether_type;

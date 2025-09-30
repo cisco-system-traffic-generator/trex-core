@@ -14,7 +14,8 @@ struct rte_eth_link {
 /**
  * Force a structure to be packed
  */
-#define __rte_packed __attribute__((__packed__))
+#define __rte_packed_begin
+#define __rte_packed_end __attribute__((__packed__))
 
 enum rte_eth_fc_mode {
 };

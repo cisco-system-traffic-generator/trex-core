@@ -127,9 +127,9 @@ static int
 trex_i40e_fdir_flush(struct rte_eth_dev *dev);
 
 static int
-i40e_fdir_rx_queue_init(struct i40e_rx_queue *rxq)
+i40e_fdir_rx_queue_init(struct ci_rx_queue *rxq)
 {
-	struct i40e_hw *hw = I40E_VSI_TO_HW(rxq->vsi);
+	struct i40e_hw *hw = I40E_VSI_TO_HW(rxq->i40e_vsi);
 	struct i40e_hmc_obj_rxq rx_ctx;
 	int err = I40E_SUCCESS;
 
@@ -166,7 +166,7 @@ i40e_fdir_rx_queue_init(struct i40e_rx_queue *rxq)
 		return err;
 	}
 	rxq->qrx_tail = hw->hw_addr +
-		I40E_QRX_TAIL(rxq->vsi->base_queue);
+		I40E_QRX_TAIL(rxq->i40e_vsi->base_queue);
 
 	rte_wmb();
 	/* Init the RX tail regieter. */
@@ -647,7 +647,7 @@ trex_i40e_fdir_rx_proc_enable(struct rte_eth_dev *dev, bool on)
 	int32_t i;
 
 	for (i = 0; i < dev->data->nb_rx_queues; i++) {
-		struct i40e_rx_queue *rxq = dev->data->rx_queues[i];
+		struct ci_rx_queue *rxq = dev->data->rx_queues[i];
 		if (!rxq)
 			continue;
 		rxq->fdir_enabled = on;
@@ -1505,9 +1505,9 @@ i40e_build_ctob(uint32_t td_cmd,
  * tx queue
  */
 static inline int
-i40e_check_fdir_programming_status(struct i40e_rx_queue *rxq)
+i40e_check_fdir_programming_status(struct ci_rx_queue *rxq)
 {
-	volatile union i40e_rx_desc *rxdp;
+	volatile union ci_rx_desc *rxdp;
 	uint64_t qword1;
 	uint32_t rx_status;
 	uint32_t len, id;
@@ -1845,8 +1845,8 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 			const struct trex_rte_eth_fdir_filter *filter,
 			bool add)
 {
-	struct i40e_tx_queue *txq = pf->fdir.txq;
-	struct i40e_rx_queue *rxq = pf->fdir.rxq;
+	struct ci_tx_queue *txq = pf->fdir.txq;
+	struct ci_rx_queue *rxq = pf->fdir.rxq;
 	const struct trex_rte_eth_fdir_action *fdir_action = &filter->action;
 	volatile struct i40e_tx_desc *txdp;
 	volatile struct i40e_filter_program_desc *fdirdp;
@@ -1856,7 +1856,7 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 
 	PMD_DRV_LOG(INFO, "filling filter programming descriptor.");
 	fdirdp = (volatile struct i40e_filter_program_desc *)
-			(&(txq->tx_ring[txq->tx_tail]));
+			(&(txq->i40e_tx_ring[txq->tx_tail]));
 
 	fdirdp->qindex_flex_ptype_vsi =
 			rte_cpu_to_le_32((fdir_action->rx_queue <<
@@ -1931,7 +1931,7 @@ i40e_fdir_filter_programming(struct i40e_pf *pf,
 	fdirdp->fd_id = rte_cpu_to_le_32(filter->soft_id);
 
 	PMD_DRV_LOG(INFO, "filling transmit descriptor.");
-	txdp = &(txq->tx_ring[txq->tx_tail + 1]);
+	txdp = &(txq->i40e_tx_ring[txq->tx_tail + 1]);
 	txdp->buffer_addr = rte_cpu_to_le_64(pf->fdir.dma_addr_fdir);
 	td_cmd = I40E_TX_DESC_CMD_EOP |
 		 I40E_TX_DESC_CMD_RS  |
@@ -1984,8 +1984,8 @@ i40e_flow_fdir_filter_programming(struct i40e_pf *pf,
 				  const struct i40e_fdir_filter_conf *filter,
 				  bool add)
 {
-	struct i40e_tx_queue *txq = pf->fdir.txq;
-	struct i40e_rx_queue *rxq = pf->fdir.rxq;
+	struct ci_tx_queue *txq = pf->fdir.txq;
+	struct ci_rx_queue *rxq = pf->fdir.rxq;
 	const struct i40e_fdir_action *fdir_action = &filter->action;
 	volatile struct i40e_tx_desc *txdp;
 	volatile struct i40e_filter_program_desc *fdirdp;
@@ -1995,7 +1995,7 @@ i40e_flow_fdir_filter_programming(struct i40e_pf *pf,
 
 	PMD_DRV_LOG(INFO, "filling filter programming descriptor.");
 	fdirdp = (volatile struct i40e_filter_program_desc *)
-				(&txq->tx_ring[txq->tx_tail]);
+				(&txq->i40e_tx_ring[txq->tx_tail]);
 
 	fdirdp->qindex_flex_ptype_vsi =
 			rte_cpu_to_le_32((fdir_action->rx_queue <<
@@ -2065,7 +2065,7 @@ i40e_flow_fdir_filter_programming(struct i40e_pf *pf,
 	fdirdp->fd_id = rte_cpu_to_le_32(filter->soft_id);
 
 	PMD_DRV_LOG(INFO, "filling transmit descriptor.");
-	txdp = &txq->tx_ring[txq->tx_tail + 1];
+	txdp = &txq->i40e_tx_ring[txq->tx_tail + 1];
 	txdp->buffer_addr = rte_cpu_to_le_64(pf->fdir.dma_addr_fdir);
 	td_cmd = I40E_TX_DESC_CMD_EOP |
 		 I40E_TX_DESC_CMD_RS  |

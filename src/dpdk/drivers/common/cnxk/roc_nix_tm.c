@@ -908,7 +908,7 @@ nix_tm_sq_flush_pre(struct roc_nix_sq *sq)
 			if (rc) {
 				roc_nix_tm_dump(sq->roc_nix, NULL);
 				roc_nix_queues_ctx_dump(sq->roc_nix, NULL);
-				plt_err("Failed to drain sq %u, rc=%d\n", sq->qid, rc);
+				plt_err("Failed to drain sq %u, rc=%d", sq->qid, rc);
 				return rc;
 			}
 			/* Freed all pending SQEs for this SQ, so disable this node */
@@ -1058,10 +1058,30 @@ nix_tm_sq_sched_conf(struct nix *nix, struct nix_tm_node *node,
 		}
 		aq->sq.smq_rr_quantum = rr_quantum;
 		aq->sq_mask.smq_rr_quantum = ~aq->sq_mask.smq_rr_quantum;
-	} else {
+	} else if (roc_model_is_cn10k()) {
 		struct nix_cn10k_aq_enq_req *aq;
 
 		aq = mbox_alloc_msg_nix_cn10k_aq_enq(mbox);
+		if (!aq) {
+			rc = -ENOSPC;
+			goto exit;
+		}
+
+		aq->qidx = qid;
+		aq->ctype = NIX_AQ_CTYPE_SQ;
+		aq->op = NIX_AQ_INSTOP_WRITE;
+
+		/* smq update only when needed */
+		if (!rr_quantum_only) {
+			aq->sq.smq = smq;
+			aq->sq_mask.smq = ~aq->sq_mask.smq;
+		}
+		aq->sq.smq_rr_weight = rr_quantum;
+		aq->sq_mask.smq_rr_weight = ~aq->sq_mask.smq_rr_weight;
+	} else {
+		struct nix_cn20k_aq_enq_req *aq;
+
+		aq = mbox_alloc_msg_nix_cn20k_aq_enq(mbox);
 		if (!aq) {
 			rc = -ENOSPC;
 			goto exit;
@@ -1589,7 +1609,11 @@ nix_tm_prepare_default_tree(struct roc_nix *roc_nix)
 		node->id = nonleaf_id;
 		node->parent_id = parent;
 		node->priority = 0;
-		node->weight = NIX_TM_DFLT_RR_WT;
+		/* Default VF root RR_QUANTUM is in sync with kernel */
+		if (lvl == ROC_TM_LVL_ROOT && !nix_tm_have_tl1_access(nix))
+			node->weight = roc_nix->root_sched_weight;
+		else
+			node->weight = NIX_TM_DFLT_RR_WT;
 		node->shaper_profile_id = ROC_NIX_TM_SHAPER_PROFILE_NONE;
 		node->lvl = lvl;
 		node->tree = ROC_NIX_TM_DEFAULT;

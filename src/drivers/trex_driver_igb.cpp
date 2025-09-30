@@ -21,8 +21,8 @@
 
 #include "trex_driver_igb.h"
 #include "trex_driver_defines.h"
-#include "dpdk/drivers/net/e1000/base/e1000_regs.h"
-#include "dpdk/drivers/net/ixgbe/base/ixgbe_type.h"
+#include "dpdk/drivers/net/intel/e1000/base/e1000_regs.h"
+#include "dpdk/drivers/net/intel/ixgbe/base/ixgbe_type.h"
 
 CTRexExtendedDriverBase1G::CTRexExtendedDriverBase1G() {
     m_cap = tdCAP_ALL_NO_RSS  | TREX_DRV_CAP_MAC_ADDR_CHG;

@@ -24,6 +24,8 @@ gve_tx_clean_dqo(struct gve_tx_queue *txq)
 	if (compl_desc->generation != txq->cur_gen_bit)
 		return;
 
+	rte_io_rmb();
+
 	compl_tag = rte_le_to_cpu_16(compl_desc->completion_tag);
 
 	aim_txq = txq->txqs[compl_desc->id];
@@ -72,6 +74,17 @@ gve_tx_clean_dqo(struct gve_tx_queue *txq)
 	txq->complq_tail = next;
 }
 
+static inline void
+gve_tx_fill_seg_desc_dqo(volatile union gve_tx_desc_dqo *desc, struct rte_mbuf *tx_pkt)
+{
+	uint32_t hlen = tx_pkt->l2_len + tx_pkt->l3_len + tx_pkt->l4_len;
+	desc->tso_ctx.cmd_dtype.dtype = GVE_TX_TSO_CTX_DESC_DTYPE_DQO;
+	desc->tso_ctx.cmd_dtype.tso = 1;
+	desc->tso_ctx.mss = (uint16_t)tx_pkt->tso_segsz;
+	desc->tso_ctx.tso_total_len = tx_pkt->pkt_len - hlen;
+	desc->tso_ctx.header_len = (uint8_t)hlen;
+}
+
 uint16_t
 gve_tx_burst_dqo(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 {
@@ -89,6 +102,8 @@ gve_tx_burst_dqo(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	uint16_t sw_id;
 	uint64_t bytes;
 	uint16_t first_sw_id;
+	uint8_t tso;
+	uint8_t csum;
 
 	sw_ring = txq->sw_ring;
 	txr = txq->tx_ring;
@@ -108,12 +123,23 @@ gve_tx_burst_dqo(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 				gve_tx_clean_dqo(txq);
 		}
 
-		if (txq->nb_free < tx_pkt->nb_segs)
-			break;
-
 		ol_flags = tx_pkt->ol_flags;
 		nb_used = tx_pkt->nb_segs;
 		first_sw_id = sw_id;
+
+		tso = !!(ol_flags & RTE_MBUF_F_TX_TCP_SEG);
+		csum = !!(ol_flags & GVE_TX_CKSUM_OFFLOAD_MASK_DQO);
+
+		nb_used += tso;
+		if (txq->nb_free < nb_used)
+			break;
+
+		if (tso) {
+			txd = &txr[tx_id];
+			gve_tx_fill_seg_desc_dqo(txd, tx_pkt);
+			tx_id = (tx_id + 1) & mask;
+		}
+
 		do {
 			if (sw_ring[sw_id] != NULL)
 				PMD_DRV_LOG(DEBUG, "Overwriting an entry in sw_ring");
@@ -126,6 +152,8 @@ gve_tx_burst_dqo(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 			txd->pkt.dtype = GVE_TX_PKT_DESC_DTYPE_DQO;
 			txd->pkt.compl_tag = rte_cpu_to_le_16(first_sw_id);
 			txd->pkt.buf_size = RTE_MIN(tx_pkt->data_len, GVE_TX_MAX_BUF_SIZE_DQO);
+			txd->pkt.end_of_packet = 0;
+			txd->pkt.checksum_offload_enable = csum;
 
 			/* size of desc_ring and sw_ring could be different */
 			tx_id = (tx_id + 1) & mask;
@@ -137,9 +165,6 @@ gve_tx_burst_dqo(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 
 		/* fill the last descriptor with End of Packet (EOP) bit */
 		txd->pkt.end_of_packet = 1;
-
-		if (ol_flags & GVE_TX_CKSUM_OFFLOAD_MASK)
-			txd->pkt.checksum_offload_enable = 1;
 
 		txq->nb_free -= nb_used;
 		txq->nb_used += nb_used;
@@ -392,7 +417,7 @@ gve_tx_queue_start_dqo(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 
 	rte_write32(rte_cpu_to_be_32(GVE_IRQ_MASK), txq->ntfy_addr);
 
-	dev->data->rx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
+	dev->data->tx_queue_state[tx_queue_id] = RTE_ETH_QUEUE_STATE_STARTED;
 
 	return 0;
 }

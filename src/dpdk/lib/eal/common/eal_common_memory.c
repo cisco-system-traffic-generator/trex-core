@@ -17,10 +17,13 @@
 #include <rte_eal_paging.h>
 #include <rte_errno.h>
 #include <rte_log.h>
-#ifndef RTE_EXEC_ENV_WINDOWS
+#ifdef RTE_EXEC_ENV_WINDOWS
+#include <rte_windows.h>
+#else
 #include <rte_telemetry.h>
 #endif
 
+#include <eal_export.h>
 #include "eal_memalloc.h"
 #include "eal_private.h"
 #include "eal_internal_cfg.h"
@@ -101,8 +104,12 @@ eal_get_virtual_area(void *requested_addr, size_t *size,
 
 		mapped_addr = eal_mem_reserve(
 			requested_addr, (size_t)map_sz, reserve_flags);
-		if ((mapped_addr == NULL) && allow_shrink)
-			*size -= page_sz;
+		if (mapped_addr == NULL) {
+			if (allow_shrink)
+				*size -= page_sz;
+			else
+				break;
+		}
 
 		if ((mapped_addr != NULL) && addr_is_hint &&
 				(mapped_addr != requested_addr)) {
@@ -336,6 +343,7 @@ virt2memseg_list(const void *addr)
 	return msl;
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_virt2memseg_list)
 struct rte_memseg_list *
 rte_mem_virt2memseg_list(const void *addr)
 {
@@ -373,6 +381,7 @@ find_virt_legacy(const struct rte_memseg_list *msl __rte_unused,
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_iova2virt)
 void *
 rte_mem_iova2virt(rte_iova_t iova)
 {
@@ -394,6 +403,7 @@ rte_mem_iova2virt(rte_iova_t iova)
 	return vi.virt;
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_virt2memseg)
 struct rte_memseg *
 rte_mem_virt2memseg(const void *addr, const struct rte_memseg_list *msl)
 {
@@ -415,6 +425,7 @@ physmem_size(const struct rte_memseg_list *msl, void *arg)
 }
 
 /* get the total size of memory */
+RTE_EXPORT_SYMBOL(rte_eal_get_physmem_size)
 uint64_t
 rte_eal_get_physmem_size(void)
 {
@@ -463,6 +474,7 @@ dump_memseg(const struct rte_memseg_list *msl, const struct rte_memseg *ms,
  * Defining here because declared in rte_memory.h, but the actual implementation
  * is in eal_common_memalloc.c, like all other memalloc internals.
  */
+RTE_EXPORT_SYMBOL(rte_mem_event_callback_register)
 int
 rte_mem_event_callback_register(const char *name, rte_mem_event_callback_t clb,
 		void *arg)
@@ -479,6 +491,7 @@ rte_mem_event_callback_register(const char *name, rte_mem_event_callback_t clb,
 	return eal_memalloc_mem_event_callback_register(name, clb, arg);
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_event_callback_unregister)
 int
 rte_mem_event_callback_unregister(const char *name, void *arg)
 {
@@ -494,6 +507,7 @@ rte_mem_event_callback_unregister(const char *name, void *arg)
 	return eal_memalloc_mem_event_callback_unregister(name, arg);
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_alloc_validator_register)
 int
 rte_mem_alloc_validator_register(const char *name,
 		rte_mem_alloc_validator_t clb, int socket_id, size_t limit)
@@ -511,6 +525,7 @@ rte_mem_alloc_validator_register(const char *name,
 			limit);
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_alloc_validator_unregister)
 int
 rte_mem_alloc_validator_unregister(const char *name, int socket_id)
 {
@@ -527,10 +542,13 @@ rte_mem_alloc_validator_unregister(const char *name, int socket_id)
 }
 
 /* Dump the physical memory layout on console */
+RTE_EXPORT_SYMBOL(rte_dump_physmem_layout)
 void
 rte_dump_physmem_layout(FILE *f)
 {
 	rte_memseg_walk(dump_memseg, f);
+	fprintf(f, "Total Memory Segments size = %"PRIu64"M\n",
+		rte_eal_get_physmem_size() / (1024 * 1024));
 }
 
 static int
@@ -596,12 +614,14 @@ check_dma_mask(uint8_t maskbits, bool thread_unsafe)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_check_dma_mask)
 int
 rte_mem_check_dma_mask(uint8_t maskbits)
 {
 	return check_dma_mask(maskbits, false);
 }
 
+RTE_EXPORT_SYMBOL(rte_mem_check_dma_mask_thread_unsafe)
 int
 rte_mem_check_dma_mask_thread_unsafe(uint8_t maskbits)
 {
@@ -615,6 +635,7 @@ rte_mem_check_dma_mask_thread_unsafe(uint8_t maskbits)
  * initialization. PMDs should use rte_mem_check_dma_mask if addressing
  * limitations by the device.
  */
+RTE_EXPORT_SYMBOL(rte_mem_set_dma_mask)
 void
 rte_mem_set_dma_mask(uint8_t maskbits)
 {
@@ -625,12 +646,14 @@ rte_mem_set_dma_mask(uint8_t maskbits)
 }
 
 /* return the number of memory channels */
+RTE_EXPORT_SYMBOL(rte_memory_get_nchannel)
 unsigned rte_memory_get_nchannel(void)
 {
 	return rte_eal_get_configuration()->mem_config->nchannel;
 }
 
 /* return the number of memory rank */
+RTE_EXPORT_SYMBOL(rte_memory_get_nrank)
 unsigned rte_memory_get_nrank(void)
 {
 	return rte_eal_get_configuration()->mem_config->nrank;
@@ -654,6 +677,7 @@ rte_eal_memdevice_init(void)
 }
 
 /* Lock page in physical memory and prevent from swapping. */
+RTE_EXPORT_SYMBOL(rte_mem_lock_page)
 int
 rte_mem_lock_page(const void *virt)
 {
@@ -663,6 +687,7 @@ rte_mem_lock_page(const void *virt)
 	return rte_mem_lock((void *)aligned, page_size);
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_contig_walk_thread_unsafe)
 int
 rte_memseg_contig_walk_thread_unsafe(rte_memseg_contig_walk_t func, void *arg)
 {
@@ -702,6 +727,7 @@ rte_memseg_contig_walk_thread_unsafe(rte_memseg_contig_walk_t func, void *arg)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_contig_walk)
 int
 rte_memseg_contig_walk(rte_memseg_contig_walk_t func, void *arg)
 {
@@ -715,6 +741,7 @@ rte_memseg_contig_walk(rte_memseg_contig_walk_t func, void *arg)
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_walk_thread_unsafe)
 int
 rte_memseg_walk_thread_unsafe(rte_memseg_walk_t func, void *arg)
 {
@@ -743,6 +770,7 @@ rte_memseg_walk_thread_unsafe(rte_memseg_walk_t func, void *arg)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_walk)
 int
 rte_memseg_walk(rte_memseg_walk_t func, void *arg)
 {
@@ -756,6 +784,7 @@ rte_memseg_walk(rte_memseg_walk_t func, void *arg)
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_list_walk_thread_unsafe)
 int
 rte_memseg_list_walk_thread_unsafe(rte_memseg_list_walk_t func, void *arg)
 {
@@ -775,6 +804,7 @@ rte_memseg_list_walk_thread_unsafe(rte_memseg_list_walk_t func, void *arg)
 	return 0;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_list_walk)
 int
 rte_memseg_list_walk(rte_memseg_list_walk_t func, void *arg)
 {
@@ -788,6 +818,7 @@ rte_memseg_list_walk(rte_memseg_list_walk_t func, void *arg)
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_get_fd_thread_unsafe)
 int
 rte_memseg_get_fd_thread_unsafe(const struct rte_memseg *ms)
 {
@@ -830,6 +861,7 @@ rte_memseg_get_fd_thread_unsafe(const struct rte_memseg *ms)
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_get_fd)
 int
 rte_memseg_get_fd(const struct rte_memseg *ms)
 {
@@ -842,6 +874,7 @@ rte_memseg_get_fd(const struct rte_memseg *ms)
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_get_fd_offset_thread_unsafe)
 int
 rte_memseg_get_fd_offset_thread_unsafe(const struct rte_memseg *ms,
 		size_t *offset)
@@ -885,6 +918,7 @@ rte_memseg_get_fd_offset_thread_unsafe(const struct rte_memseg *ms,
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_memseg_get_fd_offset)
 int
 rte_memseg_get_fd_offset(const struct rte_memseg *ms, size_t *offset)
 {
@@ -897,6 +931,7 @@ rte_memseg_get_fd_offset(const struct rte_memseg *ms, size_t *offset)
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_extmem_register)
 int
 rte_extmem_register(void *va_addr, size_t len, rte_iova_t iova_addrs[],
 		unsigned int n_pages, size_t page_sz)
@@ -946,6 +981,7 @@ unlock:
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_extmem_unregister)
 int
 rte_extmem_unregister(void *va_addr, size_t len)
 {
@@ -1001,12 +1037,14 @@ unlock:
 	return ret;
 }
 
+RTE_EXPORT_SYMBOL(rte_extmem_attach)
 int
 rte_extmem_attach(void *va_addr, size_t len)
 {
 	return sync_memory(va_addr, len, true);
 }
 
+RTE_EXPORT_SYMBOL(rte_extmem_detach)
 int
 rte_extmem_detach(void *va_addr, size_t len)
 {
@@ -1660,5 +1698,27 @@ RTE_INIT(memory_telemetry)
 	rte_telemetry_register_cmd(EAL_ELEMENT_INFO_REQ,
 			handle_eal_element_info_request,
 			"Returns element info. Parameters: int heap_id, int memseg_list_id, int memseg_id, int start_elem_id, int end_elem_id");
+}
+
+#endif /* telemetry !RTE_EXEC_ENV_WINDOWS */
+
+RTE_EXPORT_EXPERIMENTAL_SYMBOL(rte_memzero_explicit, 25.07)
+void
+rte_memzero_explicit(void *dst, size_t sz)
+{
+#ifdef RTE_EXEC_ENV_WINDOWS
+	SecureZeroMemory(dst, sz);
+#else
+	explicit_bzero(dst, sz);
+#endif
+}
+
+#ifdef TREX_PATCH
+void
+explicit_bzero (void *s, size_t len)
+{
+  memset (s, '\0', len);
+  /* Compiler barrier.  */
+  asm volatile ("" ::: "memory");
 }
 #endif

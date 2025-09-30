@@ -580,6 +580,8 @@
 #define   TXGBE_RACTL_RSSMASK           MS(16, 0xFFFF)
 #define   TXGBE_RACTL_RSSIPV4TCP        MS(16, 0x1)
 #define   TXGBE_RACTL_RSSIPV4           MS(17, 0x1)
+#define   TXGBE_RACTL_RSSIPV4SCTP       MS(18, 0x1)
+#define   TXGBE_RACTL_RSSIPV6SCTP       MS(19, 0x1)
 #define   TXGBE_RACTL_RSSIPV6           MS(20, 0x1)
 #define   TXGBE_RACTL_RSSIPV6TCP        MS(21, 0x1)
 #define   TXGBE_RACTL_RSSIPV4UDP        MS(22, 0x1)
@@ -1022,6 +1024,8 @@ enum txgbe_5tuple_protocol {
 #define   TXGBE_MACRXFLT_CTL_PASS       LS(3, 6, 0x3)
 #define   TXGBE_MACRXFLT_RXALL          MS(31, 0x1)
 
+#define TXGBE_MAC_WDG_TIMEOUT           0x01100C
+
 /******************************************************************************
  * Statistic Registers
  ******************************************************************************/
@@ -1195,7 +1199,8 @@ enum txgbe_5tuple_protocol {
 #define   TXGBE_ICRMISC_ANDONE MS(19, 0x1) /* link auto-nego done */
 #define   TXGBE_ICRMISC_ERRIG  MS(20, 0x1) /* integrity error */
 #define   TXGBE_ICRMISC_SPI    MS(21, 0x1) /* SPI interface */
-#define   TXGBE_ICRMISC_VFMBX  MS(22, 0x1) /* VF-PF message box */
+#define   TXGBE_ICRMISC_TXDESC MS(22, 0x1) /* TDM desc error */
+#define   TXGBE_ICRMISC_VFMBX  MS(23, 0x1) /* VF-PF message box */
 #define   TXGBE_ICRMISC_GPIO   MS(26, 0x1) /* GPIO interrupt */
 #define   TXGBE_ICRMISC_ERRPCI MS(27, 0x1) /* pcie request error */
 #define   TXGBE_ICRMISC_HEAT   MS(28, 0x1) /* overheat detection */
@@ -1235,6 +1240,9 @@ enum txgbe_5tuple_protocol {
 #define   TXGBE_IVAR_VLD                MS(7, 0x1)
 #define TXGBE_TCPTMR                    0x000170
 #define TXGBE_ITRSEL                    0x000180
+
+#define TXGBE_BMECTL                    0x012020
+#define TXGBE_BMEPEND                   0x000168
 
 /* P2V Mailbox */
 #define TXGBE_MBMEM(i)           (0x005000 + 0x40 * (i)) /* 0-63 */
@@ -1281,6 +1289,8 @@ enum txgbe_5tuple_protocol {
 #define   TXGBE_VFPLCFG_RSSMASK         MS(16, 0xFF)
 #define   TXGBE_VFPLCFG_RSSIPV4TCP      MS(16, 0x1)
 #define   TXGBE_VFPLCFG_RSSIPV4         MS(17, 0x1)
+#define   TXGBE_VFPLCFG_RSSIPV4SCTP     MS(18, 0x1)
+#define   TXGBE_VFPLCFG_RSSIPV6SCTP     MS(19, 0x1)
 #define   TXGBE_VFPLCFG_RSSIPV6         MS(20, 0x1)
 #define   TXGBE_VFPLCFG_RSSIPV6TCP      MS(21, 0x1)
 #define   TXGBE_VFPLCFG_RSSIPV4UDP      MS(22, 0x1)
@@ -1376,6 +1386,11 @@ enum txgbe_5tuple_protocol {
 #define   TXGBE_TXCFG_WTHRESH_MASK      MS(16, 0x7F)
 #define   TXGBE_TXCFG_WTHRESH(v)        LS(v, 16, 0x7F)
 #define   TXGBE_TXCFG_FLUSH             MS(26, 0x1)
+
+#define TXGBE_TDM_DESC_CHK(i)		(0x0180B0 + (i) * 4) /*0-3*/
+#define TXGBE_TDM_DESC_NONFATAL(i)	(0x0180C0 + (i) * 4) /*0-3*/
+#define TXGBE_TDM_DESC_FATAL(i)		(0x0180D0 + (i) * 4) /*0-3*/
+#define TXGBE_TDM_DESC_MASK(v)		MS(v, 0x1)
 
 /* interrupt registers */
 #define TXGBE_ITRI                      0x000180
@@ -1678,6 +1693,8 @@ enum txgbe_5tuple_protocol {
 
 #define TXGBE_ISBADDRL                  0x000160
 #define TXGBE_ISBADDRH                  0x000164
+
+#define TXGBE_LLDP_REG                  0x0F1000
 
 #define NVM_OROM_OFFSET		0x17
 #define NVM_OROM_BLK_LOW	0x83

@@ -98,6 +98,11 @@ static int virtio_dev_queue_stats_mapping_set(
 static void virtio_notify_peers(struct rte_eth_dev *dev);
 static void virtio_ack_link_announce(struct rte_eth_dev *dev);
 
+static int virtio_rx_burst_mode_get(struct rte_eth_dev *dev,
+	__rte_unused uint16_t queue_id, struct rte_eth_burst_mode *mode);
+static int virtio_tx_burst_mode_get(struct rte_eth_dev *dev,
+	__rte_unused uint16_t queue_id, struct rte_eth_burst_mode *mode);
+
 struct rte_virtio_xstats_name_off {
 	char name[RTE_ETH_XSTATS_NAME_SIZE];
 	unsigned offset;
@@ -636,6 +641,8 @@ static const struct eth_dev_ops virtio_eth_dev_ops = {
 	.rx_queue_intr_enable    = virtio_dev_rx_queue_intr_enable,
 	.rx_queue_intr_disable   = virtio_dev_rx_queue_intr_disable,
 	.tx_queue_setup          = virtio_dev_tx_queue_setup,
+	.rx_burst_mode_get       = virtio_rx_burst_mode_get,
+	.tx_burst_mode_get       = virtio_tx_burst_mode_get,
 	.rss_hash_update         = virtio_dev_rss_hash_update,
 	.rss_hash_conf_get       = virtio_dev_rss_hash_conf_get,
 	.reta_update             = virtio_dev_rss_reta_update,
@@ -913,6 +920,8 @@ virtio_mac_addr_add(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 		struct virtio_net_ctrl_mac *tbl
 			= rte_is_multicast_ether_addr(addr) ? mc : uc;
 
+		if (rte_is_zero_ether_addr(addr))
+			break;
 		memcpy(&tbl->macs[tbl->entries++], addr, RTE_ETHER_ADDR_LEN);
 	}
 
@@ -1238,6 +1247,75 @@ virtio_interrupt_handler(void *param)
 			}
 		}
 	}
+}
+
+static const struct {
+	eth_tx_burst_t pkt_burst;
+	const char *info;
+} virtio_tx_burst_info[] = {
+	{	virtio_xmit_pkts, "Scalar"},
+	{	virtio_xmit_pkts_packed, "Scalar packed ring"},
+	{	virtio_xmit_pkts_inorder, "Scalar in order"},
+	{	virtio_xmit_pkts_packed_vec, "Vector packed ring"},
+};
+
+static int
+virtio_tx_burst_mode_get(struct rte_eth_dev *dev,
+				__rte_unused uint16_t queue_id,
+				struct rte_eth_burst_mode *mode)
+{
+	eth_tx_burst_t pkt_burst = dev->tx_pkt_burst;
+	size_t i;
+
+	for (i = 0; i < RTE_DIM(virtio_tx_burst_info); i++) {
+		if (pkt_burst == virtio_tx_burst_info[i].pkt_burst) {
+			snprintf(mode->info, sizeof(mode->info), "%s",
+				 virtio_tx_burst_info[i].info);
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static const struct {
+	eth_rx_burst_t pkt_burst;
+	const char *info;
+} virtio_rx_burst_info[] = {
+	{	virtio_recv_pkts, "Scalar"},
+	{	virtio_recv_pkts_packed, "Scalar standard packed ring"},
+	{	virtio_recv_pkts_inorder, "Scalar"},
+	{	virtio_recv_mergeable_pkts, "Scalar mergeable"},
+	{	virtio_recv_mergeable_pkts_packed, "Scalar mergeable packed ring"},
+#ifdef RTE_ARCH_x86
+	{	virtio_recv_pkts_vec, "Vector SSE"},
+	{	virtio_recv_pkts_packed_vec, "Vector AVX512 packed ring"},
+#elif defined(RTE_ARCH_ARM)
+	{	virtio_recv_pkts_vec, "Vector NEON"},
+	{	virtio_recv_pkts_packed_vec, "Vector NEON packed ring"},
+#elif defined(RTE_ARCH_PPC_64)
+	{	virtio_recv_pkts_vec, "Vector Altivec"},
+	{	virtio_recv_pkts_packed_vec, "Vector Altivec packed ring"},
+#endif
+};
+
+static int
+virtio_rx_burst_mode_get(struct rte_eth_dev *dev,
+				__rte_unused uint16_t queue_id,
+				struct rte_eth_burst_mode *mode)
+{
+	eth_tx_burst_t pkt_burst = dev->rx_pkt_burst;
+	size_t i;
+
+	for (i = 0; i < RTE_DIM(virtio_rx_burst_info); i++) {
+		if (pkt_burst == virtio_rx_burst_info[i].pkt_burst) {
+			snprintf(mode->info, sizeof(mode->info), "%s",
+				 virtio_rx_burst_info[i].info);
+			return 0;
+		}
+	}
+
+	return -EINVAL;
 }
 
 /* set rx and tx handlers according to what is supported */
@@ -1794,7 +1872,9 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 		eth_dev->data->dev_flags &= ~RTE_ETH_DEV_INTR_LSC;
 
 	/* Setting up rx_header size for the device */
-	if (virtio_with_feature(hw, VIRTIO_NET_F_MRG_RXBUF) ||
+	if (virtio_with_feature(hw, VIRTIO_NET_F_HASH_REPORT))
+		hw->vtnet_hdr_size = sizeof(struct virtio_net_hdr_hash_report);
+	else if (virtio_with_feature(hw, VIRTIO_NET_F_MRG_RXBUF) ||
 	    virtio_with_feature(hw, VIRTIO_F_VERSION_1) ||
 	    virtio_with_packed_queue(hw))
 		hw->vtnet_hdr_size = sizeof(struct virtio_net_hdr_mrg_rxbuf);
@@ -1935,7 +2015,7 @@ eth_virtio_dev_init(struct rte_eth_dev *eth_dev)
 	int vectorized = 0;
 	int ret;
 
-	if (sizeof(struct virtio_net_hdr_mrg_rxbuf) > RTE_PKTMBUF_HEADROOM) {
+	if (sizeof(struct virtio_net_hdr_hash_report) > RTE_PKTMBUF_HEADROOM) {
 		PMD_INIT_LOG(ERR,
 			"Not sufficient headroom required = %d, avail = %d",
 			(int)sizeof(struct virtio_net_hdr_mrg_rxbuf),
@@ -2179,6 +2259,10 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			(1ULL << VIRTIO_NET_F_GUEST_TSO4) |
 			(1ULL << VIRTIO_NET_F_GUEST_TSO6);
 
+	if (rx_offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH)
+		req_features |=
+			(1ULL << VIRTIO_NET_F_HASH_REPORT);
+
 	if (tx_offloads & (RTE_ETH_TX_OFFLOAD_UDP_CKSUM |
 			   RTE_ETH_TX_OFFLOAD_TCP_CKSUM))
 		req_features |= (1ULL << VIRTIO_NET_F_CSUM);
@@ -2231,6 +2315,9 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 	if (rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)
 		hw->vlan_strip = 1;
 
+	if (rx_offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH)
+		hw->has_hash_report = 1;
+
 	hw->rx_ol_scatter = (rx_offloads & RTE_ETH_RX_OFFLOAD_SCATTER);
 
 	if ((rx_offloads & RTE_ETH_RX_OFFLOAD_VLAN_FILTER) &&
@@ -2281,6 +2368,12 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			if (rx_offloads & RTE_ETH_RX_OFFLOAD_TCP_LRO) {
 				PMD_DRV_LOG(INFO,
 					"disabled packed ring vectorized rx for TCP_LRO enabled");
+				hw->use_vec_rx = 0;
+			}
+
+			if (rx_offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH) {
+				PMD_DRV_LOG(INFO,
+					"disabled packed ring vectorized rx for RSS_HASH enabled");
 				hw->use_vec_rx = 0;
 			}
 		}
@@ -2666,6 +2759,9 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		dev_info->reta_size = 0;
 		dev_info->flow_type_rss_offloads = 0;
 	}
+
+	if (host_features & (1ULL << VIRTIO_NET_F_HASH_REPORT))
+		dev_info->rx_offload_capa |= RTE_ETH_RX_OFFLOAD_RSS_HASH;
 
 	if (host_features & (1ULL << VIRTIO_F_RING_PACKED)) {
 		/*

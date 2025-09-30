@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright (c) 2015-2020 Amazon.com, Inc. or its affiliates.
+/* SPDX-License-Identifier: BSD-3-Clause */
+/* Copyright (c) Amazon.com, Inc. or its affiliates.
  * All rights reserved.
  */
 
@@ -15,6 +15,14 @@ extern "C" {
 #define ENA_LLQ_ENTRY_DESC_CHUNK_SIZE	(2 * sizeof(struct ena_eth_io_tx_desc))
 #define ENA_LLQ_HEADER		(128UL - ENA_LLQ_ENTRY_DESC_CHUNK_SIZE)
 #define ENA_LLQ_LARGE_HEADER	(256UL - ENA_LLQ_ENTRY_DESC_CHUNK_SIZE)
+
+void ena_com_dump_single_rx_cdesc(struct ena_com_io_cq *io_cq,
+				  struct ena_eth_io_rx_cdesc_base *desc);
+void ena_com_dump_single_tx_cdesc(struct ena_com_io_cq *io_cq,
+				  struct ena_eth_io_tx_cdesc *desc);
+struct ena_eth_io_rx_cdesc_base *ena_com_get_next_rx_cdesc(struct ena_com_io_cq *io_cq);
+struct ena_eth_io_rx_cdesc_base *ena_com_rx_cdesc_idx_to_ptr(struct ena_com_io_cq *io_cq, u16 idx);
+struct ena_eth_io_tx_cdesc *ena_com_tx_cdesc_idx_to_ptr(struct ena_com_io_cq *io_cq, u16 idx);
 
 struct ena_com_tx_ctx {
 	struct ena_com_tx_meta ena_meta;
@@ -74,15 +82,14 @@ static inline void ena_com_unmask_intr(struct ena_com_io_cq *io_cq,
 	ENA_REG_WRITE32(io_cq->bus, intr_reg->intr_control, io_cq->unmask_reg);
 }
 
+static inline u16 ena_com_used_q_entries(struct ena_com_io_sq *io_sq)
+{
+	return io_sq->tail - io_sq->next_to_comp;
+}
+
 static inline int ena_com_free_q_entries(struct ena_com_io_sq *io_sq)
 {
-	u16 tail, next_to_comp, cnt;
-
-	next_to_comp = io_sq->next_to_comp;
-	tail = io_sq->tail;
-	cnt = tail - next_to_comp;
-
-	return io_sq->q_depth - 1 - cnt;
+	return io_sq->q_depth - 1 - ena_com_used_q_entries(io_sq);
 }
 
 /* Check if the submission queue has enough space to hold required_buffers */
@@ -152,7 +159,20 @@ static inline bool ena_com_is_doorbell_needed(struct ena_com_io_sq *io_sq,
 	return num_entries_needed > io_sq->entries_in_tx_burst_left;
 }
 
-static inline int ena_com_write_sq_doorbell(struct ena_com_io_sq *io_sq)
+static inline int ena_com_write_rx_sq_doorbell(struct ena_com_io_sq *io_sq)
+{
+	u16 tail = io_sq->tail;
+
+	ena_trc_dbg(ena_com_io_sq_to_ena_dev(io_sq),
+		    "Write submission queue doorbell for queue: %d tail: %d\n",
+		    io_sq->qid, tail);
+
+	ENA_REG_WRITE32(io_sq->bus, tail, io_sq->db_addr);
+
+	return 0;
+}
+
+static inline int ena_com_write_tx_sq_doorbell(struct ena_com_io_sq *io_sq)
 {
 	u16 max_entries_in_tx_burst = io_sq->llq_info.max_entries_in_tx_burst;
 	u16 tail = io_sq->tail;
@@ -181,7 +201,9 @@ static inline void ena_com_update_numa_node(struct ena_com_io_cq *io_cq,
 	if (!io_cq->numa_node_cfg_reg)
 		return;
 
-	numa_cfg.numa_cfg = (numa_node & ENA_ETH_IO_NUMA_NODE_CFG_REG_NUMA_MASK)
+	numa_cfg.numa_cfg = (ENA_FIELD_GET(numa_node,
+					   ENA_ETH_IO_NUMA_NODE_CFG_REG_NUMA_MASK,
+					   ENA_ZERO_SHIFT))
 		| ENA_ETH_IO_NUMA_NODE_CFG_REG_ENABLED_MASK;
 
 	ENA_REG_WRITE32(io_cq->bus, numa_cfg.numa_cfg, io_cq->numa_node_cfg_reg);
@@ -223,7 +245,9 @@ static inline int ena_com_tx_comp_req_id_get(struct ena_com_io_cq *io_cq,
 	 * expected, it mean that the device still didn't update
 	 * this completion.
 	 */
-	cdesc_phase = flags & ENA_ETH_IO_TX_CDESC_PHASE_MASK;
+	cdesc_phase = ENA_FIELD_GET(flags,
+				    ENA_ETH_IO_TX_CDESC_PHASE_MASK,
+				    ENA_ZERO_SHIFT);
 	if (cdesc_phase != expected_phase)
 		return ENA_COM_TRY_AGAIN;
 

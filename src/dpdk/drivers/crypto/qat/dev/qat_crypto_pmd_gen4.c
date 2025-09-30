@@ -9,6 +9,7 @@
 #include "qat_asym.h"
 #include "qat_crypto.h"
 #include "qat_crypto_pmd_gens.h"
+#include "adf_transport_access_macros_gen4vf.h"
 
 
 static struct rte_cryptodev_capabilities qat_sym_crypto_legacy_caps_gen4[] = {
@@ -124,7 +125,7 @@ qat_sym_crypto_cap_get_gen4(struct qat_cryptodev_private *internals,
 	uint32_t legacy_size = sizeof(qat_sym_crypto_legacy_caps_gen4);
 	legacy_capa_num = legacy_size/sizeof(struct rte_cryptodev_capabilities);
 
-	if (unlikely(qat_legacy_capa))
+	if (unlikely(internals->qat_dev->options.legacy_alg))
 		size = size + legacy_size;
 
 	internals->capa_mz = rte_memzone_lookup(capa_memz_name);
@@ -144,7 +145,7 @@ qat_sym_crypto_cap_get_gen4(struct qat_cryptodev_private *internals,
 
 	struct rte_cryptodev_capabilities *capabilities;
 
-	if (unlikely(qat_legacy_capa)) {
+	if (unlikely(internals->qat_dev->options.legacy_alg)) {
 		capabilities = qat_sym_crypto_legacy_caps_gen4;
 		memcpy(addr, capabilities, legacy_size);
 		addr += legacy_capa_num;
@@ -230,6 +231,78 @@ qat_sym_build_op_aead_gen4(void *in_op, struct qat_sym_session *ctx,
 	qat_sym_debug_log_dump(qat_req, ctx, in_sgl.vec, in_sgl.num, &cipher_iv,
 			NULL, &aad, &digest);
 
+	return 0;
+}
+
+int
+qat_sym_dp_enqueue_done_gen4(void *qp_data, uint8_t *drv_ctx, uint32_t n)
+{
+	struct qat_qp *qp = qp_data;
+	struct qat_queue *tx_queue = &qp->tx_q;
+	struct qat_sym_dp_ctx *dp_ctx = (void *)drv_ctx;
+
+	if (unlikely(dp_ctx->cached_enqueue != n))
+		return -1;
+
+	qp->enqueued += n;
+	qp->stats.enqueued_count += n;
+
+	tx_queue->tail = dp_ctx->tail;
+
+	WRITE_CSR_RING_TAIL_GEN4VF(qp->mmap_bar_addr,
+		tx_queue->hw_bundle_number,
+		tx_queue->hw_queue_number, tx_queue->tail);
+
+	tx_queue->csr_tail = tx_queue->tail;
+	dp_ctx->cached_enqueue = 0;
+
+	return 0;
+}
+
+int
+qat_sym_dp_dequeue_done_gen4(void *qp_data, uint8_t *drv_ctx, uint32_t n)
+{
+	struct qat_qp *qp = qp_data;
+	struct qat_queue *rx_queue = &qp->rx_q;
+	struct qat_sym_dp_ctx *dp_ctx = (void *)drv_ctx;
+
+	if (unlikely(dp_ctx->cached_dequeue != n))
+		return -1;
+
+	rx_queue->head = dp_ctx->head;
+	rx_queue->nb_processed_responses += n;
+	qp->dequeued += n;
+	qp->stats.dequeued_count += n;
+	if (rx_queue->nb_processed_responses > QAT_CSR_HEAD_WRITE_THRESH) {
+		uint32_t old_head, new_head;
+		uint32_t max_head;
+
+		old_head = rx_queue->csr_head;
+		new_head = rx_queue->head;
+		max_head = qp->nb_descriptors * rx_queue->msg_size;
+
+		/* write out free descriptors */
+		void *cur_desc = (uint8_t *)rx_queue->base_addr + old_head;
+
+		if (new_head < old_head) {
+			memset(cur_desc, ADF_RING_EMPTY_SIG_BYTE,
+					max_head - old_head);
+			memset(rx_queue->base_addr, ADF_RING_EMPTY_SIG_BYTE,
+					new_head);
+		} else {
+			memset(cur_desc, ADF_RING_EMPTY_SIG_BYTE, new_head -
+					old_head);
+		}
+		rx_queue->nb_processed_responses = 0;
+		rx_queue->csr_head = new_head;
+
+		/* write current head to CSR */
+		WRITE_CSR_RING_HEAD_GEN4VF(qp->mmap_bar_addr,
+			rx_queue->hw_bundle_number, rx_queue->hw_queue_number,
+			new_head);
+	}
+
+	dp_ctx->cached_dequeue = 0;
 	return 0;
 }
 
@@ -345,16 +418,19 @@ qat_sym_dp_enqueue_aead_jobs_gen4(void *qp_data, uint8_t *drv_ctx,
 	for (i = 0; i < n; i++) {
 		struct qat_sym_op_cookie *cookie =
 			qp->op_cookies[tail >> tx_queue->trailz];
+		int error = 0;
 
 		req  = (struct icp_qat_fw_la_bulk_req *)(
 			(uint8_t *)tx_queue->base_addr + tail);
 		rte_mov128((uint8_t *)req, (const uint8_t *)&(ctx->fw_req));
 
 		if (vec->dest_sgl) {
-			data_len = qat_sym_build_req_set_data(req,
-				user_data[i], cookie,
-				vec->src_sgl[i].vec, vec->src_sgl[i].num,
-				vec->dest_sgl[i].vec, vec->dest_sgl[i].num);
+			data_len = qat_reqs_mid_set(&error, req, cookie, user_data[i],
+					&vec->src_sgl[i], &vec->dest_sgl[i], ofs);
+			/* In oop there is no offset, src/dst addresses are moved
+			 * to avoid overwriting the dst header
+			 */
+			ofs.ofs.cipher.head = 0;
 		} else {
 			data_len = qat_sym_build_req_set_data(req,
 				user_data[i], cookie,
@@ -362,7 +438,7 @@ qat_sym_dp_enqueue_aead_jobs_gen4(void *qp_data, uint8_t *drv_ctx,
 				vec->src_sgl[i].num, NULL, 0);
 		}
 
-		if (unlikely(data_len < 0))
+		if (unlikely(data_len < 0) || error)
 			break;
 
 		enqueue_one_aead_job_gen4(ctx, req, &vec->iv[i],
@@ -390,11 +466,51 @@ qat_sym_configure_raw_dp_ctx_gen4(void *_raw_dp_ctx, void *_ctx)
 {
 	struct rte_crypto_raw_dp_ctx *raw_dp_ctx = _raw_dp_ctx;
 	struct qat_sym_session *ctx = _ctx;
-	int ret;
 
-	ret = qat_sym_configure_raw_dp_ctx_gen1(_raw_dp_ctx, _ctx);
-	if (ret < 0)
-		return ret;
+	raw_dp_ctx->enqueue_done = qat_sym_dp_enqueue_done_gen4;
+	raw_dp_ctx->dequeue_burst = qat_sym_dp_dequeue_burst_gen1;
+	raw_dp_ctx->dequeue = qat_sym_dp_dequeue_single_gen1;
+	raw_dp_ctx->dequeue_done = qat_sym_dp_dequeue_done_gen4;
+
+	if ((ctx->qat_cmd == ICP_QAT_FW_LA_CMD_HASH_CIPHER ||
+			ctx->qat_cmd == ICP_QAT_FW_LA_CMD_CIPHER_HASH) &&
+			!ctx->is_gmac) {
+		/* AES-GCM or AES-CCM */
+		if (ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_GALOIS_128 ||
+			ctx->qat_hash_alg == ICP_QAT_HW_AUTH_ALGO_GALOIS_64 ||
+			(ctx->qat_cipher_alg == ICP_QAT_HW_CIPHER_ALGO_AES128
+			&& ctx->qat_mode == ICP_QAT_HW_CIPHER_CTR_MODE
+			&& ctx->qat_hash_alg ==
+					ICP_QAT_HW_AUTH_ALGO_AES_CBC_MAC)) {
+			raw_dp_ctx->enqueue_burst =
+					qat_sym_dp_enqueue_aead_jobs_gen1;
+			raw_dp_ctx->enqueue =
+					qat_sym_dp_enqueue_single_aead_gen1;
+		} else {
+			raw_dp_ctx->enqueue_burst =
+					qat_sym_dp_enqueue_chain_jobs_gen1;
+			raw_dp_ctx->enqueue =
+					qat_sym_dp_enqueue_single_chain_gen1;
+		}
+	} else if (ctx->qat_cmd == ICP_QAT_FW_LA_CMD_AUTH || ctx->is_gmac) {
+		raw_dp_ctx->enqueue_burst = qat_sym_dp_enqueue_auth_jobs_gen1;
+		raw_dp_ctx->enqueue = qat_sym_dp_enqueue_single_auth_gen1;
+	} else if (ctx->qat_cmd == ICP_QAT_FW_LA_CMD_CIPHER) {
+		if (ctx->qat_mode == ICP_QAT_HW_CIPHER_AEAD_MODE ||
+			ctx->qat_cipher_alg ==
+				ICP_QAT_HW_CIPHER_ALGO_CHACHA20_POLY1305) {
+			raw_dp_ctx->enqueue_burst =
+					qat_sym_dp_enqueue_aead_jobs_gen1;
+			raw_dp_ctx->enqueue =
+					qat_sym_dp_enqueue_single_aead_gen1;
+		} else {
+			raw_dp_ctx->enqueue_burst =
+					qat_sym_dp_enqueue_cipher_jobs_gen1;
+			raw_dp_ctx->enqueue =
+					qat_sym_dp_enqueue_single_cipher_gen1;
+		}
+	} else
+		return -1;
 
 	if (ctx->is_single_pass && ctx->is_ucs) {
 		raw_dp_ctx->enqueue_burst = qat_sym_dp_enqueue_aead_jobs_gen4;
