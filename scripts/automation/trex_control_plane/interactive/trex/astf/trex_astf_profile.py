@@ -2100,15 +2100,44 @@ class ASTFProfile(object):
                     d_ports[d_port] = cap_file
 
                 all_cap_info.append({"ip_gen": ip_gen, "prog_c": prog_c, "prog_s": prog_s, "glob_c": glob_c, "glob_s": glob_s,
-                                     "cps": cps, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit, "cont":cap.cont, "tg_name": cap.tg_name})
+                                     "cps": cps, "l7_percent": l7_percent, "d_port": d_port, "my_assoc": my_assoc,"limit":cap.limit, "cont":cap.cont, "tg_name": cap.tg_name})
             # calculate cps from l7 percent
+            # first know how much percent it represents from the trafic
+            # 100              |    ?
+            # total_payload    |   payload_len
+            #
+            # trafic percent = payload * 100 / total_payload
+            #
+            # then go from actual trafic percent to expected trafic percent
+            #
+            # 1 cps         | trafic percent
+            #  ? cps        | expected_percent
+            #
+            # final_cps = expected_percent / trafic_percent
             if mode == "l7_percent":
+                lowest = 1
                 percent_sum = 0
                 for c in all_cap_info:
-                    c["cps"] = c["prog_c"].payload_len * 100.0 / total_payload
-                    percent_sum += c["cps"]
+                    payload_percent = c["prog_c"].payload_len * 100.0 / total_payload
+
+
+                    # the 10 here is because Trex doesnt like CPS under 0.5
+                    # so we try to go up an order of magnitude
+                    # since most users will just multiply this again with the global multiplier after
+                    target_cps = c["l7_percent"] / payload_percent
+
+                    c["cps"] = target_cps
+
+                    if target_cps < lowest:
+                        lowest = target_cps
+                    percent_sum += c["l7_percent"]
                 if percent_sum != 100:
                     raise ASTFError("l7_percent values must sum up to 100")
+                # normalize it all so that lowest = 1
+                mult = 1 / lowest
+                for c in all_cap_info:
+                    c["cps"] = c["cps"] * mult
+
 
             for c in all_cap_info:
                 temp_c = ASTFTCPClientTemplate(program=c["prog_c"], glob_info=c["glob_c"], ip_gen=c["ip_gen"], port=c["d_port"],
