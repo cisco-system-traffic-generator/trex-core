@@ -26,6 +26,12 @@ ifdef::backend-docbook[]
 
 endif::backend-docbook[]
 
+
+== Release 3.07 ==
+
+* Upgrade to DPDK 25.07
+* E810 supports hardware mode, not part of the regression
+
 == Release 3.06 ==
 
 * Fixed net_bonding breakage caused by the upgrade to DPDK 24.03.
