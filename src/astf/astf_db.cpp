@@ -1076,7 +1076,7 @@ bool CAstfDB::read_tunables(CTcpTuneables *tune, Json::Value tune_json) {
             }
 
             if (read_tunable_uint16(tune,json,"delay_ack_msec",CTcpTuneables::tcp_delay_ack,tune->m_tcp_delay_ack_msec)){
-                tunable_min_max_u32("delay_ack_msec",tune->m_tcp_delay_ack_msec,20,50000);
+                tunable_min_max_u32("delay_ack_msec",tune->m_tcp_delay_ack_msec,1,50000);
             }
 
             if (read_tunable_uint16(tune, json, "no_delay_counter", CTcpTuneables::tcp_no_delay_counter,tune->m_tcp_no_delay_counter)){
