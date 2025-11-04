@@ -74,7 +74,7 @@ image::images/t_c3.png[title="C/S mode",align="center",width={p_width}, link="im
 * Interactive support - Fast Console,  GUI 
 * TCP/UDP/Application statistics (per client side/per template)
 * Verify incoming IP/TCP/UDP checksum 
-* Python 2.7/3.0 Client API 
+* Python 3 Client API 
 * Ability to build a realistic traffic profile that includes TCP and UDP protocols (e.g. EMIX)
 * IPv6/IPv4 
 * Fragmentation support 

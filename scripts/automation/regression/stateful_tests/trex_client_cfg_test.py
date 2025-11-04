@@ -1,8 +1,8 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test, CTRexScenario
-from .trex_nbar_test import CTRexNbarBase
+from trex_general_test import CTRexGeneral_Test, CTRexScenario
+from trex_nbar_test import CTRexNbarBase
 from CPlatform import CStaticRouteConfig
-from .tests_exceptions import *
+from tests_exceptions import *
 #import sys
 import time
 from nose.tools import nottest

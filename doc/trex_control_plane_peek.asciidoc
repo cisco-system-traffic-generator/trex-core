@@ -10,7 +10,7 @@ TRex Stateful Python API Tutorial
 include::trex_ga.asciidoc[]
 
 
-=== TRex traffic generator
+== TRex traffic generator
 
 TRex traffic generator is a tool design the benchmark platforms with realistic traffic.
 This is a work-in-progress product, which is under constant development, new features are added and support for more router's functionality is achieved.

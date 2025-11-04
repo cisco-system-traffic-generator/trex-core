@@ -7,7 +7,6 @@ import tempfile
 from time import time, sleep
 import subprocess, shlex, multiprocessing
 from argparse import ArgumentParser
-from distutils.dir_util import mkpath
 import signal
 
 def fail(msg):

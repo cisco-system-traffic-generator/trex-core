@@ -1,6 +1,6 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test, CTRexScenario
-from .tests_exceptions import *
+from trex_general_test import CTRexGeneral_Test, CTRexScenario
+from tests_exceptions import *
 from interfaces_e import IFType
 from nose.tools import nottest
 from misc_methods import print_r

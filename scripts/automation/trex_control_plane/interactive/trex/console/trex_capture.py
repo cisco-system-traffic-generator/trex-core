@@ -2,7 +2,7 @@
 import threading
 import tempfile
 import select
-from distutils import spawn
+import shutil
 from subprocess import Popen
 import subprocess
 import base64
@@ -244,7 +244,7 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
        
     def locate_wireshark (self):
         self.logger.pre_cmd('Trying to locate Wireshark')
-        wireshark_exe = spawn.find_executable('wireshark')
+        wireshark_exe = shutil.which('wireshark')
         self.logger.post_cmd(RC_OK() if wireshark_exe else RC_ERR())
         
         if not wireshark_exe:

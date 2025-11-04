@@ -1,4 +1,4 @@
-from .astf_general_test import CASTFGeneral_Test, CTRexScenario
+from astf_general_test import CASTFGeneral_Test, CTRexScenario
 import os, sys
 from trex.astf.api import *
 import time

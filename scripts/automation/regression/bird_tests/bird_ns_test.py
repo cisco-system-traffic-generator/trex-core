@@ -4,7 +4,7 @@ from trex.common.trex_client import NO_MASK, NO_TCP_UDP_MASK, BGP_MASK, DHCP_MAS
 from trex.pybird.bird_cfg_creator import *
 from trex.pybird.pybird_zmq_client import *
 from trex.stl.trex_stl_port import *
-from .bird_general_test import CBirdGeneral_Test, CTRexScenario
+from bird_general_test import CBirdGeneral_Test, CTRexScenario
 
 # global configurations
 RIP_ROUTES_NUM    = 10

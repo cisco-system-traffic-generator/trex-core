@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from .stl_general_test import CStlGeneral_Test, CTRexScenario
+from stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 from trex.common.stats.trex_ns import CNsStats
 from trex.common.services.trex_service_icmp import ServiceICMP 

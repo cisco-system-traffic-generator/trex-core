@@ -1,6 +1,8 @@
-PYTHONS3_LOCAL=( python3 /usr/bin/python3 )
-PYTHONS3=( ${PYTHONS3_LOCAL[*]} /auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3 )
+PY_CMD=$(alias python3 2>/dev/null | awk -F"'" '{print $2}')
+PY_CMD=${PY_CMD:-python3}
 
+PYTHONS3_LOCAL=( "$PY_CMD" /usr/bin/python3 )
+PYTHONS3=( "${PYTHONS3_LOCAL[@]}" /auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3 )
 
 # function finds python3
 function find_python3 {

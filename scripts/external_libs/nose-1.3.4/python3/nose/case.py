@@ -10,6 +10,7 @@ from nose.config import Config
 from nose.failure import Failure # for backwards compatibility
 from nose.util import resolve_name, test_address, try_run
 import collections
+import collections.abc
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class Test(unittest.TestCase):
     __test__ = False # do not collect
     def __init__(self, test, config=None, resultProxy=None):
         # sanity check
-        if not isinstance(test, collections.Callable):
+        if not isinstance(test, collections.abc.Callable):
             raise TypeError("nose.case.Test called with argument %r that "
                             "is not callable. A callable is required."
                             % test)

@@ -12,7 +12,7 @@ import traceback
 from ..common.trex_exceptions import *
 from ..common.trex_types import listify
 from ..utils.common import ip2int
-import imp
+import importlib
 import collections
 
 def pretty_exceptions(func):
@@ -2219,9 +2219,9 @@ class ASTFProfile(object):
         sys.path.insert(0, basedir)
 
         try:
-            file    = os.path.basename(python_file).split('.')[0]
+            file   = os.path.basename(python_file).split('.')[0]
             module = __import__(file, globals(), locals(), [], 0)
-            imp.reload(module) # reload the update 
+            importlib.reload(module)
 
             t = cls.get_module_tunables(module)
 

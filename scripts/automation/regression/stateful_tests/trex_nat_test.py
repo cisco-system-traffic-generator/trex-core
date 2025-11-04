@@ -1,6 +1,6 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test, CTRexScenario
-from .tests_exceptions import *
+from trex_general_test import CTRexGeneral_Test, CTRexScenario
+from tests_exceptions import *
 import time
 from CPlatform import CStaticRouteConfig, CNatConfig
 from nose.tools import assert_equal

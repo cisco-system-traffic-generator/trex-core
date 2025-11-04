@@ -10,7 +10,7 @@ source find_python.sh
 cd automation/regression
 
 # Python 3
-echo Python3 test
+echo "Running tests with: $($PYTHON -V)"
 $PYTHON trex_unit_test.py "${ARGS[@]}"
 if [ $? -eq 0 ]; then
     printf "\n$PYTHON test succeeded\n\n"

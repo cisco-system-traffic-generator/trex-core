@@ -19,8 +19,6 @@ from waflib import Build
 import sys
 import compile_bird
 
-from distutils.version import StrictVersion
-
 # use hostname as part of cache filename
 Build.CACHE_SUFFIX = '_%s_cache.py' % platform.node()
 
@@ -738,10 +736,11 @@ def check_ntapi(ctx):
     return True
 
     
-def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
-    ver = StrictVersion('.'.join(env['CC_VERSION']))
-
-    return (ver >= min_ver, ver, min_ver)
+def verify_cc_version (env, min_ver_str = REQUIRED_CC_VERSION):
+    ver = tuple(int(x) for x in env['CC_VERSION'])
+    min_ver = tuple(int(x) for x in min_ver_str.split('.'))
+    ver_str = ".".join(env['CC_VERSION'])
+    return (ver >= min_ver, ver_str, min_ver_str)
     
 
 @conf

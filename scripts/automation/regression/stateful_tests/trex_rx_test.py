@@ -1,7 +1,7 @@
 #!/router/bin/python
-from .trex_general_test import CTRexGeneral_Test, CTRexScenario
+from trex_general_test import CTRexGeneral_Test, CTRexScenario
 from CPlatform import CStaticRouteConfig, CNatConfig
-from .tests_exceptions import *
+from tests_exceptions import *
 #import sys
 import time
 import copy

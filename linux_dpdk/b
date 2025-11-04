@@ -5,6 +5,7 @@ waf=waf-2.0.21
 
 PYTHONS3_LOCAL=( python3 /usr/bin/python3 )
 PYTHONS3=( ${PYTHONS3_LOCAL[*]} /auto/proj-pcube-b/apps/PL-b/tools/python3.4/bin/python3 )
+current_dir=$(pwd)
 
 function find_python3 {
 
@@ -36,11 +37,13 @@ fi
 # try Pythons which can load waf
 
 if $p3 $waf --help &> /dev/null; then
+    cd "$current_dir"
     $p3 $waf $@
 
 # waf can't be loaded, print the error with available Python
 
 elif which $p3 &> /dev/null; then
+    cd "$current_dir"
     $p3 $waf $@
 
 # no Python available

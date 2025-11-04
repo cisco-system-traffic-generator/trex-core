@@ -17,6 +17,7 @@ from nose.config import Config
 from nose.proxy import ResultProxyFactory
 from nose.util import isclass, resolve_name, try_run
 import collections
+import collections.abc
 
 if sys.platform == 'cli':
     if sys.version_info[:2] < (2, 6):
@@ -103,7 +104,7 @@ class LazySuite(unittest.TestSuite):
     def _set_tests(self, tests):
         self._precache = []
         is_suite = isinstance(tests, unittest.TestSuite)
-        if isinstance(tests, collections.Callable) and not is_suite:
+        if isinstance(tests, collections.abc.Callable) and not is_suite:
             self.test_generator = tests()
         elif is_suite:
             # Suites need special treatment: they must be called like
@@ -455,7 +456,7 @@ class ContextSuiteFactory(object):
             ancestors.pop()
 
     def findContext(self, tests):
-        if isinstance(tests, collections.Callable) or isinstance(tests, unittest.TestSuite):
+        if isinstance(tests, collections.abc.Callable) or isinstance(tests, unittest.TestSuite):
             return None
         context = None
         for test in tests:
@@ -538,7 +539,7 @@ class ContextSuiteFactory(object):
 
     def wrapTests(self, tests):
         log.debug("wrap %s", tests)
-        if isinstance(tests, collections.Callable) or isinstance(tests, unittest.TestSuite):
+        if isinstance(tests, collections.abc.Callable) or isinstance(tests, unittest.TestSuite):
             log.debug("I won't wrap")
             return tests
         wrapped = []

@@ -309,4 +309,4 @@ autoclass_content = "both"
 
 # A workaround for the responsive tables always having annoying scrollbars.
 def setup(app):
-  app.add_stylesheet("no_scrollbars.css")
+  app.add_css_file("no_scrollbars.css")

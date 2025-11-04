@@ -4,7 +4,7 @@ import time
 from trex.emu.api import *
 from trex.common.trex_exceptions import *
 
-from .emu_general_test import CEmuGeneral_Test, CTRexScenario
+from emu_general_test import CEmuGeneral_Test, CTRexScenario
 
 
 class Emu_Test(CEmuGeneral_Test):

@@ -393,7 +393,7 @@ Then, you can have a look at the stateless manual link:trex_stateless.html[here]
 
 ==== Is pyATS supported as client framework 
 
-Yes. Both Python 3 and Python 2
+Python 3 support
 
 ==== Python API does not work on my Mac with the below ZMQ library issue 
 

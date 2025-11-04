@@ -1,4 +1,4 @@
-from .astf_general_test import CASTFGeneral_Test, CTRexScenario
+from astf_general_test import CASTFGeneral_Test, CTRexScenario
 from trex.astf.api import *
 from nose.tools import assert_raises, nottest
 from pprint import pprint

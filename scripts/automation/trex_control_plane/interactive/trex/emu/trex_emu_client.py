@@ -16,7 +16,8 @@ from .trex_emu_conversions import *
 from .trex_emu_validator import EMUValidator
 
 import glob
-import imp
+import importlib
+import importlib.util
 import inspect
 import os
 import math
@@ -1839,7 +1840,10 @@ class EMUClient(object):
             import_path = 'trex.emu.emu_plugins'
 
             try:
-                m = imp.load_source(import_path, filename)
+                spec = importlib.util.spec_from_file_location(import_path, filename)
+                m = importlib.util.module_from_spec(spec)
+                sys.modules[import_path] = m
+                spec.loader.exec_module(m)
             except BaseException as e:
                 self._err('Exception during import of %s, filename: "%s", message: %s' % (import_path, filename, e))
             

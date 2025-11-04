@@ -1,6 +1,6 @@
 import time
 import sys
-from .astf_profile_test import ASTFProfile_Test, CTRexScenario
+from astf_profile_test import ASTFProfile_Test, CTRexScenario
 from common.performance_common import PerformanceReport
 from pprint import pprint
 
