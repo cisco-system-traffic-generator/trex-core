@@ -31,8 +31,6 @@ from email.Utils import COMMASPACE, formatdate
 from email import Encoders
 from email.mime.image import MIMEImage
 
-from distutils.version import StrictVersion
-
 class TrexRunException(Exception):
     def __init__ (self, reason, cmd = None, std_log = None, err_log = None):
         self.reason = reason
@@ -59,8 +57,11 @@ def verify_glibc_version ():
     if not m:
         raise Exception("Cannot determine LDD version")
     current_version = m.group(1)
-
-    if StrictVersion(current_version) < StrictVersion("2.5"):
+    min_ver_str = "2.5"
+    
+    cur_ver = tuple(int(x) for x in current_version.split('.'))
+    min_ver = tuple(int(x) for x in min_ver_str.split('.'))
+    if cur_ver < min_ver:
         raise Exception("GNU ldd version required for graph plotting is at least 2.5, system is %s - please run simple 'find'" % current_version)
 
 def get_median(numericValues):

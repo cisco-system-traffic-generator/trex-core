@@ -179,11 +179,21 @@ class _SixMetaPathImporter(object):
             self.known_modules[self.name + "." + fullname] = mod
 
     def _get_module(self, fullname):
-        return self.known_modules[self.name + "." + fullname]
+        try:
+            return self.known_modules[self.name + "." + fullname]
+        except KeyError:
+            return self.known_modules[fullname]
 
     def find_module(self, fullname, path=None):
         if fullname in self.known_modules:
             return self
+        return None
+
+    def find_spec(self, fullname, path=None, target=None):
+        """PEP 451 finder for Python 3.4+"""
+        if fullname in self.known_modules:
+            from importlib.util import spec_from_loader
+            return spec_from_loader(fullname, self, is_package=False)
         return None
 
     def __get_module(self, fullname):
@@ -205,6 +215,18 @@ class _SixMetaPathImporter(object):
             mod.__loader__ = self
         sys.modules[fullname] = mod
         return mod
+
+    def create_module(self, spec):
+        """PEP 451 loader for Python 3.4+"""
+        fullname = spec.name
+        mod = self.__get_module(fullname)
+        if isinstance(mod, MovedModule):
+            return mod._resolve()
+        return mod
+
+    def exec_module(self, module):
+        """PEP 451 loader for Python 3.4+"""
+        pass  # The module is already executed
 
     def is_package(self, fullname):
         """
@@ -256,7 +278,9 @@ _moved_attributes = [
     MovedModule("configparser", "ConfigParser"),
     MovedModule("copyreg", "copy_reg"),
     MovedModule("dbm_gnu", "gdbm", "dbm.gnu"),
-    MovedModule("_dummy_thread", "dummy_thread", "_dummy_thread"),
+    # Handle _dummy_thread removal in Python 3.9+
+    MovedModule("_dummy_thread", "dummy_thread", 
+                "_thread" if sys.version_info >= (3, 9) else "_dummy_thread"),
     MovedModule("http_cookiejar", "cookielib", "http.cookiejar"),
     MovedModule("http_cookies", "Cookie", "http.cookies"),
     MovedModule("html_entities", "htmlentitydefs", "html.entities"),
@@ -313,9 +337,15 @@ del attr
 
 _MovedItems._moved_attributes = _moved_attributes
 
-moves = _MovedItems(__name__ + ".moves")
-_importer._add_module(moves, "moves")
-
+if sys.version_info >= (3, 12):
+    # For Python 3.12+, we need to explicitly add to sys.modules first
+    moves = _MovedItems(__name__ + ".moves")
+    sys.modules[__name__ + ".moves"] = moves
+    _importer._add_module(moves, "moves")
+else:
+    # Original approach for older Python versions
+    moves = _MovedItems(__name__ + ".moves")
+    _importer._add_module(moves, "moves")
 
 class Module_six_moves_urllib_parse(_LazyModule):
 

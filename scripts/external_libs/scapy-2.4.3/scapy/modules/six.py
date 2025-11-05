@@ -321,8 +321,15 @@ del attr
 
 _MovedItems._moved_attributes = _moved_attributes
 
-moves = _MovedItems(__name__ + ".moves")
-_importer._add_module(moves, "moves")
+if sys.version_info >= (3, 12):
+    # For Python 3.12+, we need to explicitly add to sys.modules first
+    moves = _MovedItems(__name__ + ".moves")
+    sys.modules[__name__ + ".moves"] = moves
+    _importer._add_module(moves, "moves")
+else:
+    # Original approach for older Python versions
+    moves = _MovedItems(__name__ + ".moves")
+    _importer._add_module(moves, "moves")
 
 
 class Module_six_moves_urllib_parse(_LazyModule):

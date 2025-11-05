@@ -35,7 +35,7 @@ import os
 from CPlatform import *
 import termstyle
 import threading
-from .tests_exceptions import *
+from tests_exceptions import *
 from platform_cmd_link import *
 import unittest
 from glob import glob

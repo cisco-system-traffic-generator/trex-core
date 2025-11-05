@@ -3,7 +3,7 @@ import time
 import random
 import string
 
-from .astf_general_test import CASTFGeneral_Test, CTRexScenario
+from astf_general_test import CASTFGeneral_Test, CTRexScenario
 from nose.tools import assert_raises
 from trex.astf.api import *
 from trex.stl.trex_stl_packet_builder_scapy import ip2int, int2ip

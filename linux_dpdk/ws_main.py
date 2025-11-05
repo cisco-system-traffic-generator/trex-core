@@ -19,8 +19,6 @@ from waflib import Build
 import sys
 import compile_bird
 
-from distutils.version import StrictVersion
-
 # use hostname as part of cache filename
 Build.CACHE_SUFFIX = '_%s_cache.py' % platform.node()
 
@@ -659,7 +657,7 @@ def configure_mlx5 (ctx):
         [ 'HAVE_MLX5_IBV_REG_MR_IOVA', 'infiniband/verbs.h',
         'func', 'ibv_reg_mr_iova' ],
         [ 'HAVE_MLX5_IBV_IMPORT_CTX_PD_AND_MR', 'infiniband/verbs.h',
-            'ibv_import_device' ],
+        'type', 'ibv_import_device' ],
         [ 'HAVE_MLX5DV_DR_ACTION_CREATE_DEST_ROOT_TABLE', 'infiniband/mlx5dv.h',
         'func', 'mlx5dv_dr_action_create_dest_root_table' ],
         [ 'HAVE_MLX5DV_CREATE_STEERING_ANCHOR', 'infiniband/mlx5dv.h',
@@ -738,10 +736,11 @@ def check_ntapi(ctx):
     return True
 
     
-def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
-    ver = StrictVersion('.'.join(env['CC_VERSION']))
-
-    return (ver >= min_ver, ver, min_ver)
+def verify_cc_version (env, min_ver_str = REQUIRED_CC_VERSION):
+    ver = tuple(int(x) for x in env['CC_VERSION'])
+    min_ver = tuple(int(x) for x in min_ver_str.split('.'))
+    ver_str = ".".join(env['CC_VERSION'])
+    return (ver >= min_ver, ver_str, min_ver_str)
     
 
 @conf
@@ -2097,7 +2096,6 @@ common_flags = ['-DWIN_UCODE_SIM',
 if march == 'x86_64':
     common_flags_new = common_flags + [
                     '-march=native',
-                    '-msse2',
                     '-mssse3', '-msse4.1', '-mpclmul', '-mno-avx2',
                     '-DRTE_MACHINE_CPUFLAG_SSE',
                     '-DRTE_MACHINE_CPUFLAG_SSE2',
@@ -2119,7 +2117,6 @@ if march == 'x86_64':
 
     common_flags_old = common_flags + [
                       '-march=corei7',
-                      '-msse2',
                       '-mpclmul',
                       '-DUCS_210',
                       '-mtune=generic',

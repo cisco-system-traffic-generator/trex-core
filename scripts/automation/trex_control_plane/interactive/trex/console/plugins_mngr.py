@@ -6,7 +6,9 @@ from ..common.trex_exceptions import TRexError, TRexConsoleNoAction, TRexConsole
 
 from .plugins import ConsolePlugin
 import glob
-import imp
+import importlib
+import importlib.util
+import sys
 import argparse
 import os
 import traceback
@@ -88,7 +90,10 @@ class PluginsManager:
         import_path = 'trex.console.plugins.%s' % module_name
 
         try:
-            m = imp.load_source(import_path, file_name)
+            spec = importlib.util.spec_from_file_location(import_path, file_name)
+            m = importlib.util.module_from_spec(spec)
+            sys.modules[import_path] = m
+            spec.loader.exec_module(m)
         except BaseException as e:
             self.err('Exception during import of %s: %s' % (import_path, e))
 

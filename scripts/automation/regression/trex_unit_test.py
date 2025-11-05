@@ -48,7 +48,6 @@ import trex_scenario
 import socket
 from pprint import pprint
 import time
-from distutils.dir_util import mkpath
 import re
 from io import StringIO
 from argparse import ArgumentParser
@@ -60,6 +59,27 @@ def cleanup_trex_pyc():
         os.unlink(path)
 
 cleanup_trex_pyc()
+
+# Add test directories to Python path for nose to find them
+current_dir = os.path.dirname(os.path.abspath(__file__))
+test_dirs = [
+    'stateless_tests',
+    'stateful_tests', 
+    'astf_tests',
+    'bird_tests',
+    'emu_tests',
+    'functional_tests',
+    'stl_software_tests'
+]
+
+for test_dir in test_dirs:
+    test_path = os.path.join(current_dir, test_dir)
+    if os.path.isdir(test_path) and test_path not in sys.path:
+        sys.path.insert(0, test_path)
+
+# Also add the regression directory itself
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 TEST_ID = re.compile(r'^(.*?)(\(.*\))$')
 
@@ -329,8 +349,6 @@ class CTRexTestConfiguringPlugin(Plugin):
                             help="Run stateful tests.")
         parser.add_option('--astf', action="store_true",
                             help="Run advanced stateful tests.")
-        parser.add_option('--wireless', action="store_true",
-                            help="Run wireless tests.")
         parser.add_option('--pkg', type = str,
                             help="Run with given TRex package. Make sure the path available at server machine. Implies --restart-daemon.")
         parser.add_option('--restart-daemon', action="store_true",
@@ -370,7 +388,6 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.emu            = options.emu # Run regression with Emu tests.
         self.astf           = options.astf
         self.stateful       = options.stateful
-        self.wireless       = options.wireless
         self.pkg            = options.pkg
         self.restart_daemon = options.restart_daemon
         self.json_verbose   = options.json_verbose
@@ -382,7 +399,7 @@ class CTRexTestConfiguringPlugin(Plugin):
             fatal('You have specified both --no-daemon and either --pkg or --restart-daemon at same time.')
         if self.no_daemon and self.stateful:
             fatal("Can't run stateful without daemon.")
-        if self.collect_only or self.functional or self.wireless:
+        if self.collect_only or self.functional:
             return
         self.enabled       = True
         self.kill_running  = options.kill_running
@@ -639,7 +656,7 @@ if __name__ == "__main__":
             CTRexScenario.setup_name = os.path.basename(CTRexScenario.setup_dir)
             xml_name = 'report_%s.xml' % CTRexScenario.setup_name
         xml_arg= '--xunit-file=%s/%s' % (CTRexScenario.report_dir, xml_name)
-        mkpath(CTRexScenario.report_dir)
+        os.makedirs(CTRexScenario.report_dir, exist_ok=True)
 
     sys_args = sys.argv[:]
     for i, arg in enumerate(sys.argv):
@@ -688,11 +705,6 @@ if __name__ == "__main__":
             CTRexScenario.test_types['astf_tests'].append('astf_tests')
             sys_args.remove(key)
 
-        key = '--wireless'
-        if key in sys_args:
-            CTRexScenario.test_types['wireless_tests'].append('wireless_tests')
-            sys_args.remove(key)
-
         # Run all of the tests or just the selected ones
         if not sum([len(x) for x in CTRexScenario.test_types.values()]):
             for key in CTRexScenario.test_types.keys():
@@ -707,7 +719,7 @@ if __name__ == "__main__":
     options, _ = parser.parse_known_args(sys.argv)
 
     trex_tests = options.stateless or options.stateless_sw or options.stateful or options.astf or options.bird or options.emu
-    if not CTRexScenario.is_test_list and (trex_tests or not (trex_tests or options.functional or options.wireless)):
+    if not CTRexScenario.is_test_list and (trex_tests or not (trex_tests or options.functional)):
         if CTRexScenario.setup_dir and options.config_path:
             fatal('Please either define --cfg or use env. variable SETUP_DIR, not both.')
         if not options.config_path and CTRexScenario.setup_dir:
@@ -758,10 +770,6 @@ if __name__ == "__main__":
             attr_arr.append('!nightly')
             attr_arr.append('!long')
         attrs = ','.join(attr_arr)
-
-        if CTRexScenario.test_types['wireless_tests']:
-            additional_args = ['--wireless', '../trex_control_plane/interactive/trex/wireless']
-            result = nose.run(argv = nose_argv + additional_args, addplugins = addplugins) and result
 
         if CTRexScenario.test_types['functional_tests']:
             additional_args = ['--func'] + CTRexScenario.test_types['functional_tests']
@@ -863,7 +871,6 @@ if __name__ == "__main__":
 This cat is sad, test failed.
         """))
             sys.exit(-1)
-
 
 
 

@@ -1,4 +1,4 @@
-import imp
+import importlib
 import json
 import yaml
 import os
@@ -365,7 +365,7 @@ class ASTFTopologyManager(object):
         try:
             file   = os.path.basename(python_file).split('.')[0]
             module = __import__(file, globals(), locals(), [], 0)
-            imp.reload(module) # reload the update
+            importlib.reload(module)
 
             topo = module.get_topo(**kw)
             if not isinstance(topo, ASTFTopology):

@@ -7,7 +7,8 @@ import argparse
 import sys
 import time
 import math
-import imp
+import importlib
+import importlib.util
 from copy import deepcopy
 
 class MultiplierDomain:
@@ -143,9 +144,9 @@ class ASTFNdrBenchConfig:
         sys.path.insert(0, basedir)
 
         try:
-            file    = os.path.basename(plugin_file).split('.')[0]
+            file   = os.path.basename(plugin_file).split('.')[0]
             module = __import__(file, globals(), locals(), [], 0)
-            imp.reload(module) # reload the update 
+            importlib.reload(module) 
 
             plugin = module.register()
 

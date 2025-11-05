@@ -4,7 +4,7 @@ from trex.emu.trex_emu_conversions import *
 from trex.common.trex_types import listify
 from .trex_emu_validator import EMUValidator
 
-import imp
+import importlib
 import os
 import sys
 import traceback
@@ -561,7 +561,7 @@ class EMUProfile(object):
         try:
             file = os.path.basename(filename).split('.')[0]
             module = __import__(file, globals(), locals(), [], 0)
-            imp.reload(module)  # reload the update 
+            importlib.reload(module)
 
             try:
                 profile = module.register().get_profile(tunables)

@@ -108,6 +108,7 @@ from inspect import isfunction
 from nose.plugins.base import Plugin
 from nose.util import tolist
 import collections
+import collections.abc
 
 log = logging.getLogger('nose.plugins.attrib')
 compat_24 = sys.version_info >= (2, 4)
@@ -239,7 +240,7 @@ class AttributeSelector(Plugin):
             match = True
             for key, value in group:
                 attr = get_method_attr(method, cls, key)
-                if isinstance(value, collections.Callable):
+                if isinstance(value, collections.abc.Callable):
                     if not value(key, method, cls):
                         match = False
                         break

@@ -26,7 +26,7 @@ This document will describe the current control plane for TRex, and its scalable
 
 TRex control plane is based on a JSON RPC transactions between clients and server. +
 Each TRex machine will have a server running on it, closely interacting with TRex (clients do not approach TRex directly). +
-The server version (which runs as either a daemon or a CLI application) is deployed with TRex latest version, written in Python 2.7.
+The server version (which runs as either a daemon or a CLI application) is deployed with TRex latest version, written in Python 3.
 As future feature, and as multiple TRexes might run on the same machine, single server shall serve all TRexes running a machine.
 
 The control plane implementation is using the currently dumped data messaging from TRex's core via ZMQ publisher, running from core #1.
@@ -92,7 +92,7 @@ The following daemon commands are supported:
 
   3. **`restart`**: Stop the current daemon process, then relaunch it with the provided parameters (the parameters must be re-entered).
 
-  3. **`show`**: Prompt whether the daemon is running or not.
+  4. **`show`**: Prompt whether the daemon is running or not.
 
 WARNING: restarting the daemon application will **truncate** the logfile.
 
@@ -157,7 +157,7 @@ Using class methods, the client interacts with TRex server, and enable it to per
 
   5. Get custom TRex stats based on a window of saved history of latest 'N' polling results.
 
-The clients is also based on Python 2.7, however unlike the server, it can run on any machine who wishes to. +
+The clients is also based on Python 3, however unlike the server, it can run on any machine who wishes to. +
 In fact, the client side is simply a python library that interact with the server using JSON-RPC (v2), hence if needed, anyone can write a library on any other language that will interact with the server ins the very same way.
 
 

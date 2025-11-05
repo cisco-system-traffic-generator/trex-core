@@ -1,5 +1,5 @@
 import os
-from .stl_general_test import CStlGeneral_Test, CTRexScenario
+from stl_general_test import CStlGeneral_Test, CTRexScenario
 from common.performance_common import PerformanceReport
 from trex_stl_lib.api import *
 import pprint

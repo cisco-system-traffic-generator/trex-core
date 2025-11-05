@@ -1,4 +1,4 @@
-from .stl_general_test import CStlGeneral_Test, CTRexScenario
+from stl_general_test import CStlGeneral_Test, CTRexScenario
 import os
 import re
 

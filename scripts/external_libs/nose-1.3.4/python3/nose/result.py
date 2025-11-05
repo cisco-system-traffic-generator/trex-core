@@ -10,10 +10,13 @@ reporting.
 
 import logging
 try:
-    # 2.7+
     from unittest.runner import _TextTestResult
 except ImportError:
-    from unittest import _TextTestResult
+    try:
+        from unittest import _TextTestResult
+    except ImportError:
+        # Python 3.12+ compatibility
+        from unittest import TextTestResult as _TextTestResult
 from nose.config import Config
 from nose.util import isclass, ln as _ln # backwards compat
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from .stl_general_test import CStlGeneral_Test, CTRexScenario
+from stl_general_test import CStlGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 
 class STLIPv6_Test(CStlGeneral_Test):

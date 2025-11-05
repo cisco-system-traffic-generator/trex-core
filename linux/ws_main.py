@@ -13,8 +13,6 @@ import shutil
 import copy
 import subprocess
 
-
-from distutils.version import StrictVersion
 from waflib import Logs
 
 top = '../'
@@ -98,10 +96,11 @@ def options(opt):
                    help='use GCC 8.3 instead of the machine version')
 
 
-def verify_cc_version (env, min_ver = REQUIRED_CC_VERSION):
-    ver = StrictVersion('.'.join(env['CC_VERSION']))
-
-    return (ver >= min_ver, ver, min_ver)
+def verify_cc_version (env, min_ver_str = REQUIRED_CC_VERSION):
+    ver = tuple(int(x) for x in env['CC_VERSION'])
+    min_ver = tuple(int(x) for x in min_ver_str.split('.'))
+    ver_str = ".".join(env['CC_VERSION'])
+    return (ver >= min_ver, ver_str, min_ver_str)
 
 def getstatusoutput(cmd):
     """    Return (status, output) of executing cmd in a shell. Taken from Python3 subprocess.getstatusoutput"""

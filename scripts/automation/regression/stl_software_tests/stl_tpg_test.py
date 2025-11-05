@@ -3,7 +3,7 @@ import time
 from pprint import pformat
 from nose.tools import assert_raises
 
-from .stl_software_general_test import CStlSoftwareGeneral_Test, CTRexScenario
+from stl_software_general_test import CStlSoftwareGeneral_Test, CTRexScenario
 from trex_stl_lib.api import *
 
 

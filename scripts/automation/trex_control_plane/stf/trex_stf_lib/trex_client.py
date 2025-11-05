@@ -9,7 +9,6 @@ import time
 import re
 import copy
 import binascii
-from distutils.util import strtobool
 from collections import deque, OrderedDict
 import json
 import traceback
@@ -305,7 +304,7 @@ class CTRexClient(object):
             sys.stdout.write('%s [y/n]\n' % prompt)
             while True:
                 try:
-                    if strtobool(user_input().lower()):
+                    if user_input().lower() in ('y', 'yes'):
                         break
                     else:
                         return

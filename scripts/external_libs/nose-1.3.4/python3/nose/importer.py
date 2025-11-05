@@ -9,7 +9,8 @@ import os
 import sys
 from nose.config import Config
 
-from imp import find_module, load_module, acquire_lock, release_lock
+from importlib.util import find_spec, module_from_spec
+import _imp
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class Importer(object):
         path = [dir]
         parts = fqname.split('.')
         part_fqname = ''
-        mod = parent = fh = None
+        mod = parent = None
 
         for part in parts:
             if part_fqname == '':
@@ -73,10 +74,13 @@ class Importer(object):
             else:
                 part_fqname = "%s.%s" % (part_fqname, part)
             try:
-                acquire_lock()
+                _imp.acquire_lock()
                 log.debug("find module part %s (%s) in %s",
                           part, part_fqname, path)
-                fh, filename, desc = find_module(part, path)
+                spec = find_spec(part, path)
+                if spec is None:
+                    raise ImportError(f"No module named '{part}'")
+                filename = spec.origin
                 old = sys.modules.get(part_fqname)
                 if old is not None:
                     # test modules frequently have name overlap; make sure
@@ -89,13 +93,15 @@ class Importer(object):
                         mod = old
                     else:
                         del sys.modules[part_fqname]
-                        mod = load_module(part_fqname, fh, filename, desc)
+                        mod = module_from_spec(spec)
+                        sys.modules[part_fqname] = mod
+                        spec.loader.exec_module(mod)
                 else:
-                    mod = load_module(part_fqname, fh, filename, desc)
+                    mod = module_from_spec(spec)
+                    sys.modules[part_fqname] = mod
+                    spec.loader.exec_module(mod)
             finally:
-                if fh:
-                    fh.close()
-                release_lock()
+                _imp.release_lock()
             if parent:
                 setattr(parent, part, mod)
             if hasattr(mod, '__path__'):

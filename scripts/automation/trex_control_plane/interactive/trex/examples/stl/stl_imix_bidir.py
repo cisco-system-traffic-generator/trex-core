@@ -1,7 +1,6 @@
 import stl_path
 from trex.stl.api import *
 
-import imp
 import time
 import json
 from pprint import pprint

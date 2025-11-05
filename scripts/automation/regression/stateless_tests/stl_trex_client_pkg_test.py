@@ -1,5 +1,5 @@
 #!/router/bin/python
-from .stl_general_test import CStlGeneral_Test, CTRexScenario
+from stl_general_test import CStlGeneral_Test, CTRexScenario
 from misc_methods import run_command
 from nose.plugins.attrib import attr
 
@@ -31,9 +31,6 @@ class CTRexClientPKG_Test(CStlGeneral_Test):
         return_code, stdout, stderr = run_command("bash -ce '%s'" % '; '.join(commands))
         if return_code:
             self.fail('Error in running stf_example using %s: %s' % (python_version, [return_code, stdout, stderr]))
-
-    def test_client_python2(self):
-        self.run_client_package_stl_example(python_version = 'python2')
 
     def test_client_python3(self):
         self.run_client_package_stl_example(python_version = 'python3')

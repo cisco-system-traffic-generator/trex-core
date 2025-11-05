@@ -1,5 +1,6 @@
 #! /bin/bash
 
+current_dir=$(pwd)
 waf=waf-2.0.21
 
 PYTHONS3_LOCAL=( python3 /usr/bin/python3 )
@@ -35,6 +36,7 @@ fi
 # try Pythons which can load waf
 
 if $p3 $waf --help &> /dev/null; then
+    cd "$current_dir"
     $p3 $waf $@
 
 # waf can't be loaded, print the error with available Python

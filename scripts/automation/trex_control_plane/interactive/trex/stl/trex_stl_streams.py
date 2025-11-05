@@ -9,7 +9,8 @@ import base64
 import string
 import traceback
 import copy
-import imp
+import importlib
+import importlib.util
 
 
 from ..common.trex_exceptions import *
@@ -425,8 +426,9 @@ class STLTaggedPktGroupTagConf:
         try:
             filename = os.path.basename(tpg_conf_path).split('.')[0]  # remove the file extension
             sys.dont_write_bytecode = True
-            module = __import__(filename, globals(), locals(), [], 0)  # import the file
-            imp.reload(module)  # reload the update
+            file   = os.path.basename(filename).split('.')[0]
+            module = __import__(file, globals(), locals(), [], 0)
+            importlib.reload(module)   # reload the update
 
             try:
                 tpg_conf = module.register().get_tpg_conf(**kwargs)
@@ -1162,8 +1164,9 @@ class STLProfile(object):
         try:
             file    = os.path.basename(python_file).split('.')[0]
             sys.dont_write_bytecode = True
+            file   = os.path.basename(python_file).split('.')[0]
             module = __import__(file, globals(), locals(), [], 0)
-            imp.reload(module) # reload the update 
+            importlib.reload(module)
 
             t = STLProfile.get_module_tunables(module)
             #for arg in kwargs:
