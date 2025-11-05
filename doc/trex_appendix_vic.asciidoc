@@ -43,7 +43,7 @@ Since we do not have all cards in our lab, we could not test all of them. Will b
 *MTU*::
   set the MTU to maximum 9000-9190 (Depends on the FW version)
 
-more information could be found here link:http://www.dpdk.org/doc/guides/nics/enic.html?highlight=enic[enic DPDK]
+more information could be found here link: https://doc.dpdk.org/guides/nics/enic.html[enic DPDK]
 
 image:images/UCS-B-adapter_policy_1.jpg[title="vic configuration",align="center",width=800]
 image:images/UCS-B-adapter_policy_2.jpg[title="vic configuration",align="center",width=800]
