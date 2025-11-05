@@ -23,6 +23,9 @@ limitations under the License.
 #define DHCPv4_PORT     67
 #define DHCPv6_PORT     546
 #define MDNS_PORT       5353
+#define BFDc_PORT       3784
+#define BFDe_PORT       3785
+#define mBFDc_PORT      4784
 class TCPUDPHeaderBase
 {
 public:

@@ -57,7 +57,7 @@ class ServiceFilterIPv6NDP(ServiceFilter):
 
         # NA in response to our NS
         if ICMPv6ND_NA in scapy_pkt:
-            return self.services.get((scapy_pkt[IPv6].dst, scapy_pkt[IPv6].src, tuple(vlans)), [] ) 
+            return self.services.get((scapy_pkt[IPv6].dst, scapy_pkt[ICMPv6ND_NA].tgt, tuple(vlans)), [] )
 
         # NS from neighbor to verify ourselves
         if ICMPv6ND_NS in scapy_pkt:

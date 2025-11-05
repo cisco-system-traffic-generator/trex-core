@@ -300,6 +300,20 @@ void CFlowTable::check_service_filter(CSimplePacketParser & parser, tcp_rx_pkt_a
         }
     }
 
+    if (m_service_filtered_mask & TrexPort::BFD) {
+        if ( parser.m_protocol == IPPROTO_UDP ) {
+            UDPHeader *l4_header = (UDPHeader *)parser.m_l4;
+            uint16_t src_port = l4_header->getSourcePort();
+            uint16_t dst_port = l4_header->getDestPort();
+            if ( (( src_port == BFDc_PORT || dst_port == BFDc_PORT ))  ||
+                 (( src_port == BFDe_PORT || dst_port == BFDe_PORT ))  ||
+                 (( src_port == mBFDc_PORT || dst_port == mBFDc_PORT ))) {
+                action = tREDIRECT_RX_CORE;
+                return;
+            }
+        }
+    }
+
     if ( (m_service_filtered_mask & TrexPort::TRANSPORT) && 
             ((parser.m_protocol == IPPROTO_UDP) || (parser.m_protocol == IPPROTO_TCP)) ) {
         UDPHeader *l4_header = (UDPHeader *)parser.m_l4;

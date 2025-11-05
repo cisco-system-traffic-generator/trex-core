@@ -1101,6 +1101,13 @@ class OPTIONS_DB_ARGS:
          'dest': 'allow_bgp',
          'help': 'filter mode with bgp packets forward to rx'})
 
+    SERVICE_BFD_FILTERED = ArgumentPack(
+        ['--bfd'],
+        {'action': 'store_true',
+         'default': False,
+         'dest': 'allow_bfd',
+         'help': 'filter mode with bfd packets forward to rx'})
+
     SERVICE_TRAN_FILTERED = ArgumentPack(
         ['--tran'],
         {'action': 'store_true',
@@ -2123,6 +2130,7 @@ class OPTIONS_DB_GROUPS:
         NON_MUTEX,
         [
             SERVICE_BGP_FILTERED,
+            SERVICE_BFD_FILTERED,
             SERVICE_DHCP_FILTERED,
             SERVICE_MDNS_FILTERED,
             SERVICE_EMU_FILTERED,
