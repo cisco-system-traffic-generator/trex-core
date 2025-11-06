@@ -183,7 +183,7 @@ class TRexGeneralCmd(cmd.Cmd):
 class TRexConsole(TRexGeneralCmd):
     """Trex Console"""
 
-    def __init__(self, client, verbose = False, dummy_client = False):
+    def __init__(self, client, verbose = False, dummy_client = False, max_ports = 4):
 
         # cmd lock is used to make sure background job
         # of the console is not done while the user excutes commands
@@ -202,7 +202,7 @@ class TRexConsole(TRexGeneralCmd):
 
         self.terminal = None
 
-        self.tui = trex_tui.TrexTUI(self)
+        self.tui = trex_tui.TrexTUI(self, max_ports)
         self.cap_mngr = CaptureManager(client, self.cmd_lock)
         self.load_client_console_functions()
         self.postcmd(False, "")
@@ -852,6 +852,8 @@ def setParserOptions():
                         action="store_true", help="Starts with all outputs suppressed",
                         default = False)
 
+    parser.add_argument("-m", "--max-ports", default=4, help="Set maximum amount of ports to show, any value below 1 is unlimited", type=int)
+
     return parser
 
 # a simple info printed on log on
@@ -896,6 +898,7 @@ def probe_server_mode (options):
                         server = options.server,
                         sync_port = options.port,
                         async_port = options.pub,
+                        max_ports = options.max_ports,
                         logger = ConsoleLogger(),
                         verbose_level = 'error')
 
@@ -912,7 +915,7 @@ def run_console(client, logger, options):
             if not cont:
                 return
 
-        console = TRexConsole(client = client, verbose = options.verbose, dummy_client = options.emu_only_server is not None)
+        console = TRexConsole(client = client, verbose = options.verbose, dummy_client = options.emu_only_server is not None, max_ports = options.max_ports)
         console.server = options.server # set server in console so plugins can use it
 
         # run emu if needed
@@ -992,6 +995,7 @@ def main():
                            server = options.server,
                            sync_port = options.port,
                            async_port = options.pub,
+                           max_ports = options.max_ports,
                            logger = logger,
                            verbose_level = verbose_level,
                            sync_timeout = sync_timeout,
@@ -1005,6 +1009,7 @@ def main():
                             server = options.server,
                             sync_port = options.port,
                             async_port = options.pub,
+                            max_ports = options.max_ports,
                             logger = logger,
                             verbose_level = verbose_level,
                             sync_timeout = sync_timeout,
