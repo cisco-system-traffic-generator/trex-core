@@ -1141,7 +1141,7 @@ class STLProfile(object):
         return output
 
     @staticmethod
-    def load_py (python_file, direction = 0, port_id = 0, **kwargs):
+    def load_py (python_file, client = None, direction = 0, port_id = 0, **kwargs):
         """ Load from Python profile """
 
         # in case load_py is not being called from stl_client, there is need to convert
@@ -1175,6 +1175,7 @@ class STLProfile(object):
             try:
                 streams = module.register().get_streams(direction = direction,
                                                         port_id = port_id,
+                                                        client = client,
                                                         **kwargs)
             except SystemExit:
                 # called ".. -t --help", return None
@@ -1388,7 +1389,7 @@ class STLProfile(object):
         return profile
 
     @staticmethod
-    def load (filename, direction = 0, port_id = 0, **kwargs):
+    def load (filename, client = None, direction = 0, port_id = 0, **kwargs):
         """ Load a profile by its type. Supported types are: 
            * py
            * json
@@ -1405,7 +1406,7 @@ class STLProfile(object):
         suffix = x[1] if (len(x) == 2) else None
 
         if suffix == 'py':
-            profile = STLProfile.load_py(filename, direction, port_id, **kwargs)
+            profile = STLProfile.load_py(filename, client, direction, port_id, **kwargs)
 
         elif suffix == 'json':
             profile = STLProfile.load_json(filename)
