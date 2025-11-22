@@ -34,7 +34,7 @@ struct BasicConstraint: Constraint
     BasicConstraint(const BasicConstraint &other)
       : allocator(other.allocator) { }
 
-    virtual ~BasicConstraint<ConstraintType>() { }
+    virtual ~BasicConstraint() { }
 
     virtual bool accept(ConstraintVisitor &visitor) const
     {
