@@ -1896,7 +1896,8 @@ TrexRpcCmdUpdateTaggedPktGroupTags::_run(const Json::Value &params, Json::Value 
 
         std::string type = parse_string(itr, "type", result, "");
         uint16_t tag_id = parse_uint16(itr, "tag_id", result);
-        const Json::Value& value = parse_object(itr, "value", result, Json::nullValue);
+        const Json::Value def(Json::nullValue);
+        const Json::Value& value = parse_object(itr, "value", result, def);
 
         if (tag_id >= num_tags) {
             err_msg = "Tag Id " + std::to_string(tag_id) + " greater than num of tags " + std::to_string(num_tags);
