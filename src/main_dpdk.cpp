@@ -109,7 +109,9 @@ extern "C" {
 #include "trex_defs.h"
 
 #define MAX_PKT_BURST   32
-#define BP_MAX_CORES 48
+// It is not clear why that is limited here
+// And probably everything around that requires a rework later
+#define BP_MAX_CORES 256
 #define BP_MASTER_AND_LATENCY 2
 
 void set_driver();
