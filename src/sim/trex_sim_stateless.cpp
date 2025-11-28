@@ -107,15 +107,14 @@ class SimPublisher : public TrexPublisher {
 public:
 
     /* override create */
-    bool Create(uint16_t port, bool disable) {
+    bool Create(uint16_t port, bool disable) override {
         return true;
     }
 
-    void Delete() {
-
+    void Delete(int timeout_sec = 0) override {
     }
 
-    void publish_json(const std::string &s) {
+    void publish_json(const std::string &s, uint32_t zip_threshold = TrexPublisher::MSG_COMPRESS_THRESHOLD) override {
     }
 
     virtual ~SimPublisher() {
