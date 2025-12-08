@@ -155,7 +155,7 @@ class CTcpTuneables {
     uint16_t  m_tcp_keepinit;
     uint16_t  m_tcp_keepidle;
     uint16_t  m_tcp_keepintvl;
-    uint16_t m_tcp_delay_ack_msec; /* 20-500msec */
+    uint16_t m_tcp_delay_ack_msec; /* 1-500msec */
 
     uint16_t m_tcp_mss;
     uint16_t m_tcp_initwnd; /* init window*/

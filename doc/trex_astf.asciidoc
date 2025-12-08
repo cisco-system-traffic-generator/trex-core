@@ -3915,7 +3915,7 @@ link:cp_astf_docs/index.html[python index]
 |   tcp.keepidle    |2-65533|5|-|+| value in second for TCP keepidle
 |   tcp.keepintvl   |2-65533|7|-|+| value in second for TCP keepalive interval
 |   tcp.blackhole   |0,1,2|0|-|+| 0 - return RST packet in case of error. 1- return of RST only in SYN. 2- don't return any RST packet, make a blackhole.
-|   tcp.delay_ack_msec | 20-50000|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
+|   tcp.delay_ack_msec | 1-50000|100|-|+| delay ack timeout in msec.  Reducing this value will reduce the performance but will reduce the active flows
 |   tcp.no_delay    | 0-3   | 0|+|+| 2 bits: LSB - Nagle Algorithm (0 - Enabled, 1 - Disabled). MSB - Force Push (FP) (0 - Disabled, 1 - Enabled).
 |   tcp.no_delay_counter    | 0-65533   | 0|+|+|  number of recv bytes to wait until ack is sent. notice ack can be triggered by tcp timer, in order to ensure fixed number of sent packets until ack you should increase the *tcp.initwnd* tunable. otherwise no_delay_counter will race with the tcp timer.
 |   scheduler.rampup_sec    | 3-60000  | disabled |-|+|  scheduler rampup in seconds. After this time the throughput would be the maximum. the throughput increases linearly every 1 sec.
