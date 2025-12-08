@@ -235,7 +235,7 @@ class _CPcapReader_help(object):
                 # special handling for TCP FIN
                 if tcp:
                   if l4.flags & 0x01:
-                      l4_payload_len = 1
+                      l4_payload_len += 1
                 # verify there is no packet loss or retransmission in cap file
                 # don't check for SYN
                 if tcp and (l4.flags & 0x02) == 0:
