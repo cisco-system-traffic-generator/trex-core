@@ -526,9 +526,10 @@ int CPretest::handle_rx(int port_id, int queue_id) {
                             }
                         }
                     } else {
-                        // ARP request not to our IP. Check if this is gratitues ARP for something we need.
+                        // ARP request not to our IP. Check if this is gratuitous ARP for something we need.
                         if ((arp->m_arp_tip == arp->m_arp_sip)
-                            && (rcv_addr = port->find_next_hop(ntohl(arp->m_arp_tip), vlan_id))) {
+                            && (rcv_addr = port->find_next_hop(ntohl(arp->m_arp_tip), vlan_id))
+                            && !CGlobalInfo::m_options.m_garp_ignore) {
                             rcv_addr->set_mac((uint8_t *)&arp->m_arp_sha);
                         }
                     }
