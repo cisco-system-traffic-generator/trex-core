@@ -97,7 +97,7 @@ MbufRedirectCache::~MbufRedirectCache() {
     for (int i = 0; i < m_num_dp_cores; i++) {
         delete m_cache[i];
     }
-    delete m_cache;
+    delete[] m_cache;
 
     if (m_timer) {
         if (m_timer->is_running()) {
