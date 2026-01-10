@@ -20,7 +20,7 @@ from ..common.trex_types import DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 from ..stl.trex_stl_client import STLClient
 
 from .trex_astf_port import ASTFPort
-from .trex_astf_profile import ASTFProfile
+from .trex_astf_profile import ASTFProfile, ASTFProfileLight
 from .topo import ASTFTopologyManager
 from .tunnels_topo import TunnelsTopo
 from .stats.traffic import CAstfTrafficStats
@@ -614,7 +614,10 @@ class ASTFClient(STLClient):
             if profile is None:
                 return
 
-        profile_json = profile.to_json_str(pretty = False, sort_keys = True)
+        if isinstance(profile, ASTFProfileLight):
+            profile_json = profile.to_json_str()
+        else:
+            profile_json = profile.to_json_str(pretty = False, sort_keys = True)
 
         self.ctx.logger.pre_cmd('Loading traffic at acquired ports.')
         rc = self._upload_fragmented('profile_fragment', profile_json, pid_input = pid_input)
