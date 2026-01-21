@@ -1306,12 +1306,12 @@ def generate_packet(**user_kwargs):
                 #                ShortField("urgptr", 0),
                 #                TCPOptionsField("options", {}) ]
 
-        tcp_flags = ('F' if kwargs['tcp_fin_flag'] else '' +
-                     'S' if kwargs['tcp_syn_flag'] else '' +
-                     'R' if kwargs['tcp_rst_flag'] else '' +
-                     'P' if kwargs['tcp_psh_flag'] else '' +
-                     'A' if kwargs['tcp_ack_flag'] else '' +
-                     'U' if kwargs['tcp_urg_flag'] else '')
+        tcp_flags = (('F' if kwargs['tcp_fin_flag'] else '') +
+                     ('S' if kwargs['tcp_syn_flag'] else '') +
+                     ('R' if kwargs['tcp_rst_flag'] else '') +
+                     ('P' if kwargs['tcp_psh_flag'] else '') +
+                     ('A' if kwargs['tcp_ack_flag'] else '') +
+                     ('U' if kwargs['tcp_urg_flag'] else ''))
 
         l4_layer = TCP(sport   = kwargs['tcp_src_port'],
                        dport   = kwargs['tcp_dst_port'],
