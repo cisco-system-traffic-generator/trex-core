@@ -657,7 +657,7 @@ def configure_mlx5 (ctx):
         [ 'HAVE_MLX5_IBV_REG_MR_IOVA', 'infiniband/verbs.h',
         'func', 'ibv_reg_mr_iova' ],
         [ 'HAVE_MLX5_IBV_IMPORT_CTX_PD_AND_MR', 'infiniband/verbs.h',
-        'type', 'ibv_import_device' ],
+        'func', 'ibv_import_device' ],
         [ 'HAVE_MLX5DV_DR_ACTION_CREATE_DEST_ROOT_TABLE', 'infiniband/mlx5dv.h',
         'func', 'mlx5dv_dr_action_create_dest_root_table' ],
         [ 'HAVE_MLX5DV_CREATE_STEERING_ANCHOR', 'infiniband/mlx5dv.h',
