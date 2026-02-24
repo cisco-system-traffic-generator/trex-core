@@ -76,11 +76,12 @@ class Rate:
 
 class NdrBenchConfig:
     def __init__(self, ports, title='Title', cores=1, iteration_duration=20.00,
-                 q_full_resolution=2.00, first_run_duration=20.00, pdr=0.1, 
+                 q_full_resolution=2.00, first_run_duration=20.00, pdr=0.1,
                  pdr_error=1.0, ndr_results=1, max_iterations=10,
                  max_latency=0, lat_tolerance=0, verbose=False, bi_dir=False,
                  plugin_file=None, tunables={}, opt_binary_search=False,
-                 opt_binary_search_percentage=5, total_cores=1, **kwargs):
+                 opt_binary_search_percentage=5, total_cores=1,
+                 ramp_up_time=None, **kwargs):
         """
             Configuration parameters for the benchmark.
 
@@ -174,6 +175,10 @@ class NdrBenchConfig:
         self.max_latency = max_latency
         self.lat_tolerance = lat_tolerance
         self.max_latency_set = True if self.max_latency != 0 else False
+        if ramp_up_time is not None:
+            self.ramp_up_time = ramp_up_time
+        else:
+            self.ramp_up_time = 0
 
     def get_optimal_core_mask(self, num_of_cores, num_of_ports):
         """
@@ -689,7 +694,8 @@ class NdrBench:
         if run_max:
             duration = self.config.first_run_duration
             self.stl_client.start(ports=self.config.transmit_ports, mult="100%",
-                                  duration=duration, core_mask=self.config.transmit_core_masks)
+                                  duration=duration, core_mask=self.config.transmit_core_masks,
+                                  ramp_up_time=self.config.ramp_up_time)
             rate_mb_percent = 100
         else:
             m_rate = Rate(self.results.stats['max_rate_bps'])
@@ -698,10 +704,11 @@ class NdrBench:
             run_rate = m_rate.convert_percent_to_rate(rate_mb_percent)
             duration = self.config.iteration_duration
             self.stl_client.start(ports=self.config.transmit_ports, mult=str(run_rate) + "bps",
-                                  duration=duration, core_mask=self.config.transmit_core_masks)
+                                  duration=duration, core_mask=self.config.transmit_core_masks,
+                                  ramp_up_time=self.config.ramp_up_time)
         time.sleep(duration / 2)
-        stats = self.stl_client.get_stats()
         self.stl_client.stop(ports=self.config.ports)
+        stats = self.stl_client.get_stats()
         opackets = stats['total']['opackets']
         ipackets = stats['total']['ipackets']
         lost_p = opackets - ipackets

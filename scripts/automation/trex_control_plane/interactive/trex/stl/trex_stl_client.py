@@ -1,3 +1,4 @@
+import math
 import time
 import sys
 import os
@@ -726,7 +727,8 @@ class STLClient(TRexClient):
                duration = -1,
                total = False,
                core_mask = None,
-               synchronized = False):
+               synchronized = False,
+               ramp_up_time = 0):
         """
             Start traffic on port(s)
 
@@ -765,6 +767,11 @@ class STLClient(TRexClient):
                     Will set default core_mask to 0x1.
                     Recommended ipg 1ms and more.
 
+                ramp_up_time : float
+                    Duration in seconds to ramp up traffic from 0.1%
+                    of the target rate to full rate using an exponential
+                    curve. The method blocks during the ramp. 0 = disabled.
+
             :raises:
                 + :exc:`TRexError`
 
@@ -791,6 +798,7 @@ class STLClient(TRexClient):
         validate_type('duration', duration, (int, float))
         validate_type('total', total, bool)
         validate_type('core_mask', core_mask, (type(None), int, list))
+        validate_type('ramp_up_time', ramp_up_time, (int, float))
 
         
         #########################
@@ -837,19 +845,65 @@ class STLClient(TRexClient):
         # clear flow stats and latency stats when starting traffic. (Python cache only)
         self.pgid_stats.clear_stats(clear_flow_stats=True, clear_latency_stats=True)
 
-        # start traffic
-        self.ctx.logger.pre_cmd("Starting {}traffic on port(s) {}:".format(synchronized_str, ports))
-
         # mask is port specific information
         pargs = {k:{'mask': v} for k, v in decoded_mask.items()}
 
-        rc = self._for_each_port("start", ports, mult_obj, duration, force, start_at_ts = start_at_ts, pargs = pargs)
-        self.ctx.logger.post_cmd(rc)
+        if ramp_up_time > 0:
+            # start at 0.1% of target rate, then ramp up exponentially
+            initial_mult = dict(mult_obj)
+            initial_mult['value'] = mult_obj['value'] * 0.001
 
-        if not rc:
-            raise TRexError(rc)
+            self.ctx.logger.pre_cmd("Starting {}traffic on port(s) {} with {:.1f}s ramp-up:".format(
+                synchronized_str, ports, ramp_up_time))
+
+            rc = self._for_each_port("start", ports, initial_mult, duration,
+                                     force, start_at_ts=start_at_ts, pargs=pargs)
+            self.ctx.logger.post_cmd(rc)
+
+            if not rc:
+                raise TRexError(rc)
+
+            self._ramp_up(ports, mult_obj, ramp_up_time)
+        else:
+            self.ctx.logger.pre_cmd("Starting {}traffic on port(s) {}:".format(
+                synchronized_str, ports))
+
+            rc = self._for_each_port("start", ports, mult_obj, duration,
+                                     force, start_at_ts=start_at_ts, pargs=pargs)
+            self.ctx.logger.post_cmd(rc)
+
+            if not rc:
+                raise TRexError(rc)
 
         return rc
+
+    def _ramp_up (self, ports, target_mult, ramp_up_time):
+        """
+            Exponentially ramp traffic from 0.1% to target rate.
+
+            Rate grows geometrically in fixed-interval steps over
+            ramp_up_time seconds, producing a smooth exponential curve
+            that starts very low to allow DUT flow table warm-up.
+        """
+        step_interval = 0.1  # seconds between updates
+        n_steps = max(int(ramp_up_time / step_interval), 1)
+        initial_fraction = 0.001
+        ratio = math.pow(1.0 / initial_fraction, 1.0 / n_steps)
+
+        fraction = initial_fraction
+        for i in range(n_steps):
+            time.sleep(step_interval)
+            fraction *= ratio
+            if fraction >= 1.0:
+                fraction = 1.0
+
+            step_mult = dict(target_mult)
+            step_mult['value'] = target_mult['value'] * fraction
+            step_mult['op'] = 'abs'
+            self._for_each_port("update", ports, step_mult, False)
+
+            if fraction >= 1.0:
+                break
 
     start_stl = start
 

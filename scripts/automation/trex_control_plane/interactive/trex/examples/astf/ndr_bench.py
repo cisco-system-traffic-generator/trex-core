@@ -61,7 +61,7 @@ class ASTFNdrBenchConfig:
     def __init__(self, high_mult, low_mult, title='Title', iteration_duration=20.00,
                  q_full_resolution=2.00, allowed_error=1.0, max_iterations=10,
                  latency_pps=0, max_latency=0, lat_tolerance=0, verbose=False,
-                 plugin_file=None, tunables={}, **kwargs):
+                 plugin_file=None, tunables={}, ramp_up_time=None, **kwargs):
         """
             Configuration parameters for the benchmark.
 
@@ -125,6 +125,10 @@ class ASTFNdrBenchConfig:
         self.max_latency = max_latency
         self.lat_tolerance = lat_tolerance
         self.max_latency_set = True if self.max_latency != 0 else False
+        if ramp_up_time is not None:
+            self.ramp_up_time = ramp_up_time
+        else:
+            self.ramp_up_time = 0
 
     @classmethod
     def load_plugin(cls, plugin_file):
@@ -483,9 +487,32 @@ class ASTFNdrBench:
                 self.opt_run_stats.update(new_stats)
 
 
+    def _ramp_up(self, target_mult, ramp_up_time):
+        """
+            Exponentially ramp CPS from 0.1% to target multiplier.
+
+            Rate grows geometrically in fixed-interval steps over
+            ramp_up_time seconds, producing a smooth exponential curve
+            that starts very low to allow DUT flow table warm-up.
+        """
+        step_interval = 0.1  # seconds between updates
+        n_steps = max(int(ramp_up_time / step_interval), 1)
+        initial_fraction = 0.001
+        ratio = math.pow(1.0 / initial_fraction, 1.0 / n_steps)
+
+        fraction = initial_fraction
+        for i in range(n_steps):
+            time.sleep(step_interval)
+            fraction *= ratio
+            if fraction >= 1.0:
+                fraction = 1.0
+            self.astf_client.update(target_mult * fraction)
+            if fraction >= 1.0:
+                break
+
     def perf_run(self, mult):
         """
-            Transmits traffic through the ASTF client object in the class. 
+            Transmits traffic through the ASTF client object in the class.
 
             :parameters:
                 mult: int
@@ -498,7 +525,14 @@ class ASTFNdrBench:
          # allow time for counters to settle from previous runs
         time.sleep(10)
         self.astf_client.clear_stats()
-        self.astf_client.start(mult=mult, nc=True, latency_pps=self.config.latency_pps)
+        ramp = self.config.ramp_up_time
+        if ramp > 0:
+            self.astf_client.start(mult=mult * 0.001, nc=True,
+                                   latency_pps=self.config.latency_pps)
+            self._ramp_up(mult, ramp)
+        else:
+            self.astf_client.start(mult=mult, nc=True,
+                                   latency_pps=self.config.latency_pps)
         time_slept = 0
         sleep_interval = 1 # in seconds
         error_flag = False

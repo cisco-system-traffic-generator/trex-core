@@ -15,7 +15,8 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
                        lat_tolerance=0, output=None, ports_list=[], yaml_file=None,
                        bi_dir=False, force_map_table=False, plugin_file=None, tunables={},
                        opt_binary_search=False, opt_binary_search_percentage=5,
-                       profile='stl/imix.py', profile_tunables={}, print_final_results=True):
+                       profile='stl/imix.py', profile_tunables={}, print_final_results=True,
+                       ramp_up_time=None):
 
 
     if title == 'Title':
@@ -27,7 +28,8 @@ def ndr_benchmark_test(server='127.0.0.1', pdr=0.1, iteration_duration=20.00, nd
                'max_latency': max_latency, 'lat_tolerance': lat_tolerance,
                'bi_dir': bi_dir, 'force_map_table': force_map_table,
                'plugin_file': plugin_file, 'tunables': tunables,
-               'opt_binary_search': opt_binary_search, 'opt_binary_search_percentage': opt_binary_search_percentage}
+               'opt_binary_search': opt_binary_search, 'opt_binary_search_percentage': opt_binary_search_percentage,
+               'ramp_up_time': ramp_up_time}
 
     passed = True
     if yaml_file:
@@ -264,6 +266,14 @@ if __name__ == '__main__':
                         help='Use this to configure the percentage parameter for opt-bin-search.',
                         default=5,
                         type=is_percentage)
+    parser.add_argument('--ramp-up-time',
+                        dest='ramp_up_time',
+                        help='Duration of exponential rate ramp-up at the start '
+                             'of each iteration to prevent drops caused by sudden '
+                             'traffic bursts. Default is 10%% of iteration duration. '
+                             'Set to 0 to disable. [seconds]',
+                        default=None,
+                        type=float)
     parser.add_argument('--profile',
                         dest='profile',
                         help='Path to the profile we want to load. The profile defines the type of traffic we sent and the drop point differs depending on the traffic type.',
@@ -284,4 +294,5 @@ if __name__ == '__main__':
                        output=args.output, ports_list=args.ports_list, yaml_file=args.yaml, bi_dir=args.bi_dir,
                        force_map_table=args.force_map_table, plugin_file=args.plugin_file, tunables=args.tunables,
                        opt_binary_search=args.opt_binary_search, opt_binary_search_percentage=args.opt_binary_search_percentage,
-                       profile=args.profile, profile_tunables=args.profile_tunables)
+                       profile=args.profile, profile_tunables=args.profile_tunables,
+                       ramp_up_time=args.ramp_up_time)

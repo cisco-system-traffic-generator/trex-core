@@ -13,7 +13,8 @@ def ndr_benchmark_test(high_mult, low_mult, server='127.0.0.1', iteration_durati
                        title='Title', verbose=False, allowed_error=1.00, q_full_resolution=2.00,
                        max_iterations=10, latency_pps=0, max_latency=0,
                        lat_tolerance=0, output=None, yaml_file=None, plugin_file=None,
-                       tunables={}, profile='astf/udp_mix.py', profile_tunables={}):
+                       tunables={}, profile='astf/udp_mix.py', profile_tunables={},
+                       ramp_up_time=None):
 
 
     if title == 'Title':
@@ -23,7 +24,8 @@ def ndr_benchmark_test(high_mult, low_mult, server='127.0.0.1', iteration_durati
                'allowed_error': allowed_error, 'title': title, 'q_full_resolution': q_full_resolution,
                'max_iterations': max_iterations, 'latency_pps': latency_pps, 
                'max_latency': max_latency, 'lat_tolerance': lat_tolerance,
-               'plugin_file': plugin_file, 'tunables': tunables}
+               'plugin_file': plugin_file, 'tunables': tunables,
+               'ramp_up_time': ramp_up_time}
 
     passed = True
     if yaml_file:
@@ -198,6 +200,14 @@ if __name__ == '__main__':
                         help='Tunables to forward to the plugin if it exists. Use: --tunables a=1,b=2,c=3 (no spaces).',
                         default={},
                         type=decode_tunables)
+    parser.add_argument('--ramp-up-time',
+                        dest='ramp_up_time',
+                        help='Duration of exponential rate ramp-up at the start '
+                             'of each iteration to prevent drops caused by sudden '
+                             'traffic bursts. Default is 10%% of iteration duration. '
+                             'Set to 0 to disable. [seconds]',
+                        default=None,
+                        type=float)
     parser.add_argument('--profile',
                         dest='profile',
                         help='Path to the profile we want to load. The profile defines the type of traffic we send and the NDR differs depending on the traffic type.',
@@ -227,4 +237,5 @@ if __name__ == '__main__':
                        latency_pps=args.latency_pps, max_latency=args.max_latency, lat_tolerance=args.lat_tolerance,
                        output=args.output, yaml_file=args.yaml, plugin_file=args.plugin_file,
                        tunables=args.tunables, profile=args.profile, profile_tunables=args.profile_tunables,
-                       high_mult=args.high_mult, low_mult=args.low_mult)
+                       high_mult=args.high_mult, low_mult=args.low_mult,
+                       ramp_up_time=args.ramp_up_time)
