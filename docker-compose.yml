@@ -1,5 +1,6 @@
 services:
   trex:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
