@@ -2249,11 +2249,11 @@ struct rte_eth_tunnel_filter_conf {
 	uint16_t queue_id;      /**< Queue assigned to if match */
 };
 
-#ifndef TREX_PATCH
 /**
  *  Memory space that can be configured to store Flow Director filters
  *  in the board memory.
  */
+#ifndef TREX_PATCH
 enum rte_eth_fdir_pballoc_type {
 	RTE_ETH_FDIR_PBALLOC_64K = 0,  /**< 64k. */
 	RTE_ETH_FDIR_PBALLOC_128K,     /**< 128k. */
@@ -2306,8 +2306,6 @@ __rte_internal
 uint64_t
 rte_eth_get_restore_flags(struct rte_eth_dev *dev,
 			  enum rte_eth_dev_operation op);
-
-#endif
 
 #ifdef __cplusplus
 }
