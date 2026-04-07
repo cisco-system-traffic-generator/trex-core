@@ -2286,8 +2286,6 @@ struct rte_eth_fdir_conf {
 	struct rte_eth_fdir_flex_conf flex_conf;
 };
 
-#endif /* TREX_PATCH */
-
 /**
  * @internal
  * Fetch from the driver what kind of configuration must be restored by ethdev layer,
