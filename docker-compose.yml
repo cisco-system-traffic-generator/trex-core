@@ -1,0 +1,20 @@
+services:
+  trex:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trex-core:local
+    container_name: trex
+    privileged: true
+    cap_add:
+      - ALL
+    stdin_open: true
+    tty: true
+    volumes:
+      - /mnt/huge:/mnt/huge
+      - /lib/modules:/lib/modules:ro
+      - /sys/bus/pci/devices:/sys/bus/pci/devices
+      - /sys/devices/system/node:/sys/devices/system/node
+      - /dev:/dev
+    environment:
+      TREX_CFG: /etc/trex_cfg.yaml
