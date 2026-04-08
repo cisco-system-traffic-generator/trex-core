@@ -58,7 +58,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/trex
 
 COPY --from=builder /opt/trex/ /opt/trex/
-COPY docker/ubuntu/16.04/trex_cfg.yaml /etc/trex_cfg.yaml
+COPY trex.yml /etc/trex_cfg.yaml
 
 RUN mkdir -p /mnt/huge /tmp/trex-bird
 
