@@ -26,9 +26,11 @@ WORKDIR /src/trex-core/linux_dpdk
 
 RUN ./b configure && \
     ./b build && \
-    ./b pkg --pkg-dir /tmp --pkg-file trex.tar.gz && \
     mkdir -p /opt/trex && \
-    tar -xzf /tmp/trex.tar.gz -C /opt/trex --strip-components=1
+    rsync -aL \
+    --exclude='*.pyc' \
+    --exclude='__pycache__' \
+    /src/trex-core/scripts/ /opt/trex/
 
 
 FROM python:3.11-slim-bullseye AS runtime
