@@ -45,7 +45,7 @@ trex-console
 The Compose setup mounts the local config file:
 
 ```text
-docker/ubuntu/16.04/trex_cfg.yaml
+trex.yml
 ```
 
 into the container at:
