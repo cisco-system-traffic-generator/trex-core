@@ -28,6 +28,7 @@ RUN ./b configure && \
     ./b build && \
     mkdir -p /opt/trex && \
     rsync -aL \
+    --exclude='bird/' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
     /src/trex-core/scripts/ /opt/trex/
