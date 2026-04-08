@@ -1,0 +1,16 @@
+.git
+.gitignore
+.gitreview
+.env
+
+legacy_files
+
+doc
+signedoff
+travis_files
+
+linux_dpdk/build_dpdk
+scripts/generated
+
+*.pyc
+__pycache__
