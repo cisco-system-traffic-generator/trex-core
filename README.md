@@ -23,6 +23,12 @@ This repository includes a Docker image and Compose setup for building and runni
 docker compose build
 ```
 
+Rebuild without using previous layers:
+
+```bash
+docker compose build --no-cache
+```
+
 ### Open The Container
 
 ```bash
@@ -38,6 +44,78 @@ Useful commands:
 ```bash
 t-rex-64 --help
 trex-console
+```
+
+## Docker Image Management
+
+### List Images
+
+```bash
+docker image ls
+docker image ls | grep trex
+```
+
+### Inspect The Built Image
+
+```bash
+docker image inspect trex-core:local
+```
+
+### Remove The Local TRex Image
+
+```bash
+docker image rm trex-core:local
+```
+
+If the image is still referenced by containers, remove those first:
+
+```bash
+docker container ls -a
+docker container rm <container_id>
+docker image rm trex-core:local
+```
+
+### Clean Up Compose Resources
+
+Stop and remove Compose-managed containers, networks, and anonymous volumes:
+
+```bash
+docker compose down -v
+```
+
+Remove unused images, stopped containers, unused networks, and build cache:
+
+```bash
+docker system prune
+```
+
+More aggressive cleanup, including unused images not currently attached to containers:
+
+```bash
+docker system prune -a
+```
+
+### Clean Up Build Cache Only
+
+```bash
+docker builder prune
+```
+
+Remove all unused build cache:
+
+```bash
+docker builder prune -a
+```
+
+### Fresh Rebuild From Scratch
+
+If you want a clean rebuild of the TRex image:
+
+```bash
+docker compose down -v
+docker image rm trex-core:local
+docker builder prune -a
+docker compose build --no-cache
 ```
 
 ## TRex Config
