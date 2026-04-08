@@ -1,8 +1,11 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.11-slim-bullseye AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     file \
@@ -40,7 +43,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TREX_HOME=/opt/trex
 ENV PATH=/opt/trex:$PATH
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     iproute2 \
     kmod \
