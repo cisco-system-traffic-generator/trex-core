@@ -23,7 +23,7 @@ This repository includes a Docker image and Compose setup for building and runni
 docker compose build
 ```
 
-### Run
+### Open The Container
 
 ```bash
 docker compose run --rm trex
@@ -55,6 +55,127 @@ into the container at:
 ```
 
 Edit the local file to change interfaces, IPs, and other TRex runtime settings.
+
+Important fields in `trex.yml`:
+
+- `interfaces`: PCI addresses of the NICs TRex should use
+- `port_limit`: number of ports TRex should expose
+- `c`: number of worker cores
+- `port_info`: IP and gateway values per port
+
+## Configure And Run TRex
+
+### 1. Edit The Config
+
+Update [trex.yml](/Users/anurag/SceptreAI/trex-core/trex.yml) before running TRex.
+
+At minimum, review:
+
+- `interfaces`
+- `port_limit`
+- `c`
+- `port_info`
+
+The sample values in the file are placeholders and usually need to be replaced with values that match your system.
+
+### 2. Build The Container
+
+```bash
+docker compose build
+```
+
+### 3. Start An Interactive Shell
+
+```bash
+docker compose run --rm trex
+```
+
+### 4. Verify The Runtime Inside The Container
+
+```bash
+cd /opt/trex
+t-rex-64 --help
+trex-console
+```
+
+### 5. Run TRex Server
+
+For interactive stateless mode:
+
+```bash
+cd /opt/trex
+t-rex-64 --stl -i
+```
+
+For interactive ASTF mode:
+
+```bash
+cd /opt/trex
+t-rex-64 --astf -i
+```
+
+For a basic profile run:
+
+```bash
+cd /opt/trex
+t-rex-64 -f cap2/dns.yaml -m 10 -d 20
+```
+
+TRex expects to run as root. In this container, that is already the default.
+
+### 6. Use The Console
+
+In another shell inside the same container, or in a second `docker compose run --rm trex` session if appropriate for your workflow:
+
+```bash
+cd /opt/trex
+trex-console
+```
+
+The console is the easiest way to interact with a running TRex instance in interactive mode.
+
+## Python Scripts And Examples
+
+This repository also contains Python-based tooling and examples.
+
+### Console Launcher
+
+The `trex-console` command is a Python entrypoint that loads the interactive control-plane package from:
+
+```text
+scripts/automation/trex_control_plane/interactive
+```
+
+### Example Python Programs
+
+Useful example directories:
+
+- `scripts/automation/trex_control_plane/interactive/trex/examples/stl`
+- `scripts/automation/trex_control_plane/interactive/trex/examples/astf`
+- `scripts/automation/trex_control_plane/interactive/trex/examples/emu`
+- `scripts/stl`
+- `scripts/emu`
+
+Examples you may want to inspect first:
+
+- `scripts/automation/trex_control_plane/interactive/trex/examples/stl/stl_simple_burst.py`
+- `scripts/automation/trex_control_plane/interactive/trex/examples/stl/stl_imix.py`
+- `scripts/automation/trex_control_plane/interactive/trex/examples/astf/astf_example.py`
+- `scripts/automation/trex_control_plane/interactive/trex/examples/emu/emu_arp.py`
+- `scripts/stl/udp_1pkt_simple.py`
+
+### Running A Python Example
+
+Most Python examples are intended to be run from inside `/opt/trex`, where the packaged scripts and Python paths are available.
+
+A typical pattern looks like:
+
+```bash
+cd /opt/trex
+python3 automation/trex_control_plane/interactive/trex/examples/stl/stl_simple_burst.py
+```
+
+Some examples assume that the TRex server is already running and reachable.
 
 ## Notes
 
