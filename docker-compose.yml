@@ -11,11 +11,7 @@ services:
       - ALL
     stdin_open: true
     tty: true
-    volumes:
-      - /mnt/huge:/mnt/huge
-      - /lib/modules:/lib/modules:ro
-      - /sys/bus/pci/devices:/sys/bus/pci/devices
-      - /sys/devices/system/node:/sys/devices/system/node
-      - /dev:/dev
+    tmpfs:
+      - /mnt/huge
     environment:
       TREX_CFG: /etc/trex_cfg.yaml
