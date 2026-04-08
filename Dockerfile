@@ -67,5 +67,5 @@ LABEL org.opencontainers.image.description="Container image for building and run
 LABEL org.opencontainers.image.source="https://github.com/cisco-system-traffic-generator/trex-core"
 LABEL trex.run="docker run --rm -it --privileged --cap-add=ALL -v /mnt/huge:/mnt/huge -v /lib/modules:/lib/modules:ro -v /sys/bus/pci/devices:/sys/bus/pci/devices -v /sys/devices/system/node:/sys/devices/system/node -v /dev:/dev IMAGE"
 
-ENTRYPOINT ["/opt/trex/t-rex-64"]
-CMD ["--help"]
+ENTRYPOINT ["/bin/bash"]
+CMD ["-l"]
