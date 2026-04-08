@@ -42,8 +42,9 @@ Inside the container, TRex is available at `/opt/trex`.
 Useful commands:
 
 ```bash
-t-rex-64 --help
-trex-console
+cd /opt/trex
+./t-rex-64 --help
+./trex-console
 ```
 
 ## Docker Image Management
@@ -172,8 +173,8 @@ docker compose run --rm trex
 
 ```bash
 cd /opt/trex
-t-rex-64 --help
-trex-console
+./t-rex-64 --help
+./trex-console
 ```
 
 ### 5. Run TRex Server
@@ -182,21 +183,21 @@ For interactive stateless mode:
 
 ```bash
 cd /opt/trex
-t-rex-64 --stl -i
+./t-rex-64 --stl -i
 ```
 
 For interactive ASTF mode:
 
 ```bash
 cd /opt/trex
-t-rex-64 --astf -i
+./t-rex-64 --astf -i
 ```
 
 For a basic profile run:
 
 ```bash
 cd /opt/trex
-t-rex-64 -f cap2/dns.yaml -m 10 -d 20
+./t-rex-64 -f cap2/dns.yaml -m 10 -d 20
 ```
 
 TRex expects to run as root. In this container, that is already the default.
@@ -207,7 +208,7 @@ In another shell inside the same container, or in a second `docker compose run -
 
 ```bash
 cd /opt/trex
-trex-console
+./trex-console
 ```
 
 The console is the easiest way to interact with a running TRex instance in interactive mode.
