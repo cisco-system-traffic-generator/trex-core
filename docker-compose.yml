@@ -14,6 +14,6 @@ services:
     tmpfs:
       - /mnt/huge
     volumes:
-      - ./docker/ubuntu/16.04/trex_cfg.yaml:/etc/trex_cfg.yaml:ro
+      - ./trex.yml:/etc/trex_cfg.yaml:ro
     environment:
       TREX_CFG: /etc/trex_cfg.yaml
