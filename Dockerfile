@@ -67,6 +67,10 @@ COPY trex.yml /etc/trex_cfg.yaml
 
 RUN mkdir -p /mnt/huge /tmp/trex-bird
 
+RUN ln -sf /opt/trex/t-rex-64 /usr/local/bin/t-rex-64 && \
+    ln -sf /opt/trex/trex-console /usr/local/bin/trex-console && \
+    ln -sf /opt/trex/trex-emu /usr/local/bin/trex-emu
+
 LABEL org.opencontainers.image.title="TRex Core"
 LABEL org.opencontainers.image.description="Container image for building and running TRex with Python 3.11"
 LABEL org.opencontainers.image.source="https://github.com/cisco-system-traffic-generator/trex-core"
