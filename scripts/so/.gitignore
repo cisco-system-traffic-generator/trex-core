@@ -2,5 +2,10 @@
 *
 # Except those files:
 !.gitignore
-!libzmq*
-!libstd*
+# Allow all directories (so we can traverse into them)
+!*/
+# But ignore everything in subdirectories
+*/*
+# Except libzmq and libstd files in any subdirectory
+!*/libzmq*
+!*/libstd*

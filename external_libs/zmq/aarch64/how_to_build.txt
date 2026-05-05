@@ -1,0 +1,21 @@
+- Download latest stable release https://github.com/zeromq/libzmq/releases
+- Decompress the archive
+- Change directory to the extracted one
+- Build:
+    ./configure --enable-address-sanitizer=no --disable-curve --disable-curve-keygen --disable-perf --without-docs --with-gcov=no --enable-radix-tree=no
+    make
+- Copy include dir to current directory
+- Find libzmq.a and copy to current directory
+- Find libzmq.so.5.*.* and copy to:
+    current directory as libzmq.so
+    scripts/so as libzmq.so.5
+    scripts/external_libs/pyzmq-ctypes/zmq/intel/64bit as libzmq.so (adapt intel/arm 64bit/32bit to your CPU/Python arch)
+
+Notes:
+
+- To build 32bit version, define following vars before build:
+    export CFLAGS="-m32"
+    export CXXFLAGS="-m32"
+
+- Current ZMQ .so is v4.3.1
+
