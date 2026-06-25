@@ -857,7 +857,7 @@ int CFlowStatRuleMgr::start_stream(TrexStream * stream) {
             return 0; // if we could not find the ip id, no need to fix
         }
         // verify no reserved IP_ID used, and change if needed
-        if (ip_id >= m_ip_id_reserve_base) {
+        if (ip_id >= m_ip_id_reserve_base && ip_id <= UINT16_MAX) {
             m_parser_ipid->set_ip_id(ip_id & 0x0000efff);
         }
         DEBUG_PRINT("  No rx check needed. - return 0\n");
