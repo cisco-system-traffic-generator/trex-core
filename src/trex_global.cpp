@@ -343,6 +343,10 @@ void CParserOption::dump(FILE *fd){
 }
 
 void CParserOption::verify() {
+    if (preview.getCores() == 0) {
+        throw std::runtime_error("the number of DP cores must be at least 1; use -c 1 or set c: 1 in the platform configuration");
+    }
+
     /* check for mutual exclusion options */
     if ( preview.get_is_client_cfg_enable() ) {
         if ( preview.get_vlan_mode() == CPreviewMode::VLAN_MODE_LOAD_BALANCE ) {
@@ -354,4 +358,3 @@ void CParserOption::verify() {
         }
     }
 }
-

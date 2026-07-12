@@ -120,6 +120,13 @@ int test_human_p(){
 class basic : public trexTest {};
 class cpu : public trexTest {};
 
+TEST(parser_option, rejects_zero_dp_cores) {
+    CParserOption options;
+    options.preview.setCores(0);
+
+    EXPECT_THROW(options.verify(), std::runtime_error);
+}
+
 TEST_F(basic, limit_single_pkt) {
 
      CTestBasic t1;
@@ -3183,6 +3190,5 @@ TEST_F(ipg_calc, test8) {
     //expect_vec(port_map,expect,4);
 
 }
-
 
 

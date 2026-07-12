@@ -4376,11 +4376,6 @@ COLD_FUNC int  CGlobalTRex::device_prob_init(void){
         m_port_cfg.update_global_config_fdir();
     }
 
-    if ( ps->preview.getCores() ==0 ) {
-        printf("Error: the number of cores can't be set to 0. Please use -c 1 \n \n");
-        exit(1);
-    }
-
     if ( get_dpdk_mode()->is_one_tx_rx_queue() ) {
         /* verify that we have only one thread/core per dual- interface */
         if ( ps->preview.getCores()>1 ) {
@@ -6919,6 +6914,12 @@ COLD_FUNC int main_test(int argc , char * argv[]){
         exit(-1);
     }
 
+    try {
+        po->verify();
+    } catch (const std::runtime_error &e) {
+        std::cout << "\n*** " << e.what() << "\n\n";
+        return -1;
+    }
 
     update_memory_cfg();
 
