@@ -541,6 +541,17 @@ def test_get_templates_several_times():
     templates_2 = get_templates()
     assert(templates_1 == templates_2)
 
+def test_get_template_returns_json_serializable_string():
+    params = {"id": "TCP-SYN"}
+    template_b64 = service.get_template(v_handler, params)
+
+    assert isinstance(template_b64, str)
+    json.dumps(template_b64)
+
+    template_json = base64.b64decode(template_b64).decode("utf-8")
+    obj = json.loads(template_json)
+    assert obj["packet"][0]["id"] == "Ether"
+
 def test_get_template_root():
     obj = json.loads(get_template_by_id('TCP-SYN'))
     assert(obj['packet'][0]['id'] == 'Ether')

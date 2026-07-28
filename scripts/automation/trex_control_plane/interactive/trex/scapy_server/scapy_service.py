@@ -1096,7 +1096,7 @@ class Scapy_service(Scapy_service_api):
             return ""
         f  = os.path.join(self.scapy_service_dir, f)
         with open(f, 'r') as content_file:
-            content = base64.b64encode(str_to_bytes(content_file.read()))
+            content = bytes_to_b64(str_to_bytes(content_file.read()))
         return content
 
 
