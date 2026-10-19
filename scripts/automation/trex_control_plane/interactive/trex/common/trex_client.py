@@ -1043,7 +1043,7 @@ class TRexClient(object):
                 writer = RawPcapWriter(output, linktype = 1)
             except IOError as e:
                 raise TRexError('Could not open file %s: %s' % (output, e))
-            writer._write_header(None)
+            writer.write_header(None)
         elif isinstance(output, list):
             # clear the list
             del output[:]
@@ -1089,7 +1089,7 @@ class TRexClient(object):
                 if write_to_file:
                     ts_sec, ts_usec = sec_split_usec(ts)
                     wirelen = pkt.get('wirelen', None) if snaplen else None
-                    writer._write_packet(pkt['binary'], sec=ts_sec, usec=ts_usec, wirelen=wirelen)
+                    writer.write_packet(pkt['binary'], sec=ts_sec, usec=ts_usec, wirelen=wirelen)
                 elif isinstance(output, list):
                     output.append(pkt)
 

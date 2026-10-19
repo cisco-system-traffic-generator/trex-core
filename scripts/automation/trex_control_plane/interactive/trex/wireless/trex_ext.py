@@ -6,7 +6,12 @@ import platform
 # if not set - set it to default
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 # trex-core/scripts/external_libs
-TREX_EXT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
+TREX_EXT_PATH = os.getenv('TREX_EXT_PATH')
+if not TREX_EXT_PATH:
+    TREX_EXT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, os.pardir, os.pardir, 'external_libs'))
+    if not os.path.exists(TREX_EXT_PATH):
+        # Standalone trex_client package: interactive/trex/wireless -> trex_client.
+        TREX_EXT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, os.pardir, os.pardir, os.pardir, 'external_libs'))
 
 if not os.path.exists(TREX_EXT_PATH):
     raise Exception('Could not determine path of external_libs, try setting TREX_EXT_PATH variable')
@@ -16,7 +21,7 @@ if not os.path.exists(TREX_EXT_PATH):
 # arch-dep requires intel/arm, ucs2/ucs4, 32bit/64bit directories
 CLIENT_UTILS_MODULES = [ {'name': 'texttable-0.8.4'},
                          {'name': 'pyyaml-3.11', 'py-dep': True},
-                         {'name': 'scapy-2.4.3'},
+                         {'name': 'scapy-2.8.0'},
                          {'name': 'simpy-3.0.10'},
                          {'name': 'trex-openssl'},
                         ]
