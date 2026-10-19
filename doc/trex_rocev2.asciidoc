@@ -1,0 +1,208 @@
+Stateless RoCEv2 traffic
+=======================
+:toc:
+
+== Scope
+
+The `stl/rocev2_gpu.py` profile generates synthetic RoCEv2 RC traffic for
+network-fabric testing. It supports IPv4 and IPv6, VLAN/PCP, DSCP/ECN, GIDs,
+multiple destination QPs, PSNs, RETH/AETH, RDMA write, read request, and read
+response packets. Large messages are segmented to fit the requested frame
+size. The frame size includes Ethernet FCS; captured packet bytes exclude FCS
+and include the four-byte RoCEv2 ICRC.
+
+This is a stateless stream generator. It does not establish an RDMA connection,
+negotiate keys or credits, perform retransmissions, validate remote memory, or
+report RDMA completions. Read requests and responses are independent packet
+templates. Repeated burst/continuous packets repeat their configured PSNs;
+ordered segments can be sent once with `--stream-mode chain`.
+
+The client requires Python 3.7 or newer and the bundled Scapy 2.8.0 integration.
+
+== Generate and send streams
+
+=== Native API
+
+The server can construct and install plain stateless RoCEv2 streams directly
+from a configuration object. No Python profile or Scapy packet construction is
+needed on this path:
+
+[source,python]
+----
+from trex.stl.api import STLClient
+
+client = STLClient(server='localhost')
+try:
+    client.connect()
+    client.acquire(ports=[0, 1])
+    client.reset(ports=[0, 1])
+    installed = client.add_rocev2_streams({
+        'operation': 'write', 'ip_version': 4, 'qps': 4,
+        'message_size': 4096, 'mtu': 9000,
+        'stream_mode': 'burst', 'total_pkts': 100, 'pps': 100,
+        'src_mac': '00:00:00:00:01:00', 'dst_mac': '00:00:00:00:02:00',
+        'flow_stats': True, 'pg_id_base': 100,
+    }, ports=[0])
+    client.clear_stats(ports=[0, 1])
+    client.start(ports=[0])
+    client.wait_on_traffic(ports=[0], timeout=60, rx_delay_ms=1000)
+    counters = client.get_rocev2_stats(installed['pgids'])
+    verdict = client.validate_rocev2_stats(installed['expected_stats'], 0, 1)
+    assert verdict['passed'], verdict['errors']
+finally:
+    client.disconnect()
+----
+
+`add_rocev2_streams()` accepts the profile options below with underscores
+instead of hyphens and JSON integer/boolean values. The native API enables
+basic flow stats by default. Address increments are unsigned 32-bit values.
+Use distinct PGID ranges for independent traffic whose counters must remain
+separate. A named target profile can be selected with `ports=['0.roce']`.
+The add is atomic per target profile; a multi-port call can succeed on one
+port and fail on another. Standard STL start/stop/remove calls manage the
+installed streams. The return value is a dictionary for one target or a list
+of dictionaries for multiple targets.
+
+`build_rocev2_streams(config, first_stream_id=1)` returns stream descriptors,
+IDs, PGIDs, and expected counters without installing anything. Stream and
+packet generation runs in C++; it does not schedule collective operations or
+create RDMA sessions. `expected_stats` is present for finite burst/chain
+traffic with flow stats enabled; continuous traffic has no predetermined
+packet total. `clear_rocev2_stats()` resets the client's baseline for all flow
+PGIDs, leaving latency stats alone. It does not clear only one PGID or reset
+physical NIC counters.
+
+The JSON-RPC methods are `build_rocev2_streams` (`config`, optional
+`first_stream_id`), `add_rocev2_streams` (`config`, `port_id`, `handler`, optional
+`profile_id`/`first_stream_id`), and `get_rocev2_stats` (`pgids`). The add method
+checks port ownership and rolls back its own streams on installation failure.
+The stats method uses the existing native PGID counters and wire format. The
+Python API applies standard counter translation, relative baselines, and
+query batching. Native requests obey the existing 20,000-stream profile
+limit and the basic flow-stat capacity; oversized generated requests fail
+before installation.
+
+The STL API minor version is 5.2 for these methods. Use matching updated
+client/server packages; a new client rejects a 5.1 server during API sync.
+
+For the runnable example below, add `--native` to build/install traffic with
+these APIs. In that mode `--profile` is unused.
+
+=== Profile and console
+
+From the `scripts` directory, compile a profile without transmitting traffic:
+
+[source,bash]
+----
+PYTHON3=python3.12 ./stl-sim -f stl/rocev2_gpu.py --json -t \
+  --operation write --qps 4 --message-size 4096 --mtu 9000 \
+  --stream-mode burst --total-pkts 100 --flow-stats --pg-id-base 100
+----
+
+In `trex-console`, after acquiring and configuring the desired ports:
+
+----
+start -p 0 -f stl/rocev2_gpu.py -m 1 -t --operation write --qps 4 --message-size 4096 --mtu 9000 --stream-mode burst --total-pkts 100 --flow-stats --pg-id-base 100
+----
+
+Run the profile with `-t --help` to see all tunables. Useful variations include
+`--operation read-request`, `--operation read-response`, `--operation read`
+(both packet types), `--ip-version 6`, `--vlan 7 --pcp 3`, and
+`--src-gid ::ffff:16.0.0.1 --dst-gid ::ffff:48.0.0.1` for IPv4-mapped GIDs.
+Direction 1 swaps the source/destination IPs and MACs unless
+`--no-direction-swap` is set. QPs vary the UDP source port and can vary IPs
+using `--src-ip-step` and `--dst-ip-step`.
+
+== Validate traffic counters
+
+Use two TRex ports joined directly or through the system under test. Start the
+server with the normal STL port configuration. For jumbo traffic, configure a
+matching MTU throughout the path. The example below acquires the two selected
+ports, resets their streams/counters, sends a finite burst, waits for RX counters,
+and prints a JSON verdict:
+
+[source,bash]
+----
+cd scripts
+python3 automation/trex_control_plane/interactive/trex/examples/stl/stl_rocev2.py \
+  --server localhost --tx-port 0 --rx-port 1 \
+  --qps 4 --packets 100 --pps 100 --message-size 4096 --mtu 9000 \
+  --src-mac 00:00:00:00:01:00 --dst-mac 00:00:00:00:02:00
+----
+
+Set the destination MAC for the actual receiver or next hop. The example does
+not force acquisition of another user's ports. It disconnects and stops its
+traffic on success or failure. It returns exit status zero only when validation
+passes; missing counters, incorrect TX totals, duplicates, flow-stat errors,
+warnings, and excessive packet loss fail the run. The default allowed loss is
+zero; `--max-loss-pct` changes it. A timeout also returns failure.
+
+`--packets` is the packet count for each generated segment stream, rather than
+the total for all QPs. With basic flow stats enabled, segments/operations for
+one QP share `pg-id-base + qp_index`. Finite-burst expectations sum every
+segment belonging to that PGID. TX byte totals include Ethernet FCS.
+`--check-rx-bytes` additionally requires exact, lossless RX byte totals; some
+NICs do not report RX bytes, so this check is optional.
+
+For automation with a custom profile:
+
+[source,python]
+----
+from trex.stl.api import rocev2_stats_expectations, validate_rocev2_stats
+
+expected = rocev2_stats_expectations(streams)
+# Add streams, clear stats, start once, and wait_on_traffic first.
+stats = client.get_pgid_stats(pgids=list(expected))
+verdict = validate_rocev2_stats(stats, expected, tx_port=0, rx_port=1)
+assert verdict['passed'], verdict['errors']
+----
+
+Counter validation measures delivery between TRex ports. It does not validate
+RDMA transport or application semantics, and counters alone do not establish
+packet-content/ICRC correctness. Use a capture for those checks. Offline
+regressions validate generated wire bytes and ICRC independently.
+
+== Field engine and statistics
+
+`STLVmFixRoceV2Icrc` and `STLVM.fix_rocev2_icrc()` calculate the invariant CRC
+after normal field-engine writes. The instruction must be last. IPv4/UDP and
+IPv6/UDP without extension headers are supported, with BTH immediately after
+UDP. Packet trimming and writes into the final four-byte trailer are rejected.
+Each transmitted packet has a writable ICRC trailer, including jumbo packets
+whose unchanged payload is shared between mbufs.
+
+Use `STLFlowStats` for per-QP packet/byte counts. Latency and tagged-packet
+statistics overwrite the payload tail and are rejected with the ICRC VM
+instruction. Basic flow-stat IP marking happens before VM execution, so the
+CRC covers the transmitted header. Software CRC calculation costs CPU time;
+measure achievable rates for the required packet sizes and VM workload.
+
+The profile pairs `STLVmFixChecksumHw` for UDP with the final ICRC instruction.
+UDP checksum completion must happen after the ICRC trailer changes; the NIC or
+TRex's software offload fallback performs that completion. Custom VM programs
+must arrange the same checksum handling (or use a zero UDP checksum for IPv4).
+IPv6 requires a valid UDP checksum. The simulator verifies both CRC and UDP
+checksum on the final emitted packets.
+
+The Scapy service exposes BTH, RETH, AETH, the ICRC VM instruction, and RoCEv2
+write/read templates through the existing request and response formats.
+
+== Port provenance and tests
+
+The stateless profile, Scapy extensions/service templates, ICRC VM, writable
+trailer handling, and simulator RX integration were ported from reference commit
+`69d567910dcaf8a5f9fdc68475ad3f7257a6f837` in the RoCEv2 checkout. DevX/IOL
+build changes and the native stateful session engine are excluded. The original
+license notices are retained. This contribution adds per-QP telemetry to the
+profile, a finite-burst counter validator/example, and focused regressions.
+
+Native packet encoding, segmentation, and checksum primitives were adapted
+from `59604573de024b85eed1901452dc3166e0d87297`; the native RPC installation
+and API-version pattern was inspected at
+`8c19df3138ada9315f654426253af81c93e187eb`. The resulting APIs expose plain
+stateless stream generation and PGID statistics without the CCL scheduler.
+
+Python tests are in `scripts/automation/regression/functional_tests/rocev2_test.py`;
+C++ tests are `basic_vm.rocev2*` in `src/gtest/trex_stateless_gtest.cpp`.
+Run them with built simulator binaries, then run the full functional and C++
+suites. Physical NIC delivery/counter validation requires the topology above.

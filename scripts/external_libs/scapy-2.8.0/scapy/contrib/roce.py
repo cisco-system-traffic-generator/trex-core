@@ -12,7 +12,8 @@ RoCE: RDMA over Converged Ethernet
 
 from scapy.packet import Packet, bind_layers, Raw
 from scapy.fields import ByteEnumField, ByteField, XByteField, \
-    ShortField, XShortField, XLongField, BitField, XBitField, FCSField
+    ShortField, XShortField, XIntField, IntField, XLongField, \
+    BitField, XBitField, FCSField
 from scapy.layers.inet import IP, UDP
 from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
@@ -222,6 +223,15 @@ class CNPPadding(Packet):
     ]
 
 
+class RETH(Packet):
+    name = "RETH"
+    fields_desc = [
+        XLongField("va", 0),
+        XIntField("rkey", 0),
+        IntField("dma_len", 0),
+    ]
+
+
 def cnp(dqpn):
     # type: (int) -> BTH
     return BTH(opcode=CNP_OPCODE, becn=1, dqpn=dqpn) / CNPPadding()
@@ -253,6 +263,12 @@ bind_layers(BTH, CNPPadding, opcode=CNP_OPCODE)
 
 bind_layers(Ether, GRH, type=0x8915)
 bind_layers(GRH, BTH)
+bind_layers(BTH, RETH, opcode=opcode('RC', 'RDMA_WRITE_FIRST')[0])
+bind_layers(BTH, RETH, opcode=opcode('RC', 'RDMA_WRITE_ONLY')[0])
+bind_layers(BTH, RETH, opcode=opcode('RC', 'RDMA_READ_REQUEST')[0])
 bind_layers(BTH, AETH, opcode=opcode('RC', 'ACKNOWLEDGE')[0])
+bind_layers(BTH, AETH, opcode=opcode('RC', 'RDMA_READ_RESPONSE_FIRST')[0])
+bind_layers(BTH, AETH, opcode=opcode('RC', 'RDMA_READ_RESPONSE_LAST')[0])
+bind_layers(BTH, AETH, opcode=opcode('RC', 'RDMA_READ_RESPONSE_ONLY')[0])
 bind_layers(BTH, AETH, opcode=opcode('RD', 'ACKNOWLEDGE')[0])
 bind_layers(UDP, BTH, dport=4791)

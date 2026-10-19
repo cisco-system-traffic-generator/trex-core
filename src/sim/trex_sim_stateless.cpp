@@ -32,6 +32,7 @@ limitations under the License.
 #include <json/json.h>
 #include <stdexcept>
 #include <sstream>
+#include <unordered_map>
 
 
 using namespace std;
@@ -180,7 +181,11 @@ SimStateless::init() {
     m_publisher = new SimPublisher();
     cfg.m_publisher = m_publisher;
 
-    cfg.m_rx_cfg.create(1, {{}});
+    std::unordered_map<uint8_t, CPortLatencyHWBase *> rx_ports;
+    for (int port_id = 0; port_id < m_port_count; port_id++) {
+        rx_ports[port_id] = nullptr;
+    }
+    cfg.m_rx_cfg.create(m_dp_core_count, rx_ports);
 
     set_stx(new TrexStateless(cfg));
 }
@@ -544,6 +549,7 @@ SimStateless::flush_cp_to_rx_messages() {
         assert(node);
 
         TrexCpToRxMsgBase * msg = (TrexCpToRxMsgBase *)node;
+        msg->handle(get_stateless_obj()->get_stl_rx());
         delete msg;
     }
 }
@@ -573,4 +579,3 @@ SimStateless::is_multiple_capture() {
 
     return ( (m_dp_core_count > 1) && (m_dp_core_index == -1) );
 }
-

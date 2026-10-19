@@ -646,6 +646,10 @@ class STLStream(object):
             self.fields['flow_stats'] = STLFlowStats.defaults()
         else:
             self.fields['flow_stats'] = flow_stats.to_json()
+            if (self.fields['flow_stats']['rule_type'] != 'stats' and
+                    any(instruction['type'] == 'fix_checksum_rocev2_icrc'
+                        for instruction in self.fields['vm']['instructions'])):
+                raise TRexError('RoCEv2 ICRC requires basic flow stats; payload statistics overwrite the CRC trailer')
 
     def __str__ (self):
         s =  "Stream Name: {0}\n".format(self.name)
@@ -756,7 +760,7 @@ class STLStream(object):
         if name in inst:
             ret = pkt.get_field_by_offset(inst[name])
             if ret:
-                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw', 'fix_checksum_icmpv6'): # do not include field name
+                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw', 'fix_checksum_icmpv6', 'fix_checksum_rocev2_icrc'): # do not include field name
                     if ret[1] == 0: # layer index is redundant
                         inst[name] = "'%s'" % ret[0]
                     else: 
@@ -831,6 +835,13 @@ class STLStream(object):
                 self.__fix_offset_by_name(pkt, inst, 'l3_offset')
                 self.__fix_offset_by_name(pkt, inst, 'l4_offset')
                 vm_list.append("vm.fix_chksum_icmpv6(l3_offset={l3_offset}, l4_offset={l4_offset})".format(**inst))
+            elif inst['type'] == 'fix_checksum_rocev2_icrc':
+                inst['l3_offset'] = inst['l2_len']
+                inst['l4_offset'] = inst['l2_len'] + inst['l3_len']
+                self.__fix_offset_by_name(pkt, inst, 'l3_offset')
+                self.__fix_offset_by_name(pkt, inst, 'l4_offset')
+                self.__fix_offset_by_name(pkt, inst, 'bth_offset')
+                vm_list.append("vm.fix_rocev2_icrc(l3_offset={l3_offset}, l4_offset={l4_offset}, bth_offset={bth_offset})".format(**inst))
             elif inst['type'] == 'trim_pkt_size':
                 vm_list.append("vm.trim(fv_name='{name}')".format(**inst))
             elif inst['type'] == 'tuple_flow_var':

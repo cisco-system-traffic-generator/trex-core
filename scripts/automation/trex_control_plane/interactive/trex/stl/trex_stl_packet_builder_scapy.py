@@ -224,6 +224,16 @@ class CTRexVmInsFixHwCs(CTRexVmInsBase):
         self.l4_type = l4_type
         validate_type('l4_type', l4_type, int)
 
+class CTRexVmInsFixRoceV2Icrc(CTRexVmInsBase):
+    def __init__(self, l2_len, l3_len, bth_offset):
+        super(CTRexVmInsFixRoceV2Icrc, self).__init__("fix_checksum_rocev2_icrc")
+        self.l2_len = l2_len
+        validate_type('l2_len', l2_len, int)
+        self.l3_len = l3_len
+        validate_type('l3_len', l3_len, int)
+        self.bth_offset = bth_offset
+        validate_type('bth_offset', bth_offset, int)
+
 
 
 class CTRexVmInsFlowVar(CTRexVmInsBase):
@@ -1108,6 +1118,56 @@ class STLVmFixIcmpv6(CTRexVmDescBase):
         return offset
 
 
+class STLVmFixRoceV2Icrc(CTRexVmDescBase):
+    def __init__(self, l3_offset, l4_offset, bth_offset):
+        """
+        Fix RoCEv2 invariant CRC in the final 4 bytes of a UDP/4791 packet.
+
+        :parameters:
+             l3_offset : offset in bytes
+                IPv4/IPv6 header offset from packet start. It may be a Scapy
+                layer name, for example "IP" or "IPv6".
+
+             l4_offset : offset in bytes
+                UDP header offset from packet start. It may be a Scapy layer
+                name, for example "UDP".
+
+             bth_offset : offset in bytes
+                RoCEv2 BTH offset from packet start. It may be the Scapy layer
+                name "BTH".
+        """
+
+        super(STLVmFixRoceV2Icrc, self).__init__()
+        self.l3_offset = l3_offset
+        self.l4_offset = l4_offset
+        self.bth_offset = bth_offset
+
+    def get_obj(self):
+        return CTRexVmInsFixRoceV2Icrc(self.l2_len, self.l3_len, self.bth_offset)
+
+    def compile(self, parent):
+        self.l3_offset = self._compile_offset(parent, self.l3_offset)
+        self.l4_offset = self._compile_offset(parent, self.l4_offset)
+        self.bth_offset = self._compile_offset(parent, self.bth_offset)
+
+        for offset in (self.l3_offset, self.l4_offset, self.bth_offset):
+            if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 0xffff:
+                raise CTRexPacketBuildException(-11, 'RoCEv2 offsets must be uint16 integers or layer names')
+        if self.l3_offset < 14 or self.l4_offset - self.l3_offset < 20:
+            raise CTRexPacketBuildException(-11, 'RoCEv2 requires Ethernet and IPv4/IPv6 header offsets')
+        if self.bth_offset != self.l4_offset + 8:
+            raise CTRexPacketBuildException(-11, 'BTH must immediately follow the UDP header')
+
+        self.l2_len = self.l3_offset
+        self.l3_len = self.l4_offset - self.l2_len
+
+    def _compile_offset(self, parent, offset):
+        if isinstance(offset, str):
+            return parent._pkt_layer_offset(offset)
+
+        return offset
+
+
 class STLVmWrFlowVar(CTRexVmDescBase):
     def __init__(self, fv_name, pkt_offset, offset_fixup=0, add_val=0, is_big=True):
         """
@@ -1857,6 +1917,11 @@ class STLPktBuilder(CTrexPktBuilderInterface):
                 elif instr['type'] == 'fix_checksum_icmpv6':
                     vm_obj.fix_chksum_icmpv6(l3_offset  = instr['l2_len'],
                                                l4_offset  = instr['l2_len'] + instr['l3_len'])
+
+                elif instr['type'] == 'fix_checksum_rocev2_icrc':
+                    vm_obj.fix_rocev2_icrc(l3_offset  = instr['l2_len'],
+                                           l4_offset  = instr['l2_len'] + instr['l3_len'],
+                                           bth_offset = instr['bth_offset'])
                     
                     
                 # tuple flow var
@@ -2304,6 +2369,24 @@ class STLVM(STLScVmRaw):
         self.add_cmd(STLVmFixIcmpv6(l3_offset = l3_offset,
                                     l4_offset = l4_offset))
 
+    def fix_rocev2_icrc (self, l3_offset = "IP", l4_offset = "UDP", bth_offset = "BTH"):
+        """
+        Fix RoCEv2 invariant CRC in the final 4 bytes of a UDP/4791 packet.
+
+        :parameters:
+             l3_offset : offset in bytes
+                IPv4/IPv6 header offset from packet start, or a Scapy layer name.
+
+             l4_offset : offset in bytes
+                UDP header offset from packet start, or a Scapy layer name.
+
+             bth_offset : offset in bytes
+                BTH header offset from packet start, or the Scapy layer name "BTH".
+        """
+        self.add_cmd(STLVmFixRoceV2Icrc(l3_offset = l3_offset,
+                                        l4_offset = l4_offset,
+                                        bth_offset = bth_offset))
+
     def trim (self, fv_name):
         """
         Trim the packet size by the stream variable size. This instruction only changes the total packet size, and does not repair the fields to match the new size.
@@ -2409,4 +2492,3 @@ class STLVM(STLScVmRaw):
         
         
         
-

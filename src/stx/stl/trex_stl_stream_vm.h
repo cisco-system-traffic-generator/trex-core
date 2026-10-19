@@ -762,6 +762,11 @@ static inline HOT_FUNC uint16_t csum_ipv6_psd_raw(IPv6Header* ipv6) {
     return fast_ones_comp_sum((void*)&ipv6_psdhdr, sizeof(ipv6_psdhdr));
 }
 
+void HOT_FUNC trex_roce_v2_update_icrc(rte_mbuf_t *m,
+                                       uint16_t l2_len,
+                                       uint16_t l3_len,
+                                       uint16_t bth_offset);
+
 struct StreamDPOpIpv4Fix {
     uint8_t   m_op;
     uint16_t  m_offset;
@@ -837,6 +842,20 @@ public:
                  u.udp->setChecksumRaw(rte_ipv6_phdr_cksum((struct rte_ipv6_hdr *)ipv4,m_ol_flags));
              }
          }
+    }
+} __attribute__((packed));
+
+/* fix RoCEv2 invariant CRC in the final 4 bytes of the packet */
+struct StreamDPOpRoceIcrcFix {
+    uint8_t   m_op;
+    uint16_t  m_l2_len;
+    uint16_t  m_l3_len;
+    uint16_t  m_bth_offset;
+
+public:
+    void dump(FILE *fd, std::string opt);
+    void HOT_FUNC run(rte_mbuf_t *m) {
+        trex_roce_v2_update_icrc(m, m_l2_len, m_l3_len, m_bth_offset);
     }
 } __attribute__((packed));
 
@@ -966,6 +985,7 @@ public:
         ditFIX_IPV4_CS  ,
         ditFIX_ICMPV6_CS,
         ditFIX_HW_CS  ,
+        ditFIX_ROCEV2_ICRC,
 
         itPKT_WR8       ,
         itPKT_WR16       ,
@@ -1050,6 +1070,7 @@ private:
 
 typedef union  ua_ {
         StreamDPOpHwCsFix  * lpHwFix;
+        StreamDPOpRoceIcrcFix *lpRoceIcrcFix;
         StreamDPOpIpv4Fix   *lpIpv4Fix;
         StreamDPOpIcmpv6Fix   *lpIcmpv6Fix;
         StreamDPOpPktWr8     *lpw8;
@@ -1194,6 +1215,12 @@ inline HOT_FUNC void StreamDPVmInstructionsRunner::run(uint32_t * per_thread_ran
             p+=sizeof(StreamDPOpHwCsFix);
             break;
 
+        case  StreamDPVmInstructions::ditFIX_ROCEV2_ICRC :
+            ua.lpRoceIcrcFix =(StreamDPOpRoceIcrcFix *)p;
+            ua.lpRoceIcrcFix->run(m_m);
+            p+=sizeof(StreamDPOpRoceIcrcFix);
+            break;
+
         case  StreamDPVmInstructions::itPKT_WR8  :
             ua.lpw8 =(StreamDPOpPktWr8 *)p;
             ua.lpw8->wr(flow_var,pkt);
@@ -1252,6 +1279,7 @@ public:
         itFLOW_RAND_LIMIT = 10, /* random with limit & seed */
         itFIX_HW_CS       = 11,
         itFIX_ICMPV6_CS   = 12,
+        itFIX_ROCEV2_ICRC = 13,
     };
 
     typedef uint8_t instruction_type_t ;
@@ -1401,6 +1429,35 @@ public:
     uint16_t  m_l2_len;
     uint16_t  m_l3_len;
     uint8_t   m_l4_type; /* should be either TCP or UDP - TBD could be fixed and calculated by a scan function */
+};
+
+/**
+ * fix RoCEv2 invariant CRC in software.
+ */
+class StreamVmInstructionFixRoceV2Icrc : public StreamVmInstruction {
+public:
+    StreamVmInstructionFixRoceV2Icrc(uint16_t l2_len,
+                                     uint16_t l3_len,
+                                     uint16_t bth_offset) {
+        m_l2_len = l2_len;
+        m_l3_len = l3_len;
+        m_bth_offset = bth_offset;
+    }
+
+    virtual instruction_type_t get_instruction_type() const {
+        return ( StreamVmInstruction::itFIX_ROCEV2_ICRC);
+    }
+
+    virtual void Dump(FILE *fd);
+
+    virtual StreamVmInstruction * clone() {
+        return new StreamVmInstructionFixRoceV2Icrc(m_l2_len, m_l3_len, m_bth_offset);
+    }
+
+public:
+    uint16_t  m_l2_len;
+    uint16_t  m_l3_len;
+    uint16_t  m_bth_offset;
 };
 
 
@@ -2023,6 +2080,7 @@ public:
         m_max_pkt_offset_change=0;
         m_prefix_size = 0;
         m_is_pkt_size_var=false;
+        m_pkt_trailer_size=0;
     }
 
     StreamVmDp( uint8_t * bss,
@@ -2032,7 +2090,8 @@ public:
                 uint16_t max_pkt_offset,
                 uint16_t prefix_size,
                 bool a_is_pkt_size_var,
-                bool a_is_random_seed
+                bool a_is_random_seed,
+                uint8_t pkt_trailer_size
                 ){
 
         if (bss) {
@@ -2060,6 +2119,7 @@ public:
         m_prefix_size = prefix_size;
         m_is_pkt_size_var=a_is_pkt_size_var;
         m_is_random_seed=a_is_random_seed;
+        m_pkt_trailer_size=pkt_trailer_size;
     }
 
     ~StreamVmDp(){
@@ -2083,7 +2143,8 @@ public:
                                          m_max_pkt_offset_change,
                                          m_prefix_size,
                                          m_is_pkt_size_var,
-                                         m_is_random_seed
+                                         m_is_random_seed,
+                                         m_pkt_trailer_size
                                          );
         assert(lp);
         return (lp);
@@ -2137,6 +2198,10 @@ public:
         return (m_is_random_seed);
     }
 
+    uint8_t get_pkt_trailer_size(){
+        return m_pkt_trailer_size;
+    }
+
 
 private:
     uint8_t *  m_bss_ptr; /* pointer to the data section */
@@ -2147,6 +2212,7 @@ private:
     uint16_t   m_prefix_size;
     bool       m_is_pkt_size_var;
     bool       m_is_random_seed;
+    uint8_t    m_pkt_trailer_size;
 
 };
 
@@ -2184,6 +2250,7 @@ public:
         m_is_random_var      = false;
         m_is_change_pkt_size = false;
         m_is_split_needed      = false;
+        m_pkt_trailer_size     = 0;
 
         m_is_compiled = false;
         m_pkt=0;
@@ -2212,7 +2279,8 @@ public:
                                         get_max_packet_update_offset(),
                                         get_prefix_size(),
                                         is_var_pkt_size(),
-                                        m_is_random_var
+                                        m_is_random_var,
+                                        m_pkt_trailer_size
                                         );
         assert(lp);
         return (lp);
@@ -2271,6 +2339,10 @@ public:
 
     bool is_var_pkt_size(){
         return (m_is_change_pkt_size);
+    }
+
+    uint8_t get_pkt_trailer_size() const {
+        return m_pkt_trailer_size;
     }
     
 
@@ -2336,6 +2408,7 @@ private:
     bool                               m_is_change_pkt_size;
     bool                               m_is_split_needed;
     bool                               m_is_compiled;
+    uint8_t                            m_pkt_trailer_size;
     uint16_t                           m_prefix_size;
 
     uint16_t                           m_pkt_size;

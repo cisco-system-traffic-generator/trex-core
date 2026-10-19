@@ -66,6 +66,10 @@ source rather than copying the 2.7 implementation wholesale.
   dissectors and bindings are retained.
 - The legacy `modules/ethertypes.py` and `modules/winpcapy.py` import locations
   remain available.
+- The separate stateless RoCEv2 integration adds `RETH` and RC write/read
+  bindings in `contrib/roce.py`, based on reference commit
+  `69d567910dcaf8a5f9fdc68475ad3f7257a6f837`. BTH and the upstream Scapy ICRC
+  implementation are retained.
 - CAPWAP's existing raw fallback remains available when the optional private
   key for encrypted vendor-specific payloads is absent. No private key is
   included in this directory.
