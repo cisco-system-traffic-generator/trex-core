@@ -333,7 +333,7 @@ def test_layer_wrong_structure():
             for field_property in required_field_properties:
                 assert(field[field_property] is not None)
         if (model[depth]["id"] == "Ether"):
-            IPv4_hvalue = "IPv4" if "IPv4" in ETHER_TYPES else "0x800"
+            IPv4_hvalue = ETHER_TYPES[0x800]
             assert(layer_fields["type"]["hvalue"] == IPv4_hvalue)
     real_structure = [layer["real_id"] for layer in model]
     valid_structure_flags = [layer["valid_structure"] for layer in model]
@@ -540,6 +540,13 @@ def test_get_templates_several_times():
     templates_1 = get_templates()
     templates_2 = get_templates()
     assert(templates_1 == templates_2)
+
+def test_get_template_is_json_serializable():
+    template = service.get_template(v_handler, {"id": "TCP-SYN"})
+    assert isinstance(template, str)
+    json.dumps(template)
+    decoded = json.loads(base64.b64decode(template).decode('utf-8'))
+    assert decoded['packet'][0]['id'] == 'Ether'
 
 def test_get_template_root():
     obj = json.loads(get_template_by_id('TCP-SYN'))
