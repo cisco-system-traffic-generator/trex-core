@@ -30,6 +30,8 @@ from scapy.contrib.bier import *
 from scapy.contrib.mpls import *
 from scapy.contrib.igmp import *
 from scapy.contrib.igmpv3 import *
+import scapy.contrib.roce
+from scapy.contrib.roce import *
 
 
 
@@ -523,7 +525,9 @@ class Scapy_service(Scapy_service_api):
         if not protocol=='':
             if protocol not in self.all_protocols:
                 return 'protocol not supported'
-        protocol = eval(protocol)
+        protocol = self._protocol_class_by_name(protocol)
+        if protocol is None:
+            return []
         old_stdout = sys.stdout
         sys.stdout = mystdout = StringIO()
         ls(protocol)
@@ -574,7 +578,7 @@ class Scapy_service(Scapy_service_api):
                 eval_globals = {}
                 modules = [scapy.all, scapy.layers.dns, scapy.layers.dhcp, scapy.layers.ipsec, scapy.layers.netflow,
                            scapy.layers.sctp, scapy.layers.tftp, scapy.contrib.mpls, scapy.contrib.igmp,
-                           scapy.contrib.igmpv3]
+                           scapy.contrib.igmpv3, scapy.contrib.roce]
                 for module in modules:
                    eval_globals.update(module.__dict__)
                 res = eval(expr, eval_globals)
@@ -844,6 +848,15 @@ class Scapy_service(Scapy_service_api):
         return set(cls.__subclasses__()).union(
             [s for c in cls.__subclasses__() for s in self._all_subclasses(c)])
 
+    def _protocol_class_by_name(self, protocol):
+        protocol_class = globals().get(protocol)
+        if isinstance(protocol_class, type) and issubclass(protocol_class, Packet):
+            return protocol_class
+        for protocol_class in self._all_subclasses(Packet):
+            if protocol_class.__name__ == protocol:
+                return protocol_class
+        return None
+
     def _packet_model_to_scapy_packet(self,data):
         layer_classes = {}
         for layer_class in self._all_subclasses(Packet):
@@ -1096,7 +1109,7 @@ class Scapy_service(Scapy_service_api):
             return ""
         f  = os.path.join(self.scapy_service_dir, f)
         with open(f, 'r') as content_file:
-            content = base64.b64encode(str_to_bytes(content_file.read()))
+            content = bytes_to_b64(str_to_bytes(content_file.read()))
         return content
 
 
@@ -1114,20 +1127,45 @@ class Scapy_service(Scapy_service_api):
                     field_data.update(fieldDef)
             if isinstance(field_desc, EnumField):
                 try:
-                    field_data["values_dict"] = field_desc.s2i
+                    field_data["values_dict"] = self._json_safe_values_dict(field_desc.s2i)
                     if field_data.get("type") == None:
-                        if len(field_data["values_dict"] > 0):
+                        if len(field_data["values_dict"]) > 0:
                             field_data["type"] = "ENUM"
                         elif fieldId == 'load':
                             field_data["type"] = "BYTES"
                         else:
                             field_data["type"] = "STRING"
-                    field_data["values_dict"] = field_desc.s2i
                 except:
                     # MultiEnumField doesn't have s2i. need better handling
                     pass
             fields.append(field_data)
         return fields
+
+    def _json_safe_key(self, key):
+        if is_bytes3(key):
+            if is_ascii_bytes(key):
+                return bytes_to_str(key)
+            return bytes_to_b64(key)
+        return str(key)
+
+    def _json_safe_value(self, value):
+        if is_bytes3(value):
+            return self._bytes_to_value(value)
+        if isinstance(value, dict):
+            return self._json_safe_values_dict(value)
+        if isinstance(value, (list, tuple)):
+            return [self._json_safe_value(v) for v in value]
+        try:
+            json.dumps(value)
+            return value
+        except TypeError:
+            return str(value)
+
+    def _json_safe_values_dict(self, values_dict):
+        return {
+            self._json_safe_key(key): self._json_safe_value(value)
+            for key, value in values_dict.items()
+        }
 
     def get_definitions(self,client_v_handler, def_filter):
         # def_filter is an array of classnames or None

@@ -7,6 +7,7 @@ from ..utils.common import *
 from .trex_stl_client import STLClient, PacketBuffer
 from .trex_stl_packet_builder_scapy import *
 from .trex_stl_streams import *
+from .trex_stl_rocev2 import rocev2_stats_expectations, validate_rocev2_stats
 from ..common.trex_ns import *
 
 

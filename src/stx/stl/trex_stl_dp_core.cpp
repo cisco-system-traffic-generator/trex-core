@@ -638,6 +638,7 @@ HOT_FUNC rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     rte_mbuf_t        * m;
     /* alloc small packet buffer*/
     uint16_t prefix_size = prefix_header_size();
+    uint8_t trailer_size = m_vm_pkt_trailer_size;
     m = CGlobalInfo::pktmbuf_alloc_local( get_socket_id(), prefix_size );
     if (m==0) {
         return (m);
@@ -647,6 +648,30 @@ HOT_FUNC rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
     char *p=rte_pktmbuf_append(m, prefix_size);
     memcpy( p ,m_original_packet_data_prefix, prefix_size);
 
+
+    if (trailer_size) {
+        rte_mbuf_t *m_const = get_const_mbuf();
+        if (m_const != NULL) {
+            rte_mbuf_t *mi = CGlobalInfo::pktmbuf_alloc_small_local(get_socket_id());
+            assert(mi);
+            rte_pktmbuf_attach(mi, m_const);
+            utl_rte_pktmbuf_add_after2(m, mi);
+        }
+
+        rte_mbuf_t *m_trailer = CGlobalInfo::pktmbuf_alloc_small_local(get_socket_id());
+        assert(m_trailer);
+        char *pt = rte_pktmbuf_append(m_trailer, trailer_size);
+        assert(pt);
+        memset(pt, 0, trailer_size);
+        if (m->next == NULL) {
+            utl_rte_pktmbuf_add_after2(m, m_trailer);
+        } else {
+            m->next->next = m_trailer;
+            m->pkt_len += m_trailer->data_len;
+            m->nb_segs = 3;
+            m->next->nb_segs = 2;
+        }
+    }
 
     /* run the VM program */
     StreamDPVmInstructionsRunner runner;
@@ -659,6 +684,15 @@ HOT_FUNC rte_mbuf_t   * CGenNodeStateless::alloc_node_with_vm(){
                 (uint8_t*)p);
 
     uint16_t pkt_new_size=runner.get_new_pkt_size();
+    if (trailer_size) {
+        assert(pkt_new_size == 0);
+#ifdef TREX_SIM
+        // Capture final RoCEv2 wire checksums after the VM updates ICRC.
+        hw_checksum_sim(m);
+#endif
+        return (m);
+    }
+
     if ( likely( pkt_new_size == 0) ) {
         /* no packet size change */
         rte_mbuf_t * m_const = get_const_mbuf();
@@ -1401,6 +1435,7 @@ void TrexStatelessDpCore::add_stream(PerPortProfile * profile,
     node->m_profile_id = profile_id;
     node->cache_mbuf_array_init();
     node->m_batch_size=0;
+    node->m_vm_pkt_trailer_size=0;
 
     /* add periodic */
     node->m_cache_mbuf=0;
@@ -1524,20 +1559,26 @@ void TrexStatelessDpCore::add_stream(PerPortProfile * profile,
         TrexStream * local_mem_stream = node->m_ref_stream_info;
 
         StreamVmDp  * lpDpVm = local_mem_stream->getDpVm();
+        uint8_t trailer_size = lpDpVm->get_pkt_trailer_size();
 
         node->m_vm_flow_var      = lpDpVm->clone_bss(); /* clone the flow var */
         node->m_vm_program       = lpDpVm->get_program(); /* same ref to the program */
         node->m_vm_program_size  = lpDpVm->get_program_size();
+        node->m_vm_pkt_trailer_size = trailer_size;
 
         /* generate random seed if needed*/
         if (lpDpVm->is_random_seed()) {
             node->generate_random_seed();
         }
 
+        if (lpDpVm->get_prefix_size() > (pkt_size - trailer_size)) {
+            lpDpVm->set_prefix_size(pkt_size - trailer_size);
+        }
+
         /* we need to copy the object */
-        if ( pkt_size > lpDpVm->get_prefix_size() ) {
+        if ( pkt_size > (lpDpVm->get_prefix_size() + trailer_size) ) {
             /* we need const packet */
-            uint16_t const_pkt_size  = pkt_size - lpDpVm->get_prefix_size() ;
+            uint16_t const_pkt_size  = pkt_size - lpDpVm->get_prefix_size() - trailer_size ;
             rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc_local(node->get_socket_id(), const_pkt_size );
             assert(m);
 
@@ -1556,10 +1597,6 @@ void TrexStatelessDpCore::add_stream(PerPortProfile * profile,
             node->set_var_pkt_size();
         }
 
-
-        if (lpDpVm->get_prefix_size() > pkt_size ) {
-            lpDpVm->set_prefix_size(pkt_size);
-        }
 
         /* copy the headr */
         uint16_t header_size = lpDpVm->get_prefix_size();
@@ -1988,6 +2025,5 @@ void CGenNodePCAP::destroy() {
 
     m_state = PCAP_INVALID;
 }
-
 
 

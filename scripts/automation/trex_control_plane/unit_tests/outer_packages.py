@@ -6,7 +6,7 @@ if not os.path.exists(EXT_PATH):
     raise Exception('Wrong path to external libs: %s' % EXT_PATH)
 
 CLIENT_UTILS_MODULES = [
-                         {'name': 'scapy-2.4.3'},
+                         {'name': 'scapy-2.8.0'},
                          {'name': 'texttable-0.8.4'},
                         ]
 

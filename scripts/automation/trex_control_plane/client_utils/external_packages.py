@@ -9,13 +9,14 @@ python_ver = 'python%s' % sys.version_info.major
 CURRENT_PATH        = os.path.dirname(os.path.realpath(__file__))
 ROOT_PATH           = os.path.abspath(os.path.join(CURRENT_PATH, os.pardir))     # path to trex_control_plane directory
 EXT_LIBS_PATH       = os.path.abspath(os.path.join(ROOT_PATH, os.pardir, os.pardir, 'external_libs'))
+PATH_TO_PYTHON_LIB  = EXT_LIBS_PATH
 ZMQ_PATH            = os.path.join(EXT_LIBS_PATH, 'pyzmq-ctypes')
 YAML_PATH           = os.path.join(EXT_LIBS_PATH, 'pyyaml-3.11', python_ver)
 
 CLIENT_UTILS_MODULES = [
                         'texttable-0.8.4',
-                        'scapy-2.4.3'
-                        'zmq',
+                        'scapy-2.8.0',
+                        'pyzmq-ctypes',
                         ]
 
 def import_client_utils_modules():

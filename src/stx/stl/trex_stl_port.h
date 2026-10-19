@@ -113,6 +113,7 @@ class TrexStatelessProfile: public TrexPort {
 public:
 
     TrexStatelessProfile(uint8_t port_id, std::string profile_id); 
+    static uint32_t get_max_streams() { return MAX_STREAMS; }
     ~TrexStatelessProfile();
 
 

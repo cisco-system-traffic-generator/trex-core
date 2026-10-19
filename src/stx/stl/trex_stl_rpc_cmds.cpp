@@ -28,6 +28,7 @@ limitations under the License.
 #include "trex_stl.h"
 #include "trex_stl_port.h"
 #include "trex_stl_streams_compiler.h"
+#include "trex_stl_rocev2.h"
 #include "trex_global.h"
 
 #include <string>
@@ -48,6 +49,7 @@ TREX_RPC_CMD_OWNED(TrexRpcCmdRelease,    "release");
  */
 TREX_RPC_CMD(TrexRpcCmdGetActivePGIds,   "get_active_pgids");
 TREX_RPC_CMD(TrexRpcCmdGetPGIdsStats,    "get_pgid_stats");
+TREX_RPC_CMD(TrexRpcCmdGetRoceV2Stats,   "get_rocev2_stats");
 
 
 /**
@@ -71,12 +73,14 @@ TREX_RPC_CMD(TrexRpcCmdGetStream,       "get_stream");
 TREX_RPC_CMD_OWNED_EXT(TrexRpcCmdAddStream, "add_stream",
 
 /* extended part */
+friend class TrexRpcCmdAddRoceV2Streams;
 std::unique_ptr<TrexStream> allocate_new_stream(const Json::Value &section, uint8_t port_id, uint32_t stream_id, Json::Value &result);
 void validate_stream(string profile_id, const std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_checksum(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_checksum_hw(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_checksum_icmpv6(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
+void parse_vm_instr_checksum_rocev2_icrc(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 
 void parse_vm_instr_flow_var(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
 void parse_vm_instr_flow_var_rand_limit(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result);
@@ -92,6 +96,8 @@ void handle_range_padding(uint64_t &max_value, uint64_t &min_value, uint64_t ste
 
 );
 
+TREX_RPC_CMD(TrexRpcCmdBuildRoceV2Streams, "build_rocev2_streams");
+TREX_RPC_CMD_OWNED(TrexRpcCmdAddRoceV2Streams, "add_rocev2_streams");
 
 TREX_RPC_CMD_OWNED(TrexRpcCmdRemoveStream,      "remove_stream");
 TREX_RPC_CMD_OWNED(TrexRpcCmdRemoveAllStreams,  "remove_all_streams");
@@ -147,6 +153,86 @@ TREX_RPC_CMD(TrexRpcCmdClearTaggedPktGroupUnknownTags, "clear_tpg_unknown_tags")
 
 
 /****************************** commands implementation ******************************/
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdBuildRoceV2Streams::_run(const Json::Value &params, Json::Value &result) {
+    try {
+        result["result"] = TrexRoceV2::build_streams(parse_object(params, "config", result),
+                                                    parse_uint32(params, "first_stream_id", result, 1));
+    } catch (const std::invalid_argument &error) {
+        generate_parse_err(result, error.what());
+    }
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdAddRoceV2Streams::_run(const Json::Value &params, Json::Value &result) {
+    uint8_t port_id = parse_port(params, result);
+    auto *port = get_stateless_obj()->get_port_by_id(port_id);
+    std::string profile_id = parse_profile(params, result);
+    Json::Value generated;
+    std::vector<std::unique_ptr<TrexStream>> streams;
+    size_t installed = 0;
+    try {
+        uint32_t first = parse_uint32(params, "first_stream_id", result,
+                                      uint32_t(std::max(0, port->get_max_stream_id())) + 1);
+        generated = TrexRoceV2::build_streams(parse_object(params, "config", result), first);
+        auto *profile = port->get_profile_by_id(profile_id);
+        std::vector<uint32_t> existing;
+        if (profile) { profile->get_id_list(existing); }
+        if (existing.size() + generated["streams"].size() > TrexStatelessProfile::get_max_streams()) {
+            generate_execute_err(result, "RoCEv2 streams exceed profile stream capacity");
+        }
+        TrexRpcCmdAddStream parser(m_component);
+        for (const auto &section : generated["streams"]) {
+            auto stream = parser.allocate_new_stream(section, port_id, section["stream_id"].asUInt(), result);
+            stream->store_stream_json(section);
+            stream->m_enabled = true; stream->m_self_start = section["self_start"].asBool();
+            stream->m_start_paused = false; stream->m_flags = section["flags"].asUInt();
+            stream->m_action_count = 0; stream->m_isg_usec = 0;
+            stream->m_next_stream_id = section["next_stream_id"].asInt();
+            std::string bytes = base64_decode(section["packet"]["binary"].asString());
+            stream->m_pkt.len = std::max<size_t>(60, bytes.size());
+            stream->m_pkt.binary = new uint8_t[stream->m_pkt.len]();
+            memcpy(stream->m_pkt.binary, bytes.data(), bytes.size());
+            stream->m_pkt.meta = section["packet"]["meta"].asString();
+            parser.parse_vm(section["vm"], stream, result);
+            if (section["flow_stats"]["enabled"].asBool()) {
+                if (!port->get_rx_caps()) { generate_parse_err(result, "RX stats is not supported on this interface"); }
+                stream->m_rx_check.m_enabled = true;
+                stream->m_rx_check.m_pg_id = section["flow_stats"]["stream_id"].asUInt();
+                stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
+                stream->m_rx_check.m_vxlan_skip = false; stream->m_rx_check.m_ieee_1588 = false;
+            }
+            parser.validate_stream(profile_id, stream, result);
+            streams.push_back(std::move(stream));
+        }
+        // Preflight all packets, IDs and VM programs before installing any.
+        for (auto &stream : streams) {
+            stream->m_vm.set_pkt(stream->m_pkt.binary);
+            stream->m_vm.compile(stream->m_pkt.len);
+        }
+        for (auto &stream : streams) { port->add_stream(profile_id, stream.get()); ++installed; }
+        for (auto &stream : streams) { stream.release(); }
+    } catch (...) {
+        // Roll back this request only; existing profiles/streams are preserved.
+        for (size_t i = installed; i > 0; --i) { port->remove_stream(profile_id, streams[i - 1].get()); }
+        try { throw; }
+        catch (const std::invalid_argument &error) { generate_parse_err(result, error.what()); }
+        catch (const TrexException &error) { generate_execute_err(result, error.what()); }
+    }
+    generated.removeMember("streams");
+    generated["port_id"] = port_id; generated["profile_id"] = profile_id;
+    result["result"] = generated;
+    return TREX_RPC_CMD_OK;
+}
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdGetRoceV2Stats::_run(const Json::Value &params, Json::Value &result) {
+    // Use the same native counters and wire format as the standard PGID API.
+    TrexRpcCmdGetPGIdsStats reader(m_component);
+    return reader.run(params, result);
+}
 
 
 /**
@@ -531,6 +617,13 @@ TrexRpcCmdAddStream::_run(const Json::Value &params, Json::Value &result) {
                 }
             }
             std::string type = parse_string(rx, "rule_type", result);
+            if (type != "stats") {
+                for (const auto *instruction : stream->m_vm.get_instruction_list()) {
+                    if (instruction->get_instruction_type() == StreamVmInstruction::itFIX_ROCEV2_ICRC) {
+                        generate_parse_err(result, "RoCEv2 ICRC supports basic flow stats only; payload statistics overwrite the CRC trailer");
+                    }
+                }
+            }
             if (type == "stats") {
                 stream->m_rx_check.m_rule_type = TrexPlatformApi::IF_STAT_IPV4_ID;
             } else {
@@ -652,6 +745,15 @@ TrexRpcCmdAddStream::parse_vm_instr_checksum_icmpv6(const Json::Value &inst, std
     uint16_t l3_len = parse_uint16(inst, "l3_len", result); 
 
     stream->m_vm.add_instruction(new StreamVmInstructionFixChecksumIcmpv6(l2_len, l3_len));
+}
+
+void
+TrexRpcCmdAddStream::parse_vm_instr_checksum_rocev2_icrc(const Json::Value &inst, std::unique_ptr<TrexStream> &stream, Json::Value &result) {
+    uint16_t l2_len = parse_uint16(inst, "l2_len", result);
+    uint16_t l3_len = parse_uint16(inst, "l3_len", result);
+    uint16_t bth_offset = parse_uint16(inst, "bth_offset", result);
+
+    stream->m_vm.add_instruction(new StreamVmInstructionFixRoceV2Icrc(l2_len, l3_len, bth_offset));
 }
 
 void 
@@ -979,7 +1081,7 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
     for (int i = 0; i < instructions.size(); i++) {
         const Json::Value & inst = parse_object(instructions, i, result);
 
-        auto vm_types = {"fix_checksum_hw", "fix_checksum_ipv4", "fix_checksum_icmpv6", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var","flow_var_rand_limit"};
+        auto vm_types = {"fix_checksum_hw", "fix_checksum_ipv4", "fix_checksum_icmpv6", "fix_checksum_rocev2_icrc", "flow_var", "write_flow_var","tuple_flow_var","trim_pkt_size","write_mask_flow_var","flow_var_rand_limit"};
         std::string vm_type = parse_choice(inst, "type", vm_types, result);
 
         // checksum instruction
@@ -992,6 +1094,9 @@ TrexRpcCmdAddStream::parse_vm(const Json::Value &vm, std::unique_ptr<TrexStream>
 
         } else if (vm_type == "fix_checksum_icmpv6") {
             parse_vm_instr_checksum_icmpv6(inst, stream, result);
+
+        } else if (vm_type == "fix_checksum_rocev2_icrc") {
+            parse_vm_instr_checksum_rocev2_icrc(inst, stream, result);
 
         } else if (vm_type == "flow_var") {
             parse_vm_instr_flow_var(inst, stream, result);
@@ -2287,12 +2392,15 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     /* PG IDs */
     m_cmds.push_back(new TrexRpcCmdGetActivePGIds(this));
     m_cmds.push_back(new TrexRpcCmdGetPGIdsStats(this));
+    m_cmds.push_back(new TrexRpcCmdGetRoceV2Stats(this));
 
     /* streams */
     m_cmds.push_back(new TrexRpcCmdGetStreamList(this));
     m_cmds.push_back(new TrexRpcCmdGetStream(this));
     m_cmds.push_back(new TrexRpcCmdGetAllStreams(this));
     m_cmds.push_back(new TrexRpcCmdAddStream(this));
+    m_cmds.push_back(new TrexRpcCmdBuildRoceV2Streams(this));
+    m_cmds.push_back(new TrexRpcCmdAddRoceV2Streams(this));
     m_cmds.push_back(new TrexRpcCmdRemoveStream(this));
     m_cmds.push_back(new TrexRpcCmdRemoveAllStreams(this));
 
@@ -2326,6 +2434,5 @@ TrexRpcCmdsSTL::TrexRpcCmdsSTL() : TrexRpcComponent("STL") {
     m_cmds.push_back(new TrexRpcCmdGetTaggedPktGroupUnknownTags(this));
     m_cmds.push_back(new TrexRpcCmdClearTaggedPktGroupUnknownTags(this));
 }
-
 
 

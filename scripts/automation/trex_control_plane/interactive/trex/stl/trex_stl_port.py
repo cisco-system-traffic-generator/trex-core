@@ -7,6 +7,7 @@ from ..utils import text_tables
 
 from ..common.trex_types import listify, RpcCmdData, RC, RC_OK, PortProfileID, DEFAULT_PROFILE_ID, ALL_PROFILE_ID
 from ..common.trex_port import Port, owned, writeable, up
+from ..common.trex_exceptions import TRexError
 
 from .trex_stl_streams import STLStream
 
@@ -420,6 +421,44 @@ class STLPort(Port):
         self.state = self.STATE_STREAMS if (len(self.streams) > 0) else self.STATE_IDLE
 
         return ret if ret else self.err(str(ret))
+
+    @writeable
+    def add_rocev2_streams(self, config, profile_id=DEFAULT_PROFILE_ID):
+        """Install native streams and refresh the standard local stream cache."""
+        if profile_id == ALL_PROFILE_ID or not isinstance(config, dict):
+            return self.err('Invalid RoCEv2 config or profile ID')
+        request = dict(config)
+        request.setdefault('direction', self.port_id % 2)
+        rc = self.transmit('add_rocev2_streams', {
+            'handler': self.handler, 'port_id': self.port_id, 'profile_id': profile_id, 'config': request})
+        if rc.bad():
+            return self.err(rc.err())
+        result = rc.data()
+        added = result.get('stream_ids', [])
+        previous = (self.streams, {key: list(ids) for key, ids in self.profile_stream_list.items()},
+                    dict(self.profile_state_list), self.state)
+        try:
+            synced = self.sync_streams()
+            if not synced or any(stream_id not in self.profile_stream_list.get(str(profile_id), [])
+                                 for stream_id in added):
+                raise TRexError('Native RoCEv2 stream cache synchronization failed')
+        except Exception as error:
+            failures = []
+            for stream_id in added:
+                try:
+                    cleanup = self.transmit('remove_stream', {'handler': self.handler, 'port_id': self.port_id,
+                                                             'profile_id': profile_id, 'stream_id': stream_id})
+                    if not cleanup:
+                        failures.append(str(cleanup.err()))
+                except Exception as cleanup_error:
+                    failures.append(str(cleanup_error))
+            self.streams, self.profile_stream_list, self.profile_state_list, self.state = previous
+            return self.err('{0}; rollback {1}'.format(error, '; '.join(failures) if failures else 'succeeded'))
+        self.next_available_id = max([self.next_available_id] + [stream_id + 1 for stream_id in added])
+        self.has_rx_streams = any(stream.has_flow_stats() for stream in self.streams.values())
+        self.profile_state_list[str(profile_id)] = self.STATE_STREAMS
+        self.__sync_port_state_from_profile()
+        return self.ok(result)
 
     # remove stream from port
     @writeable

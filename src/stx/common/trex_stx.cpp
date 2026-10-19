@@ -174,6 +174,12 @@ TrexSTX::send_msg_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
 void
 TrexSTX::send_msg_to_rx(TrexCpToRxMsgBase *msg) const {
 
+#ifdef TREX_SIM
+    msg->handle(static_cast<CRxCore *>(m_rx));
+    delete msg;
+    return;
+#endif
+
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     ring->SecureEnqueue((CGenNode *)msg,true);
 }

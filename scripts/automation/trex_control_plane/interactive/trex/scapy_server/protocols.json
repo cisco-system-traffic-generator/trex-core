@@ -180,6 +180,39 @@
     ]
   },
   {
+    "id": "UDP",
+    "name": "UDP",
+    "fields": [
+      {
+        "id": "sport",
+        "name": "Source port",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 65535
+      },
+      {
+        "id": "dport",
+        "name": "Destination port",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 65535
+      },
+      {
+        "id": "len",
+        "name": "Length",
+        "type": "NUMBER",
+        "auto": true
+      },
+      {
+        "id": "chksum",
+        "name": "Checksum",
+        "type": "NUMBER",
+        "auto": true
+      }
+    ],
+    "payload": ["BTH", "Raw"]
+  },
+  {
     "id": "Raw",
     "name": "Raw",
     "fields": [
@@ -189,6 +222,130 @@
         "type": "BYTES"
       }
     ]
+  },
+  {
+    "id": "BTH",
+    "name": "RoCEv2 Base Transport Header",
+    "fields": [
+      {
+        "id": "opcode",
+        "name": "Opcode",
+        "type": "NUMBER"
+      },
+      {
+        "id": "solicited",
+        "name": "Solicited event",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "id": "migreq",
+        "name": "Migration request",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "id": "padcount",
+        "name": "Pad count",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 3
+      },
+      {
+        "id": "version",
+        "name": "Version",
+        "type": "NUMBER"
+      },
+      {
+        "id": "pkey",
+        "name": "Partition key",
+        "type": "NUMBER"
+      },
+      {
+        "id": "fecn",
+        "name": "FECN",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "id": "becn",
+        "name": "BECN",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "id": "dqpn",
+        "name": "Destination QP",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 16777215
+      },
+      {
+        "id": "ackreq",
+        "name": "Ack request",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "id": "psn",
+        "name": "Packet sequence number",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 16777215
+      },
+      {
+        "id": "icrc",
+        "name": "Invariant CRC",
+        "type": "NUMBER",
+        "auto": true
+      }
+    ],
+    "payload": ["RETH", "AETH", "Raw"]
+  },
+  {
+    "id": "RETH",
+    "name": "RDMA Extended Transport Header",
+    "fields": [
+      {
+        "id": "va",
+        "name": "Virtual address",
+        "type": "NUMBER"
+      },
+      {
+        "id": "rkey",
+        "name": "Remote key",
+        "type": "NUMBER"
+      },
+      {
+        "id": "dma_len",
+        "name": "DMA length",
+        "type": "NUMBER"
+      }
+    ],
+    "payload": ["Raw"]
+  },
+  {
+    "id": "AETH",
+    "name": "ACK Extended Transport Header",
+    "fields": [
+      {
+        "id": "syndrome",
+        "name": "Syndrome",
+        "type": "NUMBER"
+      },
+      {
+        "id": "msn",
+        "name": "Message sequence number",
+        "type": "NUMBER",
+        "min": 0,
+        "max": 16777215
+      }
+    ],
+    "payload": ["Raw"]
   }
 ]
-
