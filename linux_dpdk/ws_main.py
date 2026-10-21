@@ -1178,6 +1178,15 @@ stateless_src = SrcGroup(dir='src/stx/stl/',
                           src_list=['trex_stl_stream.cpp',
                                     'trex_stl_stream_vm.cpp',
                                     'trex_stl_rocev2.cpp',
+                                    'trex_rocev2_icrc.cpp',
+                                    'trex_rocev2_native_types.cpp',
+                                    'trex_rocev2_native_codec.cpp',
+                                    'trex_rocev2_native_cm_codec.cpp',
+                                    'trex_rocev2_native_cm.cpp',
+                                    'trex_rocev2_native_neighbor.cpp',
+                                    'trex_rocev2_native_qp.cpp',
+                                    'trex_rocev2_native_transport.cpp',
+                                    'trex_rocev2_native_engine.cpp',
                                     'trex_stl.cpp',
                                     'trex_stl_port.cpp',
                                     'trex_stl_streams_compiler.cpp',
@@ -1206,7 +1215,8 @@ astf_src = SrcGroup(dir='src/stx/astf/',
         'trex_astf_rpc_cmds.cpp',
         'trex_astf_rx_core.cpp',
         'trex_astf_topo.cpp',
-        'trex_astf_mbuf_redirect.cpp'
+        'trex_astf_mbuf_redirect.cpp',
+        'trex_astf_rocev2.cpp'
     ])
 
 

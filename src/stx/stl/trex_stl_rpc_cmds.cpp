@@ -1249,6 +1249,10 @@ TrexRpcCmdGetStream::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdStartTraffic::_run(const Json::Value &params, Json::Value &result) {
 
+    if (get_stx()->is_traffic_reserved()) {
+        generate_execute_err(result, "Stop the reserved endpoint session before starting STL traffic");
+    }
+
     uint8_t port_id = parse_port(params, result);
     TrexStatelessPort *port = get_stateless_obj()->get_port_by_id(port_id);
 
@@ -1631,6 +1635,10 @@ TrexRpcCmdValidate::_run(const Json::Value &params, Json::Value &result) {
 trex_rpc_cmd_rc_e
 TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
 
+    if (get_stx()->is_traffic_reserved()) {
+        generate_execute_err(result, "Stop the reserved endpoint session before starting PCAP replay");
+    }
+
     uint8_t port_id = parse_port(params, result);
     std::string  pcap_filename  = parse_string(params, "pcap_filename", result);
     double       ipg_usec       = parse_double(params, "ipg_usec", result);
@@ -1673,6 +1681,9 @@ TrexRpcCmdPushRemote::_run(const Json::Value &params, Json::Value &result) {
  */
 trex_rpc_cmd_rc_e
 TrexRpcCmdSetServiceMode::_run(const Json::Value &params, Json::Value &result) {
+    if (get_stx()->is_traffic_reserved()) {
+        generate_execute_err(result, "Stop the reserved endpoint session before changing service mode");
+    }
     uint8_t port_id = parse_port(params, result);
     bool enabled = parse_bool(params, "enabled", result);
     bool filtered = parse_bool(params, "filtered", result, false);

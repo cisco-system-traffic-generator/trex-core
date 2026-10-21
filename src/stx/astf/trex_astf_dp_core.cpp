@@ -21,6 +21,7 @@ limitations under the License.
 */
 
 #include <array>
+#include <stdexcept>
 
 #include "astf/astf_db.h"
 #include "bp_sim.h"
@@ -47,6 +48,7 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
     m_profile_states.clear();
     m_mbuf_redirect_cache = nullptr;
     m_tunnel_handler = nullptr;
+    m_rocev2.reset(new TrexAstfRoceV2Worker(thread_id, core));
     if (CGlobalInfo::m_options.m_astf_best_effort_mode) {
         // software RSS, need to create cache.
         uint8_t num_dp_cores = CGlobalInfo::m_options.preview.getCores() * CGlobalInfo::m_options.get_expected_dual_ports();
@@ -56,6 +58,7 @@ TrexAstfDpCore::TrexAstfDpCore(uint8_t thread_id, CFlowGenListPerThread *core) :
 }
 
 TrexAstfDpCore::~TrexAstfDpCore() {
+    m_rocev2.reset();
     delete m_mbuf_redirect_cache;
     m_mbuf_redirect_cache = nullptr;
     m_flow_gen->Delete_tcp_ctx();
@@ -63,6 +66,9 @@ TrexAstfDpCore::~TrexAstfDpCore() {
 }
 
 void TrexAstfDpCore::stop() {
+    if (m_rocev2->configured()) {
+        m_rocev2->command("stop", Json::Value());
+    }
     if (m_mbuf_redirect_cache) {
         m_mbuf_redirect_cache->flush_and_stop_redirect();
     }
@@ -510,6 +516,10 @@ void TrexAstfDpCore::delete_tcp_batch(profile_id_t profile_id, bool do_remove, C
 }
 
 void TrexAstfDpCore::start_transmit(profile_id_t profile_id, double duration, bool nc, double establish_timeout, double terminate_duration, double dump_interval) {
+    if (m_rocev2->configured()) {
+        report_error(profile_id, "Stop the reserved RoCEv2 endpoint before starting an ASTF profile");
+        return;
+    }
     if (!is_profile(profile_id)) {
         report_error(profile_id, "Start of unknown profile");
         return;
@@ -669,7 +679,32 @@ void TrexAstfDpCore::report_dp_state() {
 }
 
 bool TrexAstfDpCore::rx_for_idle() {
+    if (m_rocev2->active()) {
+        m_flow_gen->m_cpu_dp_u.start_work1();
+        m_rocev2->poll();
+        return true;
+    }
     return m_flow_gen->handle_rx_pkts(true) > 0;
+}
+
+bool TrexAstfDpCore::is_hot_state() {
+    return m_rocev2->active() || TrexStatelessDpCore::is_hot_state();
+}
+
+void TrexAstfDpCore::handle_rocev2_command(const std::string &command,
+                                         const Json::Value &config,
+                                         std::shared_ptr<TrexAstfRoceV2Reply> reply) {
+    try {
+        if ((command == "configure" || command == "start") && m_state != STATE_IDLE) {
+            throw std::runtime_error("RoCEv2 requires an idle ASTF dataplane worker");
+        }
+        reply->result = m_rocev2->command(command, config);
+    } catch (const std::exception &ex) {
+        reply->error = ex.what();
+    } catch (...) {
+        reply->error = "Unexpected native RoCEv2 worker command failure";
+    }
+    reply->done.store(true, std::memory_order_release);
 }
 
 void inline TrexAstfDpCore::client_lookup_and_activate(uint32_t client, bool activate) {

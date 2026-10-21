@@ -98,6 +98,16 @@ TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileClear, "profile_clear");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStart, "start");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfStop, "stop");
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfUpdate, "update");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Configure, "rocev2_configure");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Start, "rocev2_start");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Stop, "rocev2_stop");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Stats, "rocev2_get_stats");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Validate, "rocev2_validate");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Disconnect, "rocev2_disconnect");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Cancel, "rocev2_cancel");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Events, "rocev2_get_events");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2CmControl, "rocev2_cm_control");
+TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdRoceV2Capabilities, "rocev2_capabilities");
 
 TREX_RPC_CMD_ASTF_OWNED(TrexRpcCmdAstfProfileList, "get_profile_list");
 
@@ -136,6 +146,40 @@ TREX_RPC_CMD(TrexRpcCmdAstfGetIgnoredMacs, "get_ignored_macs");
 TREX_RPC_CMD(TrexRpcCmdAstfSetIgnoredIps, "set_ignored_ips");
 TREX_RPC_CMD(TrexRpcCmdAstfGetIgnoredIps, "get_ignored_ips");
 /****************************** commands implementation ******************************/
+
+trex_rpc_cmd_rc_e
+TrexRpcCmdRoceV2Configure::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &config = parse_object(params, "config", result);
+    try {
+        result["result"] = get_astf_object()->rocev2_command("configure", config);
+    } catch (const TrexException &ex) {
+        generate_execute_err(result, ex.what());
+    }
+    return TREX_RPC_CMD_OK;
+}
+
+#define ROCEV2_SIMPLE_COMMAND(class_name, action) \
+trex_rpc_cmd_rc_e class_name::_run(const Json::Value &, Json::Value &result) { \
+    try { result["result"] = get_astf_object()->rocev2_command(action); } \
+    catch (const TrexException &ex) { generate_execute_err(result, ex.what()); } \
+    return TREX_RPC_CMD_OK; \
+}
+
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Start, "start")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Stop, "stop")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Stats, "stats")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Validate, "verify")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Disconnect, "disconnect")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Cancel, "cancel")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Events, "get_events")
+ROCEV2_SIMPLE_COMMAND(TrexRpcCmdRoceV2Capabilities, "capabilities")
+trex_rpc_cmd_rc_e TrexRpcCmdRoceV2CmControl::_run(const Json::Value &params, Json::Value &result) {
+    const Json::Value &command = parse_object(params, "command", result);
+    try { result["result"] = get_astf_object()->rocev2_command("cm_control", command); }
+    catch (const TrexException &ex) { generate_execute_err(result, ex.what()); }
+    return TREX_RPC_CMD_OK;
+}
+#undef ROCEV2_SIMPLE_COMMAND
 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfSync::_run(const Json::Value &params, Json::Value &result) {
@@ -369,6 +413,9 @@ TrexRpcCmdAstfProfileList::_run(const Json::Value &params, Json::Value &result) 
 trex_rpc_cmd_rc_e
 TrexRpcCmdAstfServiceMode::_run(const Json::Value &params, Json::Value &result) {
     /* no need for port id, always run on all ports */
+    if (get_astf_object()->is_traffic_reserved()) {
+        generate_execute_err(result, "Stop the reserved RoCEv2 endpoint session before changing service mode");
+    }
     bool enabled = parse_bool(params, "enabled", result);
     bool filtered = parse_bool(params, "filtered", result, false);
     uint8_t mask = parse_byte(params, "mask", result, 0);
@@ -1060,6 +1107,9 @@ TrexRpcCmdUpdateTunnelClient::_run(const Json::Value &params, Json::Value &resul
 trex_rpc_cmd_rc_e
 TrexRpcCmdActivateTunnelMode::_run(const Json::Value &params, Json::Value &result) {
     TrexAstf *astf = get_astf_object();
+    if (astf->is_traffic_reserved()) {
+        generate_execute_err(result, "Stop the reserved RoCEv2 endpoint session before changing tunnel mode");
+    }
     bool is_idle = (astf->get_state() == AstfProfileState::STATE_IDLE) ? true : false;
 
     if (!is_idle) {
@@ -1213,6 +1263,16 @@ TrexRpcCmdsASTF::TrexRpcCmdsASTF() : TrexRpcComponent("ASTF") {
     m_cmds.push_back(new TrexRpcCmdAstfStart(this));
     m_cmds.push_back(new TrexRpcCmdAstfStop(this));
     m_cmds.push_back(new TrexRpcCmdAstfUpdate(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Configure(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Start(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Stop(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Stats(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Validate(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Disconnect(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Cancel(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Events(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2CmControl(this));
+    m_cmds.push_back(new TrexRpcCmdRoceV2Capabilities(this));
     m_cmds.push_back(new TrexRpcCmdAstfProfileList(this));
     m_cmds.push_back(new TrexRpcCmdAstfServiceMode(this));
     m_cmds.push_back(new TrexRpcCmdAstfStartLatency(this));
