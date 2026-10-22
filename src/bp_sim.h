@@ -384,6 +384,11 @@ public:
 
     /* send one packet to a specific dir. flush all packets */
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m) {}
+    /* Native transports need actual PMD acceptance to start retry timers.
+     * Accepted mbufs transfer to the interface; unsent mbufs remain caller
+     * owned. This operation never waits for descriptor availability. */
+    virtual uint16_t tx_burst_nonblocking(pkt_dir_t dir, rte_mbuf_t **packets,
+                                         uint16_t count) { return 0; }
     /* flush all pending packets into the stream */
     virtual int flush_tx_queue(void)=0;
     /* update the source and destination mac-addr of a given mbuf by global database */

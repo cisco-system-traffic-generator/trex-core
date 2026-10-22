@@ -588,6 +588,10 @@ public:
     bool is_rx_active(uint8_t port) const {
         return m_global_filter.in_rx(port);
     }
+
+    bool is_tx_active(uint8_t port) const {
+        return m_global_filter.in_tx(port);
+    }
     
     /**
      * handle packet on TX side 

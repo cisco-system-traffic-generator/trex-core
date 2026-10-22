@@ -396,6 +396,10 @@ class JsonRpcClient(object):
 
     def set_timeout_sec(self, timeout_sec):
         self.timeout_sec = timeout_sec
+        if self.connected:
+            timeout_msec = self.get_timeout_msec()
+            self.socket.setsockopt(zmq.SNDTIMEO, timeout_msec)
+            self.socket.setsockopt(zmq.RCVTIMEO, timeout_msec)
 
     def connect(self, server = None, port = None):
         if self.connected:

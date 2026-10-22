@@ -33,6 +33,88 @@ limitations under the License.
 #include "trex_stl_stream.h"
 #include "trex_stl_stream_vm.h"
 
+#include "trex_rocev2_icrc.h"
+
+static bool HOT_FUNC roce_mbuf_get_u8(const rte_mbuf_t *m, uint16_t offset, uint8_t &value) {
+    const rte_mbuf_t *seg = m;
+    uint32_t pos = offset;
+
+    while (seg != NULL) {
+        if (pos < seg->data_len) {
+            value = *(rte_pktmbuf_mtod(seg, uint8_t*) + pos);
+            return true;
+        }
+        pos -= seg->data_len;
+        seg = seg->next;
+    }
+
+    return false;
+}
+
+static bool HOT_FUNC roce_mbuf_write_u8(rte_mbuf_t *m, uint16_t offset, uint8_t value) {
+    rte_mbuf_t *seg = m;
+    uint32_t pos = offset;
+
+    while (seg != NULL) {
+        if (pos < seg->data_len) {
+            *(rte_pktmbuf_mtod(seg, uint8_t*) + pos) = value;
+            return true;
+        }
+        pos -= seg->data_len;
+        seg = seg->next;
+    }
+
+    return false;
+}
+
+void HOT_FUNC trex_roce_v2_update_icrc(rte_mbuf_t *m,
+                                       uint16_t l2_len,
+                                       uint16_t l3_len,
+                                       uint16_t bth_offset) {
+    if (unlikely((m == NULL) || (m->pkt_len < 4))) {
+        return;
+    }
+
+    uint8_t first_l3_byte = 0;
+    if (unlikely(!roce_mbuf_get_u8(m, l2_len, first_l3_byte))) {
+        return;
+    }
+
+    bool is_ipv6 = ((first_l3_byte >> 4) == 6);
+    uint16_t l4_offset = l2_len + l3_len;
+    uint32_t crc = 0xffffffff;
+
+    for (int i = 0; i < 8; i++) {
+        crc = roce_crc32_update_byte(crc, 0xff);
+    }
+
+    uint32_t global = 0;
+    uint32_t icrc_offset = m->pkt_len - 4;
+    for (rte_mbuf_t *seg = m; seg != NULL; seg = seg->next) {
+        uint8_t *data = rte_pktmbuf_mtod(seg, uint8_t*);
+        for (uint16_t i = 0; i < seg->data_len; i++, global++) {
+            if ((global < l2_len) || (global >= icrc_offset)) {
+                continue;
+            }
+            uint8_t byte = roce_icrc_invariant_byte(global,
+                                                    data[i],
+                                                    is_ipv6,
+                                                    l2_len,
+                                                    l4_offset,
+                                                    bth_offset);
+            crc = roce_crc32_update_byte(crc, byte);
+        }
+    }
+
+    crc ^= 0xffffffff;
+    bool written = roce_mbuf_write_u8(m, icrc_offset, crc & 0xff);
+    written &= roce_mbuf_write_u8(m, icrc_offset + 1, (crc >> 8) & 0xff);
+    written &= roce_mbuf_write_u8(m, icrc_offset + 2, (crc >> 16) & 0xff);
+    written &= roce_mbuf_write_u8(m, icrc_offset + 3, (crc >> 24) & 0xff);
+    assert(written);
+    (void)written;
+}
+
 
 /**
  * provides some tools for the fast rand function 
@@ -104,6 +186,10 @@ void StreamVmInstructionFixChecksumIcmpv6::Dump(FILE *fd){
 
 void StreamVmInstructionFixHwChecksum::Dump(FILE *fd){
     fprintf(fd," fix_hw_cs  %lu:%lu \n",(ulong)m_l2_len,(ulong)m_l3_len);
+}
+
+void StreamVmInstructionFixRoceV2Icrc::Dump(FILE *fd){
+    fprintf(fd," fix_rocev2_icrc  %lu:%lu:%lu \n",(ulong)m_l2_len,(ulong)m_l3_len,(ulong)m_bth_offset);
 }
 
 void StreamVmInstructionFlowMan::sanity_check_valid_size(uint32_t ins_id,StreamVm *lp){
@@ -715,6 +801,7 @@ void StreamVm::build_program(){
     int var_cnt=0;
     int var_ref_cnt=0;
     clean_max_field_cnt();
+    m_pkt_trailer_size = 0;
     uint32_t ins_id=0;
     uint32_t skip=0;
 
@@ -901,6 +988,75 @@ void StreamVm::build_program(){
             ipv_fix.m_l3_len = icmpv6Fix->m_l3_len;
             ipv_fix.m_op = StreamDPVmInstructions::ditFIX_ICMPV6_CS;
             m_instructions.add_command(&ipv_fix,sizeof(ipv_fix));
+        }
+
+        /* itFIX_ROCEV2_ICRC */
+        if (ins_type == StreamVmInstruction::itFIX_ROCEV2_ICRC) {
+            StreamVmInstructionFixRoceV2Icrc *lpFix =(StreamVmInstructionFixRoceV2Icrc *)inst;
+            std::stringstream errorBase;
+            errorBase << "instruction id '" << ins_id << "' fix RoCEv2 ICRC command ";
+
+            if (m_is_change_pkt_size) {
+                errorBase << "cannot be used with packet size changes";
+                err(errorBase.str());
+            }
+            if (i != (int)m_inst_list.size() - 1) {
+                errorBase << "must be the final VM instruction";
+                err(errorBase.str());
+            }
+
+            uint32_t l4_offset = (uint32_t)lpFix->m_l2_len + lpFix->m_l3_len;
+            if ((m_pkt_size < 4) ||
+                (lpFix->m_l2_len < 14) || (lpFix->m_l3_len < 20) ||
+                (lpFix->m_l2_len >= m_pkt_size) ||
+                (l4_offset + UDP_HEADER_LEN != lpFix->m_bth_offset) ||
+                ((uint32_t)lpFix->m_bth_offset + 12 > (uint32_t)m_pkt_size - 4)) {
+                errorBase << "offsets are invalid relative to packet size " << m_pkt_size;
+                err(errorBase.str());
+            }
+
+            if (m_pkt) {
+                uint8_t version = m_pkt[lpFix->m_l2_len] >> 4;
+                if (version == 4) {
+                    IPHeader *ipv4 = (IPHeader *)(m_pkt + lpFix->m_l2_len);
+                    if (ipv4->getNextProtocol() != IPHeader::Protocol::UDP) {
+                        errorBase << "requires IPv4/UDP";
+                        err(errorBase.str());
+                    }
+                    if (ipv4->getSize() != lpFix->m_l3_len) {
+                        errorBase << "IPv4 header size " << ipv4->getSize() << " does not match l3_len " << lpFix->m_l3_len;
+                        err(errorBase.str());
+                    }
+                } else if (version == 6) {
+                    if (lpFix->m_l3_len != 40) {
+                        errorBase << "supports IPv6 without extension headers";
+                        err(errorBase.str());
+                    }
+                    IPv6Header *ipv6 = (IPv6Header *)(m_pkt + lpFix->m_l2_len);
+                    if (ipv6->getNextHdr() != IPHeader::Protocol::UDP) {
+                        errorBase << "requires IPv6/UDP without extension headers";
+                        err(errorBase.str());
+                    }
+                } else {
+                    errorBase << "requires IPv4 or IPv6";
+                    err(errorBase.str());
+                }
+
+                uint8_t *udp = m_pkt + l4_offset;
+                uint16_t dport = ((uint16_t)udp[2] << 8) | udp[3];
+                if (dport != 4791) {
+                    errorBase << "requires UDP destination port 4791";
+                    err(errorBase.str());
+                }
+            }
+
+            StreamDPOpRoceIcrcFix roce_fix;
+            roce_fix.m_l2_len = lpFix->m_l2_len;
+            roce_fix.m_l3_len = lpFix->m_l3_len;
+            roce_fix.m_bth_offset = lpFix->m_bth_offset;
+            roce_fix.m_op = StreamDPVmInstructions::ditFIX_ROCEV2_ICRC;
+            m_instructions.add_command(&roce_fix, sizeof(roce_fix));
+            m_pkt_trailer_size = 4;
         }
 
         if (ins_type == StreamVmInstruction::itFLOW_RAND_LIMIT) {
@@ -1392,6 +1548,7 @@ StreamVm::clone(StreamVm &other) const {
     other.m_is_change_pkt_size   = false;
     other.m_is_split_needed      = false;
     other.m_is_compiled          = false;
+    other.m_pkt_trailer_size     = 0;
 
     other.m_inst_list.clear();
 
@@ -1421,6 +1578,12 @@ void StreamVm::compile(uint16_t pkt_len) {
 
     build_program();
 
+    if (m_pkt_trailer_size && (get_max_packet_update_offset() > (m_pkt_size - m_pkt_trailer_size))) {
+        std::stringstream ss;
+        ss << "regular VM writes cannot target the final " << (uint16_t)m_pkt_trailer_size << " byte RoCEv2 ICRC trailer";
+        err(ss.str());
+    }
+
     if ( get_max_packet_update_offset() >svMAX_PACKET_OFFSET_CHANGE ){
         std::stringstream ss;
         ss << "maximum offset is" << get_max_packet_update_offset() << " bigger than maximum " <<svMAX_PACKET_OFFSET_CHANGE;
@@ -1429,6 +1592,15 @@ void StreamVm::compile(uint16_t pkt_len) {
 
     /* calculate the mbuf size that we should allocate */
     m_prefix_size = calc_writable_mbuf_size(get_max_packet_update_offset(), m_pkt_size);
+    if (m_pkt_trailer_size) {
+        if (m_pkt_size <= m_pkt_trailer_size) {
+            err("RoCEv2 ICRC trailer is bigger than packet size");
+        }
+        uint16_t max_prefix_size = m_pkt_size - m_pkt_trailer_size;
+        if (m_prefix_size > max_prefix_size) {
+            m_prefix_size = max_prefix_size;
+        }
+    }
 
     m_is_compiled = true;
 }
@@ -1560,6 +1732,7 @@ void StreamDPVmInstructions::Dump(FILE *fd){
     StreamDPOpFlowVar64Step *lpv64s;
 
     StreamDPOpHwCsFix   *lpHwFix;
+    StreamDPOpRoceIcrcFix *lpRoceIcrcFix;
 
     StreamDPOpIpv4Fix   *lpIpv4Fix;
     StreamDPOpIcmpv6Fix *lpIcmpv6Fix;
@@ -1606,6 +1779,12 @@ void StreamDPVmInstructions::Dump(FILE *fd){
             lpHwFix =(StreamDPOpHwCsFix *)p;
             lpHwFix->dump(fd,"HwFixCs");
             p+=sizeof(StreamDPOpHwCsFix);
+            break;
+
+        case  ditFIX_ROCEV2_ICRC :
+            lpRoceIcrcFix =(StreamDPOpRoceIcrcFix *)p;
+            lpRoceIcrcFix->dump(fd,"RoceIcrcFix");
+            p+=sizeof(StreamDPOpRoceIcrcFix);
             break;
 
         case  ditFIX_IPV4_CS :
@@ -1784,6 +1963,10 @@ void StreamDPOpHwCsFix::dump(FILE *fd,std::string opt){
 
 }
 
+void StreamDPOpRoceIcrcFix::dump(FILE *fd,std::string opt){
+    fprintf(fd," %10s  op:%lu, lens: %lu,%lu, bth: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_l2_len,(ulong)m_l3_len,(ulong)m_bth_offset);
+}
+
 void StreamDPOpIpv4Fix::dump(FILE *fd,std::string opt){
     fprintf(fd," %10s  op:%lu, offset: %lu \n",  opt.c_str(),(ulong)m_op,(ulong)m_offset);
 }
@@ -1943,6 +2126,3 @@ void   StreamDPVmInstructionsRunner::slow_commands(uint8_t op_code,
         assert(0);
     }
 }
-
-
-

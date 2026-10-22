@@ -30,6 +30,15 @@
 #include <unistd.h>
 #include <poll.h>
 
+#include "trex_af_packet_rx.h"
+
+/* Added to Linux UAPI after the oldest headers supported by this tree.  An
+ * older running kernel rejects the unknown option and the ring-level packet
+ * type filter below remains authoritative. */
+#ifndef PACKET_IGNORE_OUTGOING
+#define PACKET_IGNORE_OUTGOING 23
+#endif
+
 #define ETH_AF_PACKET_IFACE_ARG		"iface"
 #define ETH_AF_PACKET_NUM_Q_ARG		"qpairs"
 #define ETH_AF_PACKET_BLOCKSIZE_ARG	"blocksz"
@@ -120,6 +129,15 @@ RTE_LOG_REGISTER_DEFAULT(af_packet_logtype, NOTICE);
 	RTE_LOG_LINE(level, AFPACKET, "%s(): " fmt ":%s", __func__, \
 		## __VA_ARGS__, strerror(errno))
 
+static inline bool
+af_packet_frame_is_non_ingress(const struct tpacket2_hdr *ppd)
+{
+	const struct sockaddr_ll *sll = (const struct sockaddr_ll *)
+		((const uint8_t *)ppd + TPACKET_ALIGN(sizeof(*ppd)));
+
+	return !trex_af_packet_rx_accept(sll->sll_pkttype);
+}
+
 static uint16_t
 eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 {
@@ -128,8 +146,7 @@ eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 	struct rte_mbuf *mbuf;
 	uint8_t *pbuf;
 	struct pkt_rx_queue *pkt_q = queue;
-	uint16_t num_rx = 0;
-	unsigned long num_rx_bytes = 0;
+	struct trex_af_packet_rx_batch batch = {0};
 	unsigned int framecount, framenum;
 
 	if (unlikely(nb_pkts == 0))
@@ -146,6 +163,18 @@ eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 		ppd = (struct tpacket2_hdr *) pkt_q->rd[framenum].iov_base;
 		if ((ppd->tp_status & TP_STATUS_USER) == 0)
 			break;
+
+		/* SOCK_RAW packet sockets receive a local PACKET_OUTGOING copy of
+		 * frames emitted by the host (for example, host LLDP).  It is not
+		 * physical ingress and must not enter the ethdev RX stream or
+		 * rte_eth_stats; otherwise one transmitted host frame is falsely
+		 * reported as both TX and RX. */
+		if (unlikely(af_packet_frame_is_non_ingress(ppd))) {
+			ppd->tp_status = TP_STATUS_KERNEL;
+			if (++framenum >= framecount)
+				framenum = 0;
+			continue;
+		}
 
 		/* allocate the next mbuf */
 		mbuf = rte_pktmbuf_alloc(pkt_q->mb_pool);
@@ -185,14 +214,13 @@ eth_af_packet_rx(void *queue, struct rte_mbuf **bufs, uint16_t nb_pkts)
 		mbuf->port = pkt_q->in_port;
 
 		/* account for the receive frame */
-		bufs[i] = mbuf;
-		num_rx++;
-		num_rx_bytes += mbuf->pkt_len;
+		bufs[trex_af_packet_rx_output_slot(&batch)] = mbuf;
+		trex_af_packet_rx_account_accepted(&batch, mbuf->pkt_len);
 	}
 	pkt_q->framenum = framenum;
-	pkt_q->rx_pkts += num_rx;
-	pkt_q->rx_bytes += num_rx_bytes;
-	return num_rx;
+	pkt_q->rx_pkts += batch.packets;
+	pkt_q->rx_bytes += batch.bytes;
+	return batch.packets;
 }
 
 /*
@@ -927,6 +955,18 @@ rte_pmd_init_internals(struct rte_vdev_device *dev,
 				"%s: could not set PACKET_LOSS on AF_PACKET socket for %s",
 				name, pair->value);
 			goto error;
+		}
+
+		/* Newer kernels can suppress host reflections before they consume
+		 * PACKET_RX_RING capacity.  Keep the per-frame sll_pkttype filter as
+		 * a mandatory fallback when the running kernel lacks this option. */
+		discard = 1;
+		rc = setsockopt(qsockfd, SOL_PACKET, PACKET_IGNORE_OUTGOING,
+				&discard, sizeof(discard));
+		if (rc == -1) {
+			PMD_LOG_ERRNO(WARNING,
+				"%s: PACKET_IGNORE_OUTGOING unavailable on AF_PACKET socket for %s; using ring-level fallback",
+				name, pair->value);
 		}
 
 		if (qdisc_bypass) {
