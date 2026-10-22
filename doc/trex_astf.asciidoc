@@ -4187,7 +4187,7 @@ Trex doesn't generate RST packets in case of error with GTPU mode, since there i
 
 === Native RoCEv2 endpoint sessions
 
-ASTF exposes an experimental native RoCEv2 endpoint API for TRex-to-TRex
+ASTF exposes a native RoCEv2 endpoint API (Beta) for TRex-to-TRex
 testing. It implements reliable-connected SEND/RECV and immediate/invalidate
 variants, RDMA Write/Read, Write with immediate, and 64-bit CAS/FAA atomics over
 UDP/4791. Bounded registered memory, posted receive buffers, ordered
