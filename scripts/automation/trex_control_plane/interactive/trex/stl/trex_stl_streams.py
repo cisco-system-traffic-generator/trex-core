@@ -900,6 +900,19 @@ class STLStream(object):
 
         stream = "stream = STLStream(" + ',\n                   '.join(stream_params_list) + ')'
 
+        # New Scapy dissectors can interpret arbitrary profile payloads (for
+        # example UDP/53 padding as DNS). Reconstructing those fields may change
+        # the wire bytes. Keep such packets as a byte literal in exported code.
+        try:
+            rebuilt = layer.copy()
+            rebuilt.clear_cache()
+            preserves_bytes = bytes(rebuilt) == self.pkt
+        except Exception:
+            preserves_bytes = False
+        if not preserves_bytes:
+            packet_code = 'packet = Ether(%r)' % self.pkt
+            return '\n'.join([packet_code, vm_code, stream])
+
         layer.hide_defaults()          # remove fields with default values
         imports_arr = []
         layers_commands = []
@@ -1493,7 +1506,8 @@ class PCAPReader(object):
     def read_all(self, ipg_usec, min_ipg_usec, speedup, split_mode = None):
         # get the packets
         if split_mode is None:
-            pkts = RawPcapReader(self.pcap_file).read_all()
+            with RawPcapReader(self.pcap_file) as reader:
+                pkts = list(reader)
         else:
             pkts = rdpcap(self.pcap_file)
 

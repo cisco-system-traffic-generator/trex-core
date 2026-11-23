@@ -28,7 +28,8 @@ class CPcapFileReader:
     def __build_pkts(self):
         if not os.path.exists(self.file_name):
             fail('Filename %s does not exist!' % self.file_name)
-        pcap = RawPcapReader(self.file_name).read_all()
+        with RawPcapReader(self.file_name) as reader:
+            pcap = list(reader)
         if not pcap:
             fail('Empty pcap!')
         first_tuple = None

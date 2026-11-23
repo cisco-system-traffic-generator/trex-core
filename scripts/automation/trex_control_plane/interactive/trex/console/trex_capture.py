@@ -222,7 +222,7 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
             
             # open for write using a PCAP writer
             self.writer = RawPcapWriter(self.fifo_name, linktype = 1, sync = True)
-            self.writer._write_header(None)
+            self.writer.write_header(None)
             
             # register a poller
             self.poll = select.poll()
@@ -325,7 +325,7 @@ class CaptureMonitorWriterPipe(CaptureMonitorWriter):
             ts_sec, ts_usec = sec_split_usec(pkt['ts'] - self.start_ts)
             
             try:
-                self.writer._write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
+                self.writer.write_packet(pkt_bin, sec = ts_sec, usec = ts_usec)
             except Exception as e:
                 raise TRexError('fail to write packets to pipe: {}'.format(str(e)))
                 

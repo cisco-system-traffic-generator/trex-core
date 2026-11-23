@@ -523,7 +523,9 @@ class Scapy_service(Scapy_service_api):
         if not protocol=='':
             if protocol not in self.all_protocols:
                 return 'protocol not supported'
-        protocol = eval(protocol)
+        protocol = self._protocol_class_by_name(protocol)
+        if protocol is None:
+            return []
         old_stdout = sys.stdout
         sys.stdout = mystdout = StringIO()
         ls(protocol)
@@ -844,6 +846,15 @@ class Scapy_service(Scapy_service_api):
         return set(cls.__subclasses__()).union(
             [s for c in cls.__subclasses__() for s in self._all_subclasses(c)])
 
+    def _protocol_class_by_name(self, protocol):
+        protocol_class = globals().get(protocol)
+        if isinstance(protocol_class, type) and issubclass(protocol_class, Packet):
+            return protocol_class
+        for protocol_class in self._all_subclasses(Packet):
+            if protocol_class.__name__ == protocol:
+                return protocol_class
+        return None
+
     def _packet_model_to_scapy_packet(self,data):
         layer_classes = {}
         for layer_class in self._all_subclasses(Packet):
@@ -1096,7 +1107,7 @@ class Scapy_service(Scapy_service_api):
             return ""
         f  = os.path.join(self.scapy_service_dir, f)
         with open(f, 'r') as content_file:
-            content = base64.b64encode(str_to_bytes(content_file.read()))
+            content = bytes_to_b64(str_to_bytes(content_file.read()))
         return content
 
 
