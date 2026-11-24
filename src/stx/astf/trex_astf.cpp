@@ -38,6 +38,10 @@ limitations under the License.
 #include "trex_astf_topo.h"
 
 #include "stt_cp.h"
+#include "trex_astf_rocev2.h"
+#include <chrono>
+#include <map>
+#include <thread>
 
 using namespace std;
 
@@ -47,7 +51,7 @@ using namespace std;
 TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
     /* API core version */
     const int API_VER_MAJOR = 2;
-    const int API_VER_MINOR = 3;
+    const int API_VER_MINOR = 4;
     m_l_state = STATE_L_IDLE;
     m_latency_pps = 0;
     m_lat_with_traffic = false;
@@ -84,6 +88,8 @@ TrexAstf::TrexAstf(const TrexSTXCfg &cfg) : TrexStateless(cfg, true) {
 
     m_state = STATE_IDLE;
     m_epoch = 0;
+    m_rocev2_reserved = false;
+    m_rocev2_generation = 0;
 
     m_dp_states.resize(api.get_dp_core_count());
     m_stopping_dp = false;
@@ -309,6 +315,9 @@ void TrexAstf::set_barrier(double timeout_sec) {
 }
 
 void TrexAstf::set_service_mode(bool enabled, bool filtered, uint8_t mask) {
+    if (m_rocev2_reserved) {
+        throw TrexException("Stop the reserved RoCEv2 endpoint session before changing service mode");
+    }
     /* update the all the relevant dp cores to move to service mode */
     TrexAstfDpServiceMode *dp_msg = new TrexAstfDpServiceMode(enabled, filtered , mask);
     get_astf_object()->send_message_to_all_dp(dp_msg);
@@ -340,6 +349,9 @@ void TrexAstf::check_whitelist_states(const states_t &whitelist) {
 
 void TrexAstf::acquire_context(const string &user, bool force) {
     if ( get_owner().is_free() || force ) {
+        if (m_rocev2_reserved) {
+            rocev2_command("stop");
+        }
         get_owner().own("", 0);
         for (auto &port: m_ports) {
             port.second->get_owner().own(user, 0);
@@ -349,7 +361,211 @@ void TrexAstf::acquire_context(const string &user, bool force) {
     }
 }
 
+namespace {
+void merge_rocev2_qp(Json::Value &summary, const Json::Value &qp) {
+    if (summary.isNull()) {
+        summary = Json::objectValue;
+        summary["qp_count"] = 0;
+        summary["done"] = true;
+        summary["passed"] = true;
+    }
+    summary["qp_count"] = summary["qp_count"].asUInt() + 1;
+    summary["done"] = summary["done"].asBool() && qp.get("done", false).asBool();
+    summary["passed"] = summary["passed"].asBool() && qp.get("passed", false).asBool();
+    const char *fields[] = {
+        "posted", "completed", "failed", "errors", "connection_failures",
+        "submission_failures", "completed_bytes", "verification_failures",
+        "verified_bytes", "received_writes", "served_reads", "expected_work",
+        "received", "received_bytes", "receive_failures", "unverified_atomic_results",
+        "atomic_requests_received", "atomic_replay_hits", "retransmissions",
+        "icrc_errors", "data_tx_packets", "data_tx_packets_queued", "data_rx_packets",
+        "endpoint_mismatch_packets", "malformed_rc_packets"
+    };
+    for (const char *field : fields) {
+        summary[field] = Json::UInt64(summary.get(field, Json::UInt64(0)).asUInt64() +
+                                      qp.get(field, Json::UInt64(0)).asUInt64());
+    }
+}
+
+/* Aggregate snapshots after all owning workers have replied. Device IDs never
+ * cross into the wire protocol; a physical port retains its ordinary TRex
+ * counters, including CM/neighbor traffic, separately from these QP counters. */
+void summarize_rocev2_devices(Json::Value &result) {
+    std::map<std::pair<unsigned, unsigned>, Json::Value> devices;
+    std::map<std::pair<unsigned, unsigned>, Json::Value> identities;
+    std::map<unsigned, Json::Value> ports;
+    for (const auto &worker : result["workers"]) {
+        for (const auto &identity : worker["device_info"]) {
+            identities[{identity["port"].asUInt(), identity["device_id"].asUInt()}] = identity;
+        }
+        if (worker.isMember("admission") && !result.isMember("admission")) {
+            result["admission"] = worker["admission"];
+        }
+        if (worker.isMember("scale") && !result.isMember("scale")) {
+            result["scale"] = worker["scale"];
+        }
+        for (const auto &qp : worker["qps"]) {
+            const unsigned port = qp["port"].asUInt();
+            const unsigned device_id = qp.get("device_id", 0).asUInt();
+            Json::Value &device = devices[{port, device_id}];
+            merge_rocev2_qp(device, qp);
+            device["port"] = port;
+            device["device_id"] = device_id;
+            merge_rocev2_qp(ports[port], qp);
+            ports[port]["port"] = port;
+        }
+    }
+    result["devices"] = Json::arrayValue;
+    result["ports"] = Json::arrayValue;
+    for (auto &device : devices) {
+        const auto identity = identities.find(device.first);
+        if (identity != identities.end()) {
+            for (const char *field : {"node_guid", "host", "gids"}) {
+                device.second[field] = identity->second[field];
+            }
+        }
+        result["devices"].append(device.second);
+    }
+    for (auto &port : ports) {
+        unsigned count = 0;
+        for (const auto &device : devices) { count += device.first.first == port.first; }
+        port.second["device_count"] = count;
+        result["ports"].append(port.second);
+    }
+}
+}
+
+Json::Value TrexAstf::rocev2_command(const std::string &command, const Json::Value &configuration) {
+    if (command == "capabilities") {
+        Json::Value result(Json::objectValue);
+        result["transport"] = "RC"; result["conformance_status"] = "unqualified";
+        result["schema_versions"] = Json::arrayValue;
+        result["schema_versions"].append(1); result["schema_versions"].append(2);
+        result["schema_versions"].append(3);
+        result["device_profiles"] = true;
+        result["device_local_qp_namespaces"] = true;
+        result["default_devices_per_port"] = 32;
+        result["default_qps_per_device"] = 16;
+        result["max_qps"] = 4096;
+        result["default_max_memory_bytes"] = Json::UInt64(64ULL << 20);
+        result["device_default_max_memory_bytes"] = Json::UInt64(128ULL << 20);
+        result["max_memory_bytes"] = Json::UInt64(256ULL << 20);
+        result["default_max_native_storage_bytes"] = Json::UInt64(512ULL << 20);
+        result["max_native_storage_bytes"] = Json::UInt64(16ULL << 30);
+        result["max_receive_sge"] = 16; result["max_rd_atomic"] = 16;
+        const char *operations[] = {"send", "send_imm", "send_inv", "write", "write_imm", "read", "compare_swap", "fetch_add"};
+        result["operations"] = Json::arrayValue;
+        for (const char *operation : operations) { result["operations"].append(operation); }
+        const char *cm[] = {"REQ", "REP", "RTU", "MRA", "REJ", "DREQ", "DREP"};
+        result["cm_messages"] = Json::arrayValue;
+        for (const char *message : cm) { result["cm_messages"].append(message); }
+        result["carriers"] = Json::arrayValue;
+        result["carriers"].append("dpdk"); result["carriers"].append("af_packet");
+        const char *unsupported[] = {"UC", "user UD", "SRQ", "XRC", "masked atomics", "alternate path migration", "SIDR", "ECE", "CCL"};
+        result["unsupported"] = Json::arrayValue;
+        for (const char *capability : unsupported) { result["unsupported"].append(capability); }
+        return result;
+    }
+    const uint8_t cores = get_platform_api().get_dp_core_count();
+    if (!cores) {
+        throw TrexException("No dataplane workers are available for RoCEv2");
+    }
+
+    Json::Value config = configuration;
+    if (command == "configure") {
+        if (m_rocev2_reserved) {
+            throw TrexException("Stop the existing RoCEv2 session before reconfiguration");
+        }
+        check_whitelist_states({STATE_IDLE, STATE_LOADED});
+        if (m_starting_dp || m_stopping_dp || m_l_state != STATE_L_IDLE || m_tunnel_handler) {
+            throw TrexException("RoCEv2 requires idle workers without latency or tunnel traffic");
+        }
+        for (const auto &port : get_port_map()) {
+            if (port.second->is_active() || port.second->is_service_mode_on()) {
+                throw TrexException("RoCEv2 requires idle ports with service mode disabled");
+            }
+        }
+        if (!config.isObject()) {
+            throw TrexException("RoCEv2 configuration must be an object");
+        }
+        /* Generations qualify local asynchronous ownership. They are not sent
+         * on the wire and need not match the peer's generation. */
+        if (m_rocev2_generation == UINT64_MAX) {
+            throw TrexException("RoCEv2 session generation exhausted");
+        }
+        config["generation"] = Json::UInt64(++m_rocev2_generation);
+        m_rocev2_reserved = true;
+    } else if (command == "start" && !m_rocev2_reserved) {
+        throw TrexException("Configure a RoCEv2 endpoint session before starting it");
+    }
+
+    if (command == "cm_control") {
+        const uint64_t target = config.get("connection_id", Json::UInt64(0)).asUInt64() >> 24;
+        if (!m_rocev2_reserved || target == 0 || target > cores) {
+            throw TrexException("CM control requires a live session and valid connection owner");
+        }
+    }
+    std::vector<std::shared_ptr<TrexAstfRoceV2Reply>> replies;
+    for (uint8_t core = 0; core < cores; ++core) {
+        auto reply = std::make_shared<TrexAstfRoceV2Reply>();
+        replies.push_back(reply);
+        send_msg_to_dp(core, new TrexAstfDpRoceV2(command, config, reply));
+    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    std::string error;
+    Json::Value result(Json::objectValue);
+    result["workers"] = Json::arrayValue;
+    if (command == "get_events") { result["events"] = Json::arrayValue; }
+    result["done"] = true;
+    result["passed"] = true;
+    result["errors"] = Json::UInt64(0);
+    result["generation"] = Json::UInt64(m_rocev2_generation);
+    for (const auto &reply : replies) {
+        while (!reply->done.load(std::memory_order_acquire) &&
+               std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (!reply->done.load(std::memory_order_acquire)) {
+            error = "Timed out waiting for a RoCEv2 dataplane worker";
+            continue;
+        }
+        if (!reply->error.empty()) {
+            error = reply->error;
+            continue;
+        }
+        const auto &worker = reply->result;
+        result["workers"].append(worker);
+        if (command == "get_events") { for (const auto &event : worker["events"]) { result["events"].append(event); } }
+        result["done"] = result["done"].asBool() && worker.get("done", false).asBool();
+        result["passed"] = result["passed"].asBool() && worker.get("passed", false).asBool();
+        result["errors"] = Json::UInt64(result["errors"].asUInt64() + worker.get("errors", Json::UInt64(0)).asUInt64());
+    }
+    if (!error.empty()) {
+        /* FIFO command queues put STOP after every attempted configure/start.
+         * Reply ownership remains valid even if the original request timed out. */
+        if (command == "configure" || command == "start") {
+            try {
+                rocev2_command("stop");
+            } catch (const TrexException &) {
+                /* Keep the reservation until a subsequent stop confirms that
+                 * all workers released the endpoint resources. */
+                m_rocev2_reserved = true;
+            }
+        }
+        throw TrexException(error);
+    }
+    if (command == "stop") {
+        m_rocev2_reserved = false;
+    }
+    summarize_rocev2_devices(result);
+    result["configured"] = m_rocev2_reserved;
+    return result;
+}
+
 void TrexAstf::release_context() {
+    if (m_rocev2_reserved) {
+        rocev2_command("stop");
+    }
     for (auto &port: m_ports) {
         port.second->get_owner().release();
     }
@@ -426,6 +642,9 @@ bool TrexAstf::is_state_build() {
 }
 
 void TrexAstf::start_transmit(cp_profile_id_t profile_id, const start_params_t &args) {
+    if (m_rocev2_reserved) {
+        throw TrexException("Stop the reserved RoCEv2 endpoint session before starting ASTF traffic");
+    }
     m_cp_sts_infra->clear_dps_dyn_counters(profile_id);
     TrexAstfPerProfile* pid = get_profile(profile_id);
     pid->profile_check_whitelist_states({STATE_LOADED});
@@ -535,6 +754,9 @@ void TrexAstf::update_rate(cp_profile_id_t profile_id, double mult) {
 
 
 void TrexAstf::start_transmit_latency(const lat_start_params_t &args, CTunnelsTopo* tunnel_topo, CTunnelsDB* tunnel_db) {
+    if (m_rocev2_reserved) {
+        throw TrexException("Stop the reserved RoCEv2 endpoint session before starting latency traffic");
+    }
 
     if (m_l_state != STATE_L_IDLE){
         throw TrexException("Latency state is not idle, should stop latency first");

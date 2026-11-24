@@ -28,6 +28,7 @@ limitations under the License.
 #include "trex_dp_core.h"
 #include "stl/trex_stl_dp_core.h"
 #include "trex_messaging.h"
+#include "trex_astf_rocev2.h"
 #include "tunnels/tunnel_handler.h"
 
 class CAstfDB;
@@ -83,9 +84,12 @@ public:
     void insert_ignored_ip_addresses(std::vector<uint32_t>& ip_addresses);
     void update_tunnel_for_client(CAstfDB* astf_db, std::vector<client_tunnel_data_t> msg_data);
     void dump_profile_flows(profile_id_t profile_id);
+    void handle_rocev2_command(const std::string &command, const Json::Value &config,
+                              std::shared_ptr<TrexAstfRoceV2Reply> reply);
 
 protected:
     virtual bool rx_for_idle();
+    bool is_hot_state() override;
     void report_finished(profile_id_t profile_id = 0);
     void report_finished_partial(profile_id_t profile_id);
     void report_profile_ctx(profile_id_t profile_id = 0);
@@ -179,6 +183,7 @@ public:
     dp_sts_t activate_tunnel_handler(bool activate, uint8_t tunnel_type, bool loopback);
 
 private:
+    std::unique_ptr<TrexAstfRoceV2Worker> m_rocev2;
     CTunnelHandler *m_tunnel_handler;
 };
 

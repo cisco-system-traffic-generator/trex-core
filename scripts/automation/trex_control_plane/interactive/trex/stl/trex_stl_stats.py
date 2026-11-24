@@ -86,7 +86,7 @@ class CPgIdStats(object):
             raise TRexError(rc)
         return rc.data()['ids']
 
-    def get_stats(self, pgid_list = [], relative = True):
+    def get_stats(self, pgid_list = [], relative = True, rpc_method = 'get_pgid_stats'):
         if not pgid_list:
             active_pgids = self.get_active_pgids()
             pgid_list = active_pgids['latency'] + active_pgids['flow_stats']
@@ -97,10 +97,10 @@ class CPgIdStats(object):
         index = 0
         ans_dict = {}
 
-        while index <= pgid_list_len:
+        while index < pgid_list_len or (index == 0 and pgid_list_len == 0):
             curr_pgid_list = pgid_list[index : index + max_pgid_in_query]
             index += max_pgid_in_query
-            rc = self.rpc.transmit('get_pgid_stats', params = {'pgids': curr_pgid_list})
+            rc = self.rpc.transmit(rpc_method, params = {'pgids': curr_pgid_list})
 
             if not rc:
                 raise TRexError(rc)

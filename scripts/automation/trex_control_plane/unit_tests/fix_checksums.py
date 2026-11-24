@@ -23,7 +23,7 @@ if os.path.exists(args.output_pcap):
     fail('Destination path exists')
 
 w = RawPcapWriter(args.output_pcap, linktype = 1)
-w._write_header(None)
+w.write_header(None)
 
 written = 0
 skipped = 0
@@ -51,7 +51,7 @@ for i, pkt in enumerate(RawPcapReader(args.input_pcap)):
         pkt_buf = bytes(scapy_pkt)
         if extra_data: # remove FCS, extra paddings etc.
             pkt_buf = pkt_buf[:-extra_data]
-        w._write_packet(pkt_buf, pkt[1][0], pkt[1][1])
+        w.write_packet(pkt_buf, pkt[1][0], pkt[1][1])
         written += 1
 
     except Exception as e:

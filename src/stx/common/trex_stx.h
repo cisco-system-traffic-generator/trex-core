@@ -92,6 +92,10 @@ public:
      * pure virtual DTOR to enforce deriviation
      */
     virtual ~TrexSTX();
+
+    /* An endpoint workload may reserve packet processing independently of
+     * the legacy port/profile transmit state. */
+    virtual bool is_traffic_reserved() const { return false; }
     
 
     /**

@@ -1666,6 +1666,8 @@ public:
                                                        , CVirtualIFPerSideStats  * lp_stats, bool is_const);
     virtual int send_node(CGenNode * node);
     virtual void send_one_pkt(pkt_dir_t dir, rte_mbuf_t *m);
+    virtual uint16_t tx_burst_nonblocking(pkt_dir_t dir, rte_mbuf_t **packets,
+                                         uint16_t count) override;
     virtual int flush_tx_queue(void);
     __attribute__ ((noinline)) void handle_slowpath_features(CGenNode *node, rte_mbuf_t *m, uint8_t *p, pkt_dir_t dir);
 
@@ -2120,6 +2122,49 @@ HOT_FUNC void CCoreEthIF::send_one_pkt(pkt_dir_t       dir,
     /* flush */
     send_burst(lp_port,lp_port->m_len,lp_stats);
     lp_port->m_len = 0;
+}
+
+HOT_FUNC uint16_t CCoreEthIF::tx_burst_nonblocking(pkt_dir_t dir,
+                                                 rte_mbuf_t **packets,
+                                                 uint16_t count) {
+    CCorePerPort *port = &m_ports[dir];
+    CVirtualIFPerSideStats *stats = &m_stats[dir];
+    /* Preserve lengths and optional capture bytes before PMD ownership.
+     * Deep copies leave original refcounts compatible with fast-free queues. */
+    uint32_t lengths[MAX_PKT_BURST];
+    rte_mbuf_t *capture_copies[MAX_PKT_BURST] = {};
+    TrexCaptureMngr &capture = TrexCaptureMngr::getInstance();
+    const int port_id = port->m_port->get_tvpid();
+    const bool capture_active = capture.is_tx_active(port_id);
+    count = std::min<uint16_t>(count, MAX_PKT_BURST);
+    for (uint16_t i = 0; i < count; ++i) {
+        lengths[i] = rte_pktmbuf_pkt_len(packets[i]);
+        if (unlikely(capture_active)) {
+            capture_copies[i] = rte_pktmbuf_copy(packets[i], packets[i]->pool, 0, UINT32_MAX);
+            if (unlikely(capture_copies[i] == nullptr)) {
+                /* Keep the unprepared suffix caller-owned for a later retry. */
+                count = i;
+                break;
+            }
+        }
+    }
+    uint16_t accepted = count ? port->m_port->tx_burst(port->m_tx_queue_id, packets, count) : 0;
+    for (uint16_t i = 0; i < count; ++i) {
+        if (capture_copies[i]) {
+            if (i < accepted) {
+                capture.handle_pkt_tx(capture_copies[i], port_id);
+            }
+            rte_pktmbuf_free(capture_copies[i]);
+        }
+    }
+    stats->m_tx_pkt += accepted;
+    for (uint16_t i = 0; i < accepted; ++i) {
+        stats->m_tx_bytes += lengths[i] + 4;
+    }
+    if (accepted < count) {
+        stats->m_tx_queue_full++;
+    }
+    return accepted;
 }
 
 HOT_FUNC uint16_t CCoreEthIFTcp::rx_burst(pkt_dir_t dir,

@@ -646,6 +646,10 @@ class STLStream(object):
             self.fields['flow_stats'] = STLFlowStats.defaults()
         else:
             self.fields['flow_stats'] = flow_stats.to_json()
+            if (self.fields['flow_stats']['rule_type'] != 'stats' and
+                    any(instruction['type'] == 'fix_checksum_rocev2_icrc'
+                        for instruction in self.fields['vm']['instructions'])):
+                raise TRexError('RoCEv2 ICRC requires basic flow stats; payload statistics overwrite the CRC trailer')
 
     def __str__ (self):
         s =  "Stream Name: {0}\n".format(self.name)
@@ -756,7 +760,7 @@ class STLStream(object):
         if name in inst:
             ret = pkt.get_field_by_offset(inst[name])
             if ret:
-                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw', 'fix_checksum_icmpv6'): # do not include field name
+                if inst['type'] in ('fix_checksum_ipv4', 'fix_checksum_hw', 'fix_checksum_icmpv6', 'fix_checksum_rocev2_icrc'): # do not include field name
                     if ret[1] == 0: # layer index is redundant
                         inst[name] = "'%s'" % ret[0]
                     else: 
@@ -831,6 +835,13 @@ class STLStream(object):
                 self.__fix_offset_by_name(pkt, inst, 'l3_offset')
                 self.__fix_offset_by_name(pkt, inst, 'l4_offset')
                 vm_list.append("vm.fix_chksum_icmpv6(l3_offset={l3_offset}, l4_offset={l4_offset})".format(**inst))
+            elif inst['type'] == 'fix_checksum_rocev2_icrc':
+                inst['l3_offset'] = inst['l2_len']
+                inst['l4_offset'] = inst['l2_len'] + inst['l3_len']
+                self.__fix_offset_by_name(pkt, inst, 'l3_offset')
+                self.__fix_offset_by_name(pkt, inst, 'l4_offset')
+                self.__fix_offset_by_name(pkt, inst, 'bth_offset')
+                vm_list.append("vm.fix_rocev2_icrc(l3_offset={l3_offset}, l4_offset={l4_offset}, bth_offset={bth_offset})".format(**inst))
             elif inst['type'] == 'trim_pkt_size':
                 vm_list.append("vm.trim(fv_name='{name}')".format(**inst))
             elif inst['type'] == 'tuple_flow_var':
@@ -899,6 +910,19 @@ class STLStream(object):
             raise TRexError('Could not determine mode: %s' % self.mode_desc)
 
         stream = "stream = STLStream(" + ',\n                   '.join(stream_params_list) + ')'
+
+        # New Scapy dissectors can interpret arbitrary profile payloads (for
+        # example UDP/53 padding as DNS). Reconstructing those fields may change
+        # the wire bytes. Keep such packets as a byte literal in exported code.
+        try:
+            rebuilt = layer.copy()
+            rebuilt.clear_cache()
+            preserves_bytes = bytes(rebuilt) == self.pkt
+        except Exception:
+            preserves_bytes = False
+        if not preserves_bytes:
+            packet_code = 'packet = Ether(%r)' % self.pkt
+            return '\n'.join([packet_code, vm_code, stream])
 
         layer.hide_defaults()          # remove fields with default values
         imports_arr = []
@@ -1493,7 +1517,8 @@ class PCAPReader(object):
     def read_all(self, ipg_usec, min_ipg_usec, speedup, split_mode = None):
         # get the packets
         if split_mode is None:
-            pkts = RawPcapReader(self.pcap_file).read_all()
+            with RawPcapReader(self.pcap_file) as reader:
+                pkts = list(reader)
         else:
             pkts = rdpcap(self.pcap_file)
 

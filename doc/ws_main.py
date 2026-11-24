@@ -754,6 +754,8 @@ def build(bld):
 
     bld(rule=convert_to_html_toc_book,
         source='trex_stateless.asciidoc waf.css', target='trex_stateless.html',scan=ascii_doc_scan);
+    bld(rule=convert_to_html_toc_book,
+        source='trex_rocev2.asciidoc waf.css', target='trex_rocev2.html',scan=ascii_doc_scan);
 
     bld(rule=convert_to_html_toc_book,
         source='trex_ndr_bench_doc.asciidoc waf.css', target='trex_ndr_bench_doc.html',scan=ascii_doc_scan);

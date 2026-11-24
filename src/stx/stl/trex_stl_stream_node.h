@@ -114,7 +114,8 @@ private:
     uint8_t              m_port_id;
     uint32_t             m_profile_id;
 
-    uint16_t             m_pad5; 
+    uint8_t              m_vm_pkt_trailer_size;
+    uint8_t              m_pad5;
 
     /* End Fast Field VM Section */
 
@@ -761,4 +762,3 @@ private:
 static_assert(sizeof(CGenNodePCAP) == sizeof(CGenNode), "sizeof(CGenNodePCAP) != sizeof(CGenNode)" );
 
 #endif /* __TREX_STL_STREAM_NODE_H__ */
-

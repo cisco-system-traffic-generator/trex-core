@@ -21,6 +21,7 @@ from .trex_stl_port import STLPort
 
 from .trex_stl_streams import STLStream, STLProfile, STLTaggedPktGroupTagConf
 from .trex_stl_stats import CPgIdStats
+from .trex_stl_rocev2 import validate_rocev2_stats as _validate_rocev2_stats
 
 
 def validate_port_input(port_arg):
@@ -164,7 +165,7 @@ class STLClient(TRexClient):
 
         """
 
-        api_ver = {'name': 'STL', 'major': 5, 'minor': 1}
+        api_ver = {'name': 'STL', 'major': 5, 'minor': 2}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -572,6 +573,72 @@ class STLClient(TRexClient):
 
         # return the stream IDs
         return rc.data()
+
+    @client_api('getter', True)
+    def build_rocev2_streams(self, config, first_stream_id=1):
+        """Build RoCEv2 stream descriptors on the server without installing them.
+
+        ``config`` uses the profile's snake_case option names. This native C++
+        builder requires no profile file or client-side packet construction.
+        Returns streams, stream IDs, PGIDs, and finite-burst expected counters.
+        """
+        if not isinstance(config, dict):
+            raise TRexArgumentError('config', config)
+        rc = self._transmit('build_rocev2_streams', {'config': config, 'first_stream_id': first_stream_id})
+        if not rc:
+            raise TRexError(rc)
+        return rc.data()
+
+    @client_api('command', True)
+    @validate_port_input('ports')
+    def add_rocev2_streams(self, config, ports=None):
+        """Natively build/install RoCEv2 streams, atomically on each port/profile.
+
+        Returns one result per selected port, including stream IDs, PGIDs, and
+        expected counters. Standard start/stop/remove APIs operate on the streams.
+        Use ``ports=['0.roce']`` to select a named profile. Without ``direction``
+        in the config, each port uses its port ID modulo two.
+        """
+        if not isinstance(config, dict):
+            raise TRexArgumentError('config', config)
+        ports = self.psv.validate('add_rocev2_streams', ports if ports is not None else self.get_acquired_ports(),
+                                  (PSV_ACQUIRED, PSV_IDLE))
+        self.ctx.logger.pre_cmd('Adding native RoCEv2 streams to port(s) {0}:'.format(ports))
+        rc = self._for_each_port('add_rocev2_streams', ports, config)
+        self.ctx.logger.post_cmd(rc)
+        if not rc:
+            raise TRexError(rc)
+        return rc.data()
+
+    @client_api('getter', True)
+    def get_rocev2_stats(self, pgids):
+        """Query selected QP PGIDs through the native flow-stat API.
+
+        Preserves the standard get_pgid_stats() format, relative counters, and
+        query batching. Missing PGIDs are not converted into zero counters.
+        """
+        if (not isinstance(pgids, (list, tuple)) or not pgids or
+                any(isinstance(pgid, bool) or not isinstance(pgid, int) or not 0 <= pgid <= 0xffffffff
+                    for pgid in pgids)):
+            raise TRexArgumentError('pgids', pgids)
+        return self.pgid_stats.get_stats(pgid_list=list(dict.fromkeys(pgids)), rpc_method='get_rocev2_stats')
+
+    @client_api('command', True)
+    def clear_rocev2_stats(self):
+        """Reset the client's flow-stat baseline for all PGIDs, leaving latency statistics alone."""
+        return self.clear_pgid_stats(clear_flow_stats=True, clear_latency_stats=False)
+
+    @client_api('getter', True)
+    def validate_rocev2_stats(self, expected, tx_port, rx_port, max_loss_pct=0.0, check_rx_bytes=False):
+        """Read and validate finite-burst counters returned by add_rocev2_streams()."""
+        if not isinstance(expected, dict) or not expected:
+            raise TRexArgumentError('expected', expected)
+        try:
+            targets = {int(pgid): value for pgid, value in expected.items()}
+        except (TypeError, ValueError):
+            raise TRexArgumentError('expected', expected)
+        stats = self.get_rocev2_stats(list(targets))
+        return _validate_rocev2_stats(stats, targets, tx_port, rx_port, max_loss_pct, check_rx_bytes)
 
     @client_api('command', True)
     def add_profile(self, filename, ports = None, **kwargs):

@@ -35,6 +35,10 @@
     {
       "id": "STLVmFixIcmpv6",
       "parameters": ["l3_offset", "l4_offset"]
+    },
+    {
+      "id": "STLVmFixRoceV2Icrc",
+      "parameters": ["l3_offset", "l4_offset", "bth_offset"]
     }
   ],
 
@@ -191,6 +195,14 @@
       "defaultValue": "TCP"
     },
     {
+      "id": "bth_offset",
+      "name": "BTH offset",
+      "type": "STRING",
+      "required": true,
+      "autocomplete": true,
+      "defaultValue": "BTH"
+    },
+    {
       "id": "ip_min",
       "name": "Min IP",
       "type": "STRING",
@@ -251,7 +263,7 @@
       }
     }
   ],
-  "supported_protocols": ["IP","TCP","UDP"],
+  "supported_protocols": ["IP","IPv6","TCP","UDP","BTH","RETH","AETH"],
   "templates":[
     {
       "id": "simple_flow_var",
@@ -273,4 +285,3 @@
     }
   ]
 }
-

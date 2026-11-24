@@ -299,6 +299,9 @@ public:
      */
     void release_context();
 
+    Json::Value rocev2_command(const std::string &command, const Json::Value &config = Json::Value());
+    bool is_traffic_reserved() const override { return m_rocev2_reserved; }
+
     /**
      * Topology-related:
      * cmp - compare hash to loaded topo, true = matches (heavy topo will not be uploaded twice)
@@ -503,6 +506,8 @@ protected:
     bool                         m_tunnel_topo_parsed;
     bool                         m_is_clients_info_ready;
     uint64_t                     m_epoch;
+    bool                         m_rocev2_reserved;
+    uint64_t                     m_rocev2_generation;
     CTunnelHandler              *m_tunnel_handler;
     CCpDynStsInfra              *m_cp_sts_infra;
 

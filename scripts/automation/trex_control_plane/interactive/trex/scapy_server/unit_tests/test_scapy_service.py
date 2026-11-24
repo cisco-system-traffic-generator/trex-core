@@ -227,6 +227,7 @@ def test_get_all():
 def test_get_definitions_all():
     get_definitions(None)
     defs = get_definitions(None)
+    json.dumps(defs)
     def_classnames = [pdef['id'] for pdef in defs['protocols']]
     assert("IP" in def_classnames)
     assert("Dot1Q" in def_classnames)
@@ -240,6 +241,7 @@ def test_get_definitions_all():
     assert(len(defs['feInstructionParameters']) > 0)
     assert(len(defs['feParameters']) > 0)
     assert(len(defs['feTemplates']) > 0)
+    assert("STLVmFixRoceV2Icrc" in [i["id"] for i in defs["feInstructions"]])
 
 def test_get_definitions_ether():
     res = get_definitions(["Ether"])
@@ -333,7 +335,7 @@ def test_layer_wrong_structure():
             for field_property in required_field_properties:
                 assert(field[field_property] is not None)
         if (model[depth]["id"] == "Ether"):
-            IPv4_hvalue = "IPv4" if "IPv4" in ETHER_TYPES else "0x800"
+            IPv4_hvalue = ETHER_TYPES[0x800]
             assert(layer_fields["type"]["hvalue"] == IPv4_hvalue)
     real_structure = [layer["real_id"] for layer in model]
     valid_structure_flags = [layer["valid_structure"] for layer in model]
@@ -525,6 +527,40 @@ def test_decompile_vm_instructions_from_raw():
     fixipv4_decompiled_params = vm_decompiled["instructions"][2]["parameters"]
     assert(fixipv4_decompiled_params["offset"] == 14)
 
+def test_rocev2_icrc_vm_instruction():
+    roce_pkt_model = [
+        layer_def("Ether", src="00:00:00:00:01:00", dst="00:00:00:00:02:00", type=2048),
+        layer_def("IP", src="16.0.0.1", dst="48.0.0.1", tos=105),
+        layer_def("UDP", sport=49152, dport=4791),
+        layer_def("BTH", opcode=0x0a, padcount=0, pkey=0xffff, dqpn=0x100, psn=0),
+        layer_def("RETH", va=0x100000000, rkey=0x10101010, dma_len=4),
+        layer_def("Raw", load={"vtype": "BYTES", "base64": bytes_to_b64(b"GPU\x00")})
+    ]
+    instructions_model = {
+        "field_engine": {
+            "instructions": [
+                {
+                    "id": "STLVmFixRoceV2Icrc",
+                    "parameters": {
+                        "l3_offset": "IP",
+                        "l4_offset": "UDP",
+                        "bth_offset": "BTH"
+                    }
+                }
+            ],
+            "global_parameters": {}
+        }
+    }
+
+    builded_pkt = build_pkt_ex(roce_pkt_model, instructions_model)
+    assert(builded_pkt["field_engine"]["error"] is None)
+    compiled_vm = builded_pkt["field_engine"]["instructions"]
+    assert(compiled_vm["instructions"][0]["type"] == "fix_checksum_rocev2_icrc")
+    assert(compiled_vm["instructions"][0]["bth_offset"] > compiled_vm["instructions"][0]["l2_len"])
+
+    vm_decompiled = decompile_vm_raw(builded_pkt["binary"], compiled_vm)
+    assert([i["id"] for i in vm_decompiled["instructions"]] == ["STLVmFixRoceV2Icrc"])
+
 def test_list_templates_hierarchy():
     ids = []
     for template_info in get_templates():
@@ -540,6 +576,13 @@ def test_get_templates_several_times():
     templates_1 = get_templates()
     templates_2 = get_templates()
     assert(templates_1 == templates_2)
+
+def test_get_template_is_json_serializable():
+    template = service.get_template(v_handler, {"id": "TCP-SYN"})
+    assert isinstance(template, str)
+    json.dumps(template)
+    decoded = json.loads(base64.b64decode(template).decode('utf-8'))
+    assert decoded['packet'][0]['id'] == 'Ether'
 
 def test_get_template_root():
     obj = json.loads(get_template_by_id('TCP-SYN'))

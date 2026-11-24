@@ -76,6 +76,9 @@ For information, see the link:trex_manual.html[manual], especially the material 
 
 ==== Traffic profile example
 
+For synthetic RoCEv2 traffic streams and flow-counter validation, see
+link:trex_rocev2.html[Stateless RoCEv2 traffic].
+
 The following example shows three streams configured for Continuous, Burst, and Multi-burst traffic.
 
 image::images/stl_streams_example_02.png[title="Example of multiple streams",align="left",width={p_width}, link="images/stl_streams_example_02.png"]

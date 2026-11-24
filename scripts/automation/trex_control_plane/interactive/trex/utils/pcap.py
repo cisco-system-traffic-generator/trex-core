@@ -16,17 +16,16 @@ def merge_cap_files (pcap_file_list, out_filename, delete_src = False):
 
     out_pkts = []
     for src in exising_pcaps:
-        pkts = RawPcapReader(src)
-        out_pkts += pkts
+        with RawPcapReader(src) as pkts:
+            out_pkts += list(pkts)
         if delete_src:
             os.unlink(src)
 
     # sort by timestamp
     out_pkts = sorted(out_pkts, key = __ts_key)
 
-    writer = RawPcapWriter(out_filename, linktype = 1)
-
-    writer._write_header(None)
-    for pkt in out_pkts:
-        writer._write_packet(pkt[0], sec=pkt[1][0], usec=pkt[1][1], caplen=pkt[1][2], wirelen=None)
+    with RawPcapWriter(out_filename, linktype = 1) as writer:
+        writer.write_header(None)
+        for pkt in out_pkts:
+            writer.write_packet(pkt[0], sec=pkt[1][0], usec=pkt[1][1], caplen=pkt[1][2], wirelen=None)
 

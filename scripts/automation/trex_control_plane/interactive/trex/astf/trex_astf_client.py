@@ -91,7 +91,7 @@ class ASTFClient(STLClient):
 
         """
 
-        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 3}
+        api_ver = {'name': 'ASTF', 'major': 2, 'minor': 4}
 
         TRexClient.__init__(self,
                             api_ver,
@@ -507,6 +507,148 @@ class ASTFClient(STLClient):
         self.epoch = rc.data()['epoch']
 
         return self.astf_profile_state
+
+    def _rocev2_command(self, name, **params):
+        params['handler'] = self.handler
+        rpc = self.conn.rpc
+        old_timeout = rpc.get_timeout_sec()
+        # The server waits for every ASTF worker to acknowledge the command;
+        # configure/start may also run a bounded stop rollback on failure.
+        # Keep this synchronous operation inside the request's socket timeout.
+        rpc.set_timeout_sec(max(old_timeout, 15))
+        try:
+            rc = self._transmit('rocev2_' + name, params)
+        finally:
+            rpc.set_timeout_sec(old_timeout)
+        if not rc:
+            raise TRexError(rc.err())
+        return rc.data()
+
+    @client_api('command', True)
+    def configure_rocev2(self, profile):
+        """Reserve the ASTF context for a native RC verbs endpoint session.
+
+        ``profile`` is an ASTFRoceV2Profile or its constructor dictionary. The
+        configured session is exclusive of ordinary ASTF and STL traffic.
+        """
+        from .trex_astf_rocev2 import ASTFRoceV2Profile
+        if isinstance(profile, dict):
+            profile = ASTFRoceV2Profile(**profile)
+        if not isinstance(profile, ASTFRoceV2Profile):
+            raise TRexError('profile must be an ASTFRoceV2Profile or dictionary')
+        return self._rocev2_command('configure', config=profile.to_json())
+
+    @client_api('command', True)
+    def start_rocev2(self):
+        """Start the configured workloads and responder processing on every worker."""
+        return self._rocev2_command('start')
+
+    @client_api('command', True)
+    def stop_rocev2(self):
+        """Stop and release the endpoint session, retaining final statistics."""
+        return self._rocev2_command('stop')
+
+    @client_api('command', True)
+    def get_rocev2_stats(self):
+        """Return per-worker/per-QP protocol completions, errors and wire counters."""
+        return self._rocev2_command('get_stats')
+
+    @client_api('getter', True)
+    def get_rocev2_capabilities(self):
+        """Return supported endpoint schemas, verbs, CM and resource limits.
+
+        The server also reports unsupported transports/extensions and its
+        conformance qualification status independently of traffic results.
+        """
+        return self._rocev2_command('capabilities')
+
+    @client_api('command', True)
+    def validate_rocev2(self):
+        """Validate completed work and expected memory contents on this endpoint."""
+        return self._rocev2_command('validate')
+
+    @client_api('command', True)
+    def disconnect_rocev2(self):
+        """Begin wire CM disconnect after outstanding work has drained.
+
+        Poll get_rocev2_stats until managed QPs report disconnected before
+        stop_rocev2 releases the session and its reserved addresses.
+        """
+        return self._rocev2_command('disconnect')
+
+    @client_api('command', True)
+    def cancel_rocev2(self):
+        """Cancel pending wire CM connections without waiting for retry expiry."""
+        return self._rocev2_command('cancel')
+
+    @client_api('command', True)
+    def get_rocev2_events(self):
+        """Return bounded per-worker CM event history and sequence numbers.
+
+        Reads retain events. Deduplicate repeated observations using each
+        worker's sequence number. Pending requests contain the connection_id
+        used by accept_rocev2/reject_rocev2 when auto_accept is disabled.
+        private_data contains application bytes as hex; wire_private_data
+        retains the complete padded wire field, including any IP-CMA header.
+        """
+        return self._rocev2_command('get_events')
+
+    @client_api('command', True)
+    def accept_rocev2(self, connection_id, private_data=b''):
+        """Accept a pending CM request after the endpoint QP/RQ is provisioned.
+
+        private_data accepts bytes or hexadecimal text, at most 196 bytes of
+        REP private data. Completion is asynchronous; consume CM events or
+        poll get_rocev2_stats for the resulting connection state.
+        """
+        from .trex_astf_rocev2 import _integer, _private_data_hex
+        _integer(connection_id, 'CM connection_id', 1, 2**32 - 1)
+        command = dict(action='accept', connection_id=connection_id,
+                       private_data=_private_data_hex(private_data, 196))
+        return self._rocev2_command('cm_control', command=command)
+
+    @client_api('command', True)
+    def reject_rocev2(self, connection_id, reason=28, private_data=b''):
+        """Reject a pending CM request with a nonzero uint16 reason and data.
+
+        private_data accepts bytes or hexadecimal text, at most 148 bytes of
+        REJ private data. The default reason is consumer-defined rejection (28).
+        The server returns the owning worker's CM result.
+        """
+        from .trex_astf_rocev2 import _integer, _private_data_hex
+        _integer(connection_id, 'CM connection_id', 1, 2**32 - 1)
+        _integer(reason, 'CM reject reason', 1, 65535)
+        command = dict(action='reject', connection_id=connection_id, reason=reason,
+                       private_data=_private_data_hex(private_data, 148))
+        return self._rocev2_command('cm_control', command=command)
+
+    @client_api('command', True)
+    def wait_on_rocev2(self, timeout=30.0, poll_interval=0.1):
+        """Wait for finite work, then verify protocol results and memory contents.
+
+        Configure/start the responder first. Passive responders can be checked
+        explicitly with validate_rocev2 after their peer has completed its work.
+        A timeout raises TRexError; stop_rocev2 releases the reserved session.
+        """
+        import math
+        import time
+        for name, value in (('timeout', timeout), ('poll_interval', poll_interval)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise TRexError('%s must be a positive finite number' % name)
+        deadline = time.monotonic() + timeout
+        while True:
+            stats = self.get_rocev2_stats()
+            if stats.get('done'):
+                verdict = self.validate_rocev2()
+                if not verdict.get('passed'):
+                    raise TRexError('RoCEv2 endpoint validation failed: %s' % verdict)
+                return verdict
+            if stats.get('errors', 0):
+                raise TRexError('RoCEv2 endpoint reported errors: %s' % stats)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TRexError('Timed out waiting for RoCEv2 endpoint completions')
+            time.sleep(min(poll_interval, remaining))
 
     @client_api('command', True)
     def release(self, force = False):

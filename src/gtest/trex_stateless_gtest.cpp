@@ -42,6 +42,7 @@ limitations under the License.
 #include "stl/trex_stl_stream_node.h"
 #include "stl/trex_stl_stream.h"
 #include "stl/trex_stl_port.h"
+#include "stl/trex_stl_rocev2.h"
 
  
 
@@ -6725,4 +6726,166 @@ TEST_F(TPGRxStatsTest, PortCntrTest) {
     TestRxHandleInvalidTag();
     TestRxHandleUntagged(false);    // no multicast
     TestRxHandleUntagged(true);     // multicast
+}
+
+/* Scapy RoCEv2 full-frame vectors. CRC bytes are little endian on the wire. */
+static std::vector<uint8_t> rocev2_vm_vector(bool ipv6) {
+    const std::string hex = ipv6 ?
+        "0000000002000000000001008100000786dd66900000002c114020010db8000000000000000000000001"
+        "20010db8000000000000000000000002c00012b7002ca0fe0a00ffff00000100000000050000000100000000"
+        "1010101000000004475055003fc4292c" :
+        "0000000002000000000001000800456900400001000040113a421000000130000001c00012b7002c9124"
+        "0a00ffff000001000000000500000001000000001010101000000004475055000013942a";
+    std::vector<uint8_t> bytes;
+    for (size_t i = 0; i < hex.size(); i += 2) {
+        bytes.push_back(strtoul(hex.substr(i, 2).c_str(), NULL, 16));
+    }
+    return bytes;
+}
+
+TEST_F(basic_vm, rocev2_icrc_matches_ipv4_and_ipv6_vectors_across_mbuf_segments) {
+    for (bool ipv6 : {false, true}) {
+        std::vector<uint8_t> packet = rocev2_vm_vector(ipv6);
+        uint16_t l2 = ipv6 ? 18 : 14;
+        uint16_t l3 = ipv6 ? 40 : 20;
+        for (uint16_t split : {uint16_t(1), uint16_t(packet.size() - 2)}) {
+            rte_mempool_t *pool = utl_rte_mempool_create("rocev2-test", 4, 2048, 0, 0, false);
+            rte_mbuf_t *first = rte_pktmbuf_alloc(pool);
+            rte_mbuf_t *last = rte_pktmbuf_alloc(pool);
+            memcpy(rte_pktmbuf_append(first, split), packet.data(), split);
+            memcpy(rte_pktmbuf_append(last, packet.size() - split), packet.data() + split, packet.size() - split);
+            utl_rte_pktmbuf_add_after2(first, last);
+            uint8_t *tail = rte_pktmbuf_mtod(last, uint8_t *);
+            memset(tail + last->data_len - std::min<uint16_t>(4, last->data_len), 0,
+                   std::min<uint16_t>(4, last->data_len));
+            trex_roce_v2_update_icrc(first, l2, l3, l2 + l3 + 8);
+            EXPECT_EQ(0, memcmp(rte_pktmbuf_mtod(first, uint8_t *), packet.data(), split));
+            EXPECT_EQ(0, memcmp(tail, packet.data() + split, packet.size() - split));
+            rte_pktmbuf_free(first);
+            utl_rte_mempool_delete(pool);
+        }
+    }
+}
+
+TEST_F(basic_vm, rocev2_vm_clones_writable_trailer_metadata) {
+    std::vector<uint8_t> packet = rocev2_vm_vector(false);
+    StreamVm vm;
+    vm.set_pkt(packet.data());
+    vm.add_instruction(new StreamVmInstructionFixRoceV2Icrc(14, 20, 42));
+    vm.compile(packet.size());
+    EXPECT_EQ(4, vm.get_pkt_trailer_size());
+    EXPECT_LE(vm.get_prefix_size(), packet.size() - 4);
+    StreamVm copy;
+    vm.clone(copy);
+    copy.set_pkt(packet.data());
+    copy.compile(packet.size());
+    EXPECT_EQ(4, copy.get_pkt_trailer_size());
+    StreamVmDp *dp = vm.generate_dp_object();
+    StreamVmDp *clone = dp->clone();
+    EXPECT_EQ(4, clone->get_pkt_trailer_size());
+    delete clone;
+    delete dp;
+}
+
+TEST_F(basic_vm, rocev2_vm_rejects_invalid_offsets_protocol_and_instruction_order) {
+    std::vector<uint8_t> packet = rocev2_vm_vector(false);
+    for (const auto &offsets : std::vector<std::vector<uint16_t>>{
+             {14, 20, 41}, {14, 20, 43}, {14, 0, 22}, {65530, 20, 14}}) {
+        StreamVm vm;
+        vm.set_pkt(packet.data());
+        vm.add_instruction(new StreamVmInstructionFixRoceV2Icrc(offsets[0], offsets[1], offsets[2]));
+        EXPECT_THROW(vm.compile(packet.size()), TrexException);
+    }
+    packet[37] ^= 1; // wrong UDP destination port
+    StreamVm wrong_port;
+    wrong_port.set_pkt(packet.data());
+    wrong_port.add_instruction(new StreamVmInstructionFixRoceV2Icrc(14, 20, 42));
+    EXPECT_THROW(wrong_port.compile(packet.size()), TrexException);
+    packet[37] ^= 1;
+    StreamVm wrong_order;
+    wrong_order.set_pkt(packet.data());
+    wrong_order.add_instruction(new StreamVmInstructionFixRoceV2Icrc(14, 20, 42));
+    wrong_order.add_instruction(new StreamVmInstructionFixChecksumIpv4(14));
+    EXPECT_THROW(wrong_order.compile(packet.size()), TrexException);
+}
+
+TEST_F(basic_vm, rocev2_native_builder_matches_full_frame_vectors) {
+    for (bool ipv6 : {false, true}) {
+        Json::Value config;
+        config["message_size"] = 4; config["psn"] = 5;
+        if (ipv6) {
+            config["ip_version"] = 6; config["vlan"] = 7; config["pcp"] = 0;
+            config["src_ip"] = "2001:db8::1"; config["dst_ip"] = "2001:db8::2";
+        }
+        config["payload_pattern"] = "0x47505500";
+        auto built = TrexRoceV2::build_streams(config);
+        ASSERT_EQ(1U, built["streams"].size());
+        std::string bytes = base64_decode(built["streams"][0]["packet"]["binary"].asString());
+        auto expected = rocev2_vm_vector(ipv6);
+        ASSERT_EQ(expected.size(), bytes.size());
+        EXPECT_EQ(0, memcmp(bytes.data(), expected.data(), bytes.size()));
+    }
+}
+
+TEST_F(basic_vm, rocev2_native_builder_accounts_segments_and_qps) {
+    Json::Value config;
+    config["qps"] = 2; config["message_size"] = 2000; config["mtu"] = 512;
+    config["stream_mode"] = "chain"; config["total_pkts"] = 3; config["pg_id_base"] = 100;
+    auto built = TrexRoceV2::build_streams(config, 20);
+    EXPECT_EQ(10U, built["streams"].size());
+    EXPECT_EQ(100, built["pgids"][0].asInt());
+    EXPECT_EQ(101, built["pgids"][1].asInt());
+    EXPECT_EQ(15U, built["expected_stats"]["100"]["tx_pkts"].asUInt());
+    EXPECT_TRUE(built["streams"][0]["self_start"].asBool());
+    EXPECT_FALSE(built["streams"][1]["self_start"].asBool());
+    EXPECT_EQ(21, built["streams"][0]["next_stream_id"].asInt());
+    EXPECT_EQ(-1, built["streams"][9]["next_stream_id"].asInt());
+}
+
+TEST_F(basic_vm, rocev2_native_builder_rejects_invalid_fields_and_resource_bounds) {
+    for (auto key : {"qps", "message_size", "pps", "total_pkts"}) {
+        Json::Value config; config[key] = 0;
+        EXPECT_THROW(TrexRoceV2::build_streams(config), std::invalid_argument);
+    }
+    Json::Value config; config["vlan"] = 4095;
+    EXPECT_THROW(TrexRoceV2::build_streams(config), std::invalid_argument);
+    config = Json::Value(Json::objectValue); config["qps"] = true;
+    EXPECT_THROW(TrexRoceV2::build_streams(config), std::invalid_argument);
+    config = Json::Value(Json::objectValue); config["collective"] = "allreduce";
+    EXPECT_THROW(TrexRoceV2::build_streams(config), std::invalid_argument);
+    config = Json::Value(Json::objectValue); config["message_size"] = Json::UInt64(0xffffffffU); config["mtu"] = 128;
+    EXPECT_THROW(TrexRoceV2::build_streams(config), std::invalid_argument);
+}
+
+TEST_F(basic_vm, rocev2_native_rpc_preflights_ids_and_preserves_existing_streams) {
+    struct Overrides {
+        Overrides() { TrexRpcCommand::test_set_override_api(true); TrexRpcCommand::test_set_override_ownership(true); }
+        ~Overrides() { TrexRpcCommand::test_set_override_api(false); TrexRpcCommand::test_set_override_ownership(false); }
+    } overrides;
+    auto call = [](const std::string &method, const Json::Value &params) {
+        Json::Value request, reply;
+        request["jsonrpc"] = "2.0"; request["id"] = 1; request["method"] = method; request["params"] = params;
+        Json::FastWriter writer; Json::Reader reader;
+        std::string raw = get_stateless_obj()->get_rpc_server()->test_inject_request(writer.write(request));
+        if (!reader.parse(raw, reply)) { throw std::runtime_error(raw); }
+        return reply;
+    };
+    Json::Value params;
+    params["port_id"] = 0; params["profile_id"] = "native-roce-test"; params["handler"] = "test";
+    params["first_stream_id"] = 2;
+    params["config"]["flow_stats"] = false; params["config"]["message_size"] = 16;
+    auto reply = call("add_rocev2_streams", params);
+    ASSERT_TRUE(reply["error"].isNull()) << reply;
+    params["first_stream_id"] = 1; params["config"]["qps"] = 2;
+    reply = call("add_rocev2_streams", params);
+    EXPECT_FALSE(reply["error"].isNull());
+    auto *profile = get_stateless_obj()->get_port_by_id(0)->get_profile_by_id("native-roce-test");
+    ASSERT_TRUE(profile);
+    std::vector<uint32_t> ids; profile->get_id_list(ids);
+    ASSERT_EQ(1U, ids.size()); EXPECT_EQ(2U, ids[0]);
+    params["pgids"] = Json::arrayValue;
+    EXPECT_TRUE(call("get_rocev2_stats", params)["error"].isNull());
+    EXPECT_TRUE(call("remove_all_streams", params)["error"].isNull());
+    TrexRpcCommand::test_set_override_ownership(false);
+    EXPECT_FALSE(call("add_rocev2_streams", params)["error"].isNull());
 }

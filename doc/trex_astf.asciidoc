@@ -4185,6 +4185,192 @@ You need to update the GTPU info for each client using the *update_tunnel_client
 ===== Trex doesn't generate rst packets in case of error.
 Trex doesn't generate RST packets in case of error with GTPU mode, since there is no tunnel context it can use for the packets.
 
+=== Native RoCEv2 endpoint sessions
+
+ASTF exposes a native RoCEv2 endpoint API (Beta) for TRex-to-TRex
+testing. It implements reliable-connected SEND/RECV and immediate/invalidate
+variants, RDMA Write/Read, Write with immediate, and 64-bit CAS/FAA atomics over
+UDP/4791. Bounded registered memory, posted receive buffers, ordered
+completions, retries, result validation and wire RDMA-CM run in the ASTF
+workers. Static next-hop MACs and owned ARP/IPv6 neighbor services are supported.
+
+This is an RC baseline with an explicit capability query, not a claim of full
+RoCEv2 conformance. RNIC/SoftRoCE interoperability and physical-NIC throughput
+still require qualification. UC, user UD, SRQ, XRC, extended atomics, alternate
+paths and congestion-control algorithms are not implemented by this adapter.
+CCL collective scheduling is outside its scope.
+
+Each side configures reciprocal QP numbers, PSNs, addresses, keys, and endpoint
+MAC/IP values. Start the passive endpoint before its peer. For an RDMA Write,
+the sender writes into the second message-sized region at the receiver; the
+receiver's `expect_writes=True` option checks that data against its
+`peer_seed` pattern.
+
+[source,python]
+----
+from trex.astf.api import ASTFClient, ASTFRoceV2QP, ASTFRoceV2Profile
+
+# Run this setup on each TRex server with that server's endpoint values.
+receiver = ASTFClient(server='trex-b.example')
+sender = ASTFClient(server='trex-a.example')
+for client in (receiver, sender):
+    client.connect()
+    client.acquire()
+
+receiver_profile = ASTFRoceV2Profile([
+    ASTFRoceV2QP(
+        port=0, local_qpn=0x202, remote_qpn=0x101,
+        local_psn=200, remote_psn=100,
+        src_mac='02:00:00:00:00:02', dst_mac='02:00:00:00:00:01',
+        src_ip='192.0.2.2', dst_ip='192.0.2.1',
+        local_address=0x200000, remote_address=0x100000,
+        local_rkey=0xB2, remote_rkey=0xA1,
+        message_size=4096, peer_seed=7,
+        operation='none', expect_writes=True, mtu=1024, dscp=26)
+], duration=30)
+
+sender_profile = ASTFRoceV2Profile([
+    ASTFRoceV2QP(
+        port=0, local_qpn=0x101, remote_qpn=0x202,
+        local_psn=100, remote_psn=200,
+        src_mac='02:00:00:00:00:01', dst_mac='02:00:00:00:00:02',
+        src_ip='192.0.2.1', dst_ip='192.0.2.2',
+        local_address=0x100000, remote_address=0x200000,
+        local_rkey=0xA1, remote_rkey=0xB2,
+        message_size=4096, seed=7, operation='write', iterations=100,
+        mtu=1024, dscp=26)
+], duration=30)
+
+try:
+    receiver.configure_rocev2(receiver_profile)
+    sender.configure_rocev2(sender_profile)
+    receiver.start_rocev2()
+    sender.start_rocev2()
+    sender.wait_on_rocev2(timeout=30)
+    receiver.validate_rocev2()
+finally:
+    for client in (sender, receiver):
+        try:
+            client.stop_rocev2()
+        finally:
+            client.release()
+            client.disconnect()
+----
+
+`get_rocev2_stats()` returns per-worker and per-QP wire packet counters,
+completed operations and bytes, retransmissions, ICRC errors, and memory
+validation results. A successful TX/RX count alone is not a successful RDMA
+operation; `wait_on_rocev2()` and `validate_rocev2()` require protocol
+completions and the requested payload checks. A configured endpoint reserves
+the ASTF context until `stop_rocev2()` releases it.
+
+Schema version 2 adds `ASTFRoceV2Work`, `ASTFRoceV2Receive` and
+`ASTFRoceV2Connection`. A `program` can contain ordered `write`, `write_imm`,
+`read`, `send`, `send_imm`, `send_inv`, `compare_swap` and `fetch_add` entries.
+Offsets are relative to registered memory; atomic transfers are eight bytes
+and remote addresses must be aligned. `iterations` repeats the entire program;
+`repeat` repeats one step. Read results check `expected_seed`; atomics should
+supply `expected_original` to require original-value validation.
+
+SEND consumes an actual posted receive. Configure `receives` with explicit
+`wr_id` and address/length/lkey SGEs, or `receive_depth` for disjoint automatic
+buffers. `receive_repost=True` replenishes completed descriptors and
+`expected_receives` sets the expected count. Plain Write does not consume RQ
+entries; Write with immediate does and generates a receive completion.
+
+For managed connection setup, add `connection=ASTFRoceV2Connection(...)` to each
+QP. Configure the passive listener before starting the active peer. IP-CMA uses
+service ID `(0x0106 << 16) | destination_port` and an active source port.
+`auto_accept=False` exposes pending requests through `get_rocev2_events()`,
+`accept_rocev2()` and `reject_rocev2()`. Events are a bounded, nonconsuming
+per-worker history with sequence numbers, application private data and the
+complete padded wire field. A managed QP is ready for incoming data before
+REP/RTU enables its peer, and its local program starts only after establishment.
+
+`get_rocev2_capabilities()` reports the supported operation and CM sets.
+`disconnect_rocev2()` starts DREQ/DREP teardown; observe disconnect events before
+`stop_rocev2()` releases the local session. `cancel_rocev2()` cancels pending
+connection/neighbor operations. One configured listener QP currently supports
+one connection lifetime; reconnect using a fresh configured session.
+
+The reproducible software acceptance runner is
+`scripts/automation/regression/rocev2_endpoint/run_astf.py --all --ip-version both`.
+It uses isolated DPDK AF_PACKET ports and records directional captures plus
+completion, memory and packet assertions. See `doc/rocev2_stateful_implementation.md`
+and `doc/rocev2_cm_protocol.md` for provenance, validation and remaining gaps.
+
+==== Emulated devices and host identities
+
+Schema version 3 adds `ASTFRoceV2Host`, `ASTFRoceV2Device` and
+`ASTFRoceV2Scale`. A host carries its physical port, VLAN, MAC, IPv4/IPv6
+addresses, prefixes and gateways. Its device owns a node GUID, GID table and
+device-local QPs, protection domains and memory identities. Different devices
+can reuse QPNs, memory keys and CM service IDs. Device IDs are configuration
+identities; incoming packets select a device through their destination network
+identity and QPN. Two devices cannot own the same port/VLAN/IP address.
+
+`ASTFRoceV2Host.from_emu_client(client, namespace)` copies static host identity
+from an existing EMU profile. It does not activate EMU plugins or create a Linux
+interface. QinQ and unsupported address shapes are rejected. The native
+session owns address replies until stopped; keep EMU/Linux responders for those
+addresses inactive. Simultaneous service-mode operation remains excluded.
+
+The scale factory defaults to 32 devices and 16 QPs per physical port. A
+dual-stack device counts once, with its total QPs alternating between IPv4 and
+IPv6 GIDs. QPs per device is independent of SQ outstanding depth and posted
+receive depth. Explicit scale arguments override `TREX_ROCEV2_DEVICES_PER_PORT`
+and `TREX_ROCEV2_QPS_PER_DEVICE`; absent environment variables use 32 and 16.
+The resolved settings travel with the profile. Workers never read the client
+environment.
+
+[source,python]
+----
+from trex.astf.api import ASTFRoceV2Scale
+
+# Reciprocal devices on port pairs, using deterministic demonstration addresses.
+# Configure the DUT's forwarding for those addresses before starting traffic.
+profile = ASTFRoceV2Scale().paired_profile(
+    ports=(0, 1), ip_version='dual', message_size=4096,
+    outstanding=1, receive_depth=0, iterations=100)
+
+client.configure_rocev2(profile)
+client.start_rocev2()
+client.wait_on_rocev2(timeout=30)
+stats = client.get_rocev2_stats()
+print(stats['devices'])
+print(stats['ports'])
+client.stop_rocev2()
+----
+
+For topology-specific addresses, construct `ASTFRoceV2Device(device_id, host,
+qps=[...])` and `ASTFRoceV2Profile(devices=[...])`. QP dictionaries can inherit
+their local MAC/IP/port from the host and select an address with
+`local_gid_index`. A device's `capture_filter()` supplies a BPF filter for the
+existing `start_capture` API. Configure NIC receive filters or promiscuous mode
+to accept all emulated destination MACs.
+
+Device profiles default to a 128-MiB registered-memory budget; legacy explicit
+QP profiles retain 64 MiB. The maximum is 256 MiB. Native-storage admission
+defaults to 512 MiB and accepts an explicit `max_native_storage_bytes` up to
+16 GiB. The complete session still has a 4096-QP bound. All ports share these
+budgets, and an oversized request fails without silently reducing its scale.
+Configuration/statistics replies include `admission` with effective limits and
+estimated storage. Device and port summaries aggregate QP completions, payload
+validation, errors and data-packet counters. `data_tx_packets` counts PMD
+accepted frames and `data_tx_packets_queued` counts transport-produced frames.
+`data_rx_packets` counts codec-valid routed RC input before peer/P_Key checks;
+endpoint-mismatch and malformed-RC counters report rejected input. Ordinary
+physical-port counters also include CM and neighbor traffic. Check the
+top-level verdict for worker/control errors as well as device/QP errors.
+
+The runnable example is
+`scripts/automation/trex_control_plane/interactive/trex/examples/astf/rocev2_devices.py`.
+Use `--dry-run` to inspect the default profile without connecting to a server;
+`--devices-per-port`, `--qps-per-device` and a JSON `--settings` file provide
+explicit overrides. `--capture` saves a PCAP and `--capture-device` selects one
+device. Captures have finite packet limits; configured device capacity does
+not establish active throughput or line-rate performance.
+
 === Appendix
 
 ==== Blocking vs non-blocking 

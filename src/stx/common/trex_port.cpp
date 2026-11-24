@@ -329,6 +329,12 @@ TrexPort::send_message_to_dp(uint8_t core_id, TrexCpToDpMsgBase *msg) {
 void
 TrexPort::send_message_to_rx(TrexCpToRxMsgBase *msg) {
 
+#ifdef TREX_SIM
+    msg->handle(static_cast<CRxCore *>(get_stx()->get_rx()));
+    delete msg;
+    return;
+#endif
+
     /* send the message to the core */
     CNodeRing *ring = CMsgIns::Ins()->getCpRx()->getRingCpToDp(0);
     ring->SecureEnqueue((CGenNode *)msg,true);
@@ -575,6 +581,3 @@ void TrexPort::rx_features_to_json(Json::Value &feat_res) {
     send_message_to_rx( (TrexCpToRxMsgBase *)msg );
     reply.wait_for_reply();
 }
-
-
-

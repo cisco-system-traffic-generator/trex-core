@@ -17,7 +17,7 @@ import time
 here = pathlib.Path(__file__).parent
 sys.path.insert(0, str(here / "external_libs/texttable-0.8.4"))
 sys.path.insert(0, str(here / "external_libs/pyyaml-3.11/python3"))
-sys.path.insert(0, str(here / "external_libs/scapy-2.4.3"))
+sys.path.insert(0, str(here / "external_libs/scapy-2.8.0"))
 sys.path.insert(0, str(here / "external_libs/pyzmq-ctypes"))
 sys.path.insert(0, str(here / "external_libs/simpy-3.0.10"))
 sys.path.insert(0, str(here / "external_libs/trex-openssl"))
